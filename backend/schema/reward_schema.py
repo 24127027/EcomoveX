@@ -3,8 +3,15 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
+class EnvironmentProtectionAction(str, Enum):
+    carbon_footprint = "carbon_footprint"
+    garbage_classification = "garbage_classification"
+    recycling = "recycling"
+    tree_planting = "tree_planting"
+    nature_conservation = "nature_conservation"
+
 class RewardType(str, Enum):
-    eco_point = "eco_point"    
+    eco_point = "eco_point"
     badge = "badge"
     rank = "rank"
 
@@ -20,7 +27,8 @@ class RewardCreate(BaseModel):
     name: str
     description: Optional[str] = None
     reward_type: RewardType
-    action_trigger: RewardAction 
+    action_trigger: RewardAction
+    environment_protection_action: Optional[EnvironmentProtectionAction] = None
     value: Optional[int] = 0
 
 class UserReward(BaseModel):
@@ -36,11 +44,11 @@ class RewardResponse(BaseModel):
     description: Optional[str]
     reward_type: RewardType
     action_trigger: RewardAction
+    environment_protection_action: Optional[EnvironmentProtectionAction]
     value: Optional[int]
     
     class Config:
         orm_mode = True
-
 
 class UserRewardResponse(BaseModel):
     user_id: int

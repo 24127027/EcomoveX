@@ -6,10 +6,7 @@ class VehicleType(str, Enum):
     car = "car"
     bus = "bus"
     motorbike = "motorbike"
-    bike = "bike"
-    train = "train"
-    airplane = "airplane"
-    walk = "walk"
+    walk_or_cycle = "walk or cycle"
 
 class FuelType(str, Enum):
     petrol = "petrol"

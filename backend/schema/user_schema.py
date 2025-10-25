@@ -2,13 +2,6 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from enum import Enum
 
-class UserStatus(str, Enum):
-    active = "active"
-    offline = "offline"
-    pending = "pending"
-    suspended = "suspended"
-    do_not_disturb = "do_not_disturb"
-
 class UserCreate(BaseModel):
     username: str
     email: EmailStr

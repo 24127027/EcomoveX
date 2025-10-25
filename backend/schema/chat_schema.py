@@ -2,17 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-
-class MessageType(str, Enum):
-    text = "text"
-    image = "image"
-    file = "file"
-
-class MessageStatus(str, Enum):
-    sent = "sent"
-    delivered = "delivered"
-    read = "read"
-    failed = "failed"
+from models.chat import MessageStatus, MessageType
 
 class MessageCreate(BaseModel):
     sender_id: int
