@@ -1,0 +1,51 @@
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
+
+class RewardType(str, Enum):
+    eco_point = "eco_point"    
+    badge = "badge"
+    rank = "rank"
+
+class RewardAction(str, Enum):
+    register = "register"
+    eco_trip = "eco_trip"
+    forum_post = "forum_post"
+    environment_protection = "environment_protection"
+    daily_login = "daily_login"
+    referral = "referral"
+
+class RewardCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    reward_type: RewardType
+    action_trigger: RewardAction 
+    value: Optional[int] = 0
+
+class UserReward(BaseModel):
+    user_id: int
+    reward_id: int
+    obtained_at: datetime
+    redeemed: bool = False
+    redeemed_at: Optional[datetime] = None
+
+class RewardResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    reward_type: RewardType
+    action_trigger: RewardAction
+    value: Optional[int]
+    
+    class Config:
+        orm_mode = True
+
+
+class UserRewardResponse(BaseModel):
+    user_id: int
+    rewards: List[RewardResponse]
+    total_points: Optional[int] = 0
+
+    class Config:
+        orm_mode = True
