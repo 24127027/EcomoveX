@@ -1,13 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from enum import Enum
-
-class PostStatus(str, Enum):
-    draft = "draft"
-    published = "published"
-    archived = "archived"
-
+from models.post import PostStatus
 class ForumPostCreate(BaseModel):
     title: str
     content: str
