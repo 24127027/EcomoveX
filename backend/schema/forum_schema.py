@@ -8,23 +8,15 @@ class PostStatus(str, Enum):
     published = "published"
     archived = "archived"
 
-class PostCategory(str, Enum):
-    eco_tour = "eco_tour"
-    green_tip = "green_tip"
-    question = "question"
-    review = "review"
-
 class ForumPostCreate(BaseModel):
     title: str
     content: str
-    category: PostCategory = PostCategory.eco_tour
     author_id: int
     status: Optional[PostStatus] = PostStatus.published
 
 class ForumPostUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
-    category: Optional[PostCategory] = None
     status: Optional[PostStatus] = None
 
 class CommentCreate(BaseModel):
@@ -45,7 +37,6 @@ class ForumPostResponse(BaseModel):
     id: int
     title: str
     content: str
-    category: PostCategory
     author_id: int
     status: PostStatus
     created_at: datetime

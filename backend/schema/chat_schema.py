@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from enum import Enum
 from models.chat import MessageStatus, MessageType
 
 class MessageCreate(BaseModel):

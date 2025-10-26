@@ -1,6 +1,5 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from enum import Enum
 
 class UserCreate(BaseModel):
     username: str
