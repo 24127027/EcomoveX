@@ -3,25 +3,26 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from database.database import Base
 
-class Reward(Base):
-    __tablename__ = "rewards"
+class Badge(Base):
+    __tablename__ = "badges"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
+    description = Column(String(255), nullable=True)
 
-    users = relationship("UserReward", back_populates="reward")
+    users = relationship("UserBadge", back_populates="badge")
 
 
-class UserReward(Base):
-    __tablename__ = "user_rewards"
+class UserBadge(Base):
+    __tablename__ = "user_badges"
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    reward_id = Column(Integer, ForeignKey("rewards.id", ondelete="CASCADE"), nullable=False)
+    badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)
     obtained_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
-        PrimaryKeyConstraint("user_id", "reward_id"),
+        PrimaryKeyConstraint("user_id", "badge_id"),
     )
 
-    user = relationship("User", back_populates="rewards")
-    reward = relationship("Reward", back_populates="users")
+    user = relationship("User", back_populates="badges")
+    badge = relationship("Badge", back_populates="users")

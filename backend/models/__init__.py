@@ -1,17 +1,17 @@
 from .user import User
-from .chat import Chat
+from .message import Message
 from .chat_room import ChatRoom, ChatRoomMember
 from .comment import Comment
 from .post import Post
-from .reward import Reward, UserReward
+from .badge import Badge, UserBadge
 
 __all__ = [
     "User",
-    "Chat",
+    "Message",
     "ChatRoom",
     "ChatRoomMember",
     "Comment",
     "Post",
-    "Reward",
-    "UserReward",
+    "Badge",
+    "UserBadge",
 ]

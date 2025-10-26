@@ -2,32 +2,20 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from models.post import PostStatus
-class ForumPostCreate(BaseModel):
+from .comment_schema import CommentResponse
+
+class PostCreate(BaseModel):
     title: str
     content: str
     author_id: int
     status: Optional[PostStatus] = PostStatus.published
 
-class ForumPostUpdate(BaseModel):
+class PostUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     status: Optional[PostStatus] = None
 
-class CommentCreate(BaseModel):
-    post_id: int
-    user_id: int
-    content: str
-
-class CommentResponse(BaseModel):
-    id: int
-    user_id: int
-    content: str
-    created_at: datetime
-
-    class Config:
-        orm_mode = True
-
-class ForumPostResponse(BaseModel):
+class PostResponse(BaseModel):
     id: int
     title: str
     content: str

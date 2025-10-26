@@ -31,13 +31,6 @@ class RewardCreate(BaseModel):
     environment_protection_action: Optional[EnvironmentProtectionAction] = None
     value: Optional[int] = 0
 
-class UserReward(BaseModel):
-    user_id: int
-    reward_id: int
-    obtained_at: datetime
-    redeemed: bool = False
-    redeemed_at: Optional[datetime] = None
-
 class RewardResponse(BaseModel):
     id: int
     name: str

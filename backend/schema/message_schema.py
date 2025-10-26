@@ -1,13 +1,16 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from models.chat import MessageStatus, MessageType
+from models.message import MessageType, MessageStatus
 
 class MessageCreate(BaseModel):
     sender_id: int
     receiver_id: int
     content: Optional[str] = None
     message_type: MessageType = MessageType.text
+
+class MessageUpdate(BaseModel):
+    content: Optional[str] = None
 
 class MessageResponse(BaseModel):
     id: int
@@ -21,8 +24,8 @@ class MessageResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class ChatHistoryResponse(BaseModel):
-    chat_id: int
+class MessageRoomResponse(BaseModel):
+    room_id: int
     participants: List[int]
     messages: List[MessageResponse]
 

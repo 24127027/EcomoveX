@@ -1,0 +1,89 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
+from sqlalchemy.exc import SQLAlchemyError
+from models.message import Message
+from datetime import datetime
+from schema.message_schema import MessageCreate, MessageUpdate
+
+class MessageRepository:
+    @staticmethod
+    async def get_message_by_keyword(db: AsyncSession, keyword: str):
+        try:
+            result = await db.execute(select(Message).where(Message.content.ilike(f"%{keyword}%")))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"Error fetching message with content '{keyword}': {e}")
+            return None
+
+    @staticmethod
+    async def get_messages_between_users(db: AsyncSession, user1_id: int, user2_id: int):
+        try:
+            result = await db.execute(
+                select(Message).where(
+                    or_(
+                        (Message.sender_id == user1_id) & (Message.receiver_id == user2_id),
+                        (Message.sender_id == user2_id) & (Message.receiver_id == user1_id),
+                    )
+                ).order_by(Message.created_at)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"Error fetching chat between users {user1_id} and {user2_id}: {e}")
+            return []
+
+    @staticmethod
+    async def create_message(db: AsyncSession, message_data: MessageCreate):
+        try:
+            new_message = Message(
+                sender_id=message_data.sender_id,
+                receiver_id=message_data.receiver_id,
+                content=message_data.content,
+                message_type=message_data.message_type
+            )
+            new_message.created_at = datetime.utcnow()
+            db.add(new_message)
+            await db.commit()
+            await db.refresh(new_message)
+            return new_message
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error creating message: {e}")
+            return None
+    
+    @staticmethod
+    async def update_message(db: AsyncSession, message_id: int, updated_data: MessageUpdate):
+        try:
+            result = await db.execute(select(Message).where(Message.id == message_id))
+            message = result.scalar_one_or_none()
+            if not message:
+                print(f"Message ID {message_id} not found")
+                return None
+
+            for key, value in updated_data.items():
+                setattr(message, key, value)
+
+            db.add(message)
+            await db.commit()
+            await db.refresh(message)
+            return message
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error updating message ID {message_id}: {e}")
+            return None
+
+    @staticmethod
+    async def delete_message(db: AsyncSession, message_id: int):
+        try:
+            result = await db.execute(select(Message).where(Message.id == message_id))
+            message = result.scalar_one_or_none()
+            if not message:
+                print(f"Message ID {message_id} not found")
+                return False
+
+            await db.delete(message)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error deleting message ID {message_id}: {e}")
+            return False

@@ -38,7 +38,14 @@ class UserRepository:
     @staticmethod
     async def create_user(db: AsyncSession, user: UserCreate):
         try:
-            new_user = User(**user.dict())
+            new_user = User(
+                username=user.username,
+                email=user.email,
+                password=user.password,
+                status=UserStatus.active.value,
+                eco_points=0,
+                rank=Rank.bronze.value
+            )
             db.add(new_user)
             await db.commit()
             await db.refresh(new_user)
