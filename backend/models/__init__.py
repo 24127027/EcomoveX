@@ -4,6 +4,7 @@ from .chat_room import ChatRoom, ChatRoomMember
 from .comment import Comment
 from .post import Post
 from .badge import Badge, UserBadge
+from .media import MediaFile
 
 __all__ = [
     "User",
@@ -14,4 +15,5 @@ __all__ = [
     "Post",
     "Badge",
     "UserBadge",
+    "MediaFile",
 ]
