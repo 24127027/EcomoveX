@@ -16,26 +16,10 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def get_messages_between_users(db: AsyncSession, user1_id: int, user2_id: int):
-        try:
-            result = await db.execute(
-                select(Message).where(
-                    or_(
-                        (Message.sender_id == user1_id) & (Message.receiver_id == user2_id),
-                        (Message.sender_id == user2_id) & (Message.receiver_id == user1_id),
-                    )
-                ).order_by(Message.created_at)
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"Error fetching chat between users {user1_id} and {user2_id}: {e}")
-            return []
-
-    @staticmethod
     async def create_message(db: AsyncSession, message_data: MessageCreate):
         try:
             new_message = Message(
-                sender_id=message_data.sender_id,
+                user_id=message_data.user_id,
                 receiver_id=message_data.receiver_id,
                 content=message_data.content,
                 message_type=message_data.message_type

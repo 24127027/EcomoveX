@@ -30,10 +30,7 @@ class User(Base):
     status = Column(SQLEnum(UserStatus), default=UserStatus.active)
     last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    posts = relationship("Post", back_populates="author")
-    comments = relationship("Comment", back_populates="author")
-    sent_messages = relationship("Message", foreign_keys="[Message.sender_id]", back_populates="sender")
-    received_messages = relationship("Message", foreign_keys="[Message.receiver_id]", back_populates="receiver")
+    reviews = relationship("Review", back_populates="author")
+    messages = relationship("Message", back_populates="user")
     badges = relationship("UserBadge", back_populates="user")
-    chat_rooms = relationship("ChatRoomMember", back_populates="user")
     media_files = relationship("MediaFile", back_populates="owner")

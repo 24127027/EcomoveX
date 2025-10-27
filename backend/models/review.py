@@ -5,21 +5,19 @@ from datetime import datetime
 from database.database import Base
 import enum
 
-class PostStatus(str, enum.Enum):
+class ReviewStatus(str, enum.Enum):
     draft = "draft"
     published = "published"
     archived = "archived"
 
-class Post(Base):
-    __tablename__ = "posts"
+class Review(Base):
+    __tablename__ = "reviews"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(200), nullable=False)
     content = Column(Text, nullable=False)
     author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
-    status = Column(SQLEnum(PostStatus), default=PostStatus.draft)
+    status = Column(SQLEnum(ReviewStatus), default=ReviewStatus.draft)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    author = relationship("User", back_populates="posts")
-    comments = relationship("Comment", back_populates="post")
+    author = relationship("User", back_populates="reviews")

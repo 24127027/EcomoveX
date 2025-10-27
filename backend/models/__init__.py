@@ -1,18 +1,13 @@
 from .user import User
 from .message import Message
-from .chat_room import ChatRoom, ChatRoomMember
-from .comment import Comment
-from .post import Post
+from .review import Review
 from .badge import Badge, UserBadge
 from .media import MediaFile
 
 __all__ = [
     "User",
     "Message",
-    "ChatRoom",
-    "ChatRoomMember",
-    "Comment",
-    "Post",
+    "Review",
     "Badge",
     "UserBadge",
     "MediaFile",

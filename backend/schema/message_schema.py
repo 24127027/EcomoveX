@@ -1,11 +1,10 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from models.message import MessageType, MessageStatus
+from models.message import MessageType, MessageStatus, Sender
 
 class MessageCreate(BaseModel):
-    sender_id: int
-    receiver_id: int
+    sender : Sender
     content: Optional[str] = None
     message_type: MessageType = MessageType.text
 
@@ -14,8 +13,8 @@ class MessageUpdate(BaseModel):
 
 class MessageResponse(BaseModel):
     id: int
-    sender_id: int
-    receiver_id: int
+    user_id: int
+    sender: Sender
     content: Optional[str]
     message_type: MessageType
     status: MessageStatus
