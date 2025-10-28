@@ -15,9 +15,11 @@ class Review(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
-    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     status = Column(SQLEnum(ReviewStatus), default=ReviewStatus.draft)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    author = relationship("User", back_populates="reviews")
+    user = relationship("User", back_populates="reviews")
+    destination = relationship("Destination")
+

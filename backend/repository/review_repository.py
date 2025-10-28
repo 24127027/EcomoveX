@@ -27,13 +27,13 @@ class ReviewRepository:
             return None
 
     @staticmethod
-    async def get_reviews_by_author(db: AsyncSession, author_id: int):
+    async def get_reviews_by_user(db: AsyncSession, user_id: int):
         try:
-            result = await db.execute(select(Review).where(Review.author_id == author_id))
+            result = await db.execute(select(Review).where(Review.user_id == user_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching reviews by author {author_id}: {e}")
+            print(f"Error fetching reviews by user {user_id}: {e}")
             return []
 
     @staticmethod
@@ -42,7 +42,7 @@ class ReviewRepository:
             new_review = Review(
                 content=review_data.content,
                 rating=review_data.rating,
-                author_id=review_data.author_id,
+                user_id=review_data.user_id,
                 product_id=review_data.product_id
             )
             db.add(new_review)

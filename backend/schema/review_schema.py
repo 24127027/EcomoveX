@@ -5,7 +5,7 @@ from models.review import ReviewStatus
 
 class ReviewCreate(BaseModel):
     content: str
-    author_id: int
+    user_id: int
     status: Optional[ReviewStatus] = ReviewStatus.published
 
 class ReviewUpdate(BaseModel):
@@ -15,7 +15,7 @@ class ReviewUpdate(BaseModel):
 class ReviewResponse(BaseModel):
     id: int
     content: str
-    author_id: int
+    user_id: int
     status: ReviewStatus
     created_at: datetime
     updated_at: datetime

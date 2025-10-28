@@ -1,0 +1,55 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from models.plan import Plan, PlanDestination
+from schema.plan_schema import PlanRequestCreate, PlanRequestUpdate
+
+class PlanRepository:
+    @staticmethod
+    async def get_plan_by_user_id(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(select(Plan).where(Plan.user_id == user_id))
+            return result.scalars().all()
+        except Exception as e:
+            await db.rollback()
+            print(f"Error retrieving plans for user ID {user_id}: {e}")
+            return None
+
+    @staticmethod
+    async def create_plan(db: AsyncSession, user_id: int, plan_data: PlanRequestCreate):
+        try:
+            new_plan = Plan(
+                user_id=user_id,
+                place_name=plan_data.place_name,
+                start_date=plan_data.start_date,
+                end_date=plan_data.end_date,
+                budget_limit=plan_data.budget_limit
+            )
+            db.add(new_plan)
+            await db.commit()
+            await db.refresh(new_plan)
+            return new_plan
+        except Exception as e:
+            await db.rollback()
+            print(f"Error creating plan: {e}")
+            return None
+
+    @staticmethod
+    async def update_plan(db: AsyncSession, plan_id: int, updated_data: PlanRequestUpdate):
+        try:
+            result = await db.execute(select(Plan).where(Plan.id == plan_id))
+            plan = result.scalar_one_or_none()
+            if not plan:
+                print(f"Plan ID {plan_id} not found")
+                return None
+
+            for key, value in updated_data.items():
+                setattr(plan, key, value)
+
+            db.add(plan)
+            await db.commit()
+            await db.refresh(plan)
+            return plan
+        except Exception as e:
+            await db.rollback()
+            print(f"Error updating plan ID {plan_id}: {e}")
+            return None

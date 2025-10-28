@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from database.database import Base
@@ -22,7 +22,8 @@ class User(Base):
     eco_point = Column(Integer, default=0)
     rank = Column(SQLEnum(Rank), default=Rank.bronze)
 
-    reviews = relationship("Review", back_populates="author")
+    reviews = relationship("Review", back_populates="user")
     messages = relationship("Message", back_populates="user")
     badges = relationship("UserBadge", back_populates="user")
     media_files = relationship("MediaFile", back_populates="owner")
+    plans = relationship("Plan", back_populates="user")
