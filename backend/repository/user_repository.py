@@ -6,16 +6,6 @@ from schema.user_schema import UserCreate, UserUpdate
 
 class UserRepository:        
     @staticmethod
-    async def get_user_by_id(db: AsyncSession, user_id: int):
-        try:
-            result = await db.execute(select(User).where(User.id == user_id))
-            return result.scalar_one_or_none()
-        except Exception as e:
-            await db.rollback()
-            print(f"Error retrieving user by ID {user_id}: {e}")
-            return None
-        
-    @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str):
         try:
             result = await db.execute(select(User).where(User.email == email))
@@ -42,7 +32,6 @@ class UserRepository:
                 username=user.username,
                 email=user.email,
                 password=user.password,
-                status=UserStatus.active.value,
                 eco_points=0,
                 rank=Rank.bronze.value
             )
@@ -158,17 +147,4 @@ class UserRepository:
         except Exception as e:
             await db.rollback()
             print(f"Error deleting user ID {user_id}: {e}")
-            return False
-        
-    @staticmethod
-    async def is_user_online(db: AsyncSession, user_id: int):
-        try:
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
-            if not user or not user.last_seen:
-                return False
-            return datetime.utcnow() - user.last_seen <= timedelta(minutes=2)
-        except Exception as e:
-            await db.rollback()
-            print(f"Error checking online status for user ID {user_id}: {e}")
             return False

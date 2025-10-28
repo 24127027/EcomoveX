@@ -7,11 +7,22 @@ from schema.message_schema import MessageCreate, MessageUpdate
 
 class MessageRepository:
     @staticmethod
+    async def get_message_by_id(db: AsyncSession, message_id: int):
+        try:
+            result = await db.execute(select(Message).where(Message.id == message_id))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error fetching message with ID {message_id}: {e}")
+            return None
+
+    @staticmethod
     async def get_message_by_keyword(db: AsyncSession, keyword: str):
         try:
             result = await db.execute(select(Message).where(Message.content.ilike(f"%{keyword}%")))
             return result.scalars().all()
         except SQLAlchemyError as e:
+            await db.rollback()
             print(f"Error fetching message with content '{keyword}': {e}")
             return None
 
@@ -20,7 +31,7 @@ class MessageRepository:
         try:
             new_message = Message(
                 user_id=message_data.user_id,
-                receiver_id=message_data.receiver_id,
+                sender=message_data.sender,
                 content=message_data.content,
                 message_type=message_data.message_type
             )

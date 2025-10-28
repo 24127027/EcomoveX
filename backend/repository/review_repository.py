@@ -1,91 +1,94 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from models.post import Post
+from models.review import Review
 from datetime import datetime
-from schema.post_schema import PostCreate, PostUpdate
+from schema.review_schema import ReviewCreate, ReviewUpdate
 
-class PostRepository:
+class ReviewRepository:
     @staticmethod
-    async def get_all_posts(db: AsyncSession):
+    async def get_all_reviews(db: AsyncSession):
         try:
-            result = await db.execute(select(Post))
+            result = await db.execute(select(Review))
             return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"Error fetching all posts: {e}")
-            return []
-
-    @staticmethod
-    async def get_post_by_id(db: AsyncSession, post_id: int):
-        try:
-            result = await db.execute(select(Post).where(Post.id == post_id))
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"Error fetching post ID {post_id}: {e}")
-            return None
-
-    @staticmethod
-    async def get_posts_by_author(db: AsyncSession, author_id: int):
-        try:
-            result = await db.execute(select(Post).where(Post.author_id == author_id))
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"Error fetching posts by author {author_id}: {e}")
-            return []
-
-    @staticmethod
-    async def create_post(db: AsyncSession, post_data: PostCreate):
-        try:
-            new_post = Post(
-                title=post_data.title,
-                content=post_data.content,
-                author_id=post_data.author_id,
-                status=post_data.status
-            )
-            db.add(new_post)
-            await db.commit()
-            await db.refresh(new_post)
-            return new_post
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating post: {e}")
+            print(f"Error fetching all reviews: {e}")
+            return []
+
+    @staticmethod
+    async def get_review_by_id(db: AsyncSession, review_id: int):
+        try:
+            result = await db.execute(select(Review).where(Review.id == review_id))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error fetching review ID {review_id}: {e}")
             return None
 
     @staticmethod
-    async def update_post(db: AsyncSession, post_id: int, updated_data: PostUpdate):
+    async def get_reviews_by_author(db: AsyncSession, author_id: int):
         try:
-            result = await db.execute(select(Post).where(Post.id == post_id))
-            post = result.scalar_one_or_none()
-            if not post:
-                print(f"Post ID {post_id} not found")
+            result = await db.execute(select(Review).where(Review.author_id == author_id))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error fetching reviews by author {author_id}: {e}")
+            return []
+
+    @staticmethod
+    async def create_review(db: AsyncSession, review_data: ReviewCreate):
+        try:
+            new_review = Review(
+                content=review_data.content,
+                rating=review_data.rating,
+                author_id=review_data.author_id,
+                product_id=review_data.product_id
+            )
+            db.add(new_review)
+            await db.commit()
+            await db.refresh(new_review)
+            return new_review
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error creating review: {e}")
+            return None
+
+    @staticmethod
+    async def update_review(db: AsyncSession, review_id: int, updated_data: ReviewUpdate):
+        try:
+            result = await db.execute(select(Review).where(Review.id == review_id))
+            review = result.scalar_one_or_none()
+            if not review:
+                print(f"Review ID {review_id} not found")
                 return None
 
             for key, value in updated_data.items():
-                setattr(post, key, value)
-            post.updated_at = datetime.utcnow()
+                setattr(review, key, value)
+            review.updated_at = datetime.utcnow()
 
-            db.add(post)
+            db.add(review)
             await db.commit()
-            await db.refresh(post)
-            return post
+            await db.refresh(review)
+            return review
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating post ID {post_id}: {e}")
+            print(f"Error updating review ID {review_id}: {e}")
             return None
 
     @staticmethod
-    async def delete_post(db: AsyncSession, post_id: int):
+    async def delete_review(db: AsyncSession, review_id: int):
         try:
-            result = await db.execute(select(Post).where(Post.id == post_id))
-            post = result.scalar_one_or_none()
-            if not post:
-                print(f"Post ID {post_id} not found")
+            result = await db.execute(select(Review).where(Review.id == review_id))
+            review = result.scalar_one_or_none()
+            if not review:
+                print(f"Review ID {review_id} not found")
                 return False
 
-            await db.delete(post)
+            await db.delete(review)
             await db.commit()
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting post ID {post_id}: {e}")
+            print(f"Error deleting review ID {review_id}: {e}")
             return False
