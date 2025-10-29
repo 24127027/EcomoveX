@@ -1,11 +1,23 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
-    DEBUG: bool = True
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_NAME: str = "your_database"
+    DB_USER: str = "your_username"
+    DB_PASS: str = "your_password"
+    SECRET_KEY: str = "super_secret_key"
+    ALGORITHM: str = "HS256"
 
-    class Config:
-        env_file = "..\local.env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / "local.env",
+        env_file_encoding="utf-8",
+    )
 
 settings = Settings()
+
+if __name__ == "__main__":
+    print(settings.model_dump())

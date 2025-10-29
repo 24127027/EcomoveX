@@ -5,6 +5,10 @@ from database.database import Base
 from enum import Enum
 from sqlalchemy.sql import func
 
+class Role(str, Enum):
+    user = "User"
+    admin = "Admin"
+
 class Rank(str, Enum): # rank by eco points
     bronze = "Bronze" # 0 - 500
     silver = "Silver" # 501 - 2000
@@ -21,6 +25,8 @@ class User(Base):
     password = Column(String(255), nullable=False)
     eco_point = Column(Integer, default=0)
     rank = Column(SQLEnum(Rank), default=Rank.bronze)
+    role = Column(SQLEnum(Role), default=Role.user)
+    created_at = Column(String, default=func.now())
 
     reviews = relationship("Review", back_populates="user")
     messages = relationship("Message", back_populates="user")

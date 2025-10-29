@@ -1,15 +1,15 @@
 import asyncio
-import sys
-from pathlib import Path
-
-backend_dir = Path(__file__).resolve().parent
-sys.path.insert(0, str(backend_dir))
-
 from dotenv import load_dotenv
 import os
+from pathlib import Path
+import sys
 
+backend_dir = Path(__file__).resolve().parent.parent
 env_path = backend_dir / "local.env"
 load_dotenv(dotenv_path=env_path)
+
+SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")

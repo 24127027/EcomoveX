@@ -12,7 +12,6 @@ class Badge(Base):
 
     users = relationship("UserBadge", back_populates="badge")
 
-
 class UserBadge(Base):
     __tablename__ = "user_badges"
 

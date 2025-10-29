@@ -2,9 +2,20 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models.user import User, UserStatus, Rank
-from schema.user_schema import UserCreate, UserUpdate
+from schema.user_schema import UserUpdate, UserCredentialUpdate
+from schema.authentication_schema import UserRegister
 
-class UserRepository:        
+class UserRepository:
+    @staticmethod
+    async def get_user_by_id(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(select(User).where(User.id == user_id))
+            return result.scalar_one_or_none()
+        except Exception as e:
+            await db.rollback()
+            print(f"Error retrieving user by ID {user_id}: {e}")
+            return None
+                  
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str):
         try:
@@ -26,7 +37,7 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def create_user(db: AsyncSession, user: UserCreate):
+    async def create_user(db: AsyncSession, user: UserRegister):
         try:
             new_user = User(
                 username=user.username,
@@ -45,7 +56,7 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def update_user(db: AsyncSession, user_id: int, updated_data: UserUpdate):
+    async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -56,7 +67,7 @@ class UserRepository:
                 print("Old password does not match")
                 return None
 
-            for var, value in updated_data.dict(exclude_unset=True).items():
+            for var, value in updated_data.dict(exclude_unset=True, exclude={"old_password"}).items():
                 setattr(user, var, value)
 
             db.add(user)
@@ -69,60 +80,15 @@ class UserRepository:
             return None
         
     @staticmethod
-    async def update_user_status(db: AsyncSession, user_id: int, status: UserStatus):
+    async def update_user(db: AsyncSession, user_id: int, updated_data: UserUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
                 print(f"User with ID {user_id} not found")
                 return None
 
-            user.status = status.value
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            return user
-        except Exception as e:
-            await db.rollback()
-            print(f"Error updating status for user ID {user_id}: {e}")
-            return None
-        
-    @staticmethod
-    async def update_eco_points(db: AsyncSession, user_id: int, points: int):
-        try:
-            user = await UserRepository.get_user_by_id(db, user_id)
-            if not user:
-                print(f"User with ID {user_id} not found")
-                return None
-
-            user.eco_points = points
-            await UserRepository.update_rank(db, user_id)
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            return user
-        except Exception as e:
-            await db.rollback()
-            print(f"Error updating eco points for user ID {user_id}: {e}")
-            return None
-        
-    @staticmethod
-    async def update_rank(db: AsyncSession, user_id: int):
-        try:
-            user = await UserRepository.get_user_by_id(db, user_id)
-            if not user:
-                print(f"User with ID {user_id} not found")
-                return None
-
-            if user.eco_points <= 500:
-                user.rank = Rank.bronze.value
-            elif user.eco_points <= 2000:
-                user.rank = Rank.silver.value
-            elif user.eco_points <= 5000:
-                user.rank = Rank.gold.value
-            elif user.eco_points <= 10000:
-                user.rank = Rank.platinum.value
-            else:
-                user.rank = Rank.diamond.value
+            for var, value in updated_data.dict(exclude_unset=True).items():
+                setattr(user, var, value)
 
             db.add(user)
             await db.commit()
@@ -130,7 +96,7 @@ class UserRepository:
             return user
         except Exception as e:
             await db.rollback()
-            print(f"Error updating rank for user ID {user_id}: {e}")
+            print(f"Error updating user information {user_id}: {e}")
             return None
         
     @staticmethod
