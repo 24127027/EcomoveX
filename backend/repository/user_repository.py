@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models.user import User, Rank
-from schema.user_schema import UserUpdate, UserCredentialUpdate
+from schema.user_schema import UserProfileUpdate, UserCredentialUpdate
 from schema.authentication_schema import UserRegister
 
 class UserRepository:
@@ -84,7 +84,7 @@ class UserRepository:
             return None
         
     @staticmethod
-    async def update_user(db: AsyncSession, user_id: int, updated_data: UserUpdate):
+    async def update_user(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:

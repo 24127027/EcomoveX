@@ -7,7 +7,7 @@ class UserCredentialUpdate(BaseModel):
     new_email: Optional[EmailStr] = None
     new_password: Optional[str] = None
 
-class UserUpdate(BaseModel):
+class UserProfileUpdate(BaseModel):
     eco_point: Optional[int] = None
     rank: Optional[str] = None
 

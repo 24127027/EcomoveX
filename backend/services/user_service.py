@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from models.user import Rank
 from repository.user_repository import UserRepository
-from schema.user_schema import UserUpdate, UserCredentialUpdate
+from schema.user_schema import UserProfileUpdate, UserCredentialUpdate
 from schema.authentication_schema import UserRegister
 
 class UserService:
@@ -101,7 +101,7 @@ class UserService:
                     detail=f"User with ID {user_id} not found"
                 )
 
-            user_update = UserUpdate()
+            user_update = UserProfileUpdate()
             user_update.eco_point = (user.eco_point or 0) + point
 
             if user_update.eco_point <= 500:

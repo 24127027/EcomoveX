@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.database import get_db
-from schema.user_schema import UserCredentialUpdate, UserResponse, UserUpdate
+from schema.user_schema import UserCredentialUpdate, UserResponse, UserProfileUpdate
 from schema.authentication_schema import UserRegister
 from services.user_service import UserService
 from repository.user_repository import UserRepository
@@ -34,7 +34,7 @@ async def update_user_credentials(
 
 @router.put("/me", response_model=UserResponse)
 async def update_user(
-    updated_data: UserUpdate,
+    updated_data: UserProfileUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
