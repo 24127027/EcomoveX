@@ -25,5 +25,6 @@ class CarbonCalculateResponse(BaseModel):
     fuel_type: FuelType
     carbon_emission_kg: float
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

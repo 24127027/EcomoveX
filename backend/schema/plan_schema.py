@@ -30,5 +30,6 @@ class PlanResponse(BaseModel):
     budget_limit: Optional[float] = None
     destinations: List[DestinationInfo]
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

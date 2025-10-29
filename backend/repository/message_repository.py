@@ -44,8 +44,8 @@ class MessageRepository:
                 print(f"Message ID {message_id} not found")
                 return None
 
-            for key, value in updated_data.items():
-                setattr(message, key, value)
+            if updated_data.content is not None:
+                message.content = updated_data.content
 
             db.add(message)
             await db.commit()

@@ -40,13 +40,15 @@ class RewardResponse(BaseModel):
     environment_protection_action: Optional[EnvironmentProtectionAction]
     value: Optional[int]
     
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class UserRewardResponse(BaseModel):
     user_id: int
     rewards: List[RewardResponse]
-    total_points: Optional[int] = 0
+    total_point: Optional[int] = 0
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

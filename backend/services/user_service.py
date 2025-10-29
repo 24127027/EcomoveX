@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
-from backend.models.user import Rank
+from models.user import Rank
 from repository.user_repository import UserRepository
 from schema.user_schema import UserUpdate, UserCredentialUpdate
 from schema.authentication_schema import UserRegister
@@ -86,9 +86,9 @@ class UserService:
             )
 
     @staticmethod
-    async def add_eco_points(db: AsyncSession, user_id: int, points: int):
+    async def add_eco_point(db: AsyncSession, user_id: int, point: int):
         try:
-            if points <= 0:
+            if point <= 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Points must be greater than zero"
@@ -102,15 +102,15 @@ class UserService:
                 )
 
             user_update = UserUpdate()
-            user_update.eco_points = (user.eco_points or 0) + points
+            user_update.eco_point = (user.eco_point or 0) + point
 
-            if user_update.eco_points <= 500:
+            if user_update.eco_point <= 500:
                 user_update.rank = Rank.bronze
-            elif user_update.eco_points <= 2000:
+            elif user_update.eco_point <= 2000:
                 user_update.rank = Rank.silver
-            elif user_update.eco_points <= 5000:
+            elif user_update.eco_point <= 5000:
                 user_update.rank = Rank.gold
-            elif user_update.eco_points <= 10000:
+            elif user_update.eco_point <= 10000:
                 user_update.rank = Rank.platinum
             else:
                 user_update.rank = Rank.diamond
@@ -119,7 +119,7 @@ class UserService:
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to update eco points for user {user_id}"
+                    detail=f"Failed to update eco point for user {user_id}"
                 )
 
             return updated_user
@@ -128,7 +128,7 @@ class UserService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error updating eco points for user {user_id}: {e}"
+                detail=f"Unexpected error updating eco point for user {user_id}: {e}"
             )
 
     @staticmethod

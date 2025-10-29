@@ -42,8 +42,14 @@ class PlanRepository:
                 print(f"Plan ID {plan_id} not found")
                 return None
 
-            for key, value in updated_data.items():
-                setattr(plan, key, value)
+            if updated_data.place_name is not None:
+                plan.place_name = updated_data.place_name
+            if updated_data.start_date is not None:
+                plan.start_date = updated_data.start_date
+            if updated_data.end_date is not None:
+                plan.end_date = updated_data.end_date
+            if updated_data.budget_limit is not None:
+                plan.budget_limit = updated_data.budget_limit
 
             db.add(plan)
             await db.commit()

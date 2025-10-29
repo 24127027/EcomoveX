@@ -47,8 +47,8 @@ class AuthenticationService:
     def create_access_token(user: User) -> str:
         try:
             payload = {
-                "user_id": str(user.id),
-                "role": str(user.role)
+                "sub": str(user.id),
+                "role": user.role.value if hasattr(user.role, 'value') else str(user.role)
             }
             token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
             return token

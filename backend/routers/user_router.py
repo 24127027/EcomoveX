@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.database import get_db
-from schema.user_schema import UserCredentialUpdate, UserResponse
+from schema.user_schema import UserCredentialUpdate, UserResponse, UserUpdate
 from schema.authentication_schema import UserRegister
 from services.user_service import UserService
+from repository.user_repository import UserRepository
 from utils.authentication_util import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -31,17 +32,37 @@ async def update_user_credentials(
 ):
     return await UserService.update_user_credentials(db, current_user["user_id"], updated_data)
 
+@router.put("/me", response_model=UserResponse)
+async def update_user(
+    updated_data: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await UserRepository.update_user(db, current_user["user_id"], updated_data)
+
+@router.delete("/me")
+async def delete_user(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    deleted = await UserRepository.delete_user(db, current_user["user_id"])
+    if deleted:
+        return {"message": "User deleted successfully"}
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found"
+    )
+
 #only admin can do this
-@router.post("/me/eco_points/add", response_model=UserResponse)
-async def add_eco_points(
-    points: int,
+@router.post("/me/eco_point/add", response_model=UserResponse)
+async def add_eco_point(
+    point: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     if current_user["role"] != "admin":
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can add eco points"
+            detail="Only admin users can add eco point"
         )
-    return await UserService.add_eco_points(db, current_user["user_id"], points)
+    return await UserService.add_eco_point(db, current_user["user_id"], point)

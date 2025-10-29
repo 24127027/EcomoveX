@@ -33,8 +33,9 @@ class RecommendationResponse(BaseModel):
     recommended_items: List[RecommendationItem]
     generated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class RecommendationCreate(BaseModel):
     name: str

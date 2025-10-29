@@ -8,15 +8,16 @@ class UserCredentialUpdate(BaseModel):
     new_password: Optional[str] = None
 
 class UserUpdate(BaseModel):
-    eco_points: Optional[int] = None
+    eco_point: Optional[int] = None
     rank: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
     username: str
     email: EmailStr
-    eco_points: int
+    eco_point: int
     rank: str
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

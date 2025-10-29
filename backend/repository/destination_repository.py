@@ -38,8 +38,10 @@ class DestinationRepository:
                 print(f"Destination with ID {destination_id} not found")
                 return None
 
-            for var, value in updated_data.dict(exclude_unset=True).items():
-                setattr(destination, var, value)
+            if updated_data.longitude is not None:
+                destination.longitude = updated_data.longitude
+            if updated_data.latitude is not None:
+                destination.latitude = updated_data.latitude
 
             db.add(destination)
             await db.commit()

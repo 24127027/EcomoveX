@@ -14,13 +14,15 @@ class BadgeResponse(BaseModel):
     name: str
     description: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class UserBadgeResponse(BaseModel):
     user_id: int
     badge_id: int
     obtained_at: str
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

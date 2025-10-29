@@ -5,7 +5,6 @@ from models.media import MediaFile
 from datetime import datetime
 from schema.media_schema import MediaFileCreate, MediaFileUpdate
 
-
 class MediaRepository:
     @staticmethod
     async def get_media_by_user(db: AsyncSession, user_id: int):
@@ -43,8 +42,10 @@ class MediaRepository:
                 print(f"Media file ID {media_id} not found")
                 return None
 
-            for key, value in updated_data.items():
-                setattr(media, key, value)
+            if updated_data.file_path is not None:
+                media.file_path = updated_data.file_path
+            if updated_data.file_type is not None:
+                media.file_type = updated_data.file_type.value
 
             db.add(media)
             await db.commit()

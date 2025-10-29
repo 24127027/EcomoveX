@@ -63,8 +63,10 @@ class ReviewRepository:
                 print(f"Review ID {review_id} not found")
                 return None
 
-            for key, value in updated_data.items():
-                setattr(review, key, value)
+            if updated_data.content is not None:
+                review.content = updated_data.content
+            if updated_data.status is not None:
+                review.status = updated_data.status
             review.updated_at = datetime.utcnow()
 
             db.add(review)

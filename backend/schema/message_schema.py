@@ -21,5 +21,6 @@ class MessageResponse(BaseModel):
     status: MessageStatus
     timestamp: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

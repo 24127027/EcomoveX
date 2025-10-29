@@ -62,8 +62,10 @@ class BadgeRepository:
                 print(f"Badge with id {badge_id} not found for update.")
                 return None
 
-            for key, value in updated_data.items():
-                setattr(badge, key, value)
+            if updated_data.name is not None:
+                badge.name = updated_data.name
+            if updated_data.description is not None:
+                badge.description = updated_data.description
 
             db.add(badge)
             await db.commit()

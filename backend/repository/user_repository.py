@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from models.user import User, UserStatus, Rank
+from models.user import User, Rank
 from schema.user_schema import UserUpdate, UserCredentialUpdate
 from schema.authentication_schema import UserRegister
 
@@ -43,7 +43,7 @@ class UserRepository:
                 username=user.username,
                 email=user.email,
                 password=user.password,
-                eco_points=0,
+                eco_point=0,
                 rank=Rank.bronze.value
             )
             db.add(new_user)
@@ -67,8 +67,12 @@ class UserRepository:
                 print("Old password does not match")
                 return None
 
-            for var, value in updated_data.dict(exclude_unset=True, exclude={"old_password"}).items():
-                setattr(user, var, value)
+            if updated_data.new_username is not None:
+                user.username = updated_data.new_username
+            if updated_data.new_email is not None:
+                user.email = updated_data.new_email
+            if updated_data.new_password is not None:
+                user.password = updated_data.new_password
 
             db.add(user)
             await db.commit()
@@ -87,8 +91,10 @@ class UserRepository:
                 print(f"User with ID {user_id} not found")
                 return None
 
-            for var, value in updated_data.dict(exclude_unset=True).items():
-                setattr(user, var, value)
+            if updated_data.eco_point is not None:
+                user.eco_point = updated_data.eco_point
+            if updated_data.rank is not None:
+                user.rank = updated_data.rank
 
             db.add(user)
             await db.commit()

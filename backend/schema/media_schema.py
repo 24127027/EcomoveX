@@ -19,5 +19,6 @@ class MediaFileResponse(BaseModel):
     file_type: FileType
     uploaded_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

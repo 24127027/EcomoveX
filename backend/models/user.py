@@ -9,7 +9,7 @@ class Role(str, Enum):
     user = "User"
     admin = "Admin"
 
-class Rank(str, Enum): # rank by eco points
+class Rank(str, Enum): # rank by eco point
     bronze = "Bronze" # 0 - 500
     silver = "Silver" # 501 - 2000
     gold = "Gold" # 2001 - 5000
@@ -29,7 +29,7 @@ class User(Base):
     created_at = Column(String, default=func.now())
 
     reviews = relationship("Review", back_populates="user")
-    messages = relationship("Message", back_populates="user")
+    sent_messages = relationship("Message", back_populates="user")
     badges = relationship("UserBadge", back_populates="user")
     media_files = relationship("MediaFile", back_populates="owner")
     plans = relationship("Plan", back_populates="user")
