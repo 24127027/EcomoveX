@@ -25,6 +25,16 @@ class ReviewRepository:
             await db.rollback()
             print(f"Error fetching review ID {review_id}: {e}")
             return None
+        
+    @staticmethod
+    async def get_reviews_by_destination(db: AsyncSession, destination_id: int):
+        try:
+            result = await db.execute(select(Review).where(Review.destination_id == destination_id))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error fetching reviews for destination ID {destination_id}: {e}")
+            return []
 
     @staticmethod
     async def get_reviews_by_user(db: AsyncSession, user_id: int):
