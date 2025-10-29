@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from models.plan import Plan, PlanDestination
 from schema.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
@@ -9,7 +10,7 @@ class PlanRepository:
         try:
             result = await db.execute(select(Plan).where(Plan.user_id == user_id))
             return result.scalars().all()
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error retrieving plans for user ID {user_id}: {e}")
             return None
@@ -28,7 +29,7 @@ class PlanRepository:
             await db.commit()
             await db.refresh(new_plan)
             return new_plan
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error creating plan: {e}")
             return None
@@ -55,7 +56,7 @@ class PlanRepository:
             await db.commit()
             await db.refresh(plan)
             return plan
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error updating plan ID {plan_id}: {e}")
             return None

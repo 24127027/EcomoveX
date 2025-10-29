@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from models.destination import Destination
 from schema.destination_schema import DestinationCreate, DestinationUpdate
 
@@ -9,7 +10,7 @@ class DestinationRepository:
         try:
             result = await db.execute(select(Destination).where(Destination.longitude == longitude, Destination.latitude == latitude))
             return result.scalar_one_or_none()
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error retrieving destination by longitude {longitude} and latitude {latitude}: {e}")
             return None
@@ -25,7 +26,7 @@ class DestinationRepository:
             await db.commit()
             await db.refresh(new_destination)
             return new_destination
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error creating destination: {e}")
             return None
@@ -47,7 +48,7 @@ class DestinationRepository:
             await db.commit()
             await db.refresh(destination)
             return destination
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error updating destination ID {destination_id}: {e}")
             return None
@@ -63,7 +64,7 @@ class DestinationRepository:
             await db.delete(destination)
             await db.commit()
             return True
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error deleting destination ID {destination_id}: {e}")
             return False

@@ -29,7 +29,7 @@ class AuthenticationService:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
                 )
-            if not pwd_context.verify(credentials.password, user.password):
+            if credentials.password != user.password:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
@@ -62,7 +62,13 @@ class AuthenticationService:
     async def login_user(db: AsyncSession, email: str, password: str):
         try:
             user = await UserService.get_user_by_email(db, email)
-            if not user or user.password != password:
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password"
+                )
+            # Plain text comparison for demo purposes
+            if password != user.password:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"

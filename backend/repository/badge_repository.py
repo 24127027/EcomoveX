@@ -12,9 +12,9 @@ class BadgeRepository:
         try:
             result = await db.execute(select(Badge))
             return result.scalars().all()
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
-            print("Error fetching all badges.")
+            print(f"Error fetching all badges: {e}")
             return []
 
     @staticmethod
@@ -22,9 +22,9 @@ class BadgeRepository:
         try:
             result = await db.execute(select(Badge).where(Badge.id == badge_id))
             return result.scalar_one_or_none()
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching badge with id {badge_id}.")
+            print(f"Error fetching badge with id {badge_id}: {e}")
             return None
         
     @staticmethod
@@ -32,9 +32,9 @@ class BadgeRepository:
         try:
             result = await db.execute(select(Badge).where(func.lower(Badge.name) == name.lower()))
             return result.scalar_one_or_none()
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching badge with name {name}.")
+            print(f"Error fetching badge with name {name}: {e}")
             return None
 
     @staticmethod
@@ -48,9 +48,9 @@ class BadgeRepository:
             await db.commit()
             await db.refresh(new_badge)
             return new_badge
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating badge: {badge_data}.")
+            print(f"Error creating badge: {badge_data}, {e}")
             return None
 
     @staticmethod
@@ -71,9 +71,9 @@ class BadgeRepository:
             await db.commit()
             await db.refresh(badge)
             return badge
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating badge with id {badge_id}.")
+            print(f"Error updating badge with id {badge_id}: {e}")
             return None
 
     @staticmethod
@@ -87,8 +87,9 @@ class BadgeRepository:
             await db.delete(badge)
             await db.commit()
             return True
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
+            print(f"Error deleting badge with id {badge_id}: {e}")
             return False
 
 class UserBadgeRepository:

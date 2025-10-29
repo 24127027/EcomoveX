@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from models.user import User, Rank
 from schema.user_schema import UserProfileUpdate, UserCredentialUpdate
 from schema.authentication_schema import UserRegister
@@ -11,7 +12,7 @@ class UserRepository:
         try:
             result = await db.execute(select(User).where(User.id == user_id))
             return result.scalar_one_or_none()
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error retrieving user by ID {user_id}: {e}")
             return None
@@ -21,7 +22,7 @@ class UserRepository:
         try:
             result = await db.execute(select(User).where(User.email == email))
             return result.scalar_one_or_none()
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error retrieving user by email {email}: {e}")
             return None
@@ -31,7 +32,7 @@ class UserRepository:
         try:
             result = await db.execute(select(User).where(User.username == username))
             return result.scalar_one_or_none()
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error retrieving user by username {username}: {e}")
             return None
@@ -50,7 +51,7 @@ class UserRepository:
             await db.commit()
             await db.refresh(new_user)
             return new_user
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error creating user: {e}")
             return None
@@ -63,10 +64,7 @@ class UserRepository:
                 print(f"User with ID {user_id} not found")
                 return None
 
-            if updated_data.old_password != user.password:
-                print("Old password does not match")
-                return None
-
+            # Password verification is done in service layer
             if updated_data.new_username is not None:
                 user.username = updated_data.new_username
             if updated_data.new_email is not None:
@@ -78,7 +76,7 @@ class UserRepository:
             await db.commit()
             await db.refresh(user)
             return user
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error updating user ID {user_id}: {e}")
             return None
@@ -100,7 +98,7 @@ class UserRepository:
             await db.commit()
             await db.refresh(user)
             return user
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error updating user information {user_id}: {e}")
             return None
@@ -116,7 +114,7 @@ class UserRepository:
             await db.delete(user)
             await db.commit()
             return True
-        except Exception as e:
+        except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error deleting user ID {user_id}: {e}")
             return False

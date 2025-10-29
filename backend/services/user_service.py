@@ -162,3 +162,21 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error updating credentials for user {user_id}: {e}"
             )
+    
+    @staticmethod
+    async def delete_user(db: AsyncSession, user_id: int):
+        try:
+            deleted = await UserRepository.delete_user(db, user_id)
+            if not deleted:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with ID {user_id} not found"
+                )
+            return True
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error deleting user {user_id}: {e}"
+            )
