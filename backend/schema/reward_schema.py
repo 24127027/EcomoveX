@@ -2,42 +2,28 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from models.mission import RewardType, MissionAction
 
-class EnvironmentProtectionAction(str, Enum):
-    carbon_footprint = "carbon_footprint"
-    garbage_classification = "garbage_classification"
-    recycling = "recycling"
-    tree_planting = "tree_planting"
-    nature_conservation = "nature_conservation"
-
-class RewardType(str, Enum):
-    eco_point = "eco_point"
-    badge = "badge"
-    rank = "rank"
-
-class RewardAction(str, Enum):
-    register = "register"
-    eco_trip = "eco_trip"
-    forum_post = "forum_post"
-    environment_protection = "environment_protection"
-    daily_login = "daily_login"
-    referral = "referral"
-
-class RewardCreate(BaseModel):
+class MissionCreate(BaseModel):
     name: str
     description: Optional[str] = None
     reward_type: RewardType
-    action_trigger: RewardAction
-    environment_protection_action: Optional[EnvironmentProtectionAction] = None
+    action_trigger: MissionAction
     value: Optional[int] = 0
 
-class RewardResponse(BaseModel):
+class MissionUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    reward_type: Optional[RewardType] = None
+    action_trigger: Optional[MissionAction] = None
+    value: Optional[int] = None
+
+class MissionResponse(BaseModel):
     id: int
     name: str
     description: Optional[str]
     reward_type: RewardType
-    action_trigger: RewardAction
-    environment_protection_action: Optional[EnvironmentProtectionAction]
+    action_trigger: MissionAction
     value: Optional[int]
     
     model_config = {
@@ -46,7 +32,7 @@ class RewardResponse(BaseModel):
 
 class UserRewardResponse(BaseModel):
     user_id: int
-    rewards: List[RewardResponse]
+    missions: List[MissionResponse]
     total_point: Optional[int] = 0
 
     model_config = {
