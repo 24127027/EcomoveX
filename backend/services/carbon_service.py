@@ -1,0 +1,169 @@
+from fastapi import HTTPException, status
+from repository.carbon_repository import CarbonRepository
+from sqlalchemy.ext.asyncio import AsyncSession
+from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
+from models.carbon import VehicleType, FuelType
+from datetime import datetime, timedelta
+
+class CarbonService:
+    EMISSION_FACTORS = {
+        (VehicleType.car, FuelType.petrol): 0.171,
+        (VehicleType.car, FuelType.diesel): 0.158,
+        (VehicleType.car, FuelType.electric): 0.053,
+        (VehicleType.car, FuelType.hybrid): 0.112,
+        (VehicleType.bus, FuelType.petrol): 0.089,
+        (VehicleType.bus, FuelType.diesel): 0.082,
+        (VehicleType.bus, FuelType.electric): 0.027,
+        (VehicleType.bus, FuelType.hybrid): 0.056,
+        (VehicleType.motorbike, FuelType.petrol): 0.103,
+        (VehicleType.motorbike, FuelType.electric): 0.024,
+        (VehicleType.walk_or_cycle, FuelType.none): 0.0,
+    }
+
+    @staticmethod
+    def calculate_carbon_emission(vehicle_type: VehicleType, distance_km: float, fuel_type: FuelType) -> float:
+        emission_factor = CarbonService.EMISSION_FACTORS.get((vehicle_type, fuel_type), 0.0)
+        return round(emission_factor * distance_km, 3)
+
+    @staticmethod
+    async def calculate_and_save_carbon(db: AsyncSession, user_id: int, request: CarbonEmissionCreate) -> CarbonEmissionResponse:
+        try:
+            carbon_emission_kg = CarbonService.calculate_carbon_emission(
+                request.vehicle_type,
+                request.distance_km,
+                request.fuel_type
+            )
+            new_emission = await CarbonRepository.create_carbon_emission(db, user_id, request, carbon_emission_kg)
+            
+            if not new_emission:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to save carbon emission record"
+                )
+
+            return new_emission
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating carbon emission: {e}"
+            )
+
+    @staticmethod
+    async def get_user_carbon_emissions(db: AsyncSession, user_id: int):
+        try:
+            emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
+            return emissions
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving carbon emissions for user ID {user_id}: {e}"
+            )
+
+    @staticmethod
+    async def get_total_carbon_by_user(db: AsyncSession, user_id: int):
+        try:
+            total = await CarbonRepository.get_total_carbon_by_user(db, user_id)
+            return {"user_id": user_id, "total_carbon_emission_kg": total}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating total carbon emissions for user ID {user_id}: {e}"
+            )
+
+    @staticmethod
+    async def get_total_carbon_by_day(db: AsyncSession, user_id: int, date: datetime):
+        try:
+            total = await CarbonRepository.get_total_carbon_by_day(db, user_id, date)
+            return {"user_id": user_id, "total_carbon_emission_kg": total}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for day of {date}: {e}"
+            )
+
+    @staticmethod
+    async def get_total_carbon_by_week(db: AsyncSession, user_id: int, date: datetime):
+        try:
+            start_of_week = date - timedelta(days=date.weekday())
+            total = await CarbonRepository.get_total_carbon_by_week(db, user_id, start_of_week)
+            return {"user_id": user_id, "total_carbon_emission_kg": total}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for week of {date}: {e}"
+            )
+        
+    @staticmethod
+    async def get_total_carbon_by_month(db: AsyncSession, user_id: int, date: datetime):
+        try:
+            start_of_month = datetime(date.year, date.month, 1)
+            end_of_month = datetime(date.year, date.month + 1, 1) if date.month < 12 else datetime(date.year + 1, 1, 1)
+            total = await CarbonRepository.get_total_carbon_by_month(db, user_id, start_of_month, end_of_month)
+            return {"user_id": user_id, "total_carbon_emission_kg": total}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for month {date.month}/{date.year}: {e}"
+            )
+
+    @staticmethod
+    async def get_total_carbon_by_year(db: AsyncSession, user_id: int, year: int):
+        try:
+            start_of_year = datetime(year, 1, 1)
+            end_of_year = datetime(year + 1, 1, 1)
+            total = await CarbonRepository.get_total_carbon_by_year(db, user_id, start_of_year, end_of_year)
+            return {"user_id": user_id, "total_carbon_emission_kg": total}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for year {year}: {e}"
+            )
+        
+    @staticmethod
+    async def get_total_carbon_by_date_range(db: AsyncSession, user_id: int, start_date: datetime, end_date: datetime):
+        try:
+            total = await CarbonRepository.get_total_carbon_by_date_range(db, user_id, start_date, end_date)
+            return {"user_id": user_id, "total_carbon_emission_kg": total}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} from {start_date} to {end_date}: {e}"
+            )
+
+    @staticmethod
+    async def update_carbon_emission(db: AsyncSession, emission_id: int, updated_data: CarbonEmissionUpdate):
+        try:
+            updated_emission = await CarbonRepository.update_carbon_emission(db, emission_id, updated_data)
+            if not updated_emission:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Carbon emission record with ID {emission_id} not found"
+                )
+            return updated_emission
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error updating carbon emission ID {emission_id}: {e}"
+            )
+
+    @staticmethod
+    async def delete_carbon_emission(db: AsyncSession, emission_id: int):
+        try:
+            success = await CarbonRepository.delete_carbon_emission(db, emission_id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Carbon emission record with ID {emission_id} not found"
+                )
+            return {"detail": "Carbon emission record deleted successfully"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error deleting carbon emission ID {emission_id}: {e}"
+            )

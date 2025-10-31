@@ -5,6 +5,7 @@ from .media import MediaFile
 from .destination import Destination
 from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
+from .carbon import CarbonEmission
 
 __all__ = [
     "User",
@@ -15,5 +16,6 @@ __all__ = [
     "Plan",
     "PlanDestination",
     "Mission",
-    "UserMission"
+    "UserMission",
+    "CarbonEmission"
 ]

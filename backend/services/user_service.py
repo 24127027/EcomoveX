@@ -172,7 +172,7 @@ class UserService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with ID {user_id} not found"
                 )
-            return True
+            return {"detail": "User deleted successfully"}
         except HTTPException:
             raise
         except Exception as e:

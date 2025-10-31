@@ -11,7 +11,6 @@ class RecommendationType(str, Enum):
     souvenir = "souvenir"
 
 class RecommendationRequest(BaseModel):
-    user_id: int
     longitude: float
     latitude: float
     search_radius_km: Optional[float] = 5.0

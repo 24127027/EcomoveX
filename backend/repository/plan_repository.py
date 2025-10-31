@@ -60,3 +60,20 @@ class PlanRepository:
             await db.rollback()
             print(f"Error updating plan ID {plan_id}: {e}")
             return None
+        
+    @staticmethod
+    async def delete_plan(db: AsyncSession, plan_id: int):
+        try:
+            result = await db.execute(select(Plan).where(Plan.id == plan_id))
+            plan = result.scalar_one_or_none()
+            if not plan:
+                print(f"Plan ID {plan_id} not found")
+                return False
+
+            await db.delete(plan)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error deleting plan ID {plan_id}: {e}")
+            return False
