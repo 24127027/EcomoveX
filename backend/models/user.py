@@ -33,3 +33,4 @@ class User(Base):
     media_files = relationship("MediaFile", back_populates="owner")
     plans = relationship("Plan", back_populates="user")
     missions = relationship("UserMission", back_populates="user")
+    carbon_emissions = relationship("CarbonEmission", back_populates="user")

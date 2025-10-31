@@ -149,3 +149,28 @@ class RewardService:
                 detail=f"Unexpected error completing mission: {e}"
             )
         
+    @staticmethod
+    async def delete_mission(db: AsyncSession, mission_id: int):
+        try:
+            mission = await MissionRepository.get_mission_by_id(db, mission_id)
+            if not mission:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Mission with ID {mission_id} not found"
+                )
+
+            success = await MissionRepository.delete_mission(db, mission_id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to delete mission"
+                )
+            return {"detail": "Mission deleted successfully"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error deleting mission ID {mission_id}: {e}"
+            )
+        
