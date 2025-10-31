@@ -1,9 +1,7 @@
 import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
-from backend.models.mission import UserMission
-from user_service import UserService
-from schema.reward_schema import RewardType, MissionCreate, MissionUpdate
+from schema.reward_schema import MissionCreate, MissionUpdate
 from repository.mission_repository import MissionRepository, UserMissionRepository
 
 class RewardService:

@@ -101,7 +101,7 @@ class UserService:
                     detail=f"User with ID {user_id} not found"
                 )
 
-            user_update = UserCredentialUpdate()
+            user_update = UserProfileUpdate()
             user_update.eco_point = (user.eco_point or 0) + point
 
             if user_update.eco_point <= 500:
@@ -115,7 +115,7 @@ class UserService:
             else:
                 user_update.rank = Rank.diamond
 
-            updated_user = await UserRepository.update_user_credential(db, user_id, user_update)
+            updated_user = await UserRepository.update_user_profile(db, user_id, user_update)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -132,7 +132,7 @@ class UserService:
             )
 
     @staticmethod
-    async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
+    async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -147,7 +147,7 @@ class UserService:
                     detail="Old password does not match"
                 )
 
-            updated_user = await UserRepository.update_user_profile(db, user_id, updated_data)
+            updated_user = await UserRepository.update_user_credentials(db, user_id, updated_data)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
