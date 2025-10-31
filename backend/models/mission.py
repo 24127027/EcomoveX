@@ -3,7 +3,6 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database.database import Base
-from schema.reward_schema import MissionCreate, MissionAction
 from enum import Enum
 
 class RewardType(str, Enum):

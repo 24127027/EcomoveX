@@ -3,7 +3,7 @@ from .message import Message
 from .review import Review
 from .media import MediaFile
 from .destination import Destination
-from .mission import Mission, MissionUser
+from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
 
 __all__ = [
@@ -15,5 +15,5 @@ __all__ = [
     "Plan",
     "PlanDestination",
     "Mission",
-    "MissionUser"
+    "UserMission"
 ]
