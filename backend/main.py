@@ -1,0 +1,40 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from routers import authentication_router, user_router, review_router, reward_router
+
+app = FastAPI(
+    title="EcomoveX API",
+    description="Sustainable Travel Platform API",
+    version="1.0.0"
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(authentication_router.router)
+app.include_router(user_router.router)
+app.include_router(review_router.router)
+app.include_router(reward_router.router)
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Welcome to EcomoveX API",
+        "docs": "/docs",
+        "redoc": "/redoc"
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

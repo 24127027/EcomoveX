@@ -57,7 +57,7 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
+    async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -82,7 +82,7 @@ class UserRepository:
             return None
         
     @staticmethod
-    async def update_user_credential(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate):
+    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:

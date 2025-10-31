@@ -1,13 +1,13 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional    
 
-class UserProfileUpdate(BaseModel):
+class UserCredentialUpdate(BaseModel):
     old_password: str
     new_username: Optional[str] = None
     new_email: Optional[EmailStr] = None
     new_password: Optional[str] = None
 
-class UserCredentialUpdate(BaseModel):
+class UserProfileUpdate(BaseModel):
     eco_point: Optional[int] = None
     rank: Optional[str] = None
 

@@ -6,7 +6,7 @@ from models.user import User
 from models.mission import Mission, UserMission
 from schema.reward_schema import MissionAction, MissionCreate, MissionUpdate
 from schema.user_schema import UserCredentialUpdate
-from user_repository import UserRepository
+from repository.user_repository import UserRepository
 
 class MissionRepository:
     @staticmethod
