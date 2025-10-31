@@ -4,7 +4,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from models.destination import Destination
 from schema.destination_schema import DestinationCreate, DestinationUpdate
 
-class DestinationRepository:        
+class DestinationRepository:       
+    @staticmethod
+    async def get_destination_by_id(db: AsyncSession, destination_id: int):
+        try:
+            result = await db.execute(select(Destination).where(Destination.id == destination_id))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error retrieving destination by ID {destination_id}: {e}")
+            return None
+
     @staticmethod
     async def get_destination_by_lon_and_lat(db: AsyncSession, longitude: float, latitude: float):
         try:

@@ -115,7 +115,7 @@ class UserService:
             else:
                 user_update.rank = Rank.diamond
 
-            updated_user = await UserRepository.update_user(db, user_id, user_update)
+            updated_user = await UserRepository.update_user_profile(db, user_id, user_update)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

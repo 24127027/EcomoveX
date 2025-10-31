@@ -30,6 +30,6 @@ class User(Base):
 
     reviews = relationship("Review", back_populates="user")
     sent_messages = relationship("Message", back_populates="user")
-    badges = relationship("UserBadge", back_populates="user")
     media_files = relationship("MediaFile", back_populates="owner")
     plans = relationship("Plan", back_populates="user")
+    missions = relationship("UserMission", back_populates="user")
