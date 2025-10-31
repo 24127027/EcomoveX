@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from datetime import datetime
 from enum import Enum
 from models.carbon import VehicleType, FuelType
 
@@ -19,6 +20,7 @@ class CarbonEmissionResponse(BaseModel):
     distance_km: float
     fuel_type: FuelType
     carbon_emission_kg: float
+    calculated_at: datetime
 
     model_config = {
         "from_attributes": True

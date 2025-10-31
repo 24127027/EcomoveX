@@ -7,11 +7,12 @@ from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionUpdate
 
 class CarbonRepository:
     @staticmethod
-    async def get_carbon_emission_by_id(db: AsyncSession, emission_id: int):
+    async def get_carbon_emission_by_id(db: AsyncSession, emission_id: int, user_id: int):
         try:
             result = await db.execute(
                 select(CarbonEmission).where(
-                    CarbonEmission.id == emission_id
+                    CarbonEmission.id == emission_id,
+                    CarbonEmission.user_id == user_id
                 )
             )
             return result.scalar_one_or_none()
@@ -193,11 +194,12 @@ class CarbonRepository:
             return None
 
     @staticmethod
-    async def delete_carbon_emission(db: AsyncSession, emission_id: int):
+    async def delete_carbon_emission(db: AsyncSession, emission_id: int, user_id: int):
         try:
             result = await db.execute(
                 select(CarbonEmission).where(
-                    CarbonEmission.id == emission_id
+                    CarbonEmission.id == emission_id,
+                    CarbonEmission.user_id == user_id
                 )
             )
             emission = result.scalar_one_or_none()
