@@ -64,7 +64,6 @@ class UserRepository:
                 print(f"User with ID {user_id} not found")
                 return None
 
-            # Password verification is done in service layer
             if updated_data.new_username is not None:
                 user.username = updated_data.new_username
             if updated_data.new_email is not None:

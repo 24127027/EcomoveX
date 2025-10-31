@@ -23,7 +23,6 @@ class AuthenticationService:
     @staticmethod
     async def authenticate_user(db: AsyncSession, credentials: UserLogin):
         try:
-            # Don't use get_user_by_email from UserService as it raises 404
             from repository.user_repository import UserRepository
             user = await UserRepository.get_user_by_email(db, credentials.email)
             if not user:
@@ -63,7 +62,6 @@ class AuthenticationService:
     @staticmethod
     async def login_user(db: AsyncSession, email: str, password: str):
         try:
-            # Don't use get_user_by_email from UserService as it raises 404
             from repository.user_repository import UserRepository
             user = await UserRepository.get_user_by_email(db, email)
             if not user:
@@ -71,7 +69,6 @@ class AuthenticationService:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
                 )
-            # Plain text comparison for demo purposes
             if password != user.password:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,7 +92,6 @@ class AuthenticationService:
     @staticmethod
     async def register_user(db: AsyncSession, user: UserRegister):
         try:
-            # Don't use get_user_by_email from UserService as it raises 404
             from repository.user_repository import UserRepository
             existing = await UserRepository.get_user_by_email(db, user.email)
             if existing:

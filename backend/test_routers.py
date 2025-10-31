@@ -28,7 +28,6 @@ def wait_for_server(max_attempts=5):
         time.sleep(2)
     return False
 
-# Colors for terminal output
 class Colors:
     GREEN = '\033[92m'
     RED = '\033[91m'
@@ -51,7 +50,6 @@ def print_response(response):
     print(f"Status: {response.status_code}")
     print(f"Response: {json.dumps(response.json(), indent=2)}")
 
-# Test data
 test_user = {
     "username": "testuser123",
     "email": "test@example.com",
@@ -61,15 +59,11 @@ test_user = {
 access_token = None
 user_id = None
 
-# ====================
-# 1. AUTHENTICATION ROUTER TESTS
-# ====================
 def test_authentication():
     global access_token, user_id
     
     print_test("1. AUTHENTICATION ROUTER")
     
-    # Test 1.1: Register User
     print(f"\n{Colors.YELLOW}1.1 POST /auth/register{Colors.END}")
     response = requests.post(f"{BASE_URL}/auth/register", json=test_user)
     if response.status_code == 201 or response.status_code == 200:
@@ -82,7 +76,6 @@ def test_authentication():
         print_error(f"Failed to register: {response.status_code}")
         print(response.text)
     
-    # Test 1.2: Login User
     print(f"\n{Colors.YELLOW}1.2 POST /auth/login{Colors.END}")
     login_data = {
         "email": test_user["email"],
@@ -92,16 +85,13 @@ def test_authentication():
     if response.status_code == 200:
         data = response.json()
         access_token = data.get("access_token")
-        user_id = data.get("user_id")  # Capture user_id from login response
+        user_id = data.get("user_id")
         print_success(f"Login successful! Token: {access_token[:20]}...")
         print_response(response)
     else:
         print_error(f"Failed to login: {response.status_code}")
         print(response.text)
 
-# ====================
-# 2. USER ROUTER TESTS
-# ====================
 def test_user_router():
     global access_token, user_id
     
@@ -109,7 +99,6 @@ def test_user_router():
     
     headers = {"Authorization": f"Bearer {access_token}"}
     
-    # Test 2.1: Get My Profile
     print(f"\n{Colors.YELLOW}2.1 GET /users/me{Colors.END}")
     response = requests.get(f"{BASE_URL}/users/me", headers=headers)
     if response.status_code == 200:
@@ -119,7 +108,6 @@ def test_user_router():
         print_error(f"Failed to get profile: {response.status_code}")
         print(response.text)
     
-    # Test 2.2: Get User by ID
     print(f"\n{Colors.YELLOW}2.2 GET /users/{user_id}{Colors.END}")
     response = requests.get(f"{BASE_URL}/users/{user_id}")
     if response.status_code == 200:
@@ -129,7 +117,6 @@ def test_user_router():
         print_error(f"Failed to get user: {response.status_code}")
         print(response.text)
     
-    # Test 2.3: Update User Profile
     print(f"\n{Colors.YELLOW}2.3 PUT /users/me/profile{Colors.END}")
     update_data = {
         "eco_point": 100,
@@ -143,9 +130,6 @@ def test_user_router():
         print_error(f"Failed to update profile: {response.status_code}")
         print(response.text)
 
-# ====================
-# 3. REVIEW ROUTER TESTS
-# ====================
 def test_review_router():
     global access_token, user_id
     
@@ -153,7 +137,6 @@ def test_review_router():
     
     headers = {"Authorization": f"Bearer {access_token}"}
     
-    # Test 3.1: Create Review
     print(f"\n{Colors.YELLOW}3.1 POST /reviews/{Colors.END}")
     print("Note: This requires destination ID 1 to exist in the database")
     review_data = {
@@ -173,7 +156,6 @@ def test_review_router():
         print(response.text)
         return
     
-    # Test 3.2: Get My Reviews
     print(f"\n{Colors.YELLOW}3.2 GET /reviews/me{Colors.END}")
     response = requests.get(f"{BASE_URL}/reviews/me", headers=headers)
     if response.status_code == 200:
@@ -183,7 +165,6 @@ def test_review_router():
         print_error(f"Failed to get reviews: {response.status_code}")
         print(response.text)
     
-    # Test 3.3: Update Review
     if review_id:
         print(f"\n{Colors.YELLOW}3.3 PUT /reviews/{review_id}{Colors.END}")
         update_data = {
@@ -197,7 +178,6 @@ def test_review_router():
             print_error(f"Failed to update review: {response.status_code}")
             print(response.text)
     
-    # Test 3.4: Get Reviews by User
     print(f"\n{Colors.YELLOW}3.4 GET /reviews/user/{user_id}{Colors.END}")
     response = requests.get(f"{BASE_URL}/reviews/user/{user_id}")
     if response.status_code == 200:
@@ -207,9 +187,6 @@ def test_review_router():
         print_error(f"Failed to get reviews: {response.status_code}")
         print(response.text)
 
-# ====================
-# 4. REWARD ROUTER TESTS
-# ====================
 def test_reward_router():
     global access_token
     
@@ -217,7 +194,6 @@ def test_reward_router():
     
     headers = {"Authorization": f"Bearer {access_token}"}
     
-    # Test 4.1: Get All Missions
     print(f"\n{Colors.YELLOW}4.1 GET /rewards/missions{Colors.END}")
     response = requests.get(f"{BASE_URL}/rewards/missions")
     if response.status_code == 200:
@@ -227,7 +203,6 @@ def test_reward_router():
         print_error(f"Failed to get missions: {response.status_code}")
         print(response.text)
     
-    # Test 4.2: Create Mission (requires admin - will likely fail)
     print(f"\n{Colors.YELLOW}4.2 POST /rewards/missions (Admin only - expected to fail){Colors.END}")
     mission_data = {
         "name": "First Review",
@@ -250,7 +225,6 @@ def test_reward_router():
         print_error(f"Unexpected status: {response.status_code}")
         print(response.text)
     
-    # Test 4.3: Get My Completed Missions
     print(f"\n{Colors.YELLOW}4.3 GET /rewards/me/missions{Colors.END}")
     response = requests.get(f"{BASE_URL}/rewards/me/missions", headers=headers)
     if response.status_code == 200:
@@ -260,15 +234,11 @@ def test_reward_router():
         print_error(f"Failed to get completed missions: {response.status_code}")
         print(response.text)
 
-# ====================
-# RUN ALL TESTS
-# ====================
 def run_all_tests():
     print(f"\n{Colors.BLUE}{'='*60}")
     print(f"  ECOMOVEX API ROUTER TESTING")
     print(f"{'='*60}{Colors.END}\n")
     
-    # Check if server is running
     if not wait_for_server():
         print_error("Server is not running!")
         print(f"\n{Colors.YELLOW}Please start the server first:{Colors.END}")
