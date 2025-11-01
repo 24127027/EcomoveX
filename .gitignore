@@ -23,15 +23,9 @@ node_modules/
 /.pnp
 .pnp.js
 
-# Testing
-/coverage
-
 # Next.js
-/.next/
-/out/
-
-# Production
-/build
+.next/
+out/
 
 # Misc
 .DS_Store
