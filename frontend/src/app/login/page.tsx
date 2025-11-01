@@ -4,24 +4,47 @@ import {poppins, knewave, abhaya_libre, josefin_sans, gotu} from "../page";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { FaRegEnvelope } from "react-icons/fa";
-
+import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function SigninPage() {
     const [form, setForm] = useState({
       username : "",
       password: "",
+      email: "",
     });
-    const handleSubmit = (e : React.FormEvent)=>{
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const router = useRouter();
+
+    const handleSubmit = async (e : React.FormEvent)=>{
             e.preventDefault();
-            alert(`Welcome ${form.username}`);
+            setLoading(true);
+            setError("");
+
+            try {
+                const response = await api.login({
+                    email: form.email,
+                    password: form.password
+                });
+
+                // Store token
+                localStorage.setItem('access_token', response.access_token);
+                localStorage.setItem('user_id', response.user_id.toString());
+                
+                // Redirect to dashboard or home
+                router.push('/dashboard');
+            } catch (err: any) {
+                setError(err.message || "Login failed. Please try again.");
+            } finally {
+                setLoading(false);
+            }
     };
-    const handleChange = (e : React.ChangeEvent<HTMLInputElement>) => {
-      setForm(
-        {
-          ...form,
-          [e.target.name] : e.target.value
-        }
-      )
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm({
+        ...form,
+        [e.target.name]: e.target.value  // ← This uses the 'name' attribute
+      });
     };
 
     const [showPassword, setShowPassword] = useState(false);
@@ -46,6 +69,15 @@ export default function SigninPage() {
                 value = {form.username}
                 onChange={handleChange}
                 placeholder = "Enter your username"
+                className={`${abhaya_libre.className} w-full border-2 bg-green-100 text-green-700 rounded-full px-5 py-3 text-lg font-medium translate-x-30`}
+                required
+                />
+                <input 
+                type="email"
+                name="email"  // ← Make sure this says "email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="Enter your email"
                 className={`${abhaya_libre.className} w-full border-2 bg-green-100 text-green-700 rounded-full px-5 py-3 text-lg font-medium translate-x-30`}
                 required
                 />

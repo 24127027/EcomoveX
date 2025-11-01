@@ -4,6 +4,9 @@ import {useState} from 'react';
 import Link from "next/link";
 import {gotu} from "../page";
 import { FaEnvelope } from "react-icons/fa";
+import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
+
 const knewave = Knewave({
   subsets: ["latin"],
   weight: ["400"],
@@ -33,6 +36,9 @@ export default function SignupPage(){
       email: "",
     });
     const [passwordError, setPasswordError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const router = useRouter();
 
     const handleChange = (e : React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
@@ -58,9 +64,29 @@ export default function SignupPage(){
       }
     };
 
-    const handleSubmit = (e : React.FormEvent) =>{
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        alert(`Welcome ${form.username}`);
+        setLoading(true);
+        setError("");
+
+        try {
+            const response = await api.register({
+                username: form.username,
+                email: form.email,
+                password: form.password
+            });
+
+            // Store token
+            localStorage.setItem('access_token', response.access_token);
+            localStorage.setItem('user_id', response.user_id.toString());
+            
+            // Redirect to dashboard
+            router.push('/dashboard');
+        } catch (err: any) {
+            setError(err.message || "Registration failed. Please try again.");
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (
@@ -126,7 +152,8 @@ export default function SignupPage(){
                 disabled={!!passwordError || !form.password || !form.authorize}
                 type="submit"
                 className={`${abhaya_libre.className} w-full bg-green-500 text-white rounded-full py-3 text-lg font-medium hover:bg-green-600 translate-x-30 transition`}
-                >Sign up</button>
+                >{loading ? "Signing up..." : "Sign up"}</button>
+                {error && <p className="text-red-500 text-sm mt-2 text-center">{error}</p>}
                 </form>
                 <p className={`${gotu.className} text-green-500 mb-12 text-center text-xl leading-relaxed translate-x-42 -translate-y+30`}>Have an account? 
                   <Link 
