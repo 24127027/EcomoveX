@@ -32,13 +32,13 @@ async def update_user_credentials(
 ):
     return await UserService.update_user_credentials(db, current_user["user_id"], updated_data)
 
-@router.put("/me", response_model=UserResponse)
-async def update_user(
+@router.put("/me/profile", response_model=UserResponse)
+async def update_user_profile(
     updated_data: UserProfileUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await UserRepository.update_user(db, current_user["user_id"], updated_data)
+    return await UserRepository.update_user_profile(db, current_user["user_id"], updated_data)
 
 @router.delete("/me")
 async def delete_user(
@@ -53,7 +53,6 @@ async def delete_user(
         detail="User not found"
     )
 
-#only admin can do this
 @router.post("/me/eco_point/add", response_model=UserResponse)
 async def add_eco_point(
     point: int,

@@ -7,20 +7,30 @@ from schema.message_schema import MessageCreate, MessageUpdate
 
 class MessageRepository:
     @staticmethod
-    async def get_message_by_keyword(db: AsyncSession, keyword: str):
+    async def get_message_by_id(db: AsyncSession, message_id: int):
         try:
-            result = await db.execute(select(Message).where(Message.content.ilike(f"%{keyword}%")))
-            return result.scalars().all()
+            result = await db.execute(select(Message).where(Message.id == message_id))
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching message with content '{keyword}': {e}")
+            print(f"Error fetching message ID {message_id}: {e}")
             return None
 
     @staticmethod
-    async def create_message(db: AsyncSession, message_data: MessageCreate):
+    async def get_message_by_keyword(db: AsyncSession, keyword: str, user_id: int):
+        try:
+            result = await db.execute(select(Message).where(Message.content.ilike(f"%{keyword}%"), Message.user_id == user_id))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error fetching message with content '{keyword}' for user {user_id}: {e}")
+            return None
+
+    @staticmethod
+    async def create_message(db: AsyncSession, message_data: MessageCreate, user_id: int):
         try:
             new_message = Message(
-                user_id=message_data.user_id,
+                user_id=user_id,
                 sender=message_data.sender,
                 content=message_data.content,
                 message_type=message_data.message_type

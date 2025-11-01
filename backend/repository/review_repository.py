@@ -47,13 +47,13 @@ class ReviewRepository:
             return []
 
     @staticmethod
-    async def create_review(db: AsyncSession, review_data: ReviewCreate):
+    async def create_review(db: AsyncSession, review_data: ReviewCreate, user_id: int):
         try:
             new_review = Review(
+                destination_id=review_data.destination_id,
                 content=review_data.content,
-                rating=review_data.rating,
-                user_id=review_data.user_id,
-                product_id=review_data.product_id
+                user_id=user_id,
+                status=review_data.status
             )
             db.add(new_review)
             await db.commit()

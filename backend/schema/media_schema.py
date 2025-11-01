@@ -6,7 +6,6 @@ from models.media import FileType
 class MediaFileCreate(BaseModel):
     file_path: str
     file_type: FileType
-    owner_id: int
 
 class MediaFileUpdate(BaseModel):
     file_path: Optional[str] = None

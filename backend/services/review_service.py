@@ -27,9 +27,9 @@ class ReviewService:
             )
     
     @staticmethod
-    async def create_review(db: AsyncSession, review_data: ReviewCreate):
+    async def create_review(db: AsyncSession, review_data: ReviewCreate, user_id: int):
         try:
-            new_review = await ReviewRepository.create_review(db, review_data)
+            new_review = await ReviewRepository.create_review(db, review_data, user_id)
             if not new_review:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -115,7 +115,7 @@ class UserService:
             else:
                 user_update.rank = Rank.diamond
 
-            updated_user = await UserRepository.update_user(db, user_id, user_update)
+            updated_user = await UserRepository.update_user_profile(db, user_id, user_update)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -172,7 +172,7 @@ class UserService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with ID {user_id} not found"
                 )
-            return True
+            return {"detail": "User deleted successfully"}
         except HTTPException:
             raise
         except Exception as e:
