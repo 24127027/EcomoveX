@@ -1,44 +1,34 @@
 import asyncio
-from dotenv import load_dotenv
-import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 backend_dir = Path(__file__).resolve().parent.parent
-env_path = backend_dir / "local.env"
-load_dotenv(dotenv_path=env_path)
+sys.path.insert(0, str(backend_dir))
 
-SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-
-DB_USER = os.getenv("DB_USER")
-DB_PASS = os.getenv("DB_PASS")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-DB_NAME = os.getenv("DB_NAME")
+from utils.config import settings
 
 async def create_database():
     import asyncpg
     
     try:
         conn = await asyncpg.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASS,
-            database='postgres'
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            user=settings.DB_USER,
+            password=settings.DB_PASS,
+            database='postgres' # Connect to an existing database first
         )
         
         result = await conn.fetchval(
             "SELECT 1 FROM pg_database WHERE datname = $1",
-            DB_NAME
+            settings.DB_NAME
         )
         
         if result:
-            print(f"✓ Database '{DB_NAME}' already exists")
+            print(f"✓ Database '{settings.DB_NAME}' already exists")
         else:
-            await conn.execute(f'CREATE DATABASE "{DB_NAME}"')
-            print(f"✓ Database '{DB_NAME}' created successfully!")
+            await conn.execute(f'CREATE DATABASE "{settings.DB_NAME}"')
+            print(f"✓ Database '{settings.DB_NAME}' created successfully!")
         
         await conn.close()
         
