@@ -89,4 +89,4 @@ async def health_check():
     }
 
 
-# Run with: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Run with: uvicorn main:app --reload 
