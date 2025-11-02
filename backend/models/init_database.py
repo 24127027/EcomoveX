@@ -37,7 +37,7 @@ async def init_db(drop_all: bool = False):
         await conn.run_sync(Base.metadata.create_all)
     print("✅ Database initialized successfully!")
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # Option 1: Clear data from specific tables (keeps table structure)
     # asyncio.run(clear_table_data(["users"]))
     
@@ -48,4 +48,4 @@ if __name__ == "__main__":
     # asyncio.run(init_db(drop_all=True))
     
     # Option 4: Only create missing tables (safe - keeps data)
-    asyncio.run(init_db(drop_all=False))
+    # asyncio.run(init_db(drop_all=False))
