@@ -21,8 +21,24 @@ class Settings(BaseSettings):
     # Default value as a fallback if the enviroment variable isn't set
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000," 
 
+    # --- External API Keys ---
+    # Google Maps Platform API key for Places, Geocoding, Directions
+    GOOGLE_MAPS_API_KEY: str = ""
+    
+    # OpenAI API key for GPT models (chatbot)
+    OPENAI_API_KEY: str = ""
+    
+    # Google Gemini API key (alternative to OpenAI)
+    GEMINI_API_KEY: str = ""
+    
+    # Carbon Interface API key for emissions calculations
+    CARBON_INTERFACE_API_KEY: str = ""
+    
+    # AI Provider selection (openai or gemini)
+    AI_PROVIDER: str = "openai"
+
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / "local.env",
+        env_file=BASE_DIR / ".env.local",
         env_file_encoding="utf-8",
     )
 
