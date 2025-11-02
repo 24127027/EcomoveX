@@ -1,19 +1,21 @@
 from .user import User
 from .message import Message
 from .review import Review
-from .badge import Badge, UserBadge
 from .media import MediaFile
 from .destination import Destination
+from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
+from .carbon import CarbonEmission
 
 __all__ = [
     "User",
     "Message",
     "Review",
-    "Badge",
-    "UserBadge",
     "MediaFile",
     "Destination",
     "Plan",
     "PlanDestination",
+    "Mission",
+    "UserMission",
+    "CarbonEmission"
 ]

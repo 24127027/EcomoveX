@@ -4,7 +4,6 @@ from datetime import datetime
 from models.message import MessageType, MessageStatus, Sender
 
 class MessageCreate(BaseModel):
-    user_id: int
     sender : Sender
     content: Optional[str] = None
     message_type: MessageType = MessageType.text

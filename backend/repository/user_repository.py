@@ -64,7 +64,6 @@ class UserRepository:
                 print(f"User with ID {user_id} not found")
                 return None
 
-            # Password verification is done in service layer
             if updated_data.new_username is not None:
                 user.username = updated_data.new_username
             if updated_data.new_email is not None:
@@ -82,7 +81,7 @@ class UserRepository:
             return None
         
     @staticmethod
-    async def update_user(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
+    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:

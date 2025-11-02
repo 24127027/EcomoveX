@@ -7,6 +7,16 @@ from schema.media_schema import MediaFileCreate, MediaFileUpdate
 
 class MediaRepository:
     @staticmethod
+    async def get_media_by_id(db: AsyncSession, media_id: int):
+        try:
+            result = await db.execute(select(MediaFile).where(MediaFile.id == media_id))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error retrieving media file by ID {media_id}: {e}")
+            return None
+
+    @staticmethod
     async def get_media_by_user(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(select(MediaFile).where(MediaFile.owner_id == user_id))
@@ -17,10 +27,10 @@ class MediaRepository:
             return []
 
     @staticmethod
-    async def create_media(db: AsyncSession, media_data: MediaFileCreate):
+    async def create_media(db: AsyncSession, media_data: MediaFileCreate, user_id: int):
         try:
             new_media = MediaFile(
-                owner_id=media_data.owner_id,
+                owner_id=user_id,
                 file_path=media_data.file_path,
                 file_type=media_data.file_type.value
             )

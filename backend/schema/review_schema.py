@@ -4,8 +4,8 @@ from datetime import datetime
 from models.review import ReviewStatus
 
 class ReviewCreate(BaseModel):
+    destination_id: int
     content: str
-    user_id: int
     status: Optional[ReviewStatus] = ReviewStatus.published
 
 class ReviewUpdate(BaseModel):
@@ -14,6 +14,7 @@ class ReviewUpdate(BaseModel):
 
 class ReviewResponse(BaseModel):
     id: int
+    destination_id: int
     content: str
     user_id: int
     status: ReviewStatus
