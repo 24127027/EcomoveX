@@ -99,9 +99,9 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
-                for e in current_emissions if e.timestamp.date() == date.date()
+                for e in current_emissions if e.calculated_at.date() == date.date()
             ]
             
             previous_date = date - timedelta(days=1)
@@ -111,9 +111,9 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
-                for e in current_emissions if e.timestamp.date() == previous_date.date()
+                for e in current_emissions if e.calculated_at.date() == previous_date.date()
             ]
             
             text_generator = get_text_generator()
@@ -171,10 +171,10 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
                 for e in current_emissions 
-                if start_of_week.date() <= e.timestamp.date() <= end_of_week.date()
+                if start_of_week.date() <= e.calculated_at.date() <= end_of_week.date()
             ]
             
             previous_week_data = [
@@ -183,10 +183,10 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
                 for e in current_emissions 
-                if start_of_previous_week.date() <= e.timestamp.date() <= end_of_previous_week.date()
+                if start_of_previous_week.date() <= e.calculated_at.date() <= end_of_previous_week.date()
             ]
             
             text_generator = get_text_generator()
@@ -252,10 +252,10 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
                 for e in current_emissions 
-                if start_of_month.date() <= e.timestamp.date() <= end_of_month.date()
+                if start_of_month.date() <= e.calculated_at.date() <= end_of_month.date()
             ]
             
             previous_month_data = [
@@ -264,10 +264,10 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
                 for e in current_emissions 
-                if start_of_previous_month.date() <= e.timestamp.date() <= end_of_previous_month.date()
+                if start_of_previous_month.date() <= e.calculated_at.date() <= end_of_previous_month.date()
             ]
             
             text_generator = get_text_generator()
@@ -319,10 +319,10 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
                 for e in current_emissions 
-                if e.timestamp.year == year
+                if e.calculated_at.year == year
             ]
             
             previous_year = year - 1
@@ -332,10 +332,10 @@ class CarbonService:
                     "fuel_type": e.fuel_type.value,
                     "distance_km": e.distance_km,
                     "carbon_emission_kg": e.carbon_emission_kg,
-                    "timestamp": e.timestamp.isoformat()
+                    "calculated_at": e.calculated_at.isoformat()
                 }
                 for e in current_emissions 
-                if e.timestamp.year == previous_year
+                if e.calculated_at.year == previous_year
             ]
             
             text_generator = get_text_generator()
