@@ -1,12 +1,10 @@
-# Virtual environment
-venv/
-
 # Python cache
 __pycache__/
 *.pyc
-
-# Environment variables
-.env
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
 
 # Logs
 *.log
@@ -14,12 +12,12 @@ __pycache__/
 # IDE files
 .vscode/
 .idea/
+*.swp
+*.swo
 
+# Node.js
 node_modules/
 .DS_Store
-
-# Dependencies
-/node_modules
 /.pnp
 .pnp.js
 
@@ -28,7 +26,6 @@ node_modules/
 out/
 
 # Misc
-.DS_Store
 *.pem
 
 # Debug
@@ -52,13 +49,7 @@ local.env
 *.tsbuildinfo
 next-env.d.ts
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyc
-*.pyo
-*.pyd
+# Python build
 .Python
 build/
 develop-eggs/
@@ -80,16 +71,9 @@ env/
 ENV/
 EcomoveX/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
 # Database
 *.db
 *.sqlite3
 
 # OS
-.DS_Store
 Thumbs.db
