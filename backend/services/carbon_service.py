@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
 from models.carbon import VehicleType, FuelType
 from datetime import datetime, timedelta
-from backend.integration.text_generator_api import get_text_generator
+from integration.text_generator_api import get_text_generator
 
 class CarbonService:
     EMISSION_FACTORS = {
@@ -92,8 +92,45 @@ class CarbonService:
     @staticmethod
     async def get_total_carbon_by_day(db: AsyncSession, user_id: int, date: datetime):
         try:
-            total = await CarbonRepository.get_total_carbon_by_day(db, user_id, date)
-            return {"user_id": user_id, "total_carbon_emission_kg": total}
+            current_total = await CarbonRepository.get_total_carbon_by_day(db, user_id, date)
+            
+            previous_date = date - timedelta(days=1)
+            previous_total = await CarbonRepository.get_total_carbon_by_day(db, user_id, previous_date)
+            
+            difference = current_total - previous_total
+            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            
+            text_generator = get_text_generator()
+            if difference < 0:
+                prompt = (
+                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their carbon emissions "
+                    f"from {previous_total:.2f} kg CO2 yesterday to {current_total:.2f} kg CO2 today "
+                    f"(a {abs(percentage_change):.1f}% decrease). Encourage them to keep up the great work."
+                )
+            elif difference > 0:
+                prompt = (
+                    f"Write a short gentle reminder (2-3 sentences) for a user whose carbon emissions increased "
+                    f"from {previous_total:.2f} kg CO2 yesterday to {current_total:.2f} kg CO2 today "
+                    f"(a {percentage_change:.1f}% increase). Suggest simple eco-friendly actions like using public transport, "
+                    f"cycling, or carpooling."
+                )
+            else:
+                prompt = (
+                    f"Write a short neutral message (2-3 sentences) for a user who maintained the same carbon emissions "
+                    f"of {current_total:.2f} kg CO2 for two consecutive days. Encourage them to try reducing it further."
+                )
+            
+            motivational_message = await text_generator.generate_text(prompt)
+            
+            return {
+                "user_id": user_id,
+                "date": date.strftime("%Y-%m-%d"),
+                "total_carbon_emission_kg": current_total,
+                "previous_day_total": previous_total,
+                "difference": difference,
+                "percentage_change": round(percentage_change, 2),
+                "message": motivational_message
+            }
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -104,8 +141,45 @@ class CarbonService:
     async def get_total_carbon_by_week(db: AsyncSession, user_id: int, date: datetime):
         try:
             start_of_week = date - timedelta(days=date.weekday())
-            total = await CarbonRepository.get_total_carbon_by_week(db, user_id, start_of_week)
-            return {"user_id": user_id, "total_carbon_emission_kg": total}
+            current_total = await CarbonRepository.get_total_carbon_by_week(db, user_id, start_of_week)
+            
+            start_of_previous_week = start_of_week - timedelta(days=7)
+            previous_total = await CarbonRepository.get_total_carbon_by_week(db, user_id, start_of_previous_week)
+            
+            difference = current_total - previous_total
+            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            
+            text_generator = get_text_generator()
+            if difference < 0:
+                prompt = (
+                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their weekly carbon emissions "
+                    f"from {previous_total:.2f} kg CO2 last week to {current_total:.2f} kg CO2 this week "
+                    f"(a {abs(percentage_change):.1f}% decrease). Celebrate their eco-friendly choices and motivate them to continue."
+                )
+            elif difference > 0:
+                prompt = (
+                    f"Write a short gentle reminder (2-3 sentences) for a user whose weekly carbon emissions increased "
+                    f"from {previous_total:.2f} kg CO2 last week to {current_total:.2f} kg CO2 this week "
+                    f"(a {percentage_change:.1f}% increase). Suggest sustainable alternatives like public transportation, "
+                    f"walking, or combining trips."
+                )
+            else:
+                prompt = (
+                    f"Write a short message (2-3 sentences) for a user who maintained {current_total:.2f} kg CO2 emissions "
+                    f"for two consecutive weeks. Encourage them to challenge themselves to reduce it next week."
+                )
+            
+            motivational_message = await text_generator.generate_text(prompt)
+            
+            return {
+                "user_id": user_id,
+                "week_starting": start_of_week.strftime("%Y-%m-%d"),
+                "total_carbon_emission_kg": current_total,
+                "previous_week_total": previous_total,
+                "difference": difference,
+                "percentage_change": round(percentage_change, 2),
+                "message": motivational_message
+            }
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -117,8 +191,51 @@ class CarbonService:
         try:
             start_of_month = datetime(date.year, date.month, 1)
             end_of_month = datetime(date.year, date.month + 1, 1) if date.month < 12 else datetime(date.year + 1, 1, 1)
-            total = await CarbonRepository.get_total_carbon_by_month(db, user_id, start_of_month, end_of_month)
-            return {"user_id": user_id, "total_carbon_emission_kg": total}
+            current_total = await CarbonRepository.get_total_carbon_by_month(db, user_id, start_of_month, end_of_month)
+            
+            if date.month == 1:
+                start_of_previous_month = datetime(date.year - 1, 12, 1)
+                end_of_previous_month = datetime(date.year, 1, 1)
+            else:
+                start_of_previous_month = datetime(date.year, date.month - 1, 1)
+                end_of_previous_month = datetime(date.year, date.month, 1)
+            
+            previous_total = await CarbonRepository.get_total_carbon_by_month(db, user_id, start_of_previous_month, end_of_previous_month)
+            
+            difference = current_total - previous_total
+            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            
+            text_generator = get_text_generator()
+            if difference < 0:
+                prompt = (
+                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their monthly carbon emissions "
+                    f"from {previous_total:.2f} kg CO2 last month to {current_total:.2f} kg CO2 this month "
+                    f"(a {abs(percentage_change):.1f}% decrease). Praise their commitment to sustainability and inspire them to maintain this trend."
+                )
+            elif difference > 0:
+                prompt = (
+                    f"Write a short gentle reminder (2-3 sentences) for a user whose monthly carbon emissions increased "
+                    f"from {previous_total:.2f} kg CO2 last month to {current_total:.2f} kg CO2 this month "
+                    f"(a {percentage_change:.1f}% increase). Suggest planning eco-friendly travel routes, using greener transportation, "
+                    f"or tracking daily emissions more carefully."
+                )
+            else:
+                prompt = (
+                    f"Write a short message (2-3 sentences) for a user who maintained {current_total:.2f} kg CO2 emissions "
+                    f"for two consecutive months. Encourage them to set new reduction goals for next month."
+                )
+            
+            motivational_message = await text_generator.generate_text(prompt)
+            
+            return {
+                "user_id": user_id,
+                "month": f"{date.year}-{date.month:02d}",
+                "total_carbon_emission_kg": current_total,
+                "previous_month_total": previous_total,
+                "difference": difference,
+                "percentage_change": round(percentage_change, 2),
+                "message": motivational_message
+            }
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -128,8 +245,45 @@ class CarbonService:
     @staticmethod
     async def get_total_carbon_by_year(db: AsyncSession, user_id: int, year: int):
         try:
-            total = await CarbonRepository.get_total_carbon_by_year(db, user_id, year)
-            return {"user_id": user_id, "total_carbon_emission_kg": total}
+            current_total = await CarbonRepository.get_total_carbon_by_year(db, user_id, year)
+            
+            previous_year = year - 1
+            previous_total = await CarbonRepository.get_total_carbon_by_year(db, user_id, previous_year)
+            
+            difference = current_total - previous_total
+            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            
+            text_generator = get_text_generator()
+            if difference < 0:
+                prompt = (
+                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their annual carbon emissions "
+                    f"from {previous_total:.2f} kg CO2 in {previous_year} to {current_total:.2f} kg CO2 in {year} "
+                    f"(a {abs(percentage_change):.1f}% decrease). Celebrate this impressive achievement and their dedication to fighting climate change."
+                )
+            elif difference > 0:
+                prompt = (
+                    f"Write a short gentle reminder (2-3 sentences) for a user whose annual carbon emissions increased "
+                    f"from {previous_total:.2f} kg CO2 in {previous_year} to {current_total:.2f} kg CO2 in {year} "
+                    f"(a {percentage_change:.1f}% increase). Encourage them to set concrete goals for the new year, "
+                    f"such as using electric vehicles, public transport more often, or offsetting emissions."
+                )
+            else:
+                prompt = (
+                    f"Write a short message (2-3 sentences) for a user who maintained {current_total:.2f} kg CO2 emissions "
+                    f"for two consecutive years. Challenge them to make meaningful reductions in the coming year."
+                )
+            
+            motivational_message = await text_generator.generate_text(prompt)
+            
+            return {
+                "user_id": user_id,
+                "year": year,
+                "total_carbon_emission_kg": current_total,
+                "previous_year_total": previous_total,
+                "difference": difference,
+                "percentage_change": round(percentage_change, 2),
+                "message": motivational_message
+            }
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
