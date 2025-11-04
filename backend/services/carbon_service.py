@@ -195,8 +195,8 @@ class CarbonService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting carbon emission ID {emission_id}: {e}"
             )
-    
-    async def generate_carbon_notification(self, user_id: int, carbon_emission_kg: float) -> str:
+
+    async def generate_carbon_notification(self, carbon_emission_kg: float) -> str:
         text_generator = get_text_generator()
         prompt = (
             f"Generate a motivational notification for a user who has just recorded a carbon emission of "

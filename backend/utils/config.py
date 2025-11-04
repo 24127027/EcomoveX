@@ -16,11 +16,6 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000," 
 
-    GOOGLE_MAPS_API_KEY: str = "AIzaSyDaOulQACiJzBfqumbsqg_-vKha8fCnL-s"
-    OPENAI_API_KEY: str = ""
-    GEMINI_API_KEY: str = ""
-    CARBON_INTERFACE_API_KEY: str = ""
-    AI_PROVIDER: str = "openai"
     HUGGINGFACE_API_KEY: str = ""
 
 settings = Settings()
