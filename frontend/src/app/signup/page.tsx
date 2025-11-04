@@ -70,7 +70,7 @@ export default function SignupPage(){
         setError("");
 
         try {
-            const response = await api.register({
+            const response = await api.signup({
                 username: form.username,
                 email: form.email,
                 password: form.password

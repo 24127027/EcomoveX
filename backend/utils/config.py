@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "postgres"
     DB_USER: str = "postgres"
-    DB_PASS: str = "postgres"
+    DB_PASS: str = "142857"
 
     SECRET_KEY: str = "super_secret_key"
     ALGORITHM: str = "HS256"
