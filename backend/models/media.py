@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database.user_database import UserBase
 from enum import Enum
 
 class FileType(str, Enum):
@@ -12,7 +12,7 @@ class FileType(str, Enum):
     document = "document"
     audio = "audio"
 
-class MediaFile(Base):
+class MediaFile(UserBase):
     __tablename__ = "media_files"
 
     id = Column(Integer, primary_key=True, index=True)

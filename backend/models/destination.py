@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, Float
-from database.database import Base
+from sqlalchemy import Column, Integer, Float, String
+from database.destination_database import DestinationBase
 
-class Destination(Base):
+class Destination(DestinationBase):
     __tablename__ = "destinations"
 
     id = Column(Integer, primary_key=True, index=True)

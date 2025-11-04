@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import get_db
+from database.user_database import get_db
+from database.destination_database import get_destination_db
 from schema.review_schema import ReviewCreate, ReviewUpdate, ReviewResponse
 from services.review_service import ReviewService
 from utils.authentication_util import get_current_user
@@ -32,10 +33,11 @@ async def get_my_reviews(
 @router.post("/", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(
     review_data: ReviewCreate,
-    db: AsyncSession = Depends(get_db),
+    user_db: AsyncSession = Depends(get_db),
+    dest_db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await ReviewService.create_review(db, review_data, current_user["user_id"])
+    return await ReviewService.create_review(user_db, dest_db, review_data, current_user["user_id"])
 
 @router.put("/{review_id}", response_model=ReviewResponse)
 async def update_review(

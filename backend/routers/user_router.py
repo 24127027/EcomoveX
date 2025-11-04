@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import get_db
+from database.user_database import get_db
 from schema.user_schema import UserCredentialUpdate, UserResponse, UserProfileUpdate
 from schema.authentication_schema import UserRegister
 from services.user_service import UserService

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
@@ -121,7 +121,7 @@ class UserMissionRepository:
             new_user_mission = UserMission(
                 user_id=user_id,
                 mission_id=mission_id,
-                completed_at=datetime.utcnow()
+                completed_at=datetime.now(UTC).replace(tzinfo=None)
             )
             db.add(new_user_mission)
             await db.commit()

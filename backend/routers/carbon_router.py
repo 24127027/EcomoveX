@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import get_db
+from database.user_database import get_db
 from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
 from services.carbon_service import CarbonService
 from utils.authentication_util import get_current_user

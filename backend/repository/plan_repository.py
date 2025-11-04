@@ -4,6 +4,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from models.plan import Plan, PlanDestination
 from schema.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
+# Note: This repository uses the user database (get_db)
+# PlanDestination.destination_id references destinations in the separate destination database
+# Validation of destination_id should be done at the service layer
+
 class PlanRepository:
     @staticmethod
     async def get_plan_by_user_id(db: AsyncSession, user_id: int):
@@ -76,4 +80,62 @@ class PlanRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error deleting plan ID {plan_id}: {e}")
+            return False
+
+    # PlanDestination methods
+    @staticmethod
+    async def get_plan_destinations(db: AsyncSession, plan_id: int):
+        """Get all destinations for a specific plan"""
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.plan_id == plan_id)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error retrieving destinations for plan ID {plan_id}: {e}")
+            return []
+
+    @staticmethod
+    async def add_destination_to_plan(db: AsyncSession, plan_id: int, destination_id: int, 
+                                     destination_type: str, visit_date, note: str = None):
+        """
+        Add a destination to a plan.
+        Note: destination_id should be validated against the destination database before calling this.
+        """
+        try:
+            new_plan_dest = PlanDestination(
+                plan_id=plan_id,
+                destination_id=destination_id,
+                type=destination_type,
+                visit_date=visit_date,
+                note=note
+            )
+            db.add(new_plan_dest)
+            await db.commit()
+            await db.refresh(new_plan_dest)
+            return new_plan_dest
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error adding destination {destination_id} to plan {plan_id}: {e}")
+            return None
+
+    @staticmethod
+    async def remove_destination_from_plan(db: AsyncSession, plan_destination_id: int):
+        """Remove a destination from a plan"""
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            plan_dest = result.scalar_one_or_none()
+            if not plan_dest:
+                print(f"PlanDestination ID {plan_destination_id} not found")
+                return False
+
+            await db.delete(plan_dest)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error removing plan destination ID {plan_destination_id}: {e}")
             return False

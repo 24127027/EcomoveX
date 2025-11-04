@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.database import Base
+from database.user_database import UserBase
 from enum import Enum
 
 class VehicleType(str, Enum):
@@ -17,7 +17,7 @@ class FuelType(str, Enum):
     hybrid = "hybrid"
     none = "none"
 
-class CarbonEmission(Base):
+class CarbonEmission(UserBase):
     __tablename__ = "carbon_emissions"
 
     id = Column(Integer, primary_key=True, index=True)

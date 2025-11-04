@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import get_db
+from database.user_database import get_db
 from schema.reward_schema import MissionCreate, MissionUpdate, MissionResponse, UserRewardResponse
 from services.reward_service import RewardService
 from utils.authentication_util import get_current_user
