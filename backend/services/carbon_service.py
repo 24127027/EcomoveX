@@ -92,44 +92,61 @@ class CarbonService:
     @staticmethod
     async def get_total_carbon_by_day(db: AsyncSession, user_id: int, date: datetime):
         try:
-            current_total = await CarbonRepository.get_total_carbon_by_day(db, user_id, date)
+            current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
+            current_day_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions if e.timestamp.date() == date.date()
+            ]
             
             previous_date = date - timedelta(days=1)
-            previous_total = await CarbonRepository.get_total_carbon_by_day(db, user_id, previous_date)
-            
-            difference = current_total - previous_total
-            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            previous_day_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions if e.timestamp.date() == previous_date.date()
+            ]
             
             text_generator = get_text_generator()
-            if difference < 0:
-                prompt = (
-                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their carbon emissions "
-                    f"from {previous_total:.2f} kg CO2 yesterday to {current_total:.2f} kg CO2 today "
-                    f"(a {abs(percentage_change):.1f}% decrease). Encourage them to keep up the great work."
-                )
-            elif difference > 0:
-                prompt = (
-                    f"Write a short gentle reminder (2-3 sentences) for a user whose carbon emissions increased "
-                    f"from {previous_total:.2f} kg CO2 yesterday to {current_total:.2f} kg CO2 today "
-                    f"(a {percentage_change:.1f}% increase). Suggest simple eco-friendly actions like using public transport, "
-                    f"cycling, or carpooling."
-                )
-            else:
-                prompt = (
-                    f"Write a short neutral message (2-3 sentences) for a user who maintained the same carbon emissions "
-                    f"of {current_total:.2f} kg CO2 for two consecutive days. Encourage them to try reducing it further."
-                )
-            
-            motivational_message = await text_generator.generate_text(prompt)
+            prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
+
+                Time Range: Daily comparison
+                Current Day: {date.strftime("%Y-%m-%d")}
+                Previous Day: {previous_date.strftime("%Y-%m-%d")}
+
+                Current Day Data ({len(current_day_data)} trips):
+                {current_day_data}
+
+                Previous Day Data ({len(previous_day_data)} trips):
+                {previous_day_data}
+
+                Instructions:
+                1. Calculate the total emissions for each day
+                2. Compare the two days and determine the percentage change
+                3. Analyze the types of transportation used
+                4. Generate a short personalized message (2-3 sentences) that:
+                - If emissions decreased: Congratulate the user and encourage them to keep it up
+                - If emissions increased: Gently remind them and suggest eco-friendly alternatives
+                - If emissions stayed the same: Encourage them to try reducing further
+                5. Include specific insights about their travel patterns if relevant
+
+                Format your response as a brief, friendly message."""
+
+            summary_message = await text_generator.generate_text(prompt)
             
             return {
                 "user_id": user_id,
                 "date": date.strftime("%Y-%m-%d"),
-                "total_carbon_emission_kg": current_total,
-                "previous_day_total": previous_total,
-                "difference": difference,
-                "percentage_change": round(percentage_change, 2),
-                "message": motivational_message
+                "summary": summary_message
             }
         except Exception as e:
             raise HTTPException(
@@ -141,44 +158,69 @@ class CarbonService:
     async def get_total_carbon_by_week(db: AsyncSession, user_id: int, date: datetime):
         try:
             start_of_week = date - timedelta(days=date.weekday())
-            current_total = await CarbonRepository.get_total_carbon_by_week(db, user_id, start_of_week)
+            end_of_week = start_of_week + timedelta(days=6)
             
             start_of_previous_week = start_of_week - timedelta(days=7)
-            previous_total = await CarbonRepository.get_total_carbon_by_week(db, user_id, start_of_previous_week)
+            end_of_previous_week = start_of_previous_week + timedelta(days=6)
             
-            difference = current_total - previous_total
-            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
+            
+            current_week_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions 
+                if start_of_week.date() <= e.timestamp.date() <= end_of_week.date()
+            ]
+            
+            previous_week_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions 
+                if start_of_previous_week.date() <= e.timestamp.date() <= end_of_previous_week.date()
+            ]
             
             text_generator = get_text_generator()
-            if difference < 0:
-                prompt = (
-                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their weekly carbon emissions "
-                    f"from {previous_total:.2f} kg CO2 last week to {current_total:.2f} kg CO2 this week "
-                    f"(a {abs(percentage_change):.1f}% decrease). Celebrate their eco-friendly choices and motivate them to continue."
-                )
-            elif difference > 0:
-                prompt = (
-                    f"Write a short gentle reminder (2-3 sentences) for a user whose weekly carbon emissions increased "
-                    f"from {previous_total:.2f} kg CO2 last week to {current_total:.2f} kg CO2 this week "
-                    f"(a {percentage_change:.1f}% increase). Suggest sustainable alternatives like public transportation, "
-                    f"walking, or combining trips."
-                )
-            else:
-                prompt = (
-                    f"Write a short message (2-3 sentences) for a user who maintained {current_total:.2f} kg CO2 emissions "
-                    f"for two consecutive weeks. Encourage them to challenge themselves to reduce it next week."
-                )
-            
-            motivational_message = await text_generator.generate_text(prompt)
+            prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
+
+                Time Range: Weekly comparison
+                Current Week: {start_of_week.strftime("%Y-%m-%d")} to {end_of_week.strftime("%Y-%m-%d")}
+                Previous Week: {start_of_previous_week.strftime("%Y-%m-%d")} to {end_of_previous_week.strftime("%Y-%m-%d")}
+
+                Current Week Data ({len(current_week_data)} trips):
+                {current_week_data}
+
+                Previous Week Data ({len(previous_week_data)} trips):
+                {previous_week_data}
+
+                Instructions:
+                1. Calculate the total emissions for each week
+                2. Compare the two weeks and determine the percentage change
+                3. Analyze the patterns: most common transportation types, daily distribution, etc.
+                4. Generate a short personalized message (2-3 sentences) that:
+                - If emissions decreased: Celebrate their eco-friendly choices and motivate them to continue
+                - If emissions increased: Suggest sustainable alternatives like public transportation, walking, or combining trips
+                - If emissions stayed the same: Challenge them to reduce it next week
+                5. Provide actionable insights based on their weekly travel patterns
+
+                Format your response as a brief, encouraging message."""
+
+            summary_message = await text_generator.generate_text(prompt)
             
             return {
                 "user_id": user_id,
                 "week_starting": start_of_week.strftime("%Y-%m-%d"),
-                "total_carbon_emission_kg": current_total,
-                "previous_week_total": previous_total,
-                "difference": difference,
-                "percentage_change": round(percentage_change, 2),
-                "message": motivational_message
+                "week_ending": end_of_week.strftime("%Y-%m-%d"),
+                "summary": summary_message
             }
         except Exception as e:
             raise HTTPException(
@@ -190,51 +232,75 @@ class CarbonService:
     async def get_total_carbon_by_month(db: AsyncSession, user_id: int, date: datetime):
         try:
             start_of_month = datetime(date.year, date.month, 1)
-            end_of_month = datetime(date.year, date.month + 1, 1) if date.month < 12 else datetime(date.year + 1, 1, 1)
-            current_total = await CarbonRepository.get_total_carbon_by_month(db, user_id, start_of_month, end_of_month)
+            if date.month == 12:
+                end_of_month = datetime(date.year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_of_month = datetime(date.year, date.month + 1, 1) - timedelta(days=1)
             
             if date.month == 1:
                 start_of_previous_month = datetime(date.year - 1, 12, 1)
-                end_of_previous_month = datetime(date.year, 1, 1)
+                end_of_previous_month = datetime(date.year - 1, 12, 31)
             else:
                 start_of_previous_month = datetime(date.year, date.month - 1, 1)
-                end_of_previous_month = datetime(date.year, date.month, 1)
+                end_of_previous_month = datetime(date.year, date.month, 1) - timedelta(days=1)
             
-            previous_total = await CarbonRepository.get_total_carbon_by_month(db, user_id, start_of_previous_month, end_of_previous_month)
+            current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
             
-            difference = current_total - previous_total
-            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            current_month_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions 
+                if start_of_month.date() <= e.timestamp.date() <= end_of_month.date()
+            ]
+            
+            previous_month_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions 
+                if start_of_previous_month.date() <= e.timestamp.date() <= end_of_previous_month.date()
+            ]
             
             text_generator = get_text_generator()
-            if difference < 0:
-                prompt = (
-                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their monthly carbon emissions "
-                    f"from {previous_total:.2f} kg CO2 last month to {current_total:.2f} kg CO2 this month "
-                    f"(a {abs(percentage_change):.1f}% decrease). Praise their commitment to sustainability and inspire them to maintain this trend."
-                )
-            elif difference > 0:
-                prompt = (
-                    f"Write a short gentle reminder (2-3 sentences) for a user whose monthly carbon emissions increased "
-                    f"from {previous_total:.2f} kg CO2 last month to {current_total:.2f} kg CO2 this month "
-                    f"(a {percentage_change:.1f}% increase). Suggest planning eco-friendly travel routes, using greener transportation, "
-                    f"or tracking daily emissions more carefully."
-                )
-            else:
-                prompt = (
-                    f"Write a short message (2-3 sentences) for a user who maintained {current_total:.2f} kg CO2 emissions "
-                    f"for two consecutive months. Encourage them to set new reduction goals for next month."
-                )
-            
-            motivational_message = await text_generator.generate_text(prompt)
+            prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
+
+                Time Range: Monthly comparison
+                Current Month: {start_of_month.strftime("%B %Y")} ({start_of_month.strftime("%Y-%m-%d")} to {end_of_month.strftime("%Y-%m-%d")})
+                Previous Month: {start_of_previous_month.strftime("%B %Y")} ({start_of_previous_month.strftime("%Y-%m-%d")} to {end_of_previous_month.strftime("%Y-%m-%d")})
+
+                Current Month Data ({len(current_month_data)} trips):
+                {current_month_data}
+
+                Previous Month Data ({len(previous_month_data)} trips):
+                {previous_month_data}
+
+                Instructions:
+                1. Calculate the total emissions for each month
+                2. Compare the two months and determine the percentage change
+                3. Analyze monthly patterns: preferred transportation modes, peak emission days, trends
+                4. Generate a short personalized message (2-3 sentences) that:
+                - If emissions decreased: Praise their commitment to sustainability and inspire them to maintain this trend
+                - If emissions increased: Suggest planning eco-friendly travel routes, using greener transportation, or tracking daily emissions more carefully
+                - If emissions stayed the same: Encourage them to set new reduction goals for next month
+                5. Provide monthly insights and actionable recommendations
+
+                Format your response as a brief, motivational message."""
+
+            summary_message = await text_generator.generate_text(prompt)
             
             return {
                 "user_id": user_id,
                 "month": f"{date.year}-{date.month:02d}",
-                "total_carbon_emission_kg": current_total,
-                "previous_month_total": previous_total,
-                "difference": difference,
-                "percentage_change": round(percentage_change, 2),
-                "message": motivational_message
+                "summary": summary_message
             }
         except Exception as e:
             raise HTTPException(
@@ -245,44 +311,64 @@ class CarbonService:
     @staticmethod
     async def get_total_carbon_by_year(db: AsyncSession, user_id: int, year: int):
         try:
-            current_total = await CarbonRepository.get_total_carbon_by_year(db, user_id, year)
+            current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
+            
+            current_year_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions 
+                if e.timestamp.year == year
+            ]
             
             previous_year = year - 1
-            previous_total = await CarbonRepository.get_total_carbon_by_year(db, user_id, previous_year)
-            
-            difference = current_total - previous_total
-            percentage_change = ((difference / previous_total) * 100) if previous_total > 0 else 0
+            previous_year_data = [
+                {
+                    "vehicle_type": e.vehicle_type.value,
+                    "fuel_type": e.fuel_type.value,
+                    "distance_km": e.distance_km,
+                    "carbon_emission_kg": e.carbon_emission_kg,
+                    "timestamp": e.timestamp.isoformat()
+                }
+                for e in current_emissions 
+                if e.timestamp.year == previous_year
+            ]
             
             text_generator = get_text_generator()
-            if difference < 0:
-                prompt = (
-                    f"Write a short congratulatory message (2-3 sentences) for a user who reduced their annual carbon emissions "
-                    f"from {previous_total:.2f} kg CO2 in {previous_year} to {current_total:.2f} kg CO2 in {year} "
-                    f"(a {abs(percentage_change):.1f}% decrease). Celebrate this impressive achievement and their dedication to fighting climate change."
-                )
-            elif difference > 0:
-                prompt = (
-                    f"Write a short gentle reminder (2-3 sentences) for a user whose annual carbon emissions increased "
-                    f"from {previous_total:.2f} kg CO2 in {previous_year} to {current_total:.2f} kg CO2 in {year} "
-                    f"(a {percentage_change:.1f}% increase). Encourage them to set concrete goals for the new year, "
-                    f"such as using electric vehicles, public transport more often, or offsetting emissions."
-                )
-            else:
-                prompt = (
-                    f"Write a short message (2-3 sentences) for a user who maintained {current_total:.2f} kg CO2 emissions "
-                    f"for two consecutive years. Challenge them to make meaningful reductions in the coming year."
-                )
-            
-            motivational_message = await text_generator.generate_text(prompt)
+            prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
+
+                Time Range: Annual comparison
+                Current Year: {year}
+                Previous Year: {previous_year}
+
+                Current Year Data ({len(current_year_data)} trips):
+                {current_year_data}
+
+                Previous Year Data ({len(previous_year_data)} trips):
+                {previous_year_data}
+
+                Instructions:
+                1. Calculate the total emissions for each year
+                2. Compare the two years and determine the percentage change
+                3. Analyze annual patterns: seasonal trends, most/least eco-friendly months, transportation preferences
+                4. Generate a short personalized message (2-3 sentences) that:
+                - If emissions decreased: Celebrate this impressive achievement and their dedication to fighting climate change
+                - If emissions increased: Encourage them to set concrete goals for the new year, such as using electric vehicles, public transport more often, or offsetting emissions
+                - If emissions stayed the same: Challenge them to make meaningful reductions in the coming year
+                5. Provide a year-in-review perspective with long-term recommendations
+
+                Format your response as a brief, impactful message."""
+
+            summary_message = await text_generator.generate_text(prompt)
             
             return {
                 "user_id": user_id,
                 "year": year,
-                "total_carbon_emission_kg": current_total,
-                "previous_year_total": previous_total,
-                "difference": difference,
-                "percentage_change": round(percentage_change, 2),
-                "message": motivational_message
+                "summary": summary_message
             }
         except Exception as e:
             raise HTTPException(
@@ -349,12 +435,3 @@ class CarbonService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting carbon emission ID {emission_id}: {e}"
             )
-
-    async def generate_carbon_notification(self, carbon_emission_kg: float) -> str:
-        text_generator = get_text_generator()
-        prompt = (
-            f"Generate a motivational notification for a user who has just recorded a carbon emission of "
-            f"{carbon_emission_kg} kg CO2. Encourage them to reduce their carbon footprint and suggest "
-            f"ways they can make more sustainable choices in their travel habits."
-        )
-        return await text_generator.generate_text(prompt)
