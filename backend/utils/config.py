@@ -7,9 +7,9 @@ class Settings(BaseSettings):
     #Database connection settings
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DB_NAME: str = "ecomovex_db"
+    DB_NAME: str = "postgres"
     DB_USER: str = "postgres"
-    DB_PASS: str = "postgres"
+    DB_PASS: str = "142857"
 
     # --- Security/Authentication Settings ---
     # The key used to sign JWTs (Keep this secret and robust)

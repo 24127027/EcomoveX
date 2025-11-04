@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface LoginCredentials {
   email: string;
@@ -81,7 +81,7 @@ class ApiClient {
   }
 
   async signup(data: SignupData): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/signup', {
+    return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
