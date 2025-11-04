@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
 from models.carbon import VehicleType, FuelType
 from datetime import datetime, timedelta
+from backend.integration.text_generator_api import get_text_generator
 
 class CarbonService:
     EMISSION_FACTORS = {
@@ -194,3 +195,12 @@ class CarbonService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting carbon emission ID {emission_id}: {e}"
             )
+    
+    async def generate_carbon_notification(self, user_id: int, carbon_emission_kg: float) -> str:
+        text_generator = get_text_generator()
+        prompt = (
+            f"Generate a motivational notification for a user who has just recorded a carbon emission of "
+            f"{carbon_emission_kg} kg CO2. Encourage them to reduce their carbon footprint and suggest "
+            f"ways they can make more sustainable choices in their travel habits."
+        )
+        return await text_generator.generate_text(prompt)

@@ -33,8 +33,9 @@ class Mission(Base):
 class UserMission(Base):
     __tablename__ = "mission_users"
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    mission_id = Column(Integer, ForeignKey("missions.id", ondelete="CASCADE"), primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    mission_id = Column(Integer, ForeignKey("missions.id", ondelete="CASCADE"), nullable=False)
     completed_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="missions")
