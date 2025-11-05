@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 
 const knewave = Knewave({
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["400"]
 });
 
 export  const poppins = Poppins({
