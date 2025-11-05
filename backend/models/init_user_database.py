@@ -26,7 +26,7 @@ async def clear_table_data(table_names: list[str]):
             await conn.execute(text(f"TRUNCATE TABLE {table_name} CASCADE"))
         print("✅ Table data cleared successfully!")
 
-async def init_db(drop_all: bool = False):
+async def init_user_db(drop_all: bool = False):
     async with user_engine.begin() as conn:
         if drop_all:
             print("⚠️  Dropping all existing tables with CASCADE...")

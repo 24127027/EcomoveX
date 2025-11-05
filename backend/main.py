@@ -13,7 +13,7 @@ from routers.reward_router import router as reward_router
 # Import database setup
 from database.user_database import user_engine
 from database.destination_database import destination_engine
-from models.init_user_database import init_db
+from models.init_user_database import init_user_db
 from models.init_destination_database import init_destination_db
 from utils.config import settings
 
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting EcomoveX Backend...")
     
     try:
-        await init_db(drop_all=False)
+        await init_user_db(drop_all=False)
         print("✅ Main database initialized")
     except Exception as e:
         print(f"⚠️  Main database initialization failed: {e}")

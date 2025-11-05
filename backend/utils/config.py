@@ -18,5 +18,6 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000," 
 
     HUGGINGFACE_API_KEY: str = ""
+    GEOAPIFY_API_KEY: str = ""
 
 settings = Settings()

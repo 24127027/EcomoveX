@@ -1,5 +1,11 @@
 import asyncio
+import sys
 import asyncpg
+from pathlib import Path
+
+backend_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(backend_dir))
+
 from utils.config import settings
 
 async def create_databases():
@@ -35,12 +41,12 @@ async def create_databases():
     finally:
         await conn.close()
     
-    from models.init_user_database import init_db
+    from models.init_user_database import init_user_db
     from models.init_destination_database import init_destination_db
     
     print("\n🧱 Initializing main database tables...")
-    await init_db(drop_all=False)
-    
+    await init_user_db(drop_all=False)
+
     print("\n🧱 Initializing destination database tables...")
     await init_destination_db(drop_all=False)
     
