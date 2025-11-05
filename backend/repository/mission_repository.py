@@ -113,7 +113,7 @@ class UserMissionRepository:
                 print(f"User or Mission not found (user={user_id}, mission={mission_id})")
                 return None
 
-            existing = UserMissionRepository.completed_mission(db, user_id, mission_id)
+            existing = await UserMissionRepository.completed_mission(db, user_id, mission_id)
             if existing:
                 print("User already completed this mission.")
                 return existing

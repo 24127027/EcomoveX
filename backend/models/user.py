@@ -33,3 +33,4 @@ class User(UserBase):
     plans = relationship("Plan", back_populates="user")
     missions = relationship("UserMission", back_populates="user")
     carbon_emissions = relationship("CarbonEmission", back_populates="user")
+    clusters = relationship("UserClusterAssociation", back_populates="user")

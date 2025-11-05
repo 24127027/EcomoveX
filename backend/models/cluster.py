@@ -33,4 +33,4 @@ class ClusterDestination(UserBase):
     destination_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
     popularity_score = Column(Float, nullable=True)
     
-    cluster = relationship("Cluster", back_populates="destinations")
+    cluster = relationship("Cluster")

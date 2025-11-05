@@ -54,9 +54,9 @@ class ReviewRepository:
         try:
             new_review = Review(
                 destination_id=review_data.destination_id,
-                content=review_data.content,
-                user_id=user_id,
-                status=review_data.status
+                rating=review_data.rating,
+                content=review_data.content or "",
+                user_id=user_id
             )
             db.add(new_review)
             await db.commit()
@@ -76,11 +76,10 @@ class ReviewRepository:
                 print(f"Review ID {review_id} not found")
                 return None
 
+            if updated_data.rating is not None:
+                review.rating = updated_data.rating
             if updated_data.content is not None:
                 review.content = updated_data.content
-            if updated_data.status is not None:
-                review.status = updated_data.status
-            review.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
             db.add(review)
             await db.commit()

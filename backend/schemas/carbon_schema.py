@@ -14,7 +14,7 @@ class CarbonEmissionUpdate(BaseModel):
     fuel_type: FuelType | None = None
 
 class CarbonEmissionResponse(BaseModel):
-    id: int
+    emission_id: int = Field(alias="id")
     user_id: int
     vehicle_type: VehicleType
     distance_km: float
@@ -23,5 +23,6 @@ class CarbonEmissionResponse(BaseModel):
     calculated_at: datetime
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
+        "populate_by_name": True
     }

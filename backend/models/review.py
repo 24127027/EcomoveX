@@ -16,4 +16,4 @@ class Review(DestinationBase):
     content = Column(Text, nullable=False)
     user_id = Column(Integer, nullable=False)  # No FK - user in separate DB
     
-    destination = relationship("Destination", back_populates="reviews")
+    destination = relationship("Destination")
