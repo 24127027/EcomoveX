@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_db
-from schema.user_schema import UserCredentialUpdate, UserResponse, UserProfileUpdate
-from schema.authentication_schema import UserRegister
+from schemas.user_schema import UserCredentialUpdate, UserResponse, UserProfileUpdate
+from schemas.authentication_schema import UserRegister
 from services.user_service import UserService
 from repository.user_repository import UserRepository
 from utils.authentication_util import get_current_user
@@ -17,7 +17,10 @@ async def get_my_profile(
     return await UserService.get_user_by_id(db, current_user["user_id"])
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
+async def get_user_by_id(
+    user_id: int = Path(..., gt=0, description="User ID"),
+    db: AsyncSession = Depends(get_db)
+):
     return await UserService.get_user_by_id(db, user_id)
 
 @router.post("/register", response_model=UserResponse)
@@ -55,7 +58,7 @@ async def delete_user(
 
 @router.post("/me/eco_point/add", response_model=UserResponse)
 async def add_eco_point(
-    point: int,
+    point: int = Query(..., gt=0, description="Eco points to add (must be positive)"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):

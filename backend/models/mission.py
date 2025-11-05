@@ -17,7 +17,6 @@ class MissionAction(str, Enum):
     daily_login = "daily_login"
     referral = "referral"
 
-# Helper function to get current UTC time as naive datetime
 def utc_now():
     return datetime.now(UTC).replace(tzinfo=None)
 

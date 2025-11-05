@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from repository.carbon_repository import CarbonRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
+from schemas.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
 from models.carbon import VehicleType, FuelType
 from datetime import datetime, timedelta
 from integration.text_generator_api import get_text_generator

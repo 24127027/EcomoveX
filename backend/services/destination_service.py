@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.destination_schema import DestinationCreate, DestinationUpdate
+from schemas.destination_schema import DestinationCreate, DestinationUpdate
 
 class DestinationService:
     @staticmethod

@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from models.user import User, Rank
-from schema.user_schema import UserProfileUpdate, UserCredentialUpdate
-from schema.authentication_schema import UserRegister
+from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate
+from schemas.authentication_schema import UserRegister
 
 class UserRepository:
     @staticmethod

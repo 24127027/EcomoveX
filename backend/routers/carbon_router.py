@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_db
-from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
+from schemas.carbon_schema import CarbonEmissionCreate, CarbonEmissionResponse, CarbonEmissionUpdate
 from services.carbon_service import CarbonService
 from utils.authentication_util import get_current_user
 from typing import List
@@ -63,7 +63,7 @@ async def get_my_total_carbon_by_month(
 
 @router.get("/me/total/year")
 async def get_my_total_carbon_by_year(
-    year: int,
+    year: int = Query(..., ge=2000, le=2100, description="Year (2000-2100)"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -80,7 +80,7 @@ async def get_my_total_carbon_by_range(
 
 @router.get("/{emission_id}", response_model=CarbonEmissionResponse)
 async def get_carbon_emission_by_id(
-    emission_id: int,
+    emission_id: int = Path(..., gt=0, description="Carbon emission ID"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -88,8 +88,8 @@ async def get_carbon_emission_by_id(
 
 @router.put("/{emission_id}", response_model=CarbonEmissionResponse)
 async def update_carbon_emission(
-    emission_id: int,
-    updated_data: CarbonEmissionUpdate,
+    emission_id: int = Path(..., gt=0, description="Carbon emission ID"),
+    updated_data: CarbonEmissionUpdate = ...,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -97,7 +97,7 @@ async def update_carbon_emission(
 
 @router.delete("/{emission_id}")
 async def delete_carbon_emission(
-    emission_id: int,
+    emission_id: int = Path(..., gt=0, description="Carbon emission ID"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):

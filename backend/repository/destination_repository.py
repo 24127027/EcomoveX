@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from models.destination import Destination
-from schema.destination_schema import DestinationCreate, DestinationUpdate
+from schemas.destination_schema import DestinationCreate, DestinationUpdate
 
 # Note: This repository uses the destination database (get_destination_db)
 # All methods expect AsyncSession from DestinationAsyncSessionLocal

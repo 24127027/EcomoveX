@@ -10,7 +10,6 @@ class FileType(str, Enum):
     pdf = "pdf"
     video = "video"
     document = "document"
-    audio = "audio"
 
 class MediaFile(UserBase):
     __tablename__ = "media_files"

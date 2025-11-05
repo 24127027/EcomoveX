@@ -4,8 +4,8 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from models.user import User
 from models.mission import Mission, UserMission
-from schema.reward_schema import MissionAction, MissionCreate, MissionUpdate
-from schema.user_schema import UserCredentialUpdate
+from schemas.reward_schema import MissionAction, MissionCreate, MissionUpdate
+from schemas.user_schema import UserCredentialUpdate
 from repository.user_repository import UserRepository
 
 class MissionRepository:

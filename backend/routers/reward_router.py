@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_db
-from schema.reward_schema import MissionCreate, MissionUpdate, MissionResponse, UserRewardResponse
+from schemas.reward_schema import MissionCreate, MissionUpdate, MissionResponse, UserRewardResponse
 from services.reward_service import RewardService
 from utils.authentication_util import get_current_user
 from typing import List
@@ -14,7 +14,7 @@ async def get_all_missions(db: AsyncSession = Depends(get_db)):
 
 @router.get("/missions/{mission_id}", response_model=MissionResponse)
 async def get_mission_by_id(
-    mission_id: int,
+    mission_id: int = Path(..., gt=0, description="Mission ID"),
     db: AsyncSession = Depends(get_db)
 ):
     return await RewardService.get_mission_by_id(db, mission_id)
@@ -41,8 +41,8 @@ async def create_mission(
 
 @router.put("/missions/{mission_id}", response_model=MissionResponse)
 async def update_mission(
-    mission_id: int,
-    updated_data: MissionUpdate,
+    mission_id: int = Path(..., gt=0, description="Mission ID"),
+    updated_data: MissionUpdate = ...,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -62,14 +62,14 @@ async def get_my_completed_missions(
 
 @router.get("/users/{user_id}/missions")
 async def get_user_completed_missions(
-    user_id: int,
+    user_id: int = Path(..., gt=0, description="User ID"),
     db: AsyncSession = Depends(get_db)
 ):
     return await RewardService.all_completed_missions(db, user_id)
 
 @router.post("/missions/{mission_id}/complete")
 async def complete_mission(
-    mission_id: int,
+    mission_id: int = Path(..., gt=0, description="Mission ID"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):

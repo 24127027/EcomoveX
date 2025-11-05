@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from repository.media_repository import MediaRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.media_schema import MediaFileCreate, MediaFileUpdate
+from schemas.media_schema import MediaFileCreate, MediaFileUpdate
 
 class MediaService:
     @staticmethod

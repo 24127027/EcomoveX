@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Float, String
 from database.destination_database import DestinationBase
+from enum import Enum
 
 class Destination(DestinationBase):
     __tablename__ = "destinations"

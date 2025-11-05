@@ -3,7 +3,7 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from models.carbon import CarbonEmission, VehicleType, FuelType
 from datetime import date, datetime, timedelta
-from schema.carbon_schema import CarbonEmissionCreate, CarbonEmissionUpdate
+from schemas.carbon_schema import CarbonEmissionCreate, CarbonEmissionUpdate
 
 class CarbonRepository:
     @staticmethod

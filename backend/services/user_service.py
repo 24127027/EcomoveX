@@ -2,8 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from models.user import Rank
 from repository.user_repository import UserRepository
-from schema.user_schema import UserProfileUpdate, UserCredentialUpdate
-from schema.authentication_schema import UserRegister
+from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate
+from schemas.authentication_schema import UserRegister
 
 class UserService:
     @staticmethod

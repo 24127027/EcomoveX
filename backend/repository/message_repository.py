@@ -3,7 +3,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.exc import SQLAlchemyError
 from models.message import Message
 from datetime import datetime, UTC
-from schema.message_schema import MessageCreate, MessageUpdate
+from schemas.message_schema import MessageCreate, MessageUpdate
 
 class MessageRepository:
     @staticmethod

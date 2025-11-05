@@ -3,11 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from models.review import Review
 from datetime import datetime, UTC
-from schema.review_schema import ReviewCreate, ReviewUpdate
+from schemas.review_schema import ReviewCreate, ReviewUpdate
 
-# Note: This repository uses the user database (get_db)
-# Review.destination_id references destinations in the separate destination database
-# Validation of destination_id should be done at the service layer
+# Note: This repository now uses the destination database (get_destination_db)
+# Review model is part of DestinationBase and has proper FK to destinations table
 
 class ReviewRepository:
     @staticmethod

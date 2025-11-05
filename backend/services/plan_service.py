@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from repository.plan_repository import PlanRepository
 from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.plan_schema import PlanRequestCreate, PlanRequestUpdate
+from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
 # Note: PlanService uses user database (get_db)
 # For operations involving destinations, pass destination_db separately

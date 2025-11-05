@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from models.media import MediaFile
 from datetime import datetime
-from schema.media_schema import MediaFileCreate, MediaFileUpdate
+from schemas.media_schema import MediaFileCreate, MediaFileUpdate
 
 class MediaRepository:
     @staticmethod

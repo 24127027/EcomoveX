@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from models.plan import Plan, PlanDestination
-from schema.plan_schema import PlanRequestCreate, PlanRequestUpdate
+from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
 # Note: This repository uses the user database (get_db)
 # PlanDestination.destination_id references destinations in the separate destination database

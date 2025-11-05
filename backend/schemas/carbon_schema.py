@@ -5,12 +5,12 @@ from models.carbon import VehicleType, FuelType
 
 class CarbonEmissionCreate(BaseModel):
     vehicle_type: VehicleType
-    distance_km: float
+    distance_km: float = Field(..., gt=0)
     fuel_type: FuelType
 
 class CarbonEmissionUpdate(BaseModel):
     vehicle_type: VehicleType | None = None
-    distance_km: float | None = None
+    distance_km: float | None = Field(None, gt=0)
     fuel_type: FuelType | None = None
 
 class CarbonEmissionResponse(BaseModel):

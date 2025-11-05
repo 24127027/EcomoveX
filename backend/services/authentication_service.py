@@ -4,7 +4,7 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from .user_service import UserService
-from schema.authentication_schema import UserLogin, AuthenticationResponse, UserRegister
+from schemas.authentication_schema import UserLogin, AuthenticationResponse, UserRegister
 from models.user import User
 from dotenv import load_dotenv
 import os

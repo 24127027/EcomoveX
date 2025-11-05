@@ -17,7 +17,6 @@ class MessageStatus(str, Enum):
     sent = "sent"
     failed = "failed"
 
-# Helper function to get current UTC time as naive datetime
 def utc_now():
     return datetime.now(UTC).replace(tzinfo=None)
 
