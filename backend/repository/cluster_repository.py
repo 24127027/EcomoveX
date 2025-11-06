@@ -11,10 +11,6 @@ from schemas.cluster_schema import (
 from typing import List, Optional
 
 class ClusterRepository:
-    """Repository for Cluster-related database operations"""
-    
-    # ==================== Cluster Operations ====================
-    
     @staticmethod
     async def get_all_clusters(db: AsyncSession) -> List[Cluster]:
         """Get all clusters"""
@@ -118,8 +114,7 @@ class ClusterRepository:
             print(f"Error deleting cluster ID {cluster_id}: {e}")
             return False
 
-    # ==================== UserClusterAssociation Operations ====================
-
+class UserClusterAssociationRepository:
     @staticmethod
     async def add_user_to_cluster(db: AsyncSession, association_data: UserClusterAssociationCreate) -> Optional[UserClusterAssociation]:
         """Associate a user with a cluster"""
@@ -227,8 +222,7 @@ class ClusterRepository:
             print(f"Error removing all users from cluster {cluster_id}: {e}")
             return False
 
-    # ==================== ClusterDestination Operations ====================
-
+class ClusterDestinationRepository:
     @staticmethod
     async def add_destination_to_cluster(
         db: AsyncSession, 
