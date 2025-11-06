@@ -75,13 +75,17 @@ export default function SignupPage(){
                 email: form.email,
                 password: form.password
             });
-
+            if (!response || !response.access_token) {
+                throw new Error("Signup succeeded but response is invalid");
+              }
             // Store token
             localStorage.setItem('access_token', response.access_token);
-            localStorage.setItem('user_id', response.user_id.toString());
-            
+
+            if (response.user_id != null) {
+              localStorage.setItem('user_id', response.user_id.toString());
+            }
             // Redirect to dashboard
-            router.push('/dashboard');
+            router.replace('/dashboard');
         } catch (err: any) {
             setError(err.message || "Registration failed. Please try again.");
         } finally {
