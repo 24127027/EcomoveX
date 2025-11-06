@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from database.user_database import UserBase
+from datetime import datetime, UTC
 from enum import Enum
 from sqlalchemy.sql import func
 
@@ -15,6 +16,9 @@ class Rank(str, Enum): # rank by eco point
     gold = "Gold" # 2001 - 5000
     platinum = "Platinum" # 5001 - 10000
     diamond = "Diamond" # 10001+
+    
+def utc_now():
+    return datetime.now(UTC).replace(tzinfo=None)
 
 class User(UserBase):
     __tablename__ = "users"
@@ -26,11 +30,12 @@ class User(UserBase):
     eco_point = Column(Integer, default=0)
     rank = Column(SQLEnum(Rank), default=Rank.bronze)
     role = Column(SQLEnum(Role), default=Role.user)
-    created_at = Column(String, default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    sent_messages = relationship("Message", back_populates="user")
-    media_files = relationship("MediaFile", back_populates="owner")
-    plans = relationship("Plan", back_populates="user")
-    missions = relationship("UserMission", back_populates="user")
-    carbon_emissions = relationship("CarbonEmission", back_populates="user")
-    clusters = relationship("UserClusterAssociation", back_populates="user")
+    sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+    media_files = relationship("MediaFile", back_populates="owner", cascade="all, delete-orphan")
+    plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
+    missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
+    carbon_emissions = relationship("CarbonEmission", back_populates="user", cascade="all, delete-orphan")
+    clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
+    friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")

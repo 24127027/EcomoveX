@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from enum import Enum
 from models.carbon import VehicleType, FuelType
@@ -22,7 +22,4 @@ class CarbonEmissionResponse(BaseModel):
     carbon_emission_kg: float
     calculated_at: datetime
 
-    model_config = {
-        "from_attributes": True,
-        "populate_by_name": True
-    }
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

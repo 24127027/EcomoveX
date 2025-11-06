@@ -7,6 +7,7 @@ from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
 from .carbon import CarbonEmission
 from .cluster import Cluster, ClusterDestination, UserClusterAssociation
+from .friend import Friend
 
 __all__ = [
     "User",
@@ -22,4 +23,5 @@ __all__ = [
     "Cluster",
     "ClusterDestination",
     "UserClusterAssociation",
+    "Friend",
 ]

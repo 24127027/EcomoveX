@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional    
 
 class UserCredentialUpdate(BaseModel):
@@ -32,6 +32,4 @@ class UserResponse(BaseModel):
     eco_point: int
     rank: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)

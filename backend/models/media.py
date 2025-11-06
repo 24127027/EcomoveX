@@ -15,7 +15,7 @@ class MediaFile(UserBase):
     __tablename__ = "media_files"
 
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     file_path = Column(Text, nullable=False)
     file_type = Column(SQLEnum(FileType), nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())

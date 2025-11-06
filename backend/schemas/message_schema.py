@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from models.message import MessageType, MessageStatus, Sender
@@ -34,6 +34,4 @@ class MessageResponse(BaseModel):
     status: MessageStatus
     timestamp: datetime
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)

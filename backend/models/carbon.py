@@ -3,6 +3,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.user_database import UserBase
 from enum import Enum
+from datetime import datetime, UTC
+
+def utc_now():
+    return datetime.now(UTC).replace(tzinfo=None)
 
 class VehicleType(str, Enum):
     car = "car"

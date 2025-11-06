@@ -26,6 +26,7 @@ class UserRegister(BaseModel):
 
 class AuthenticationResponse(BaseModel):
     user_id: int
-    role: Role  
+    role: Role
     access_token: str
+    token_type: str = "bearer"
     token_type: str = "bearer"

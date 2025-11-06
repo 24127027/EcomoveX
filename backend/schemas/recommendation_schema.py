@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -39,9 +39,7 @@ class RecommendationResponse(BaseModel):
     recommended_items: List[RecommendationItem]
     generated_at: datetime
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)
 
 class RecommendationCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)

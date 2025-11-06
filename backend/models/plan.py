@@ -18,7 +18,7 @@ class Plan(UserBase):
     end_date = Column(Date, nullable=False)
     budget_limit = Column(Float, nullable=True)
 
-    destinations = relationship("PlanDestination", back_populates="plan")
+    destinations = relationship("PlanDestination", back_populates="plan", cascade="all, delete-orphan")
     user = relationship("User", back_populates="plans")
 
 class PlanDestination(UserBase):

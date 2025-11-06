@@ -6,6 +6,7 @@ from routers.authentication_router import router as auth_router
 from routers.user_router import router as user_router
 from routers.review_router import router as review_router
 from routers.carbon_router import router as carbon_router
+from routers.friend_router import router as friend_router
 # from routers.chatbot_router import router as chatbot_router
 # from routers.recommendation_router import router as recommendation_router
 from routers.reward_router import router as reward_router
@@ -79,6 +80,7 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(review_router)
 app.include_router(carbon_router)
+app.include_router(friend_router)
 #app.include_router(chatbot_router)
 #app.include_router(recommendation_router)
 app.include_router(reward_router)
