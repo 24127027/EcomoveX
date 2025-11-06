@@ -1,11 +1,23 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
-    DEBUG: bool = True
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DEST_DB_NAME: str = "ecomovex_destinations"
+    USER_DB_NAME: str = "postgres"
+    DB_USER: str = "postgres"
+    DB_PASS: str = "142857"
+    
+    SECRET_KEY: str = "super_secret_key"
+    ALGORITHM: str = "HS256"
 
-    class Config:
-        env_file = "..\local.env"
-        env_file_encoding = "utf-8"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000," 
+
+    HUGGINGFACE_API_KEY: str = ""
+    GEOAPIFY_API_KEY: str = ""
 
 settings = Settings()

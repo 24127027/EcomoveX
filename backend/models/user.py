@@ -1,8 +1,22 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database.user_database import UserBase
+from enum import Enum
+from sqlalchemy.sql import func
 
-class User(Base):
+class Role(str, Enum):
+    user = "User"
+    admin = "Admin"
+
+class Rank(str, Enum): # rank by eco point
+    bronze = "Bronze" # 0 - 500
+    silver = "Silver" # 501 - 2000
+    gold = "Gold" # 2001 - 5000
+    platinum = "Platinum" # 5001 - 10000
+    diamond = "Diamond" # 10001+
+
+class User(UserBase):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -10,12 +24,13 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)
     eco_point = Column(Integer, default=0)
-    rank = Column(String(50), default="Newbie")
+    rank = Column(SQLEnum(Rank), default=Rank.bronze)
+    role = Column(SQLEnum(Role), default=Role.user)
+    created_at = Column(String, default=func.now())
 
-    # relationships
-    posts = relationship("Post", back_populates="author")
-    comments = relationship("Comment", back_populates="author")
-    sent_messages = relationship("Chat", foreign_keys="[Chat.sender_id]", back_populates="sender")
-    received_messages = relationship("Chat", foreign_keys="[Chat.receiver_id]", back_populates="receiver")
-    rewards = relationship("UserReward", back_populates="user")
-    chat_rooms = relationship("ChatRoomMember", back_populates="user")
+    sent_messages = relationship("Message", back_populates="user")
+    media_files = relationship("MediaFile", back_populates="owner")
+    plans = relationship("Plan", back_populates="user")
+    missions = relationship("UserMission", back_populates="user")
+    carbon_emissions = relationship("CarbonEmission", back_populates="user")
+    clusters = relationship("UserClusterAssociation", back_populates="user")
