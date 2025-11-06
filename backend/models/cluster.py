@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float, PrimaryKeyConstraint
 from database.user_database import UserBase
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -15,8 +15,11 @@ class Cluster(UserBase):
 
 class UserClusterAssociation(UserBase):
     __tablename__ = "user_cluster_associations"
+    
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'cluster_id'),
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
     # score = Column(Float, nullable=True) # Optional: score indicating user's affinity to the cluster
@@ -26,8 +29,11 @@ class UserClusterAssociation(UserBase):
 
 class ClusterDestination(UserBase):
     __tablename__ = "cluster_destinations"
+    
+    __table_args__ = (
+        PrimaryKeyConstraint('cluster_id', 'destination_id'),
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
     destination_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
     popularity_score = Column(Float, nullable=True)

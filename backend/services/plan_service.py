@@ -4,7 +4,7 @@ from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
-# Note: PlanService uses user database (get_db)
+# Note: PlanService uses user database (get_user_db)
 # For operations involving destinations, pass destination_db separately
 
 class PlanService:
@@ -31,8 +31,6 @@ class PlanService:
                     detail="Failed to create plan"
                 )
             return new_plan
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -60,8 +58,6 @@ class PlanService:
                     detail=f"Plan with ID {plan_id} not found"
                 )
             return updated_plan
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -89,8 +85,6 @@ class PlanService:
                     detail=f"Plan with ID {plan_id} not found"
                 )
             return {"detail": "Plan deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -116,8 +110,6 @@ class PlanService:
             
             destinations = await PlanRepository.get_plan_destinations(db, plan_id)
             return destinations
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -181,8 +173,6 @@ class PlanService:
                 )
             
             return plan_dest
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -208,8 +198,6 @@ class PlanService:
                 )
             
             return {"detail": "Destination removed from plan successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

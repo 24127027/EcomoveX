@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from models.destination import Destination
-from schemas.destination_schema import DestinationCreate, DestinationUpdate
+from models.destination import Destination, UserSavedDestination
+from schemas.destination_schema import DestinationCreate, DestinationUpdate, UserSavedDestinationCreate, UserSavedDestinationResponse
 
 # Note: This repository uses the destination database (get_destination_db)
 # All methods expect AsyncSession from DestinationAsyncSessionLocal
@@ -80,4 +80,68 @@ class DestinationRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error deleting destination ID {destination_id}: {e}")
+            return False
+        
+class UserSavedDestinationRepository:
+    @staticmethod
+    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_data: UserSavedDestinationCreate):
+        try:
+            new_saved_destination = UserSavedDestination(
+                user_id=user_id,
+                destination_id=destination_data.destination_id,
+                note=destination_data.note or ""
+            )
+            db.add(new_saved_destination)
+            await db.commit()
+            await db.refresh(new_saved_destination)
+            return new_saved_destination
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error saving destination for user ID {user_id}: {e}")
+            return None
+        
+    @staticmethod
+    async def get_saved_destinations_for_user(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(select(UserSavedDestination).where(UserSavedDestination.user_id == user_id))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error retrieving saved destinations for user ID {user_id}: {e}")
+            return []
+        
+    @staticmethod
+    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+        try:
+            result = await db.execute(
+                select(UserSavedDestination).where(
+                    UserSavedDestination.user_id == user_id,
+                    UserSavedDestination.destination_id == destination_id
+                )
+            )
+            saved_destination = result.scalar_one_or_none()
+            if not saved_destination:
+                print(f"Saved destination for user ID {user_id} and destination ID {destination_id} not found")
+                return False
+            await db.delete(saved_destination)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error deleting saved destination for user ID {user_id} and destination ID {destination_id}: {e}")
+            return False
+
+    @staticmethod
+    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+        try:
+            result = await db.execute(
+                select(UserSavedDestination).where(
+                    UserSavedDestination.user_id == user_id,
+                    UserSavedDestination.destination_id == destination_id
+                )
+            )
+            return result.scalar_one_or_none() is not None
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error checking saved destination for user ID {user_id} and destination ID {destination_id}: {e}")
             return False

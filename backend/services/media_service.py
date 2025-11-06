@@ -14,8 +14,6 @@ class MediaService:
                     detail=f"Media file with ID {media_id} not found"
                 )
             return media
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -43,8 +41,6 @@ class MediaService:
                     detail="Failed to create media file"
                 )
             return new_media
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -61,8 +57,6 @@ class MediaService:
                     detail=f"Media file with ID {media_id} not found"
                 )
             return updated_media
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -79,8 +73,6 @@ class MediaService:
                     detail=f"Media file with ID {media_id} not found"
                 )
             return {"detail": "Media file deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

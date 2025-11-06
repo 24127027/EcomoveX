@@ -2,7 +2,7 @@ from .user import User
 from .message import Message
 from .review import Review
 from .media import MediaFile
-from .destination import Destination
+from .destination import Destination, UserSavedDestination
 from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
 from .carbon import CarbonEmission
@@ -24,4 +24,5 @@ __all__ = [
     "ClusterDestination",
     "UserClusterAssociation",
     "Friend",
+    "UserSavedDestination",
 ]

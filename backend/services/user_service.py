@@ -16,8 +16,6 @@ class UserService:
                     detail=f"User with ID {user_id} not found"
                 )
             return user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -41,8 +39,6 @@ class UserService:
                     detail="Failed to create user"
                 )
             return user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -59,8 +55,6 @@ class UserService:
                     detail=f"User with email '{email}' not found"
                 )
             return user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -77,8 +71,6 @@ class UserService:
                     detail=f"User with username '{username}' not found"
                 )
             return user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -123,8 +115,6 @@ class UserService:
                 )
 
             return updated_user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -155,8 +145,6 @@ class UserService:
                 )
 
             return updated_user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -173,8 +161,6 @@ class UserService:
                     detail=f"User with ID {user_id} not found"
                 )
             return {"detail": "User deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

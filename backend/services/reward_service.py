@@ -26,8 +26,6 @@ class RewardService:
                     detail=f"Mission with ID {mission_id} not found"
                 )
             return mission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -44,8 +42,6 @@ class RewardService:
                     detail=f"Mission with name '{name}' not found"
                 )
             return mission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -69,8 +65,6 @@ class RewardService:
                     detail="Failed to update mission"
                 )
             return updated_mission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -94,8 +88,6 @@ class RewardService:
                     detail="Failed to create mission"
                 )
             return new_mission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -141,8 +133,6 @@ class RewardService:
                     detail=f"Failed to create user mission for user {user_id} and mission {mission_id}"
                 )
             return new_user_mission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -166,8 +156,6 @@ class RewardService:
                     detail="Failed to delete mission"
                 )
             return {"detail": "Mission deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

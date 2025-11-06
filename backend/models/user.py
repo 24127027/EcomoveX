@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, PrimaryKeyConstraint, ForeignKey
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from database.user_database import UserBase
@@ -39,3 +39,4 @@ class User(UserBase):
     carbon_emissions = relationship("CarbonEmission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
+    saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")

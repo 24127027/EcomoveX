@@ -36,8 +36,6 @@ class AuthenticationService:
                     detail="Invalid email or password"
                 )
             return user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -81,8 +79,6 @@ class AuthenticationService:
                 access_token=token,
                 token_type="bearer"
             )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -123,8 +119,6 @@ class AuthenticationService:
                 access_token=token,
                 token_type="bearer"
             )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -41,8 +41,6 @@ class CarbonService:
                     detail="Failed to create carbon emission record"
                 )
             return new_emission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -59,8 +57,6 @@ class CarbonService:
                     detail=f"Carbon emission record with ID {emission_id} not found"
                 )
             return emission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -410,8 +406,6 @@ class CarbonService:
                     detail=f"Carbon emission record with ID {emission_id} not found"
                 )
             return updated_emission
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -428,8 +422,6 @@ class CarbonService:
                     detail=f"Carbon emission record with ID {emission_id} not found"
                 )
             return {"detail": "Carbon emission record deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

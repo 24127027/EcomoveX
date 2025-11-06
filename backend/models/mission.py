@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, String
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, String, PrimaryKeyConstraint
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from database.user_database import UserBase
@@ -31,8 +31,11 @@ class Mission(UserBase):
     
 class UserMission(UserBase):
     __tablename__ = "mission_users"
+    
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'mission_id'),
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     mission_id = Column(Integer, ForeignKey("missions.id", ondelete="CASCADE"), nullable=False)
     completed_at = Column(DateTime(timezone=True), server_default=func.now())

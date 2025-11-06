@@ -37,8 +37,6 @@ class FriendService:
                 )
             
             return friendship
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -55,8 +53,6 @@ class FriendService:
                     detail="Friend request not found"
                 )
             return friendship
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -73,8 +69,6 @@ class FriendService:
                     detail="Friend request not found"
                 )
             return {"message": "Friend request rejected successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -97,8 +91,6 @@ class FriendService:
                     detail="Failed to block user"
                 )
             return friendship
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -115,8 +107,6 @@ class FriendService:
                     detail="Block not found"
                 )
             return {"message": "User unblocked successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -133,8 +123,6 @@ class FriendService:
                     detail="Friendship not found"
                 )
             return {"message": "Unfriended successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

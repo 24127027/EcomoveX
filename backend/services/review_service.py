@@ -60,8 +60,6 @@ class ReviewService:
                     detail="Failed to create review"
                 )
             return new_review
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -78,8 +76,6 @@ class ReviewService:
                     detail=f"Review with ID {review_id} not found"
                 )
             return updated_review
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -96,8 +92,6 @@ class ReviewService:
                     detail=f"Review with ID {review_id} not found"
                 )
             return {"detail": "Review deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
