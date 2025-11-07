@@ -621,6 +621,258 @@ class GoogleMapsAPI:
             "total_transit_steps": len(transit_steps),
             "total_walking_steps": len(walking_steps)
         }
+    
+    async def find_three_optimal_routes(
+        self,
+        origin: str,
+        destination: str,
+        max_time_ratio: float = 1.3,
+        language: str = "vi"
+    ) -> Dict[str, Any]:
+        """
+        Find 3 optimal routes based on different criteria:
+        1. Fastest route (shortest time)
+        2. Lowest carbon emission route
+        3. Smart combination route (walking + public transport, if available)
+        
+        Args:
+            origin: Starting location
+            destination: Destination location
+            max_time_ratio: Maximum time ratio for smart route compared to fastest (default: 1.3x)
+            language: Language for directions
+        
+        Returns:
+            Dictionary with 3 routes and recommendations
+        """
+        results = {
+            "origin": origin,
+            "destination": destination,
+            "routes": {},
+            "recommendation": None
+        }
+        
+        # Get all available routes for different modes
+        driving_result = await self.get_directions(origin, destination, mode="driving", alternatives=True, language=language)
+        transit_result = await self.get_directions(origin, destination, mode="transit", alternatives=True, language=language)
+        walking_result = await self.get_directions(origin, destination, mode="walking", language=language)
+        bicycling_result = await self.get_directions(origin, destination, mode="bicycling", language=language)
+        
+        all_routes = []
+        
+        # Process driving routes
+        if driving_result.get("status") == "OK" and driving_result.get("routes"):
+            for idx, route in enumerate(driving_result["routes"]):
+                leg = route["legs"][0]
+                distance_km = leg["distance"]["value"] / 1000
+                duration_min = leg["duration"]["value"] / 60
+                
+                carbon_data = await self._calculate_carbon_emission(distance_km, "driving")
+                
+                all_routes.append({
+                    "type": "fastest_driving" if idx == 0 else f"alternative_driving_{idx}",
+                    "mode": "driving",
+                    "display_name": "Lái xe (nhanh nhất)" if idx == 0 else f"Lái xe (lựa chọn {idx+1})",
+                    "distance_km": distance_km,
+                    "duration_min": duration_min,
+                    "duration_text": leg["duration"]["text"],
+                    "carbon_kg": carbon_data["co2_kg"],
+                    "carbon_grams": carbon_data["co2_grams"],
+                    "emission_factor": carbon_data["emission_factor_g_per_km"],
+                    "route_details": route,
+                    "priority_score": duration_min  # Lower is better
+                })
+        
+        # Process transit routes
+        if transit_result.get("status") == "OK" and transit_result.get("routes"):
+            for idx, route in enumerate(transit_result["routes"]):
+                leg = route["legs"][0]
+                distance_km = leg["distance"]["value"] / 1000
+                duration_min = leg["duration"]["value"] / 60
+                
+                carbon_data = await self._calculate_carbon_emission(distance_km, "transit")
+                
+                # Parse transit details
+                transit_info = self._extract_transit_details(route["legs"][0])
+                
+                all_routes.append({
+                    "type": "transit" if idx == 0 else f"alternative_transit_{idx}",
+                    "mode": "transit",
+                    "display_name": "Phương tiện công cộng",
+                    "distance_km": distance_km,
+                    "duration_min": duration_min,
+                    "duration_text": leg["duration"]["text"],
+                    "carbon_kg": carbon_data["co2_kg"],
+                    "carbon_grams": carbon_data["co2_grams"],
+                    "emission_factor": carbon_data["emission_factor_g_per_km"],
+                    "route_details": route,
+                    "transit_info": transit_info,
+                    "priority_score": duration_min
+                })
+        
+        # Process walking route
+        if walking_result.get("status") == "OK" and walking_result.get("routes"):
+            route = walking_result["routes"][0]
+            leg = route["legs"][0]
+            distance_km = leg["distance"]["value"] / 1000
+            duration_min = leg["duration"]["value"] / 60
+            
+            carbon_data = await self._calculate_carbon_emission(distance_km, "walking")
+            
+            # Only include walking if distance is reasonable (< 3km)
+            if distance_km <= 3.0:
+                all_routes.append({
+                    "type": "walking",
+                    "mode": "walking",
+                    "display_name": "Đi bộ",
+                    "distance_km": distance_km,
+                    "duration_min": duration_min,
+                    "duration_text": leg["duration"]["text"],
+                    "carbon_kg": carbon_data["co2_kg"],
+                    "carbon_grams": carbon_data["co2_grams"],
+                    "emission_factor": carbon_data["emission_factor_g_per_km"],
+                    "route_details": route,
+                    "priority_score": duration_min
+                })
+        
+        # Process bicycling route
+        if bicycling_result.get("status") == "OK" and bicycling_result.get("routes"):
+            route = bicycling_result["routes"][0]
+            leg = route["legs"][0]
+            distance_km = leg["distance"]["value"] / 1000
+            duration_min = leg["duration"]["value"] / 60
+            
+            carbon_data = await self._calculate_carbon_emission(distance_km, "bicycling")
+            
+            all_routes.append({
+                "type": "bicycling",
+                "mode": "bicycling",
+                "display_name": "Đạp xe",
+                "distance_km": distance_km,
+                "duration_min": duration_min,
+                "duration_text": leg["duration"]["text"],
+                "carbon_kg": carbon_data["co2_kg"],
+                "carbon_grams": carbon_data["co2_grams"],
+                "emission_factor": carbon_data["emission_factor_g_per_km"],
+                "route_details": route,
+                "priority_score": duration_min
+            })
+        
+        # Find the 3 optimal routes
+        if not all_routes:
+            return {
+                "status": "NO_ROUTES_FOUND",
+                "message": "Không tìm thấy tuyến đường phù hợp"
+            }
+        
+        # 1. FASTEST ROUTE (shortest time)
+        fastest_route = min(all_routes, key=lambda x: x["duration_min"])
+        results["routes"]["fastest"] = {
+            **fastest_route,
+            "reason": "Tuyến đường nhanh nhất"
+        }
+        
+        # 2. LOWEST CARBON ROUTE (lowest emission)
+        lowest_carbon_route = min(all_routes, key=lambda x: x["carbon_kg"])
+        results["routes"]["lowest_carbon"] = {
+            **lowest_carbon_route,
+            "reason": "Tuyến đường ít carbon nhất"
+        }
+        
+        # 3. SMART ROUTE (walking + transit combination, if available and reasonable)
+        # Smart route criteria (in priority order):
+        # 1. Transit with reasonable time (kết hợp đi bộ + xe công cộng)
+        # 2. Walking if distance is short (<3km) and time reasonable
+        # 3. Bicycling if available and time reasonable
+        smart_route = None
+        transit_routes = [r for r in all_routes if r["mode"] == "transit"]
+        
+        # First priority: Transit routes (if available)
+        if transit_routes:
+            # Choose transit with best balance (lowest carbon among transit options)
+            best_transit = min(transit_routes, key=lambda x: x["carbon_kg"])
+            
+            # Accept transit if it's significantly lower carbon than driving
+            driving_routes = [r for r in all_routes if r["mode"] == "driving"]
+            if driving_routes:
+                best_driving = min(driving_routes, key=lambda x: x["duration_min"])
+                carbon_saving_percent = ((best_driving["carbon_kg"] - best_transit["carbon_kg"]) / best_driving["carbon_kg"] * 100) if best_driving["carbon_kg"] > 0 else 0
+                
+                # Accept transit if saves >30% carbon OR within acceptable time
+                max_acceptable_time = fastest_route["duration_min"] * max_time_ratio
+                
+                if carbon_saving_percent > 30 or best_transit["duration_min"] <= max_acceptable_time:
+                    smart_route = best_transit
+                    results["routes"]["smart_combination"] = {
+                        **smart_route,
+                        "reason": f"Tuyến thông minh (kết hợp đi bộ + xe công cộng, tiết kiệm {carbon_saving_percent:.1f}% carbon)",
+                        "time_comparison": {
+                            "vs_fastest_min": round(smart_route["duration_min"] - fastest_route["duration_min"], 1),
+                            "vs_fastest_percent": round((smart_route["duration_min"] / fastest_route["duration_min"] - 1) * 100, 1)
+                        },
+                        "carbon_comparison": {
+                            "vs_driving_kg": round(best_driving["carbon_kg"] - smart_route["carbon_kg"], 3),
+                            "vs_driving_percent": round(carbon_saving_percent, 1)
+                        }
+                    }
+        
+        # Second priority: Walking (if distance is short and time reasonable)
+        if not smart_route:
+            walking_routes = [r for r in all_routes if r["mode"] == "walking"]
+            
+            if walking_routes:
+                walk_route = walking_routes[0]
+                max_acceptable_time = fastest_route["duration_min"] * max_time_ratio
+                
+                # Accept walking if distance <3km AND time reasonable
+                if walk_route["distance_km"] <= 3.0 and walk_route["duration_min"] <= max_acceptable_time:
+                    smart_route = walk_route
+                    results["routes"]["smart_combination"] = {
+                        **smart_route,
+                        "reason": "Tuyến thông minh (đi bộ - khoảng cách ngắn, 0 carbon)",
+                        "time_comparison": {
+                            "vs_fastest_min": round(smart_route["duration_min"] - fastest_route["duration_min"], 1),
+                            "vs_fastest_percent": round((smart_route["duration_min"] / fastest_route["duration_min"] - 1) * 100, 1)
+                        }
+                    }
+        
+        # Third priority: Bicycling (if available and time reasonable)
+        if not smart_route:
+            bicycling_routes = [r for r in all_routes if r["mode"] == "bicycling"]
+            
+            if bicycling_routes:
+                bike_route = bicycling_routes[0]
+                max_acceptable_time = fastest_route["duration_min"] * max_time_ratio
+                
+                if bike_route["duration_min"] <= max_acceptable_time:
+                    smart_route = bike_route
+                    results["routes"]["smart_combination"] = {
+                        **smart_route,
+                        "reason": "Tuyến thông minh (đạp xe - 0 carbon)",
+                        "time_comparison": {
+                            "vs_fastest_min": round(smart_route["duration_min"] - fastest_route["duration_min"], 1),
+                            "vs_fastest_percent": round((smart_route["duration_min"] / fastest_route["duration_min"] - 1) * 100, 1)
+                        }
+                    }
+
+        
+        # Determine overall recommendation
+        carbon_savings_vs_fastest = fastest_route["carbon_kg"] - lowest_carbon_route["carbon_kg"]
+        carbon_savings_percent = (carbon_savings_vs_fastest / fastest_route["carbon_kg"] * 100) if fastest_route["carbon_kg"] > 0 else 0
+        
+        if carbon_savings_percent > 50 and lowest_carbon_route["duration_min"] <= fastest_route["duration_min"] * 1.5:
+            results["recommendation"] = "lowest_carbon"
+            results["recommendation_reason"] = f"Tiết kiệm {carbon_savings_percent:.1f}% carbon, chỉ chậm hơn {lowest_carbon_route['duration_min'] - fastest_route['duration_min']:.1f} phút"
+        elif "smart_combination" in results["routes"] and results["routes"]["smart_combination"]["carbon_kg"] < fastest_route["carbon_kg"] * 0.7:
+            results["recommendation"] = "smart_combination"
+            results["recommendation_reason"] = "Cân bằng tốt giữa thời gian và carbon"
+        else:
+            results["recommendation"] = "fastest"
+            results["recommendation_reason"] = "Tiết kiệm thời gian tối đa"
+        
+        results["status"] = "OK"
+        results["total_routes_analyzed"] = len(all_routes)
+        
+        return results
 
 
 async def create_maps_client(api_key: Optional[str] = None) -> GoogleMapsAPI:
