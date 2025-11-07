@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.exc import SQLAlchemyError
 from models.message import Message
-from datetime import datetime
+from datetime import datetime, UTC
 from schema.message_schema import MessageCreate, MessageUpdate
 
 class MessageRepository:
@@ -35,7 +35,7 @@ class MessageRepository:
                 content=message_data.content,
                 message_type=message_data.message_type
             )
-            new_message.created_at = datetime.utcnow()
+            new_message.created_at = datetime.now(UTC).replace(tzinfo=None)
             db.add(new_message)
             await db.commit()
             await db.refresh(new_message)

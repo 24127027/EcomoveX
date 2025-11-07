@@ -1,7 +1,11 @@
 from fastapi import HTTPException, status
 from repository.review_repository import ReviewRepository
+from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from schema.review_schema import ReviewCreate, ReviewUpdate
+
+# Note: ReviewService uses user database (get_db)
+# For operations validating destinations, pass destination_db separately
 
 class ReviewService:
     @staticmethod
@@ -27,9 +31,30 @@ class ReviewService:
             )
     
     @staticmethod
-    async def create_review(db: AsyncSession, review_data: ReviewCreate, user_id: int):
+    async def create_review(
+        user_db: AsyncSession, 
+        destination_db: AsyncSession,
+        review_data: ReviewCreate, 
+        user_id: int
+    ):
+        """
+        Create a review with destination validation.
+        Requires both user_db and destination_db sessions.
+        """
         try:
-            new_review = await ReviewRepository.create_review(db, review_data, user_id)
+            # Verify destination exists in destination database
+            destination = await DestinationRepository.get_destination_by_id(
+                destination_db, 
+                review_data.destination_id
+            )
+            if not destination:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Destination with ID {review_data.destination_id} not found"
+                )
+            
+            # Create review in user database
+            new_review = await ReviewRepository.create_review(user_db, review_data, user_id)
             if not new_review:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

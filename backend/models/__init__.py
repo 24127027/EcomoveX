@@ -17,5 +17,5 @@ __all__ = [
     "PlanDestination",
     "Mission",
     "UserMission",
-    "CarbonEmission"
+    "CarbonEmission",
 ]

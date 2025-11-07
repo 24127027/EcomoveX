@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database.user_database import UserBase
 from enum import Enum
 from sqlalchemy.sql import func
 
@@ -16,7 +16,7 @@ class Rank(str, Enum): # rank by eco point
     platinum = "Platinum" # 5001 - 10000
     diamond = "Diamond" # 10001+
 
-class User(Base):
+class User(UserBase):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)

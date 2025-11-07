@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, Float, String, Date, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database.user_database import UserBase
 from enum import Enum
 
 class DestinationType(str, Enum):
@@ -8,7 +8,7 @@ class DestinationType(str, Enum):
     hotel = "hotel"
     attraction = "attraction"
 
-class Plan(Base):
+class Plan(UserBase):
     __tablename__ = "plans"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -21,15 +21,14 @@ class Plan(Base):
     destinations = relationship("PlanDestination", back_populates="plan")
     user = relationship("User", back_populates="plans")
 
-class PlanDestination(Base):
+class PlanDestination(UserBase):
     __tablename__ = "plan_destinations"
 
     id = Column(Integer, primary_key=True, index=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False)
+    destination_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
     type = Column(SQLEnum(DestinationType), nullable=False)
     visit_date = Column(Date, nullable=False)
     note = Column(Text, nullable=True)
 
     plan = relationship("Plan", back_populates="destinations")
-    destination = relationship("Destination")

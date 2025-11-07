@@ -2,8 +2,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from models.review import Review
-from datetime import datetime
+from datetime import datetime, UTC
 from schema.review_schema import ReviewCreate, ReviewUpdate
+
+# Note: This repository uses the user database (get_db)
+# Review.destination_id references destinations in the separate destination database
+# Validation of destination_id should be done at the service layer
 
 class ReviewRepository:
     @staticmethod
@@ -77,7 +81,7 @@ class ReviewRepository:
                 review.content = updated_data.content
             if updated_data.status is not None:
                 review.status = updated_data.status
-            review.updated_at = datetime.utcnow()
+            review.updated_at = datetime.now(UTC).replace(tzinfo=None)
 
             db.add(review)
             await db.commit()
