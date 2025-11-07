@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     DEST_DB_NAME: str = "ecomovex_destinations"
     USER_DB_NAME: str = "postgres"
     DB_USER: str = "postgres"
-    DB_PASS: str = "142857"
+    # NOTE: default password set to '1' per user request
+    DB_PASS: str = "1"
     
     SECRET_KEY: str = "super_secret_key"
     ALGORITHM: str = "HS256"

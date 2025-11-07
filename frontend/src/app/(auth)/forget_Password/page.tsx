@@ -1,11 +1,35 @@
 "use client";
-
+import {Knewave, Josefin_Sans, Abhaya_Libre, Poppins } from "next/font/google";
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FiMail } from 'react-icons/fi'
+const knewave = Knewave({
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
+export  const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["300"]
+});
+const abhaya_libre = Abhaya_Libre({
+  subsets: ["latin"],
+  weight: ["700"],
+});
+
+const josefin_sans = Josefin_Sans({
+  subsets: ["latin"],
+  weight: ["700"],
+});
 
 export default function ForgetPassword() {
+  const [form, setForm] = useState({
+      username : "",
+      password: "",
+      authorize: "",
+      email: "",
+    });
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
