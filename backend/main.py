@@ -18,6 +18,7 @@ from database.destination_database import destination_engine
 from models.init_user_database import init_user_db
 from models.init_destination_database import init_destination_db
 from utils.config import settings
+from services.carbon_service import CarbonService
 
 # Lifespan event handler (startup/shutdown)
 @asynccontextmanager
@@ -36,6 +37,14 @@ async def lifespan(app: FastAPI):
         print("✅ Destination database initialized")
     except Exception as e:
         print(f"⚠️  Destination database initialization failed: {e}")
+    
+    # Refresh emission factors from Climatiq API
+    try:
+        print("🌍 Loading latest emission factors from Climatiq API...")
+        await CarbonService.refresh_emission_factors()
+        print("✅ Emission factors loaded successfully")
+    except Exception as e:
+        print(f"⚠️  Emission factors refresh failed (using fallback values): {e}")
     
     yield  # App is running
     

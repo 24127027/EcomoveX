@@ -20,5 +20,7 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_KEY: str = ""
     GEOAPIFY_API_KEY: str = ""
     GOOGLE_MAPS_API_KEY: str = ""
+    ELECTRICCITYMAPS_API_KEY: str = ""
+    CLIMATIQ_API_KEY: str = ""
 
 settings = Settings()
