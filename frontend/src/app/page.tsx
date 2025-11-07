@@ -29,7 +29,7 @@ const metadata = {
   description: "Discover the new green destination",
   type: "website"
 };
-export default function Home() {
+export default function FirstPage() {
   return (
     <div className="flex flex-col min-h-screen items-center justify-center bg-white">
       <main className="
