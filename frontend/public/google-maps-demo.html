@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcomoveX - Google Maps Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeInDown 0.8s ease;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.3rem;
+            opacity: 0.95;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            animation: fadeIn 1s ease;
+        }
+        
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: slideInLeft 0.8s ease;
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .map-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .map-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: slideInRight 0.8s ease;
+        }
+        
+        .map-container h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+        
+        #map {
+            width: 100%;
+            height: 600px;
+            border-radius: 10px;
+            border: 3px solid #667eea;
+        }
+        
+        #streetview {
+            width: 100%;
+            height: 400px;
+            border-radius: 10px;
+            border: 3px solid #764ba2;
+        }
+        
+        #search-box {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        
+        #search-box:focus {
+            outline: none;
+            border-color: #764ba2;
+            box-shadow: 0 0 10px rgba(118, 75, 162, 0.3);
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 20px rgba(0,0,0,0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .info-panel {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 18px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        
+        .info-panel h3 {
+            color: #667eea;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+        }
+        
+        .info-item {
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .info-item strong {
+            color: #764ba2;
+        }
+        
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 15px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
+        }
+        
+        .places-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .place-item {
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .place-item:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .place-item h4 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+        
+        .place-item p {
+            color: #666;
+            font-size: 0.85rem;
+            margin: 3px 0;
+        }
+        
+        .rating {
+            color: #ffc107;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                order: 2;
+            }
+            
+            .map-section {
+                order: 1;
+            }
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 EcomoveX - Google Maps</h1>
+            <p>Explore eco-friendly travel destinations in Vietnam</p>
+        </div>
+        
+        <div class="main-grid">
+            <div class="sidebar">
+                <div class="card">
+                    <h2>🔍 Tìm kiếm</h2>
+                    <input type="text" id="search-box" placeholder="Tìm địa điểm (VD: Bitexco, Bến Thành...)">
+                </div>
+                
+                <div class="card">
+                    <h2>📍 Địa điểm nổi bật</h2>
+                    <div class="button-group">
+                        <button onclick="goToLocation(10.8231, 106.6297, 'Hồ Chí Minh City', 13)">
+                            🏙️ Hồ Chí Minh City
+                        </button>
+                        <button onclick="goToLocation(10.7729, 106.6981, 'Chợ Bến Thành', 16)">
+                            🏪 Chợ Bến Thành
+                        </button>
+                        <button onclick="goToLocation(10.7716, 106.7039, 'Bitexco Tower', 17)">
+                            🏢 Bitexco Tower
+                        </button>
+                        <button onclick="goToLocation(10.7798, 106.6990, 'Nhà thờ Đức Bà', 17)">
+                            ⛪ Nhà thờ Đức Bà
+                        </button>
+                        <button onclick="goToLocation(10.8087, 106.7186, 'Thảo Cầm Viên', 16)">
+                            🌳 Thảo Cầm Viên
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>🎯 Tính năng</h2>
+                    <div class="button-group">
+                        <button onclick="findNearbyPlaces('restaurant')">
+                            🍽️ Nhà hàng gần đây
+                        </button>
+                        <button onclick="findNearbyPlaces('cafe')">
+                            ☕ Quán cafe gần đây
+                        </button>
+                        <button onclick="findNearbyPlaces('tourist_attraction')">
+                            🎭 Điểm tham quan
+                        </button>
+                        <button onclick="findNearbyPlaces('park')">
+                            🌲 Công viên
+                        </button>
+                        <button onclick="calculateRoute()">
+                            🗺️ Tính đường đi
+                        </button>
+                        <button onclick="getCurrentLocation()">
+                            📌 Vị trí hiện tại
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📊 Thông tin</h2>
+                    <div class="info-panel">
+                        <div class="info-item">
+                            <strong>Vị trí:</strong>
+                            <span id="current-location">Đang tải...</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Tọa độ:</strong>
+                            <span id="coordinates">-</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Địa điểm:</strong>
+                            <span id="nearby-count">0</span>
+                        </div>
+                    </div>
+                    <div id="status"></div>
+                </div>
+                
+                <div class="card" id="places-card" style="display: none;">
+                    <h2>📍 Kết quả tìm kiếm</h2>
+                    <div id="places-list" class="places-list"></div>
+                </div>
+            </div>
+            
+            <div class="map-section">
+                <div class="map-container">
+                    <h2>🗺️ Bản đồ chính</h2>
+                    <div id="map"></div>
+                </div>
+                
+                <div class="map-container">
+                    <h2>👁️ Street View</h2>
+                    <div id="streetview"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map, streetView, marker, directionsService, directionsRenderer;
+        let placesService, infoWindow;
+        let markers = [];
+        
+        function initMap() {
+            const hcmc = { lat: 10.8231, lng: 106.6297 };
+            
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: hcmc,
+                zoom: 13,
+                mapTypeControl: true,
+                mapTypeControlOptions: {
+                    style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+                    position: google.maps.ControlPosition.TOP_CENTER
+                },
+                zoomControl: true,
+                streetViewControl: true,
+                fullscreenControl: true,
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "on" }]
+                    }
+                ]
+            });
+            
+            streetView = new google.maps.StreetViewPanorama(
+                document.getElementById('streetview'), {
+                    position: hcmc,
+                    pov: { heading: 165, pitch: 0 },
+                    zoom: 1
+                }
+            );
+            map.setStreetView(streetView);
+            
+            marker = new google.maps.Marker({
+                position: hcmc,
+                map: map,
+                title: 'Hồ Chí Minh City',
+                animation: google.maps.Animation.DROP,
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                }
+            });
+            
+            placesService = new google.maps.places.PlacesService(map);
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({
+                map: map,
+                suppressMarkers: false
+            });
+            
+            infoWindow = new google.maps.InfoWindow();
+            
+            const searchBox = new google.maps.places.SearchBox(
+                document.getElementById('search-box')
+            );
+            
+            map.addListener('bounds_changed', () => {
+                searchBox.setBounds(map.getBounds());
+            });
+            
+            searchBox.addListener('places_changed', () => {
+                const places = searchBox.getPlaces();
+                if (places.length === 0) return;
+                
+                const place = places[0];
+                if (!place.geometry || !place.geometry.location) return;
+                
+                goToLocation(
+                    place.geometry.location.lat(),
+                    place.geometry.location.lng(),
+                    place.name,
+                    15
+                );
+                
+                showStatus(`✅ Đã tìm thấy: ${place.name}`, 'success');
+            });
+            
+            map.addListener('click', (e) => {
+                marker.setPosition(e.latLng);
+                updateLocationInfo('Vị trí được chọn', e.latLng);
+            });
+            
+            updateLocationInfo('Hồ Chí Minh City', hcmc);
+            showStatus('🎉 Google Maps đã tải thành công!', 'success');
+        }
+        
+        function updateLocationInfo(name, location) {
+            document.getElementById('current-location').textContent = name;
+            document.getElementById('coordinates').textContent = 
+                `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+        }
+        
+        function goToLocation(lat, lng, name, zoom) {
+            const location = { lat, lng };
+            map.setCenter(location);
+            map.setZoom(zoom);
+            marker.setPosition(location);
+            marker.setTitle(name);
+            streetView.setPosition(location);
+            updateLocationInfo(name, location);
+            showStatus(`📍 Đã chuyển đến ${name}`, 'success');
+        }
+        
+        function clearMarkers() {
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+        }
+        
+        function findNearbyPlaces(type) {
+            showStatus('🔍 Đang tìm kiếm...', 'info');
+            clearMarkers();
+            
+            const location = marker.getPosition();
+            const request = {
+                location: location,
+                radius: 2000,
+                type: [type]
+            };
+            
+            placesService.nearbySearch(request, (results, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+                    displayPlaces(results, type);
+                    
+                    results.forEach((place, index) => {
+                        if (index < 10) {
+                            const placeMarker = new google.maps.Marker({
+                                position: place.geometry.location,
+                                map: map,
+                                title: place.name,
+                                animation: google.maps.Animation.DROP,
+                                icon: {
+                                    url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                                    scaledSize: new google.maps.Size(35, 35)
+                                }
+                            });
+                            
+                            placeMarker.addListener('click', () => {
+                                showPlaceInfo(place, placeMarker);
+                            });
+                            
+                            markers.push(placeMarker);
+                        }
+                    });
+                    
+                    document.getElementById('nearby-count').textContent = results.length;
+                    showStatus(`✅ Tìm thấy ${results.length} ${getTypeName(type)}`, 'success');
+                } else {
+                    showStatus('❌ Không tìm thấy địa điểm nào', 'error');
+                }
+            });
+        }
+        
+        function getTypeName(type) {
+            const names = {
+                'restaurant': 'nhà hàng',
+                'cafe': 'quán cafe',
+                'tourist_attraction': 'điểm tham quan',
+                'park': 'công viên'
+            };
+            return names[type] || 'địa điểm';
+        }
+        
+        function displayPlaces(places, type) {
+            const placesList = document.getElementById('places-list');
+            const placesCard = document.getElementById('places-card');
+            
+            placesList.innerHTML = '';
+            
+            places.slice(0, 10).forEach(place => {
+                const item = document.createElement('div');
+                item.className = 'place-item';
+                item.innerHTML = `
+                    <h4>${place.name}</h4>
+                    <p>📍 ${place.vicinity || 'Không có địa chỉ'}</p>
+                    <p class="rating">⭐ ${place.rating || 'N/A'} ${place.user_ratings_total ? `(${place.user_ratings_total} reviews)` : ''}</p>
+                `;
+                item.onclick = () => {
+                    goToLocation(
+                        place.geometry.location.lat(),
+                        place.geometry.location.lng(),
+                        place.name,
+                        16
+                    );
+                };
+                placesList.appendChild(item);
+            });
+            
+            placesCard.style.display = 'block';
+        }
+        
+        function showPlaceInfo(place, placeMarker) {
+            infoWindow.setContent(`
+                <div style="padding: 15px; max-width: 300px;">
+                    <h3 style="color: #667eea; margin-bottom: 8px; font-size: 1.2rem;">${place.name}</h3>
+                    <p style="margin: 5px 0; color: #555;"><strong>📍 Địa chỉ:</strong> ${place.vicinity}</p>
+                    <p style="margin: 5px 0; color: #555;"><strong>⭐ Rating:</strong> ${place.rating || 'N/A'}</p>
+                    ${place.opening_hours ? `<p style="margin: 5px 0; color: ${place.opening_hours.open_now ? 'green' : 'red'};">
+                        <strong>🕒</strong> ${place.opening_hours.open_now ? 'Đang mở cửa' : 'Đã đóng cửa'}
+                    </p>` : ''}
+                </div>
+            `);
+            infoWindow.open(map, placeMarker);
+        }
+        
+        function calculateRoute() {
+            const start = { lat: 10.7729, lng: 106.6981 };
+            const end = { lat: 10.7798, lng: 106.6990 };
+            
+            const request = {
+                origin: start,
+                destination: end,
+                travelMode: google.maps.TravelMode.DRIVING
+            };
+            
+            showStatus('🗺️ Đang tính đường đi...', 'info');
+            
+            directionsService.route(request, (result, status) => {
+                if (status === google.maps.DirectionsStatus.OK) {
+                    directionsRenderer.setDirections(result);
+                    const route = result.routes[0].legs[0];
+                    showStatus(
+                        `✅ ${route.distance.text} - ${route.duration.text}`,
+                        'success'
+                    );
+                } else {
+                    showStatus('❌ Không thể tính đường đi', 'error');
+                }
+            });
+        }
+        
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                showStatus('📍 Đang lấy vị trí...', 'info');
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        goToLocation(
+                            position.coords.latitude,
+                            position.coords.longitude,
+                            'Vị trí của bạn',
+                            15
+                        );
+                        showStatus('✅ Đã lấy vị trí hiện tại', 'success');
+                    },
+                    () => {
+                        showStatus('❌ Không thể lấy vị trí', 'error');
+                    }
+                );
+            } else {
+                showStatus('❌ Trình duyệt không hỗ trợ Geolocation', 'error');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            
+            setTimeout(() => {
+                status.style.opacity = '0';
+                setTimeout(() => {
+                    status.textContent = '';
+                    status.className = 'status';
+                    status.style.opacity = '1';
+                }, 300);
+            }, 3000);
+        }
+        
+        window.gm_authFailure = function() {
+            showStatus('❌ Lỗi xác thực API Key!', 'error');
+        };
+    </script>
+    
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8DoBxJA5iIJNGR2e3UBmudXAGPXkC8ZI&libraries=places,geometry,drawing,visualization&callback=initMap">
+    </script>
+</body>
+</html>
