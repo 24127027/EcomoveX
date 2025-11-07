@@ -9,9 +9,9 @@ import asyncio
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from integration.google_map_api import GoogleMapsAPI
+from services.map_service import MapService
 
 
 def print_route_summary(route: dict, route_name: str):
@@ -57,9 +57,6 @@ async def test_three_optimal_routes():
     print("="*80)
     print()
     
-    # Initialize Google Maps API
-    maps = GoogleMapsAPI()
-    
     # Test cases with different distances
     test_cases = [
         {
@@ -87,7 +84,7 @@ async def test_three_optimal_routes():
         print(f"{'#'*80}")
         
         try:
-            result = await maps.find_three_optimal_routes(
+            result = await MapService.find_three_optimal_routes(
                 origin=test_case["origin"],
                 destination=test_case["destination"],
                 max_time_ratio=1.3  # Smart route can be max 30% slower than fastest
@@ -135,8 +132,9 @@ async def test_three_optimal_routes():
             print(f"\n{'='*80}")
             print(f"💡 KHUYẾN NGHỊ")
             print(f"{'='*80}")
-            rec = result.get("recommendation", "fastest")
-            rec_reason = result.get("recommendation_reason", "")
+            recommendation = result.get("recommendation", {})
+            rec_route = recommendation.get("route", "fastest") if isinstance(recommendation, dict) else "fastest"
+            rec_reason = recommendation.get("reason", "") if isinstance(recommendation, dict) else ""
             
             route_names = {
                 "fastest": "Tuyến nhanh nhất",
@@ -144,7 +142,7 @@ async def test_three_optimal_routes():
                 "smart_combination": "Tuyến thông minh"
             }
             
-            print(f"✅ Khuyến nghị: {route_names.get(rec, rec)}")
+            print(f"✅ Khuyến nghị: {route_names.get(rec_route, rec_route)}")
             print(f"📝 Lý do: {rec_reason}")
             
             # Show carbon savings
@@ -169,8 +167,6 @@ async def test_three_optimal_routes():
             print(f"\n❌ Lỗi khi xử lý: {e}")
             import traceback
             traceback.print_exc()
-    
-    await maps.close()
     
     print(f"\n{'='*80}")
     print("✅ HOÀN THÀNH TEST")

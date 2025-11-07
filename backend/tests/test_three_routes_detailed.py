@@ -9,9 +9,9 @@ import asyncio
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from integration.google_map_api import GoogleMapsAPI
+from services.map_service import MapService
 
 
 async def test_special_cases():
@@ -21,8 +21,6 @@ async def test_special_cases():
     print("🧪 TEST: CÁC KỊCH BẢN ĐẶC BIỆT - TÌM 3 TUYẾN TỐI ƯU")
     print("="*100)
     print()
-    
-    maps = GoogleMapsAPI()
     
     # Test case: Quãng đường ngắn (~2km) - đủ xa để có transit nhưng đủ gần để đi bộ
     print("█" * 100)
@@ -38,7 +36,7 @@ async def test_special_cases():
     print(f"🎯 Điểm đến: {destination}")
     print()
     
-    result = await maps.find_three_optimal_routes(
+    result = await MapService.find_three_optimal_routes(
         origin=origin,
         destination=destination,
         max_time_ratio=2.0  # Cho phép smart route chậm hơn 2x
@@ -131,8 +129,9 @@ async def test_special_cases():
         print("║" + " " * 42 + "💡 KHUYẾN NGHỊ" + " " * 43 + "║")
         print("╚" + "═" * 98 + "╝")
         
-        rec = result.get("recommendation", "fastest")
-        rec_reason = result.get("recommendation_reason", "")
+        recommendation = result.get("recommendation", {})
+        rec_route = recommendation.get("route", "fastest") if isinstance(recommendation, dict) else "fastest"
+        rec_reason = recommendation.get("reason", "") if isinstance(recommendation, dict) else ""
         
         rec_names = {
             "fastest": "1️⃣  Tuyến nhanh nhất",
@@ -141,7 +140,7 @@ async def test_special_cases():
         }
         
         print()
-        print(f"✅ Khuyến nghị: {rec_names.get(rec, rec)}")
+        print(f"✅ Khuyến nghị: {rec_names.get(rec_route, rec_route)}")
         print(f"📝 Lý do: {rec_reason}")
         print()
         
@@ -169,7 +168,7 @@ async def test_special_cases():
     else:
         print(f"❌ Lỗi: {result.get('message', 'Unknown error')}")
     
-    await maps.close()
+    # MapService uses static methods, no need to close
     
     print()
     print("=" * 100)

@@ -36,7 +36,7 @@ class User(UserBase):
     media_files = relationship("MediaFile", back_populates="owner", cascade="all, delete-orphan")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
-    carbon_emissions = relationship("CarbonEmission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
+    routes = relationship("UserRoute", back_populates="user", cascade="all, delete-orphan")
