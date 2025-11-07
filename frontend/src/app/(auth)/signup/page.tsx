@@ -74,9 +74,12 @@ export default function SignupPage(){
                 email: form.email,
                 password: form.password
             });
+<<<<<<<< HEAD:frontend/src/app/(auth)/signup/page.tsx
             if (!response?.access_token) {
               throw new Error("Missing access token");
               }
+========
+>>>>>>>> 8eec0969a0c82ab22b41c007c587aa0e8fea12e6:frontend/src/app/signup/page.tsx
             if (!response || !response.access_token) {
                 throw new Error("Signup succeeded but response is invalid");
               }
