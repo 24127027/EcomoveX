@@ -1,6 +1,6 @@
 "use client";
 import {useState} from 'react'
-import {poppins, knewave, abhaya_libre, josefin_sans, gotu} from "../page";
+import {poppins, knewave, abhaya_libre, josefin_sans, gotu} from "../../page";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { FaRegEnvelope } from "react-icons/fa";
