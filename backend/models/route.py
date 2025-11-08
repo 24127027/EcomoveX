@@ -8,13 +8,16 @@ class TransportMode(str, Enum):
     car = "car"
     motorbike = "motorbike"
     bicycle = "bicycle"
+    bicycling = "bicycling"
     walking = "walking"
+    transit = "transit"
     metro = "metro"
     bus = "bus"
     taxi = "taxi"
     grab_car = "grab car"
     grab_bike = "grab bike"
     train = "train"
+    driving = "driving"
     
 class FuelType(str, Enum):
     PETROL = "petrol"

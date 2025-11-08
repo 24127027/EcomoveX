@@ -2,6 +2,7 @@
 from typing import Dict, List, Optional, Any, Tuple
 from utils.config import settings
 import math
+from schemas.map_schema import *
 
 class GoogleMapsAPI:   
     def __init__(self, api_key: Optional[str] = None):
@@ -14,63 +15,44 @@ class GoogleMapsAPI:
     
     async def close(self):
         await self.client.aclose()
-    
-    async def autocomplete_place(
-        self,
-        input_text: str,
-        location: Optional[Tuple[float, float]] = None,
-        radius: Optional[int] = None,
-        types: Optional[str] = None,
-        language: str = "vi",
-        components: str = "country:vn"
-    ) -> Dict[str, Any]:
+
+    async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> Dict[str, Any]:
         params = {
-            "input": input_text,
-            "language": language,
+            "input": data.query.strip(),
+            "language": data.language,
             "key": self.api_key
         }
-        
-        if location:
-            params["location"] = f"{location[0]},{location[1]}"
-        if radius:
-            params["radius"] = radius
-        if types:
-            params["types"] = types
+
+        if data.user_location:
+            params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
+        if data.radius:
+            params["radius"] = data.radius
+        if data.place_types:
+            params["types"] = data.place_types
         if components:
             params["components"] = components
         
         url = f"{self.base_url}/place/autocomplete/json"
         response = await self.client.get(url, params=params)
         return response.json()
-    
-    async def query_autocomplete(
-        self,
-        input_text: str,
-        location: Optional[Tuple[float, float]] = None,
-        radius: Optional[int] = None,
-        language: str = "vi"
-    ) -> Dict[str, Any]:
+
+    async def query_autocomplete(self, data: SearchLocationRequest) -> Dict[str, Any]:
         params = {
-            "input": input_text,
-            "language": language,
+            "input": data.query.strip(),
+            "language": data.language,
             "key": self.api_key
         }
-        
-        if location:
-            params["location"] = f"{location[0]},{location[1]}"
-        if radius:
-            params["radius"] = radius
-        
+
+        if data.user_location:
+            params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
+        if data.radius:
+            params["radius"] = data.radius
+
         url = f"{self.base_url}/place/queryautocomplete/json"
         response = await self.client.get(url, params=params)
         return response.json()
-    
-    async def get_place_details_from_autocomplete(
-        self,
-        place_id: str,
-        fields: Optional[List[str]] = None,
-        language: str = "vi"
-    ) -> Dict[str, Any]:
+
+    async def get_place_details_from_autocomplete(self, place_id: str, fields: Optional[List[str]] = None, language: str = "vi") -> Dict[str, Any]:
         if fields is None:
             fields = [
                 "place_id",
@@ -99,8 +81,8 @@ class GoogleMapsAPI:
     
     async def get_directions(
         self,
-        origin: str,
-        destination: str,
+        origin: Tuple[float, float],
+        destination: Tuple[float, float],
         mode: str = "driving",
         waypoints: Optional[List[str]] = None,
         alternatives: bool = False,
@@ -109,8 +91,8 @@ class GoogleMapsAPI:
     ) -> Dict[str, Any]:
         """Get directions between locations"""
         params = {
-            "origin": origin,
-            "destination": destination,
+            "origin": f"{origin[0]},{origin[1]}",
+            "destination": f"{destination[0]},{destination[1]}",
             "mode": mode,
             "alternatives": str(alternatives).lower(),
             "language": language,
@@ -243,46 +225,22 @@ class GoogleMapsAPI:
             "message": "Use external weather API like OpenWeatherMap for detailed forecast"
         }
     
-    async def get_route_with_traffic(
+    async def get_route(
         self,
-        origin: str,
-        destination: str,
+        origin: Tuple[float, float],
+        destination: Tuple[float, float],
         mode: str = "driving",
-        departure_time: str = "now"
     ) -> Dict[str, Any]:
         params = {
-            "origin": origin,
-            "destination": destination,
+            "origin": f"{origin[0]},{origin[1]}",
+            "destination": f"{destination[0]},{destination[1]}",
             "mode": mode,
-            "departure_time": departure_time,
             "key": self.api_key
         }
         
         url = f"{self.base_url}/directions/json"
         response = await self.client.get(url, params=params)
-        result = response.json()
-        
-        if result.get("status") == "OK" and result.get("routes"):
-            route = result["routes"][0]
-            leg = route["legs"][0]
-            
-            duration_normal = leg.get("duration", {}).get("value", 0)
-            duration_traffic = leg.get("duration_in_traffic", {}).get("value", duration_normal)
-            traffic_delay = duration_traffic - duration_normal
-            
-            congestion_ratio = duration_traffic / duration_normal if duration_normal > 0 else 1.0
-            
-            return {
-                "status": "OK",
-                "route": route,
-                "duration_normal_seconds": duration_normal,
-                "duration_in_traffic_seconds": duration_traffic,
-                "traffic_delay_seconds": traffic_delay,
-                "congestion_ratio": round(congestion_ratio, 2),
-                "has_traffic_data": "duration_in_traffic" in leg
-            }
-        
-        return result
+        return response.json()
     
     async def reverse_geocode(
         self,

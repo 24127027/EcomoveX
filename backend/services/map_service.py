@@ -2,25 +2,15 @@ from typing import Dict, List, Optional, Any, Tuple
 from schemas.destination_schema import DestinationCreate
 from integration.google_map_api import create_maps_client
 from fastapi import HTTPException, status
-from schemas.map_schema import (
-    SearchLocationResponse,
-    SearchSuggestion,
-    PlaceDetailsResponse,
-    PhotoInfo,
-    OpeningHours
-)
+from schemas.map_schema import *
+from repository.destination_repository import DestinationRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 class MapService:
     @staticmethod
-    async def search_location(
-        input_text: str,
-        user_location: Optional[Tuple[float, float]] = None,
-        search_radius: Optional[int] = None,
-        place_types: Optional[str] = None,
-        language: str = "vi"
-    ) -> SearchLocationResponse:
+    async def search_location(db: AsyncSession, data: SearchLocationRequest) -> SearchLocationResponse:
         try:
-            if not input_text or len(input_text.strip()) < 2:
+            if not data.query or len(data.query.strip()) < 2:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Search text must be at least 2 characters"
@@ -31,11 +21,11 @@ class MapService:
             try:
 
                 result = await maps.autocomplete_place(
-                    input_text=input_text.strip(),
-                    location=user_location,
-                    radius=search_radius,
-                    types=place_types,
-                    language=language
+                    input_text=data.query.strip(),
+                    location=data.user_location,
+                    radius=data.radius,
+                    types=data.place_types,
+                    language=data.language
                 )
                 
                 if result.get("status") not in ["OK", "ZERO_RESULTS"]:
@@ -56,16 +46,15 @@ class MapService:
                         types=prediction.get("types", []),
                         distance_meters=prediction.get("distance_meters")
                     ))
-                
+                    new_destination = DestinationCreate(
+                        place_id=prediction.get("place_id"),
+                    )
+                    await DestinationRepository.create_destination(db, new_destination)
+
                 return SearchLocationResponse(
                     status="OK",
-                    query=input_text,
+                    query=data.query.strip(),
                     suggestions=suggestions,
-                    total_results=len(suggestions),
-                    user_location=DestinationCreate(
-                        latitude=user_location[0],
-                        longitude=user_location[1]
-                    ) if user_location else None
                 )
             
             finally:
@@ -126,10 +115,7 @@ class MapService:
                     place_id=place.get("place_id"),
                     name=place.get("name"),
                     formatted_address=place.get("formatted_address"),
-                    location={
-                        "lat": location.get("lat"),
-                        "lng": location.get("lng")
-                    },
+                    location=(location.get("lat"), location.get("lng")),
                     rating=place.get("rating"),
                     phone=place.get("formatted_phone_number"),
                     website=place.get("website"),
@@ -140,9 +126,6 @@ class MapService:
             
             finally:
                 await maps.close()
-        
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

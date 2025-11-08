@@ -29,9 +29,10 @@ class DestinationRepository:
     async def create_destination(db: AsyncSession, destination: DestinationCreate):
         try:
             new_destination = Destination(
-                longitude=destination.longitude,
-                latitude=destination.latitude
+                place_id=destination.place_id,
             )
+            if destination.green_verified_status is not None:
+                new_destination.green_verified_status = destination.green_verified_status
             db.add(new_destination)
             await db.commit()
             await db.refresh(new_destination)
@@ -49,10 +50,8 @@ class DestinationRepository:
                 print(f"Destination with ID {destination_id} not found")
                 return None
 
-            if updated_data.longitude is not None:
-                destination.longitude = updated_data.longitude
-            if updated_data.latitude is not None:
-                destination.latitude = updated_data.latitude
+            if updated_data.green_verified_status is not None:
+                destination.green_verified = updated_data.green_verified_status
 
             db.add(destination)
             await db.commit()

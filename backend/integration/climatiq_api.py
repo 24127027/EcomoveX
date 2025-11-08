@@ -101,6 +101,13 @@ class climatiqAPI:
         Uses Basic Estimate API for 'motorbike'.
         Returns only co2e_total and unit.
         """
+        # Zero emissions for walking and bicycling
+        if mode in ["walking", "bicycle", "bicycling"]:
+            return 0.0
+        
+        if mode in ["car", "transit", "driving"]:
+            return 10.0
+        
         travel_modes = {"car", "rail", "air"}
 
         if mode in travel_modes:

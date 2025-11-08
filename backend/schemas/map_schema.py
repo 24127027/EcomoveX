@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, validator, ConfigDict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 class SearchSuggestion(BaseModel):
     place_id: str = Field(..., description="Google Place ID")
@@ -12,24 +12,23 @@ class SearchSuggestion(BaseModel):
 class SearchLocationRequest(BaseModel):
     """Request cho search_location"""
     query: str = Field(..., min_length=2, description="Text search")
-    user_lat: Optional[float] = Field(None, ge=-90, le=90, description="Latitude user")
-    user_lng: Optional[float] = Field(None, ge=-180, le=180, description="Longitude user")
+    user_location: Optional[Tuple[float, float]] = Field(None, description="Tọa độ user (lat, lng)")
     radius: Optional[int] = Field(None, ge=100, le=50000, description="Bán kính (100-50000m)")
     place_types: Optional[str] = Field(None, description="Loại địa điểm")
     language: str = Field("vi", description="Ngôn ngữ")
-    
-    @validator('user_lng')
-    def validate_location_pair(cls, lng, values):
-        lat = values.get('user_lat')
-        if (lat is None) != (lng is None):
-            raise ValueError("user_lat và user_lng phải cùng có hoặc cùng không có")
-        return lng
+
+    @validator('user_location')
+    def validate_location_pair(cls, user_location):
+        if user_location is not None:
+            lat, lng = user_location
+            if lat is None or lng is None:
+                raise ValueError("user_location phải có cả lat và lng")
+        return user_location
 
 class SearchLocationResponse(BaseModel):
     status: str = Field(..., description="Status: OK")
     query: str = Field(..., description="Query gốc")
     suggestions: List[SearchSuggestion] = Field(..., description="List suggestions")
-    total_results: int = Field(..., description="Số lượng kết quả")
 
 class PhotoInfo(BaseModel):
     photo_reference: str = Field(..., description="Reference để get photo")
@@ -45,7 +44,7 @@ class PlaceDetailsResponse(BaseModel):
     place_id: str = Field(..., description="Google Place ID")
     name: str = Field(..., description="Tên địa điểm")
     formatted_address: str = Field(..., description="Địa chỉ đầy đủ")
-    location: Dict[str, float] = Field(..., description="Tọa độ {lat, lng}")
+    location: Tuple[float, float] = Field(..., description="Tọa độ (lat, lng)")
     rating: Optional[float] = Field(None, description="Rating (0-5)")
     phone: Optional[str] = Field(None, description="Số điện thoại")
     website: Optional[str] = Field(None, description="Website")

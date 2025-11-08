@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime
 from enum import Enum
 
@@ -11,16 +11,14 @@ class RecommendationType(str, Enum):
     souvenir = "souvenir"
 
 class RecommendationRequest(BaseModel):
-    longitude: float = Field(..., ge=-180, le=180)
-    latitude: float = Field(..., ge=-90, le=90)
+    location: Tuple[float, float] = Field(..., description="Tọa độ (longitude, latitude)")
     search_radius_km: Optional[float] = Field(5.0, gt=0, le=100)
     preferred_type: Optional[RecommendationType] = RecommendationType.destination
 
 class RecommendationItem(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
-    longitude: float = Field(..., ge=-180, le=180)
-    latitude: float = Field(..., ge=-90, le=90)
+    location: Tuple[float, float] = Field(..., description="Tọa độ (longitude, latitude)")
     category: RecommendationType
     eco_score: Optional[float] = Field(None, ge=0, le=100)
     price_range: Optional[str] = Field(None, max_length=50)
@@ -45,8 +43,7 @@ class RecommendationCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str = Field(..., min_length=1, max_length=1000)
     category: RecommendationType
-    longitude: float = Field(..., ge=-180, le=180)
-    latitude: float = Field(..., ge=-90, le=90)
+    location: Tuple[float, float] = Field(..., description="Tọa độ (longitude, latitude)")
     eco_score: Optional[float] = Field(None, ge=0, le=100)
     price_range: Optional[str] = Field(None, max_length=50)
     image_url: Optional[str] = Field(None, max_length=500)

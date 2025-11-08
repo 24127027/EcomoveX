@@ -37,8 +37,7 @@ class PlanRequestUpdate(BaseModel):
         return v.strip() if v else None
 
 class DestinationInfo(BaseModel):
-    longitude: float
-    latitude: float
+    location: Tuple[float, float] = Field(..., description="Tọa độ (longitude, latitude)")
     visit_date: date
     type: DestinationType
 

@@ -167,12 +167,8 @@ class FriendService:
                 
                 if requester:
                     request_list.append({
-                        "user_id": request.user_id,
                         "friend_id": request.friend_id,
-                        "status": request.status,
                         "created_at": request.created_at,
-                        "friend_username": requester.username,
-                        "friend_email": requester.email
                     })
             
             return request_list
@@ -193,12 +189,8 @@ class FriendService:
                 
                 if recipient:
                     request_list.append({
-                        "user_id": request.user_id,
                         "friend_id": request.friend_id,
-                        "status": request.status,
                         "created_at": request.created_at,
-                        "friend_username": recipient.username,
-                        "friend_email": recipient.email
                     })
             
             return request_list
@@ -219,12 +211,8 @@ class FriendService:
                 
                 if blocked_user:
                     blocked_list.append({
-                        "user_id": block.user_id,
                         "friend_id": block.friend_id,
-                        "status": block.status,
                         "created_at": block.created_at,
-                        "friend_username": blocked_user.username,
-                        "friend_email": blocked_user.email
                     })
             
             return blocked_list

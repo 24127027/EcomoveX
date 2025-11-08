@@ -3,6 +3,8 @@ from typing import Any, List, Dict, Optional
 from services.map_service import create_maps_client
 from schemas.route_schema import *
 from services.carbon_service import CarbonService
+from sqlalchemy.ext.asyncio import AsyncSession
+from models.route import RouteType
 
 class RouteService:
     @staticmethod
@@ -19,20 +21,29 @@ class RouteService:
             walking_steps = []
             
             for step in leg.get("steps", []):
-                if step.get("travel_mode") == "TRANSIT":
+                if step.get("travel_mode") == "motorbike":
                     transit_details = step.get("transit_details", {})
+                    departure_stop = transit_details.get("departure_stop", {})
+                    arrival_stop = transit_details.get("arrival_stop", {})
+                    
                     transit_steps.append({
                         "line": transit_details.get("line", {}).get("short_name", "N/A"),
-                        "vehicle": transit_details.get("line", {}).get("vehicle", {}).get("type", "BUS"),
-                        "departure_stop": transit_details.get("departure_stop", {}).get("name", ""),
-                        "arrival_stop": transit_details.get("arrival_stop", {}).get("name", ""),
+                        "vehicle": TransportMode.transit,
+                        "departure_stop": {
+                            "lat": departure_stop.get("location", {}).get("lat", 0.0),
+                            "lng": departure_stop.get("location", {}).get("lng", 0.0)
+                        },
+                        "arrival_stop": {
+                            "lat": arrival_stop.get("location", {}).get("lat", 0.0),
+                            "lng": arrival_stop.get("location", {}).get("lng", 0.0)
+                        },
                         "num_stops": transit_details.get("num_stops", 0),
-                        "duration": step.get("duration", {}).get("text", "")
+                        "duration": step.get("duration", {}).get("value", 0) / 60
                     })
                 elif step.get("travel_mode") == "WALKING":
                     walking_steps.append({
-                        "distance": step.get("distance", {}).get("text", ""),
-                        "duration": step.get("duration", {}).get("text", ""),
+                        "distance": step.get("distance", {}).get("value", 0),
+                        "duration": step.get("duration", {}).get("value", 0) / 60,
                         "instruction": step.get("html_instructions", "")
                     })
             
@@ -46,43 +57,14 @@ class RouteService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to extract transit details: {str(e)}"
-            )
-            
-    @staticmethod
-    async def calculate_route_carbon(
-        distance_km: float, 
-        mode: TransportMode,
-        fuel_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        try:
-            if distance_km < 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Distance cannot be negative"
-                )
-
-            result = await CarbonService.estimate_transport_emission(mode.value, distance_km, fuel_type)
-
-            return {
-                "co2": result.co2e_total,
-                "distance_km": distance_km,
-                "mode": mode.value,
-                "fuel_type": fuel_type,
-            }
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to calculate route carbon: {str(e)}"
-            )
+            )           
 
     @staticmethod
     async def process_route_data(
         route: Dict[str, Any],
         mode: str,
         route_type: str,
-        display_name: str
-    ) -> Dict[str, Any]:
-        """Process route data and calculate carbon emissions"""
+    ) -> RouteData:
         try:
             if not route or "legs" not in route or not route["legs"]:
                 raise HTTPException(
@@ -106,54 +88,22 @@ class RouteService:
             
             distance_km = leg["distance"]["value"] / 1000
             duration_min = leg["duration"]["value"] / 60
-            
-            congestion_ratio = 1.0
-            has_traffic_data = False
-            
-            if "duration_in_traffic" in leg:
-                duration_in_traffic = leg["duration_in_traffic"]["value"]
-                duration_normal = leg["duration"]["value"]
-                
-                if duration_normal > 0:
-                    congestion_ratio = duration_in_traffic / duration_normal
-                    has_traffic_data = True
-            
-            carbon_data = await RouteService.calculate_route_carbon(
-                distance_km, 
-                mode,
-                congestion_ratio=congestion_ratio
+
+            carbon_kg = await CarbonService.estimate_transport_emission(mode, distance_km)
+
+            result = RouteData(
+                type=route_type,
+                mode=[TransportMode(mode)],
+                distance=distance_km,
+                duration=duration_min,
+                carbon=carbon_kg,
+                route_details=route
             )
-            
-            result = {
-                "type": route_type,
-                "mode": mode,
-                "display_name": display_name,
-                "distance_km": distance_km,
-                "duration_min": duration_min,
-                "duration_text": leg["duration"]["text"],
-                "carbon_kg": carbon_data["co2_kg"],
-                "carbon_grams": carbon_data["co2_grams"],
-                "emission_factor": carbon_data["emission_factor_g_per_km"],
-                "route_details": route,
-                "priority_score": duration_min,
-                "has_traffic_data": has_traffic_data
-            }
-            
-            if has_traffic_data:
-                result["traffic_info"] = {
-                    "congestion_ratio": round(congestion_ratio, 2),
-                    "duration_in_traffic_min": round(duration_in_traffic / 60, 1),
-                    "traffic_delay_min": round((duration_in_traffic - duration_normal) / 60, 1),
-                    "traffic_multiplier": carbon_data.get("traffic_multiplier"),
-                    "emission_increase_percent": carbon_data.get("emission_increase_percent")
-                }
-            
-            if mode == "transit":
-                result["transit_info"] = RouteService.extract_transit_details(leg)
-            
+
+            if mode == "motorbike":
+                result.transit_info = RouteService.extract_transit_details(leg)
+
             return result
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -161,14 +111,14 @@ class RouteService:
             )
     
     @staticmethod
-    async def find_three_optimal_routes(
-        origin: str,
-        destination: str,
-        max_time_ratio: float = 1.3,
-        language: str = "vi"
-    ) -> Dict[str, Any]:
+    async def find_three_optimal_routes(request: FindRoutesRequest) -> FindRoutesResponse:
         """Find 3 optimal routes: fastest, lowest carbon, and smart combination"""
         try:
+            origin = request.origin
+            destination = request.destination
+            max_time_ratio = request.max_time_ratio
+            language = request.language
+            
             if not origin or not destination:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -181,58 +131,47 @@ class RouteService:
                     detail="max_time_ratio must be greater than 0"
                 )
             
-            results = {
-                "origin": origin,
-                "destination": destination,
-                "routes": {},
-                "recommendation": None
-            }
+            routes_dict = {}
             
             maps = await create_maps_client()
             
             try:
+                driving_result = await maps.get_route(origin, destination)
 
-                driving_result = await maps.get_route_with_traffic(
-                    origin, destination, mode="driving", departure_time="now"
-                )
-                
                 driving_alternatives = await maps.get_directions(
                     origin, destination, mode="driving", alternatives=True, language=language
                 )
-                
-                transit_result = await maps.get_directions(origin, destination, mode="transit", alternatives=True, language=language)
+
+                transit_result = await maps.get_directions(origin, destination, mode="motorbike", alternatives=True, language=language)
                 walking_result = await maps.get_directions(origin, destination, mode="walking", language=language)
                 bicycling_result = await maps.get_directions(origin, destination, mode="bicycling", language=language)
                 
                 all_routes = []
                 
-                if driving_result.get("status") == "OK" and driving_result.get("route"):
-                    route = driving_result["route"]
-                    display_name = "Driving (with traffic)"
+                if driving_result.get("status") == "OK" and driving_result.get("routes"):
+                    route = driving_result["routes"][0]
                     route_type = "fastest_driving"
                     
                     route_data = await RouteService.process_route_data(
-                        route, "driving", route_type, display_name
+                        route, "driving", route_type
                     )
                     all_routes.append(route_data)
                 
                 if driving_alternatives.get("status") == "OK" and driving_alternatives.get("routes"):
                     for idx, route in enumerate(driving_alternatives["routes"][1:], start=1):
-                        display_name = f"Driving (option {idx+1})"
                         route_type = f"alternative_driving_{idx}"
                         
                         route_data = await RouteService.process_route_data(
-                            route, "driving", route_type, display_name
+                            route, "driving", route_type
                         )
                         all_routes.append(route_data)
                 
                 if transit_result.get("status") == "OK" and transit_result.get("routes"):
                     for idx, route in enumerate(transit_result["routes"]):
-                        display_name = "Public transport"
                         route_type = "transit" if idx == 0 else f"alternative_transit_{idx}"
                         
                         route_data = await RouteService.process_route_data(
-                            route, "transit", route_type, display_name
+                            route, "transit", route_type
                         )
                         all_routes.append(route_data)
                 
@@ -243,14 +182,14 @@ class RouteService:
                     
                     if distance_km <= 3.0:
                         route_data = await RouteService.process_route_data(
-                            route, "walking", "walking", "Walking"
+                            route, "walking", "walking"
                         )
                         all_routes.append(route_data)
                 
                 if bicycling_result.get("status") == "OK" and bicycling_result.get("routes"):
                     route = bicycling_result["routes"][0]
                     route_data = await RouteService.process_route_data(
-                        route, "bicycling", "bicycling", "Bicycling"
+                        route, "bicycling", "bicycling"
                     )
                     all_routes.append(route_data)
                 
@@ -260,38 +199,58 @@ class RouteService:
                         detail="No suitable routes found between the specified locations"
                     )
                 
-                fastest_route = min(all_routes, key=lambda x: x["duration_min"])
-                results["routes"]["fastest"] = {
-                    **fastest_route,
-                    "reason": "Fastest route"
-                }
+                # Find fastest route
+                fastest_route = min(all_routes, key=lambda x: x.duration)
+                fastest_route_data = RouteData(
+                    type=RouteType.fastest.value,
+                    mode=fastest_route.mode,
+                    distance=fastest_route.distance,
+                    duration=fastest_route.duration,
+                    carbon=fastest_route.carbon,
+                    route_details=fastest_route.route_details,
+                    transit_info=fastest_route.transit_info
+                )
                 
-                lowest_carbon_route = min(all_routes, key=lambda x: x["carbon_kg"])
-                results["routes"]["lowest_carbon"] = {
-                    **lowest_carbon_route,
-                    "reason": "Lowest carbon emissions"
-                }
+                # Find lowest carbon route
+                lowest_carbon_route = min(all_routes, key=lambda x: x.carbon)
+                lowest_carbon_route_data = RouteData(
+                    type=RouteType.low_carbon.value,
+                    mode=lowest_carbon_route.mode,
+                    distance=lowest_carbon_route.distance,
+                    duration=lowest_carbon_route.duration,
+                    carbon=lowest_carbon_route.carbon,
+                    route_details=lowest_carbon_route.route_details,
+                    transit_info=lowest_carbon_route.transit_info
+                )
                 
-                smart_route = RouteService._find_smart_route(
+                # Find smart combination route
+                smart_route_data = RouteService.find_smart_route(
                     all_routes, fastest_route, max_time_ratio
                 )
                 
-                if smart_route:
-                    results["routes"]["smart_combination"] = smart_route
+                # Build routes dict
+                routes_dict = {
+                    RouteType.fastest: fastest_route_data,
+                    RouteType.low_carbon: lowest_carbon_route_data
+                }
                 
-                results["recommendation"] = RouteService._generate_recommendation(
-                    results["routes"], fastest_route, lowest_carbon_route
+                if smart_route_data:
+                    routes_dict[RouteType.smart_combination] = smart_route_data
+                
+                # Generate recommendation
+                recommendation = RouteService.generate_route_recommendation(
+                    routes_dict, fastest_route, lowest_carbon_route
                 )
-                
-                results["status"] = "OK"
-                results["total_routes_analyzed"] = len(all_routes)
                 
             finally:
                 await maps.close()
             
-            return results
-        except HTTPException:
-            raise
+            return FindRoutesResponse(
+                origin={"lat": origin[0], "lng": origin[1]},
+                destination={"lat": destination[0], "lng": destination[1]},
+                routes=routes_dict,
+                recommendation=recommendation["reason"]
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -300,101 +259,99 @@ class RouteService:
     
     @staticmethod
     def find_smart_route(
-        all_routes: List[Dict[str, Any]],
-        fastest_route: Dict[str, Any],
+        all_routes: List[RouteData],
+        fastest_route: RouteData,
         max_time_ratio: float
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[RouteData]:
         """Find smart route prioritizing transit, walking, or bicycling"""
         try:
-            transit_routes = [r for r in all_routes if r["mode"] == "transit"]
+            transit_routes = [r for r in all_routes if TransportMode.transit in r.mode]
             
             if transit_routes:
-                best_transit = min(transit_routes, key=lambda x: x["carbon_kg"])
+                best_transit = min(transit_routes, key=lambda x: x.carbon)
                 
-                driving_routes = [r for r in all_routes if r["mode"] == "driving"]
+                driving_routes = [r for r in all_routes if TransportMode.driving in r.mode]
                 if driving_routes:
-                    best_driving = min(driving_routes, key=lambda x: x["duration_min"])
+                    best_driving = min(driving_routes, key=lambda x: x.duration)
                     carbon_saving_percent = (
-                        (best_driving["carbon_kg"] - best_transit["carbon_kg"]) 
-                        / best_driving["carbon_kg"] * 100
-                    ) if best_driving["carbon_kg"] > 0 else 0
+                        (best_driving.carbon - best_transit.carbon) 
+                        / best_driving.carbon * 100
+                    ) if best_driving.carbon > 0 else 0
                     
-                    max_acceptable_time = fastest_route["duration_min"] * max_time_ratio
+                    max_acceptable_time = fastest_route.duration * max_time_ratio
                     
-                    if carbon_saving_percent > 30 or best_transit["duration_min"] <= max_acceptable_time:
-                        return {
-                            **best_transit,
-                            "reason": f"Smart route (walking + public transport, saves {carbon_saving_percent:.1f}% carbon)",
-                            "time_comparison": {
-                                "vs_fastest_min": round(best_transit["duration_min"] - fastest_route["duration_min"], 1),
-                                "vs_fastest_percent": round((best_transit["duration_min"] / fastest_route["duration_min"] - 1) * 100, 1)
-                            },
-                            "carbon_comparison": {
-                                "vs_driving_kg": round(best_driving["carbon_kg"] - best_transit["carbon_kg"], 3),
-                                "vs_driving_percent": round(carbon_saving_percent, 1)
-                            }
-                        }
+                    if carbon_saving_percent > 30 or best_transit.duration <= max_acceptable_time:
+                        return RouteData(
+                            type=RouteType.smart_combination.value,
+                            mode=best_transit.mode,
+                            distance=best_transit.distance,
+                            duration=best_transit.duration,
+                            carbon=best_transit.carbon,
+                            route_details=best_transit.route_details,
+                            transit_info=best_transit.transit_info
+                        )
             
-            walking_routes = [r for r in all_routes if r["mode"] == "walking"]
+            walking_routes = [r for r in all_routes if TransportMode.walking in r.mode]
             if walking_routes:
                 walk_route = walking_routes[0]
-                max_acceptable_time = fastest_route["duration_min"] * max_time_ratio
+                max_acceptable_time = fastest_route.duration * max_time_ratio
                 
-                if walk_route["distance_km"] <= 3.0 and walk_route["duration_min"] <= max_acceptable_time:
-                    return {
-                        **walk_route,
-                        "reason": "Smart route (walking - short distance, zero carbon)",
-                        "time_comparison": {
-                            "vs_fastest_min": round(walk_route["duration_min"] - fastest_route["duration_min"], 1),
-                            "vs_fastest_percent": round((walk_route["duration_min"] / fastest_route["duration_min"] - 1) * 100, 1)
-                        }
-                    }
+                if walk_route.distance <= 3.0 and walk_route.duration <= max_acceptable_time:
+                    return RouteData(
+                        type=RouteType.smart_combination.value,
+                        mode=walk_route.mode,
+                        distance=walk_route.distance,
+                        duration=walk_route.duration,
+                        carbon=walk_route.carbon,
+                        route_details=walk_route.route_details,
+                        transit_info=walk_route.transit_info
+                    )
             
-            bicycling_routes = [r for r in all_routes if r["mode"] == "bicycling"]
+            bicycling_routes = [r for r in all_routes if TransportMode.bicycling in r.mode]
             if bicycling_routes:
                 bike_route = bicycling_routes[0]
-                max_acceptable_time = fastest_route["duration_min"] * max_time_ratio
+                max_acceptable_time = fastest_route.duration * max_time_ratio
                 
-                if bike_route["duration_min"] <= max_acceptable_time:
-                    return {
-                        **bike_route,
-                        "reason": "Smart route (bicycling - zero carbon)",
-                        "time_comparison": {
-                            "vs_fastest_min": round(bike_route["duration_min"] - fastest_route["duration_min"], 1),
-                            "vs_fastest_percent": round((bike_route["duration_min"] / fastest_route["duration_min"] - 1) * 100, 1)
-                        }
-                    }
+                if bike_route.duration <= max_acceptable_time:
+                    return RouteData(
+                        type=RouteType.smart_combination.value,
+                        mode=bike_route.mode,
+                        distance=bike_route.distance,
+                        duration=bike_route.duration,
+                        carbon=bike_route.carbon,
+                        route_details=bike_route.route_details,
+                        transit_info=bike_route.transit_info
+                    )
             
             return None
         except Exception as e:
-
             print(f"Warning: Failed to find smart route: {str(e)}")
             return None
         
     @staticmethod
     def generate_route_recommendation(
-        routes: Dict[str, Any],
-        fastest_route: Dict[str, Any],
-        lowest_carbon_route: Dict[str, Any]
+        routes: Dict[RouteType, RouteData],
+        fastest_route: RouteData,
+        lowest_carbon_route: RouteData
     ) -> Dict[str, str]:
         """Generate route recommendation based on carbon savings and time trade-offs"""
         try:
-            carbon_savings_vs_fastest = fastest_route["carbon_kg"] - lowest_carbon_route["carbon_kg"]
+            carbon_savings_vs_fastest = fastest_route.carbon - lowest_carbon_route.carbon
             carbon_savings_percent = (
-                carbon_savings_vs_fastest / fastest_route["carbon_kg"] * 100
-            ) if fastest_route["carbon_kg"] > 0 else 0
+                carbon_savings_vs_fastest / fastest_route.carbon * 100
+            ) if fastest_route.carbon > 0 else 0
             
             recommendation = {
                 "route": "fastest",
                 "reason": "Maximum time savings"
             }
             
-            if carbon_savings_percent > 50 and lowest_carbon_route["duration_min"] <= fastest_route["duration_min"] * 1.5:
+            if carbon_savings_percent > 50 and lowest_carbon_route.duration <= fastest_route.duration * 1.5:
                 recommendation = {
                     "route": "lowest_carbon",
-                    "reason": f"Saves {carbon_savings_percent:.1f}% carbon, only {lowest_carbon_route['duration_min'] - fastest_route['duration_min']:.1f} min slower"
+                    "reason": f"Saves {carbon_savings_percent:.1f}% carbon, only {lowest_carbon_route.duration - fastest_route.duration:.1f} min slower"
                 }
-            elif "smart_combination" in routes and routes["smart_combination"]["carbon_kg"] < fastest_route["carbon_kg"] * 0.7:
+            elif RouteType.smart_combination in routes and routes[RouteType.smart_combination].carbon < fastest_route.carbon * 0.7:
                 recommendation = {
                     "route": "smart_combination",
                     "reason": "Good balance between time and carbon"
@@ -402,7 +359,6 @@ class RouteService:
             
             return recommendation
         except Exception as e:
-
             print(f"Warning: Failed to generate recommendation: {str(e)}")
             return {
                 "route": "fastest",
