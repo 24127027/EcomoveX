@@ -28,6 +28,9 @@ class DestinationRepository:
     @staticmethod
     async def create_destination(db: AsyncSession, destination: DestinationCreate):
         try:
+            has_existing = await DestinationRepository.get_destination_by_id(db, destination.place_id)
+            if has_existing:
+                return has_existing
             new_destination = Destination(
                 place_id=destination.place_id,
             )

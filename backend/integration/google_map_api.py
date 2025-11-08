@@ -2,7 +2,14 @@
 from typing import Dict, List, Optional, Any, Tuple
 from utils.config import settings
 import math
-from schemas.map_schema import *
+from schemas.map_schema import (
+    SearchLocationRequest,
+    DirectionsResponse,
+    GeocodingResponse,
+    AutocompleteResponse,
+    PlaceDetailsResponse
+)
+from models.route import TransportMode
 
 class GoogleMapsAPI:   
     def __init__(self, api_key: Optional[str] = None):
@@ -16,7 +23,8 @@ class GoogleMapsAPI:
     async def close(self):
         await self.client.aclose()
 
-    async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> Dict[str, Any]:
+    async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> AutocompleteResponse:
+        """Search for places using autocomplete with Pydantic response"""
         params = {
             "input": data.query.strip(),
             "language": data.language,
@@ -34,9 +42,9 @@ class GoogleMapsAPI:
         
         url = f"{self.base_url}/place/autocomplete/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return AutocompleteResponse(**response.json())
 
-    async def query_autocomplete(self, data: SearchLocationRequest) -> Dict[str, Any]:
+    async def query_autocomplete(self, data: SearchLocationRequest) -> AutocompleteResponse:
         params = {
             "input": data.query.strip(),
             "language": data.language,
@@ -50,9 +58,10 @@ class GoogleMapsAPI:
 
         url = f"{self.base_url}/place/queryautocomplete/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return AutocompleteResponse(**response.json())
 
-    async def get_place_details_from_autocomplete(self, place_id: str, fields: Optional[List[str]] = None, language: str = "vi") -> Dict[str, Any]:
+    async def get_place_details_from_autocomplete(self, place_id: str, fields: Optional[List[str]] = None, language: str = "vi") -> PlaceDetailsResponse:
+        """Get detailed place information with Pydantic response"""
         if fields is None:
             fields = [
                 "place_id",
@@ -77,23 +86,23 @@ class GoogleMapsAPI:
         
         url = f"{self.base_url}/place/details/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return PlaceDetailsResponse(**response.json())
     
     async def get_directions(
         self,
         origin: Tuple[float, float],
         destination: Tuple[float, float],
-        mode: str = "driving",
+        mode: TransportMode,
         waypoints: Optional[List[str]] = None,
         alternatives: bool = False,
         avoid: Optional[List[str]] = None,
         language: str = "vi"
-    ) -> Dict[str, Any]:
-        """Get directions between locations"""
+    ) -> DirectionsResponse:
+        """Get directions between locations with Pydantic response"""
         params = {
             "origin": f"{origin[0]},{origin[1]}",
             "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode,
+            "mode": mode.value,
             "alternatives": str(alternatives).lower(),
             "language": language,
             "key": self.api_key
@@ -106,7 +115,7 @@ class GoogleMapsAPI:
         
         url = f"{self.base_url}/directions/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return DirectionsResponse(**response.json())
     
     async def get_air_quality(
         self,
@@ -229,26 +238,27 @@ class GoogleMapsAPI:
         self,
         origin: Tuple[float, float],
         destination: Tuple[float, float],
-        mode: str = "driving",
-    ) -> Dict[str, Any]:
+        mode: TransportMode,
+    ) -> DirectionsResponse:
+        """Get single route between locations with Pydantic response"""
         params = {
             "origin": f"{origin[0]},{origin[1]}",
             "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode,
+            "mode": mode.value,
             "key": self.api_key
         }
         
         url = f"{self.base_url}/directions/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return DirectionsResponse(**response.json())
     
     async def reverse_geocode(
         self,
         lat: float,
         lng: float,
         language: str = "vi"
-    ) -> Dict[str, Any]:
-        """Convert coordinates to address"""
+    ) -> GeocodingResponse:
+        """Convert coordinates to address with Pydantic response"""
         params = {
             "latlng": f"{lat},{lng}",
             "language": language,
@@ -257,15 +267,15 @@ class GoogleMapsAPI:
         
         url = f"{self.base_url}/geocode/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return GeocodingResponse(**response.json())
     
     async def geocode(
         self,
         address: str,
         language: str = "vi",
         region: str = "vn"
-    ) -> Dict[str, Any]:
-        """Convert address to coordinates"""
+    ) -> GeocodingResponse:
+        """Convert address to coordinates with Pydantic response"""
         params = {
             "address": address,
             "language": language,
@@ -275,7 +285,7 @@ class GoogleMapsAPI:
         
         url = f"{self.base_url}/geocode/json"
         response = await self.client.get(url, params=params)
-        return response.json()
+        return GeocodingResponse(**response.json())
     
     def _extract_transit_details(self, leg: Dict[str, Any]) -> Dict[str, Any]:
         """Extract transit step details (bus/train lines, stops, etc.)"""

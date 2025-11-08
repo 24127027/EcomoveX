@@ -56,7 +56,7 @@ class RouteData(BaseModel):
     distance: float = Field(..., description="Khoảng cách (km)")
     duration: float = Field(..., description="Thời gian (phút)")
     carbon: float = Field(..., description="CO2 emission (kg)")
-    route_details: Any = Field(..., description="Full Google Maps route data")
+    route_details: Dict[str, Any] = Field(..., description="Full Google Maps route data")
     transit_info: Optional[TransitDetails] = Field(None, description="Chi tiết xe công cộng")
 
 class FindRoutesRequest(BaseModel):

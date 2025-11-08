@@ -18,13 +18,3 @@ class FriendResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-class FriendWithUserInfo(BaseModel):
-    user_id: int
-    friend_id: int
-    status: FriendStatus
-    created_at: datetime
-    friend_username: Optional[str] = None
-    friend_email: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)

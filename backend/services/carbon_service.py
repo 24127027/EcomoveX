@@ -2,11 +2,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from integration.climatiq_api import create_climatiq_client
 from typing import Optional
+from models.route import TransportMode
 
 class CarbonService:
     @staticmethod
     async def estimate_transport_emission(
-        mode: str,
+        mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
         fuel_type: Optional[str] = None

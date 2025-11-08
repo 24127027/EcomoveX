@@ -21,22 +21,6 @@ class DestinationService:
             )
     
     @staticmethod
-    async def get_destination_by_coordinates(db: AsyncSession, longitude: float, latitude: float):
-        try:
-            destination = await DestinationRepository.get_destination_by_lon_and_lat(db, longitude, latitude)
-            if not destination:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Destination at coordinates ({longitude}, {latitude}) not found"
-                )
-            return destination
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error retrieving destination by coordinates: {e}"
-            )
-    
-    @staticmethod
     async def create_destination(db: AsyncSession, destination_data: DestinationCreate):
         try:
             new_destination = await DestinationRepository.create_destination(db, destination_data)
@@ -83,7 +67,8 @@ class DestinationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting destination ID {destination_id}: {e}"
             )
-            
+
+class UserSavedDestinationService:  
     @staticmethod
     async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: int):
         try:

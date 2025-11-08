@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from repository.friend_repository import FriendRepository
 from repository.user_repository import UserRepository
-from schemas.friend_schema import FriendRequest
+from schemas.friend_schema import FriendRequest, FriendResponse
 
 class FriendService:
     
@@ -140,14 +140,12 @@ class FriendService:
                 friend_user = await UserRepository.get_user_by_id(db, friend_user_id)
                 
                 if friend_user:
-                    friend_list.append({
-                        "user_id": friendship.user_id,
-                        "friend_id": friendship.friend_id,
-                        "status": friendship.status,
-                        "created_at": friendship.created_at,
-                        "friend_username": friend_user.username,
-                        "friend_email": friend_user.email
-                    })
+                    friend_list.append(FriendResponse(
+                        user_id=friendship.user_id,
+                        friend_id=friendship.friend_id,
+                        status=friendship.status,
+                        created_at=friendship.created_at
+                    ))
             
             return friend_list
         except Exception as e:
@@ -166,10 +164,12 @@ class FriendService:
                 requester = await UserRepository.get_user_by_id(db, request.user_id)
                 
                 if requester:
-                    request_list.append({
-                        "friend_id": request.friend_id,
-                        "created_at": request.created_at,
-                    })
+                    request_list.append(FriendResponse(
+                        user_id=request.user_id,
+                        friend_id=request.friend_id,
+                        status=request.status,
+                        created_at=request.created_at
+                    ))
             
             return request_list
         except Exception as e:
@@ -181,6 +181,7 @@ class FriendService:
     @staticmethod
     async def get_sent_requests(db: AsyncSession, user_id: int):
         try:
+            from schemas.friend_schema import FriendResponse
             requests = await FriendRepository.get_sent_requests(db, user_id)
             request_list = []
             
@@ -188,10 +189,12 @@ class FriendService:
                 recipient = await UserRepository.get_user_by_id(db, request.friend_id)
                 
                 if recipient:
-                    request_list.append({
-                        "friend_id": request.friend_id,
-                        "created_at": request.created_at,
-                    })
+                    request_list.append(FriendResponse(
+                        user_id=request.user_id,
+                        friend_id=request.friend_id,
+                        status=request.status,
+                        created_at=request.created_at
+                    ))
             
             return request_list
         except Exception as e:
@@ -203,6 +206,7 @@ class FriendService:
     @staticmethod
     async def get_blocked_users(db: AsyncSession, user_id: int):
         try:
+            from schemas.friend_schema import FriendResponse
             blocked = await FriendRepository.get_blocked_users(db, user_id)
             blocked_list = []
             
@@ -210,10 +214,12 @@ class FriendService:
                 blocked_user = await UserRepository.get_user_by_id(db, block.friend_id)
                 
                 if blocked_user:
-                    blocked_list.append({
-                        "friend_id": block.friend_id,
-                        "created_at": block.created_at,
-                    })
+                    blocked_list.append(FriendResponse(
+                        user_id=block.user_id,
+                        friend_id=block.friend_id,
+                        status=block.status,
+                        created_at=block.created_at
+                    ))
             
             return blocked_list
         except Exception as e:

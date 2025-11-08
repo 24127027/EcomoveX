@@ -3,7 +3,7 @@ from schemas.destination_schema import DestinationCreate
 from integration.google_map_api import create_maps_client
 from fastapi import HTTPException, status
 from schemas.map_schema import *
-from repository.destination_repository import DestinationRepository
+from services.destination_service import DestinationService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class MapService:
@@ -49,7 +49,7 @@ class MapService:
                     new_destination = DestinationCreate(
                         place_id=prediction.get("place_id"),
                     )
-                    await DestinationRepository.create_destination(db, new_destination)
+                    await DestinationService.create_destination(db, new_destination)
 
                 return SearchLocationResponse(
                     status="OK",
