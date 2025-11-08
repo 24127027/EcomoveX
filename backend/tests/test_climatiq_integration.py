@@ -139,7 +139,7 @@ async def test_climatiq_integration():
             mode=mode
         )
         
-        print(f"  {result['mode']:20s}: {result['total_co2_kg']:.3f} kg CO2 ({result['emission_factor_g_per_km']:.0f} g/km)")
+        print(f"  {result['mode']:20s}: {result['co2e_total']:.3f} kg CO2 ({result['emission_factor_g_per_km']:.0f} g/km)")
     
     print()
     print("-" * 80)

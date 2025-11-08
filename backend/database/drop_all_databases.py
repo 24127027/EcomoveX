@@ -9,10 +9,6 @@ sys.path.insert(0, str(backend_dir))
 from utils.config import settings
 
 async def drop_databases():
-    """
-    Drop both user and destination databases.
-    WARNING: This will permanently delete all data!
-    """
     conn = await asyncpg.connect(
         host=settings.DB_HOST,
         port=settings.DB_PORT,
@@ -22,7 +18,7 @@ async def drop_databases():
     )
     
     try:
-        # Terminate existing connections to the databases
+
         print("🔌 Terminating existing connections...")
         
         await conn.execute(f"""
@@ -39,7 +35,7 @@ async def drop_databases():
             AND pid <> pg_backend_pid();
         """)
         
-        # Drop main user database
+
         exists = await conn.fetchval(
             "SELECT 1 FROM pg_database WHERE datname = $1", 
             settings.USER_DB_NAME
@@ -50,7 +46,7 @@ async def drop_databases():
         else:
             print(f"ℹ️  Main database does not exist: {settings.USER_DB_NAME}")
 
-        # Drop destination database
+
         exists = await conn.fetchval(
             "SELECT 1 FROM pg_database WHERE datname = $1", 
             settings.DEST_DB_NAME
@@ -71,10 +67,6 @@ async def drop_databases():
         await conn.close()
 
 async def drop_all():
-    """
-    Drop both production and test databases.
-    WARNING: This will permanently delete ALL data!
-    """
     print("=" * 60)
     print("⚠️  WARNING: DROPPING ALL DATABASES")
     print("=" * 60)
@@ -92,9 +84,6 @@ async def drop_all():
     print("=" * 60)
 
 if __name__ == "__main__":
-    import sys
-    
-    # Safety check - require confirmation
     print("=" * 60)
     print("⚠️  DATABASE DELETION WARNING")
     print("=" * 60)

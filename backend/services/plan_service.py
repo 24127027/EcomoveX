@@ -4,9 +4,6 @@ from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
-# Note: PlanService uses user database (get_user_db)
-# For operations involving destinations, pass destination_db separately
-
 class PlanService:
     @staticmethod
     async def get_plans_by_user(db: AsyncSession, user_id: int):
@@ -91,12 +88,11 @@ class PlanService:
                 detail=f"Unexpected error deleting plan ID {plan_id}: {e}"
             )
 
-    # PlanDestination methods (require both user_db and destination_db)
     @staticmethod
     async def get_plan_destinations(db: AsyncSession, plan_id: int, user_id: int):
         """Get all destinations for a user's plan"""
         try:
-            # Verify plan belongs to user
+
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if plans is None:
                 plans = []
@@ -127,12 +123,8 @@ class PlanService:
         note: str = None,
         user_id: int = None
     ):
-        """
-        Add a destination to a plan with validation.
-        Requires both user_db and destination_db sessions.
-        """
         try:
-            # Verify plan exists and belongs to user (if user_id provided)
+
             if user_id:
                 plans = await PlanRepository.get_plan_by_user_id(user_db, user_id)
                 if plans is None:
@@ -145,7 +137,6 @@ class PlanService:
                         detail=f"Plan with ID {plan_id} not found or does not belong to user"
                     )
             
-            # Verify destination exists in destination database
             destination = await DestinationRepository.get_destination_by_id(
                 destination_db, 
                 destination_id
@@ -156,7 +147,6 @@ class PlanService:
                     detail=f"Destination with ID {destination_id} not found"
                 )
             
-            # Add destination to plan
             plan_dest = await PlanRepository.add_destination_to_plan(
                 user_db, 
                 plan_id, 
@@ -187,9 +177,7 @@ class PlanService:
     ):
         """Remove a destination from a plan"""
         try:
-            # Optional: verify the plan belongs to the user
-            # This would require getting the plan_destination first to get plan_id
-            
+
             success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
             if not success:
                 raise HTTPException(

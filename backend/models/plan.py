@@ -26,7 +26,7 @@ class PlanDestination(UserBase):
 
     id = Column(Integer, primary_key=True, index=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
+    destination_id = Column(Integer, nullable=False)
     type = Column(SQLEnum(DestinationType), nullable=False)
     visit_date = Column(Date, nullable=False)
     note = Column(Text, nullable=True)

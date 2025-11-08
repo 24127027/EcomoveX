@@ -32,7 +32,7 @@ async def test_google_maps_modes():
             mode=mode  # Direct Google Maps mode
         )
         
-        print(f"{mode:<15} {result['mode']:<20} {result['emission_factor_g_per_km']:<20.1f} {result['total_co2_kg']:<15.3f} kg")
+        print(f"{mode:<15} {result['mode']:<20} {result['emission_factor_g_per_km']:<20.1f} {result['co2e_total']:<15.3f} kg")
     
     print("-" * 80)
     
@@ -54,7 +54,7 @@ async def test_google_maps_modes():
     
     for mode in vietnam_modes:
         result = await CarbonService.calculate_emission_by_mode(distance, mode)
-        print(f"{mode:<20} {result['emission_factor_g_per_km']:<20.1f} {result['total_co2_kg']:<15.3f} kg")
+        print(f"{mode:<20} {result['emission_factor_g_per_km']:<20.1f} {result['co2e_total']:<15.3f} kg")
     
     print("-" * 80)
     
@@ -103,7 +103,7 @@ async def test_route_scenario():
         icon = {"driving": "🚗", "walking": "🚶", "bicycling": "🚴", "transit": "🚌"}.get(route["mode"], "🚗")
         
         print(f"{icon} {route['mode']:<13} {route['distance_km']:<12.2f} {route['duration_min']:<12} "
-              f"{result['total_co2_kg']:<12.3f} {result['emission_factor_g_per_km']:<12.1f}")
+              f"{result['co2e_total']:<12.3f} {result['emission_factor_g_per_km']:<12.1f}")
     
     print("-" * 80)
     print(f"\n✅ All modes calculated successfully with Vietnam-specific factors!")

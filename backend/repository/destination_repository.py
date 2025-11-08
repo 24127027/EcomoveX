@@ -4,9 +4,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from models.destination import Destination, UserSavedDestination
 from schemas.destination_schema import DestinationCreate, DestinationUpdate, UserSavedDestinationCreate, UserSavedDestinationResponse
 
-# Note: This repository uses the destination database (get_destination_db)
-# All methods expect AsyncSession from DestinationAsyncSessionLocal
-
 class DestinationRepository:       
     @staticmethod
     async def get_destination_by_id(db: AsyncSession, destination_id: int):

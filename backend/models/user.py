@@ -14,12 +14,12 @@ class Activity(str, Enum):
     search_destination = "search destination"
     review_destination = "review destination"
 
-class Rank(str, Enum): # rank by eco point
-    bronze = "Bronze" # 0 - 500
-    silver = "Silver" # 501 - 2000
-    gold = "Gold" # 2001 - 5000
-    platinum = "Platinum" # 5001 - 10000
-    diamond = "Diamond" # 10001+
+class Rank(str, Enum):
+    bronze = "Bronze"
+    silver = "Silver"
+    gold = "Gold"
+    platinum = "Platinum"
+    diamond = "Diamond"
     
 class User(UserBase):
     __tablename__ = "users"
@@ -38,24 +38,23 @@ class User(UserBase):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
-    media_files = relationship("MediaFile", back_populates="owner", cascade="all, delete-orphan")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
-    routes = relationship("UserRoute", back_populates="user", cascade="all, delete-orphan")
+    routes = relationship("Route", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
 
 class UserActivity(UserBase):
     __tablename__ = "user_activities"
     
-    __table__args__ = (
+    __table_args__ = (
         PrimaryKeyConstraint('user_id', 'destination_id'),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=True)  # Optional FK to destination
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    destination_id = Column(Integer, primary_key=True)
     activity = Column(SQLEnum(Activity), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 

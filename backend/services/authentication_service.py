@@ -90,7 +90,6 @@ class AuthenticationService:
         try:
             from repository.user_repository import UserRepository
             
-            # Check for duplicate email
             existing = await UserRepository.get_user_by_email(db, user.email)
             if existing:
                 raise HTTPException(
@@ -98,7 +97,6 @@ class AuthenticationService:
                     detail="Email already registered"
                 )
             
-            # Check for duplicate username
             existing_username = await UserRepository.get_user_by_username(db, user.username)
             if existing_username:
                 raise HTTPException(

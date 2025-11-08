@@ -14,7 +14,7 @@ async def test_emission_calculation():
     # Test 1: Calculate emission for 10km driving
     result = await CarbonService.calculate_emission_by_mode(10, 'driving')
     print(f"\n✅ Test 1: 10km driving")
-    print(f"   CO2: {result['total_co2_kg']} kg")
+    print(f"   CO2: {result['co2e_total']} kg")
     print(f"   Emission factor: {result['emission_factor_g_per_km']} g/km")
     print(f"   Data source: {result['data_source']}")
     

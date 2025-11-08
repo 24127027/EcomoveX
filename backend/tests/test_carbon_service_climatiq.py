@@ -79,7 +79,7 @@ async def test_carbon_service_with_climatiq():
         icon = {"driving": "🚗", "motorbike": "🏍️", "bus_standard": "🚌", 
                 "metro": "🚇", "walking": "🚶"}.get(mode, "🚗")
         
-        print(f"  {icon} {mode:20s}: {result['total_co2_kg']:6.3f} kg CO2 "
+        print(f"  {icon} {mode:20s}: {result['co2e_total']:6.3f} kg CO2 "
               f"({result['emission_factor_g_per_km']:6.1f} g/km)")
     
     print()

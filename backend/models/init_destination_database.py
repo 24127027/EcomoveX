@@ -37,16 +37,3 @@ async def init_destination_db(drop_all: bool = False):
         print("🧱  Creating destination tables...")
         await conn.run_sync(DestinationBase.metadata.create_all)
     print("✅ Destination database initialized successfully!")
-
-# if __name__ == "__main__":
-    # Option 1: Clear data from specific tables (keeps table structure)
-    # asyncio.run(clear_table_data(["destinations"]))
-    
-    # Option 2: Drop specific tables completely (deletes structure + data)
-    # asyncio.run(drop_specific_tables(["destinations"]))
-    
-    # Option 3: Drop all tables and recreate
-    # asyncio.run(init_destination_db(drop_all=True))
-    
-    # Option 4: Only create missing tables (safe - keeps data)
-    # asyncio.run(init_destination_db(drop_all=False))

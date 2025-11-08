@@ -75,7 +75,7 @@ async def simulate_app_startup():
     
     print(f"  Distance: {test_distance} km")
     print(f"  Mode: driving")
-    print(f"  Emission: {result['total_co2_kg']} kg CO2")
+    print(f"  Emission: {result['co2e_total']} kg CO2")
     print(f"  Factor: {result['emission_factor_g_per_km']} g/km")
     print(f"  Source: {result['data_source']}")
     

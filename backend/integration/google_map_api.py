@@ -1,7 +1,7 @@
 ﻿import httpx
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
 from utils.config import settings
+import math
 
 class GoogleMapsAPI:   
     def __init__(self, api_key: Optional[str] = None):
@@ -24,20 +24,6 @@ class GoogleMapsAPI:
         language: str = "vi",
         components: str = "country:vn"
     ) -> Dict[str, Any]:
-        """
-        Place Autocomplete - Search bar suggestions như Google Maps
-        
-        Args:
-            input_text: Text người dùng đang gõ (vd: "Hồ Hoàn Kiếm")
-            location: Vị trí hiện tại để ưu tiên kết quả gần (lat, lng)
-            radius: Bán kính tìm kiếm từ location (meters)
-            types: Loại địa điểm: "geocode", "address", "establishment", "(regions)", "(cities)"
-            language: Ngôn ngữ kết quả
-            components: Giới hạn theo quốc gia (country:vn)
-        
-        Returns:
-            List các suggestions với place_id, description, structured_formatting
-        """
         params = {
             "input": input_text,
             "language": language,
@@ -64,21 +50,6 @@ class GoogleMapsAPI:
         radius: Optional[int] = None,
         language: str = "vi"
     ) -> Dict[str, Any]:
-        """
-        Query Autocomplete - Tìm kiếm địa điểm + queries (linh hoạt hơn)
-        
-        Khác với Place Autocomplete: trả về cả queries không chỉ places
-        VD: "nhà hàng gần đây", "quán cafe ở Hà Nội"
-        
-        Args:
-            input_text: Text người dùng đang gõ
-            location: Vị trí hiện tại (lat, lng)
-            radius: Bán kính tìm kiếm (meters)
-            language: Ngôn ngữ
-        
-        Returns:
-            List suggestions bao gồm cả queries và places
-        """
         params = {
             "input": input_text,
             "language": language,
@@ -100,17 +71,6 @@ class GoogleMapsAPI:
         fields: Optional[List[str]] = None,
         language: str = "vi"
     ) -> Dict[str, Any]:
-        """
-        Lấy chi tiết đầy đủ của place sau khi user chọn từ autocomplete
-        
-        Args:
-            place_id: ID từ autocomplete result
-            fields: Các field cần lấy
-            language: Ngôn ngữ
-        
-        Returns:
-            Thông tin chi tiết: name, address, location, rating, photos, etc.
-        """
         if fields is None:
             fields = [
                 "place_id",
@@ -221,18 +181,6 @@ class GoogleMapsAPI:
         extra_computations: Optional[List[str]] = None,
         language_code: str = "vi"
     ) -> Dict[str, Any]:
-        """
-        Get detailed air quality with specific pollutant information
-        
-        Args:
-            lat: Latitude
-            lng: Longitude
-            extra_computations: List of extra computations like ['POLLUTANT_ADDITIONAL_INFO', 'DOMINANT_POLLUTANT_CONCENTRATION']
-            language_code: Language code (default: Vietnamese)
-        
-        Returns:
-            Detailed air quality data with pollutant concentrations
-        """
         payload = {
             "location": {
                 "latitude": lat,
@@ -258,19 +206,6 @@ class GoogleMapsAPI:
         lng: float,
         zoom: int = 12
     ) -> Dict[str, Any]:
-        """
-        Get air quality heatmap tile information
-        
-        Args:
-            lat: Latitude
-            lng: Longitude
-            zoom: Map zoom level (0-16)
-        
-        Returns:
-            Heatmap tile URL and metadata
-        """
-        # Calculate tile coordinates from lat/lng
-        import math
         n = 2.0 ** zoom
         x = int((lng + 180.0) / 360.0 * n)
         y = int((1.0 - math.log(math.tan(math.radians(lat)) + (1 / math.cos(math.radians(lat)))) / math.pi) / 2.0 * n)
@@ -315,18 +250,6 @@ class GoogleMapsAPI:
         mode: str = "driving",
         departure_time: str = "now"
     ) -> Dict[str, Any]:
-        """
-        Get route with traffic information (duration_in_traffic)
-        
-        Args:
-            origin: Điểm xuất phát
-            destination: Điểm đến
-            mode: Phương thức di chuyển (driving, transit)
-            departure_time: "now" hoặc Unix timestamp
-        
-        Returns:
-            Route data with traffic delay information
-        """
         params = {
             "origin": origin,
             "destination": destination,
@@ -347,7 +270,6 @@ class GoogleMapsAPI:
             duration_traffic = leg.get("duration_in_traffic", {}).get("value", duration_normal)
             traffic_delay = duration_traffic - duration_normal
             
-            # Calculate traffic congestion ratio
             congestion_ratio = duration_traffic / duration_normal if duration_normal > 0 else 1.0
             
             return {
@@ -396,44 +318,6 @@ class GoogleMapsAPI:
         url = f"{self.base_url}/geocode/json"
         response = await self.client.get(url, params=params)
         return response.json()
-    
-    async def _calculate_carbon_emission(
-        self,
-        distance_km: float,
-        mode: str
-    ) -> Dict[str, Any]:
-        """
-        Calculate carbon emission based on transport mode using Vietnam-specific data
-        
-        Uses real emission factors from:
-        - Climatiq Data Explorer (Vietnam transport sector)
-        - Electricity Maps API (for electric vehicles)
-        - IPCC Guidelines
-        
-        Emission factors for Vietnam (gCO2/km):
-        - car/driving: 192g (petrol car)
-        - motorbike: 84g (motorbike 125cc)
-        - bus/transit: 68g (diesel bus)
-        - train: 41g (diesel train)
-        - metro/subway: 35g (electric metro)
-        - bicycle: 0g
-        - walking: 0g
-        """
-        # Import CarbonService to avoid circular dependency
-        from services.carbon_service import CarbonService
-        
-        # Calculate emission using Vietnam-specific factors
-        result = await CarbonService.calculate_emission_by_mode(distance_km, mode)
-        
-        return {
-            "co2_grams": result["total_co2_grams"],
-            "co2_kg": result["total_co2_kg"],
-            "emission_factor_g_per_km": result["emission_factor_g_per_km"],
-            "distance_km": result["distance_km"],
-            "mode": mode,
-            "emission_mode": result["mode"],  # Actual mode used for calculation
-            "data_source": result["data_source"]
-        }
     
     def _extract_transit_details(self, leg: Dict[str, Any]) -> Dict[str, Any]:
         """Extract transit step details (bus/train lines, stops, etc.)"""

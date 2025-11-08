@@ -5,9 +5,6 @@ from models.review import Review
 from datetime import datetime, UTC
 from schemas.review_schema import ReviewCreate, ReviewUpdate
 
-# Note: This repository now uses the destination database (get_destination_db)
-# Review model is part of DestinationBase and has proper FK to destinations table
-
 class ReviewRepository:
     @staticmethod
     async def get_all_reviews(db: AsyncSession):

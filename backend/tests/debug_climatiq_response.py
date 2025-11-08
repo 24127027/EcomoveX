@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from integration.climatiq_api import ClimatiqAPI
 
-
 async def debug_climatiq_response():
     """Debug actual API response"""
     
@@ -40,7 +39,6 @@ async def debug_climatiq_response():
         print("-" * 80)
     else:
         print("❌ No results")
-
 
 if __name__ == "__main__":
     asyncio.run(debug_climatiq_response())

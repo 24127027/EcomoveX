@@ -8,7 +8,7 @@ class Review(DestinationBase):
 
     id = Column(Integer, primary_key=True, index=True)
     destination_id = Column(Integer, ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, nullable=False)  # No FK - user in separate DB
+    user_id = Column(Integer, nullable=False)
     rating = Column(SmallInteger, nullable=False)
     content = Column(Text, nullable=False)
     

@@ -17,14 +17,13 @@ class TransportMode(str, Enum):
     train = "train"
     
 class FuelType(str, Enum):
-    """Loại nhiên liệu cho xe có động cơ"""
     PETROL = "petrol"
     GASOLINE = "gasoline"
     DIESEL = "diesel"
     HYBRID = "hybrid"
     ELECTRIC = "electric"
-    CNG = "cng"  # Compressed Natural Gas
-    LPG = "lpg"  # Liquefied Petroleum Gas
+    CNG = "cng"
+    LPG = "lpg"
     
 class RouteType(str, Enum):
     fastest = "fastest"
@@ -39,8 +38,8 @@ class Route(UserBase):
     )
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    origin_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
-    destination_id = Column(Integer, nullable=False)  # No FK -
+    origin_id = Column(Integer, nullable=False)
+    destination_id = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     distance_km = Column(Float, nullable=False)
     estimated_travel_time_min = Column(Float, nullable=False)

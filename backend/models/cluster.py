@@ -22,7 +22,6 @@ class UserClusterAssociation(UserBase):
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
-    # score = Column(Float, nullable=True) # Optional: score indicating user's affinity to the cluster
 
     user = relationship("User", back_populates="clusters")
     cluster = relationship("Cluster", back_populates="users")
@@ -35,7 +34,7 @@ class ClusterDestination(UserBase):
     )
 
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
+    destination_id = Column(Integer, nullable=False)
     popularity_score = Column(Float, nullable=True)
 
     cluster = relationship("Cluster", back_populates="destinations")

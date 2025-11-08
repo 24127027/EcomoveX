@@ -119,7 +119,7 @@ class UserClusterAssociationRepository:
     async def add_user_to_cluster(db: AsyncSession, association_data: UserClusterAssociationCreate) -> Optional[UserClusterAssociation]:
         """Associate a user with a cluster"""
         try:
-            # Check if association already exists
+
             result = await db.execute(
                 select(UserClusterAssociation).where(
                     and_(
@@ -230,7 +230,7 @@ class ClusterDestinationRepository:
     ) -> Optional[ClusterDestination]:
         """Associate a destination with a cluster"""
         try:
-            # Check if association already exists
+
             result = await db.execute(
                 select(ClusterDestination).where(
                     and_(
@@ -241,7 +241,7 @@ class ClusterDestinationRepository:
             )
             existing = result.scalar_one_or_none()
             if existing:
-                # Update popularity score if provided
+
                 if destination_data.popularity_score is not None:
                     existing.popularity_score = destination_data.popularity_score
                     await db.commit()

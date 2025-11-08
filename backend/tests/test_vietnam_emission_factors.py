@@ -89,7 +89,7 @@ async def test_calculate_emission_for_trip():
             "bicycle": "🚴"
         }.get(mode, "🚗")
         
-        print(f"{icon} {mode:15s}: {result['total_co2_kg']:.3f} kg CO₂ ({result['emission_factor_g_per_km']:.0f} g/km)")
+        print(f"{icon} {mode:15s}: {result['co2e_total']:.3f} kg CO₂ ({result['emission_factor_g_per_km']:.0f} g/km)")
     
     print()
 
@@ -113,7 +113,7 @@ async def test_compare_transport_modes():
     
     sorted_modes = sorted(
         comparison["modes"].items(),
-        key=lambda x: x[1]["total_co2_kg"]
+        key=lambda x: x[1]["co2e_total"]
     )
     
     for idx, (mode, data) in enumerate(sorted_modes, 1):
@@ -125,7 +125,7 @@ async def test_compare_transport_modes():
             "bicycle": "🚴"
         }.get(mode, "🚗")
         
-        print(f"{idx}. {icon} {mode:15s}: {data['total_co2_kg']:.3f} kg CO₂")
+        print(f"{idx}. {icon} {mode:15s}: {data['co2e_total']:.3f} kg CO₂")
     
     print()
     print("Summary:")

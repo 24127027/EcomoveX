@@ -22,6 +22,4 @@ class Settings(BaseSettings):
     GOOGLE_MAPS_API_KEY: str = ""
     CLIMATIQ_API_KEY: str = ""
 
-    CLIMATIQ_API_KEY: str = ""
-
 settings = Settings()

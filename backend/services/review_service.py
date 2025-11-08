@@ -4,9 +4,6 @@ from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.review_schema import ReviewCreate, ReviewUpdate
 
-# Note: ReviewService now uses destination database
-# Reviews are stored in the destination database alongside destination data
-
 class ReviewService:
     @staticmethod
     async def get_reviews_by_destination(db: AsyncSession, destination_id: int):
@@ -36,12 +33,8 @@ class ReviewService:
         review_data: ReviewCreate, 
         user_id: int
     ):
-        """
-        Create a review with destination validation.
-        Uses destination_db since reviews are now in the destination database.
-        """
         try:
-            # Verify destination exists in destination database
+
             destination = await DestinationRepository.get_destination_by_id(
                 dest_db, 
                 review_data.destination_id
@@ -52,7 +45,6 @@ class ReviewService:
                     detail=f"Destination with ID {review_data.destination_id} not found"
                 )
             
-            # Create review in destination database
             new_review = await ReviewRepository.create_review(dest_db, review_data, user_id)
             if not new_review:
                 raise HTTPException(

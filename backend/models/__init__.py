@@ -1,7 +1,7 @@
-from .user import User
+from .user import User, Role, Activity, Rank
+UserRole = Role
 from .message import Message
 from .review import Review
-from .media import MediaFile
 from .destination import Destination, UserSavedDestination
 from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
@@ -13,7 +13,6 @@ __all__ = [
     "User",
     "Message",
     "Review",
-    "MediaFile",
     "Destination",
     "Plan",
     "PlanDestination",

@@ -4,10 +4,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from models.plan import Plan, PlanDestination
 from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
 
-# Note: This repository uses the user database (get_user_db)
-# PlanDestination.destination_id references destinations in the separate destination database
-# Validation of destination_id should be done at the service layer
-
 class PlanRepository:
     @staticmethod
     async def get_plan_by_user_id(db: AsyncSession, user_id: int):
@@ -82,7 +78,6 @@ class PlanRepository:
             print(f"Error deleting plan ID {plan_id}: {e}")
             return False
 
-    # PlanDestination methods
     @staticmethod
     async def get_plan_destinations(db: AsyncSession, plan_id: int):
         """Get all destinations for a specific plan"""
@@ -99,10 +94,6 @@ class PlanRepository:
     @staticmethod
     async def add_destination_to_plan(db: AsyncSession, plan_id: int, destination_id: int, 
                                      destination_type: str, visit_date, note: str = None):
-        """
-        Add a destination to a plan.
-        Note: destination_id should be validated against the destination database before calling this.
-        """
         try:
             new_plan_dest = PlanDestination(
                 plan_id=plan_id,

@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Any, Tuple
+from schemas.destination_schema import DestinationCreate
 from integration.google_map_api import create_maps_client
 from fastapi import HTTPException, status
 from schemas.map_schema import (
@@ -18,35 +19,6 @@ class MapService:
         place_types: Optional[str] = None,
         language: str = "vi"
     ) -> SearchLocationResponse:
-        """
-        Tính năng Search Bar giống Google Maps
-        
-        Khi user gõ text vào search bar, trả về list suggestions
-        
-        Args:
-            input_text: Text người dùng đang gõ (vd: "Hồ Hoàn Kiếm")
-            user_location: Vị trí hiện tại của user (lat, lng) để ưu tiên kết quả gần
-            search_radius: Bán kính tìm kiếm quanh user_location (meters)
-            place_types: Loại địa điểm muốn tìm
-            language: Ngôn ngữ ("vi" hoặc "en")
-        
-        Returns:
-            Dict với list suggestions
-        
-        Example response:
-            {
-                "status": "OK",
-                "suggestions": [
-                    {
-                        "place_id": "ChIJ...",
-                        "description": "Hồ Hoàn Kiếm, Hoàn Kiếm, Hà Nội, Việt Nam",
-                        "main_text": "Hồ Hoàn Kiếm",
-                        "secondary_text": "Hoàn Kiếm, Hà Nội, Việt Nam"
-                    }
-                ],
-                "total_results": 5
-            }
-        """
         try:
             if not input_text or len(input_text.strip()) < 2:
                 raise HTTPException(
@@ -57,7 +29,7 @@ class MapService:
             maps = await create_maps_client()
             
             try:
-                # Call Google Maps Place Autocomplete API
+
                 result = await maps.autocomplete_place(
                     input_text=input_text.strip(),
                     location=user_location,
@@ -72,7 +44,6 @@ class MapService:
                         detail=f"Google Maps API error: {result.get('status')}"
                     )
                 
-                # Format suggestions
                 suggestions = []
                 for prediction in result.get("predictions", []):
                     structured = prediction.get("structured_formatting", {})
@@ -91,17 +62,14 @@ class MapService:
                     query=input_text,
                     suggestions=suggestions,
                     total_results=len(suggestions),
-                    user_location=LocationCoordinates(
-                        lat=user_location[0],
-                        lng=user_location[1]
+                    user_location=DestinationCreate(
+                        latitude=user_location[0],
+                        longitude=user_location[1]
                     ) if user_location else None
                 )
             
             finally:
                 await maps.close()
-        
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -113,16 +81,6 @@ class MapService:
         place_id: str,
         language: str = "vi"
     ) -> PlaceDetailsResponse:
-        """
-        Lấy thông tin chi tiết sau khi user chọn 1 suggestion
-        
-        Args:
-            place_id: ID của địa điểm từ search result
-            language: Ngôn ngữ
-        
-        Returns:
-            Chi tiết đầy đủ: name, address, coordinates, rating, photos, etc.
-        """
         try:
             if not place_id:
                 raise HTTPException(
@@ -147,16 +105,14 @@ class MapService:
                 place = result.get("result", {})
                 location = place.get("geometry", {}).get("location", {})
                 
-                # Parse photos
                 photos = []
-                for photo in place.get("photos", [])[:5]:  # Limit 5 photos
+                for photo in place.get("photos", [])[:5]:
                     photos.append(PhotoInfo(
                         photo_reference=photo.get("photo_reference"),
                         width=photo.get("width"),
                         height=photo.get("height")
                     ))
                 
-                # Parse opening hours
                 opening_hours_data = place.get("opening_hours")
                 opening_hours = None
                 if opening_hours_data:
@@ -170,10 +126,10 @@ class MapService:
                     place_id=place.get("place_id"),
                     name=place.get("name"),
                     formatted_address=place.get("formatted_address"),
-                    location=LocationCoordinates(
-                        lat=location.get("lat"),
-                        lng=location.get("lng")
-                    ),
+                    location={
+                        "lat": location.get("lat"),
+                        "lng": location.get("lng")
+                    },
                     rating=place.get("rating"),
                     phone=place.get("formatted_phone_number"),
                     website=place.get("website"),

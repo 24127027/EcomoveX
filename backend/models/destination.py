@@ -23,7 +23,7 @@ class UserSavedDestination(UserBase):
     )
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=False)  # FK to destination DB (separate database)
+    destination_id = Column(Integer, nullable=False)
     saved_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User", back_populates="saved_destinations")

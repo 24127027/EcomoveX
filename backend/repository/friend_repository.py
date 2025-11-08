@@ -4,7 +4,6 @@ from sqlalchemy import or_, and_
 from sqlalchemy.exc import SQLAlchemyError
 from models.friend import Friend, FriendStatus
 
-
 class FriendRepository:
     
     @staticmethod

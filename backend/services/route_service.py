@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from typing import Any, List, Dict, Optional
 from services.map_service import create_maps_client
 from schemas.route_schema import *
+from services.carbon_service import CarbonService
 
 class RouteService:
     @staticmethod
@@ -53,31 +54,20 @@ class RouteService:
         mode: TransportMode,
         fuel_type: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """        
-        Args:
-            distance_km: Distance in kilometers
-            mode: Transport mode
-            fuel_type: Fuel type (default: petrol)
-            congestion_ratio: Traffic congestion (duration_in_traffic / duration_normal)
-        """
         try:
             if distance_km < 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Distance cannot be negative"
                 )
-            
-            result = await CarbonService.calculate_emission_by_mode(
-                distance_km, 
-                mode,
-                fuel_type=fuel_type
-            )
-            
+
+            result = await CarbonService.estimate_transport_emission(mode.value, distance_km, fuel_type)
+
             return {
-                "co2": result.total_co2_kg,
-                "distance_km": result.distance_km,
-                "mode": mode,
-                "fuel_type": result.fuel_type,
+                "co2": result.co2e_total,
+                "distance_km": distance_km,
+                "mode": mode.value,
+                "fuel_type": fuel_type,
             }
         except Exception as e:
             raise HTTPException(
@@ -117,7 +107,6 @@ class RouteService:
             distance_km = leg["distance"]["value"] / 1000
             duration_min = leg["duration"]["value"] / 60
             
-            # Calculate traffic congestion ratio if available
             congestion_ratio = 1.0
             has_traffic_data = False
             
@@ -129,7 +118,6 @@ class RouteService:
                     congestion_ratio = duration_in_traffic / duration_normal
                     has_traffic_data = True
             
-            # Calculate carbon with traffic consideration
             carbon_data = await RouteService.calculate_route_carbon(
                 distance_km, 
                 mode,
@@ -151,7 +139,6 @@ class RouteService:
                 "has_traffic_data": has_traffic_data
             }
             
-            # Add traffic info if available
             if has_traffic_data:
                 result["traffic_info"] = {
                     "congestion_ratio": round(congestion_ratio, 2),
@@ -204,12 +191,11 @@ class RouteService:
             maps = await create_maps_client()
             
             try:
-                # Get driving routes with traffic data (departure_time="now")
+
                 driving_result = await maps.get_route_with_traffic(
                     origin, destination, mode="driving", departure_time="now"
                 )
                 
-                # Get additional driving alternatives (without traffic for comparison)
                 driving_alternatives = await maps.get_directions(
                     origin, destination, mode="driving", alternatives=True, language=language
                 )
@@ -220,7 +206,6 @@ class RouteService:
                 
                 all_routes = []
                 
-                # Process driving route with traffic data
                 if driving_result.get("status") == "OK" and driving_result.get("route"):
                     route = driving_result["route"]
                     display_name = "Driving (with traffic)"
@@ -231,7 +216,6 @@ class RouteService:
                     )
                     all_routes.append(route_data)
                 
-                # Process alternative driving routes (if any)
                 if driving_alternatives.get("status") == "OK" and driving_alternatives.get("routes"):
                     for idx, route in enumerate(driving_alternatives["routes"][1:], start=1):
                         display_name = f"Driving (option {idx+1})"
@@ -383,7 +367,7 @@ class RouteService:
             
             return None
         except Exception as e:
-            # Don't raise exception for smart route finding, just return None
+
             print(f"Warning: Failed to find smart route: {str(e)}")
             return None
         
@@ -418,7 +402,7 @@ class RouteService:
             
             return recommendation
         except Exception as e:
-            # Fallback recommendation if generation fails
+
             print(f"Warning: Failed to generate recommendation: {str(e)}")
             return {
                 "route": "fastest",
