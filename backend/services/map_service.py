@@ -1,12 +1,10 @@
 from typing import Dict, List, Optional, Any, Tuple
-from integration.google_map_api import GoogleMapsAPI, create_maps_client
-from services.carbon_service import CarbonService
+from integration.google_map_api import create_maps_client
 from fastapi import HTTPException, status
-from schemas.carbon_schema import (
+from schemas.map_schema import (
     SearchLocationResponse,
     SearchSuggestion,
     PlaceDetailsResponse,
-    LocationCoordinates,
     PhotoInfo,
     OpeningHours
 )

@@ -59,41 +59,6 @@ class ClimatiqAPI:
         
         return []
     
-    async def get_emission_factor(
-        self,
-        activity_id: str,
-        region: str = "VN"
-    ) -> Optional[Dict]:
-        """
-        Get specific emission factor by activity ID
-        
-        Args:
-            activity_id: Climatiq activity ID
-            region: Region code
-        
-        Returns:
-            Emission factor data or None
-        """
-        if not self.api_key:
-            return None
-        
-        try:
-            url = f"{self.BASE_URL}/emission-factors/{activity_id}"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}"
-            }
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url, headers=headers)
-                
-                if response.status_code == 200:
-                    return response.json()
-        
-        except Exception as e:
-            print(f"❌ Error fetching emission factor: {e}")
-        
-        return None
-    
     async def get_vietnam_transport_factors(self, use_cache: bool = True) -> Dict[str, float]:
         """Get all Vietnam transport emission factors from Climatiq API"""
         if use_cache and self._cache and self._cache_timestamp:

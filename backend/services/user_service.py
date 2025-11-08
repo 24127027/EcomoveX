@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from models.user import Rank
 from repository.user_repository import UserRepository
-from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate
+from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate, UserActivityCreate
 from schemas.authentication_schema import UserRegister
 
 class UserService:
@@ -165,4 +165,32 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting user {user_id}: {e}"
+            )
+            
+class UserActivityService:
+    @staticmethod
+    async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate):
+        try:
+            activity = await UserRepository.log_user_activity(db, user_id, data)
+            if not activity:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to log user activity"
+                )
+            return activity
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error logging activity for user {user_id}: {e}"
+            )
+            
+    @staticmethod
+    async def get_user_activities(db: AsyncSession, user_id: int):
+        try:
+            activities = await UserRepository.get_user_activities(db, user_id)
+            return activities
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving activities for user {user_id}: {e}"
             )

@@ -33,3 +33,7 @@ class UserResponse(BaseModel):
     rank: str
 
     model_config = ConfigDict(from_attributes=True)
+    
+class UserActivityCreate(BaseModel):
+    activity_type: str
+    destination_id: int

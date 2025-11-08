@@ -9,6 +9,7 @@ class Destination(DestinationBase):
     __tablename__ = "destinations"
 
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
     longitude = Column(Float, nullable=False)
     latitude = Column(Float, nullable=False)
     

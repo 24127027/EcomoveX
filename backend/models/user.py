@@ -1,14 +1,18 @@
-from sqlalchemy import Column, Integer, String, DateTime, PrimaryKeyConstraint, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, PrimaryKeyConstraint, Float, ForeignKey
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from database.user_database import UserBase
-from datetime import datetime, UTC
 from enum import Enum
 from sqlalchemy.sql import func
 
 class Role(str, Enum):
     user = "User"
     admin = "Admin"
+    
+class Activity(str, Enum):
+    save_destination = "save destination"
+    search_destination = "search destination"
+    review_destination = "review destination"
 
 class Rank(str, Enum): # rank by eco point
     bronze = "Bronze" # 0 - 500
@@ -17,9 +21,6 @@ class Rank(str, Enum): # rank by eco point
     platinum = "Platinum" # 5001 - 10000
     diamond = "Diamond" # 10001+
     
-def utc_now():
-    return datetime.now(UTC).replace(tzinfo=None)
-
 class User(UserBase):
     __tablename__ = "users"
 
@@ -27,9 +28,13 @@ class User(UserBase):
     username = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)
-    eco_point = Column(Integer, default=0)
-    rank = Column(SQLEnum(Rank), default=Rank.bronze)
-    role = Column(SQLEnum(Role), default=Role.user)
+    temp_min = Column(Float, nullable=True, default=0)
+    temp_max = Column(Float, nullable=True, default=0)
+    budget_min = Column(Float, nullable=True, default=0)
+    budget_max = Column(Float, nullable=True, default=0)
+    eco_point = Column(Integer, nullable=True, default=0)
+    rank = Column(SQLEnum(Rank), nullable=True, default=Rank.bronze)
+    role = Column(SQLEnum(Role), nullable=True, default=Role.user)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
@@ -40,3 +45,18 @@ class User(UserBase):
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
     routes = relationship("UserRoute", back_populates="user", cascade="all, delete-orphan")
+    activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
+
+class UserActivity(UserBase):
+    __tablename__ = "user_activities"
+    
+    __table__args__ = (
+        PrimaryKeyConstraint('user_id', 'destination_id'),
+    )
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    destination_id = Column(Integer, nullable=True)  # Optional FK to destination
+    activity = Column(SQLEnum(Activity), nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="activity_logs")

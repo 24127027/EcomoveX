@@ -1,19 +1,7 @@
 from fastapi import HTTPException, status
 from typing import Any, List, Dict, Optional
-from services.carbon_service import CarbonService
 from services.map_service import create_maps_client
-from schemas.carbon_schema import (
-    TransitDetails,
-    TransitStep,
-    WalkingStep,
-    RouteData,
-    SmartRouteData,
-    TrafficInfo,
-    TimeComparison,
-    CarbonComparison,
-    Recommendation,
-    FindRoutesResponse
-)
+from schemas.route_schema import *
 
 class RouteService:
     @staticmethod
@@ -53,8 +41,6 @@ class RouteService:
                 total_transit_steps=len(transit_steps),
                 total_walking_steps=len(walking_steps)
             )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -64,13 +50,10 @@ class RouteService:
     @staticmethod
     async def calculate_route_carbon(
         distance_km: float, 
-        mode: str,
+        mode: TransportMode,
         fuel_type: Optional[str] = None,
-        congestion_ratio: float = 1.0
     ) -> Dict[str, Any]:
-        """
-        Calculate route carbon with traffic congestion consideration
-        
+        """        
         Args:
             distance_km: Distance in kilometers
             mode: Transport mode
@@ -87,22 +70,14 @@ class RouteService:
             result = await CarbonService.calculate_emission_by_mode(
                 distance_km, 
                 mode,
-                fuel_type=fuel_type,
-                congestion_ratio=congestion_ratio
+                fuel_type=fuel_type
             )
             
             return {
-                "co2_grams": result.total_co2_grams,
-                "co2_kg": result.total_co2_kg,
-                "emission_factor_g_per_km": result.emission_factor_g_per_km,
+                "co2": result.total_co2_kg,
                 "distance_km": result.distance_km,
                 "mode": mode,
                 "fuel_type": result.fuel_type,
-                "emission_mode": result.mode,
-                "data_source": result.data_source,
-                "traffic_congestion_ratio": result.traffic_congestion_ratio,
-                "traffic_multiplier": result.traffic_multiplier,
-                "emission_increase_percent": result.emission_increase_percent
             }
         except Exception as e:
             raise HTTPException(
@@ -340,7 +315,7 @@ class RouteService:
             )
     
     @staticmethod
-    def _find_smart_route(
+    def find_smart_route(
         all_routes: List[Dict[str, Any]],
         fastest_route: Dict[str, Any],
         max_time_ratio: float
@@ -413,7 +388,7 @@ class RouteService:
             return None
         
     @staticmethod
-    def _generate_recommendation(
+    def generate_route_recommendation(
         routes: Dict[str, Any],
         fastest_route: Dict[str, Any],
         lowest_carbon_route: Dict[str, Any]

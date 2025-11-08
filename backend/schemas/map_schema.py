@@ -1,10 +1,6 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import Optional, List, Dict, Any
-
-class LocationCoordinates(BaseModel):
-    """Tọa độ địa lý"""
-    lat: float = Field(..., ge=-90, le=90, description="Latitude (-90 to 90)")
-    lng: float = Field(..., ge=-180, le=180, description="Longitude (-180 to 180)")
+from models.destination import Destination
 
 class SearchSuggestion(BaseModel):
     """1 suggestion từ autocomplete"""
@@ -31,17 +27,6 @@ class SearchLocationRequest(BaseModel):
         if (lat is None) != (lng is None):
             raise ValueError("user_lat và user_lng phải cùng có hoặc cùng không có")
         return lng
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "query": "Hồ Hoàn Kiếm",
-                "user_lat": 21.0285,
-                "user_lng": 105.8542,
-                "radius": 5000,
-                "language": "vi"
-            }
-        }
 
 class SearchLocationResponse(BaseModel):
     """Response từ search_location"""
@@ -49,7 +34,7 @@ class SearchLocationResponse(BaseModel):
     query: str = Field(..., description="Query gốc")
     suggestions: List[SearchSuggestion] = Field(..., description="List suggestions")
     total_results: int = Field(..., description="Số lượng kết quả")
-    user_location: Optional[LocationCoordinates] = Field(None, description="Vị trí user")
+    user_location: Optional[Destination] = Field(None, description="Vị trí user")
 
 class PhotoInfo(BaseModel):
     """Thông tin 1 photo"""
@@ -68,7 +53,7 @@ class PlaceDetailsResponse(BaseModel):
     place_id: str = Field(..., description="Google Place ID")
     name: str = Field(..., description="Tên địa điểm")
     formatted_address: str = Field(..., description="Địa chỉ đầy đủ")
-    location: LocationCoordinates = Field(..., description="Tọa độ")
+    location: Destination = Field(..., description="Tọa độ")
     rating: Optional[float] = Field(None, description="Rating (0-5)")
     phone: Optional[str] = Field(None, description="Số điện thoại")
     website: Optional[str] = Field(None, description="Website")
@@ -76,8 +61,8 @@ class PlaceDetailsResponse(BaseModel):
     photos: List[PhotoInfo] = Field(default=[], description="Danh sách photos (max 5)")
     types: List[str] = Field(..., description="Các loại địa điểm")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "OK",
                 "place_id": "ChIJ...",
@@ -88,3 +73,4 @@ class PlaceDetailsResponse(BaseModel):
                 "types": ["tourist_attraction", "point_of_interest"]
             }
         }
+    )

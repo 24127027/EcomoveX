@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from models.user import User, Rank
-from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate
+from models.user import User, Rank, Activity, UserActivity
+from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate, UserActivityCreate
 from schemas.authentication_schema import UserRegister
 
 class UserRepository:
@@ -117,3 +117,36 @@ class UserRepository:
             await db.rollback()
             print(f"Error deleting user ID {user_id}: {e}")
             return False
+        
+class UserActivityRepository:
+    @staticmethod
+    async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate):
+        try:
+            new_activity = UserActivity(
+                user_id=user_id,
+                activity_type=data.activity_type,
+                destination_id=data.destination_id,
+                timestamp=datetime.utcnow()
+            )
+            db.add(new_activity)
+            await db.commit()
+            await db.refresh(new_activity)
+            return new_activity
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error logging user activity for user ID {user_id}: {e}")
+            return None
+        
+    @staticmethod
+    async def get_user_activities(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(
+                select(UserActivity)
+                .where(UserActivity.user_id == user_id)
+                .order_by(UserActivity.timestamp.desc())
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"Error retrieving activities for user ID {user_id}: {e}")
+            return []

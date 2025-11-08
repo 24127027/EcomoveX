@@ -2,6 +2,34 @@ from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, PrimaryKeyC
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.user_database import UserBase
+from enum import Enum
+
+class TransportMode(str, Enum):
+    car = "car"
+    motorbike = "motorbike"
+    bicycle = "bicycle"
+    walking = "walking"
+    metro = "metro"
+    bus = "bus"
+    taxi = "taxi"
+    grab_car = "grab car"
+    grab_bike = "grab bike"
+    train = "train"
+    
+class FuelType(str, Enum):
+    """Loại nhiên liệu cho xe có động cơ"""
+    PETROL = "petrol"
+    GASOLINE = "gasoline"
+    DIESEL = "diesel"
+    HYBRID = "hybrid"
+    ELECTRIC = "electric"
+    CNG = "cng"  # Compressed Natural Gas
+    LPG = "lpg"  # Liquefied Petroleum Gas
+    
+class RouteType(str, Enum):
+    fastest = "fastest"
+    low_carbon = "low_carbon"
+    smart_combination = "smart_combination"
 
 class Route(UserBase):
     __tablename__ = "routes"
