@@ -12,7 +12,7 @@ class CarbonService:
     ):
         try:
             climatiq = climatiqAPI()
-            estimation = await climatiq.estimate_travel_distance(
+            estimation = await climatiq.estimate_transport(
                 mode=mode,
                 distance_km=distance_km,
                 passengers=passengers,
