@@ -13,7 +13,9 @@ class Cluster(UserBase):
     name = Column(String(255), nullable=False)
     algorithm = Column(String(100), nullable=False)
     created_at = Column(DateTime, default=utc_now)
-    
+    preferences = relationship("Preference", back_populates="cluster")
+
+
 class UserClusterAssociation(UserBase):
     __tablename__ = "user_cluster_associations"
     
