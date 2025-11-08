@@ -2,12 +2,13 @@
 # Mô hình User đã được tích hợp các cột từ Preference vào
 #================================================================
 # Cấu trúc bảng User (nếu tích hợp Preference vào User)
-from sqlalchemy import Column, Integer, String, DateTime, PrimaryKeyConstraint, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, PrimaryKeyConstraint, Float, ForeignKey, JSON
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from database.user_database import UserBase
 from enum import Enum
 from sqlalchemy.sql import func
+
 
 class Role(str, Enum):
     user = "User"
@@ -26,7 +27,7 @@ class Rank(str, Enum):
     diamond = "Diamond" 
     
 class User(UserBase):
-    _tablename_ = "users"
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), nullable=False)
@@ -53,9 +54,9 @@ class User(UserBase):
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
 
 class UserActivity(UserBase):
-    _tablename_ = "user_activities"
+    __tablename__ = "user_activities"
     
-    _table__args_ = (
+    __table_args__ = (
         PrimaryKeyConstraint('user_id', 'destination_id'),
     )
 
