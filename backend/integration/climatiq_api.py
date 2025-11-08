@@ -32,7 +32,7 @@ class climatiqAPI:
         distance_km: float,
         passengers: int = 1,
         fuel_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> float:
         """
         Estimate emissions using the Travel API with a known distance.
         Returns only co2e_total and unit.
@@ -53,14 +53,36 @@ class climatiqAPI:
             res = requests.post(url, headers=self.headers, json=payload)
             res.raise_for_status()
             data = res.json()
-            return {
-                "co2e_total": data["co2e"],
-                "unit": data["co2e_unit"]
-            }
+            return data["co2e"]
+
         except requests.exceptions.RequestException as e:
             raise Exception(f"Travel estimation failed: {e}")
 
-    async def estimate_motorbike(self, distance_km: float = 100) -> Dict[str, Any]:
+    async def estimate_electric_bus(self, distance_km: float = 100, passenger: int = 1) -> float:
+        """
+        Estimate emissions for electric bus using Basic Estimate API.
+        Returns only co2e_total and unit.
+        """
+        url = f"{self.basic_base_url}/estimate"
+        params = {
+            "emission_factor": {
+                "activity_id": "passenger_vehicle-vehicle_type_bus-fuel_source_bev-engine_size_na-vehicle_age_na-vehicle_weight_gte_12t",
+                "data_version": "^27"
+            },
+            "parameters": {
+                "distance": distance_km,
+                "distance_unit": "km"
+            }
+        }
+        try:
+            response = requests.post(url, headers=self.headers, json=params)
+            response.raise_for_status()
+            data = response.json()
+            return data["co2e"] * passenger / 30 # assuming average bus occupancy of 30
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Electric bus estimation failed: {e}")
+
+    async def estimate_motorbike(self, distance_km: float = 100) -> float:
         """
         Estimate emissions for motorbike using Basic Estimate API.
         Returns only co2e_total and unit.
@@ -81,10 +103,7 @@ class climatiqAPI:
             response = requests.post(url, headers=self.headers, json=params)
             response.raise_for_status()
             data = response.json()
-            return {
-                "co2e_total": data["co2e"],
-                "unit": data["co2e_unit"]
-            }
+            return data["co2e"]
         except requests.exceptions.RequestException as e:
             raise Exception(f"Motorbike estimation failed: {e}")
 
@@ -94,7 +113,7 @@ class climatiqAPI:
         distance_km: float,
         passengers: int = 1,
         fuel_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> float:
         """
         Unified transport emission estimator.
         Uses the Travel API for 'car', 'rail', 'air';
@@ -107,6 +126,8 @@ class climatiqAPI:
             return await self.estimate_travel_distance(mode, distance_km, passengers, fuel_type)
         elif mode == "motorbike":
             return await self.estimate_motorbike(distance_km)
+        elif mode == "electric_bus":
+            return await self.estimate_electric_bus(distance_km, passengers)
         else:
             raise ValueError(f"Unsupported travel mode: {mode}")
 
@@ -118,7 +139,7 @@ if __name__ == "__main__":
     async def main():
         climatiq = climatiqAPI()
         estimation = await climatiq.estimate_transport(
-            mode="motorbike",
+            mode="electric_bus",
             distance_km=150,
             passengers=2,
             fuel_type="petrol"
