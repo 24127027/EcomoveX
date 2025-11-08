@@ -1,8 +1,11 @@
-import os
+import sys
+from pathlib import Path
+backend_dir = Path(__file__).parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 import requests
 from typing import Dict, Any, Optional
 from utils.config import settings
-
 class climatiqAPI:
     """
     A class to estimate carbon emissions for transport using the Climatiq API.
@@ -101,9 +104,25 @@ class climatiqAPI:
         travel_modes = {"car", "rail", "air"}
 
         if mode in travel_modes:
-            return self.estimate_travel_distance(mode, distance_km, passengers, fuel_type)
+            return await self.estimate_travel_distance(mode, distance_km, passengers, fuel_type)
         elif mode == "motorbike":
-            return self.estimate_motorbike(distance_km)
+            return await self.estimate_motorbike(distance_km)
         else:
             raise ValueError(f"Unsupported travel mode: {mode}")
 
+# usage example (to be run in an async context):
+
+if __name__ == "__main__":
+    import asyncio
+
+    async def main():
+        climatiq = climatiqAPI()
+        estimation = await climatiq.estimate_transport(
+            mode="motorbike",
+            distance_km=150,
+            passengers=2,
+            fuel_type="petrol"
+        )
+        print(estimation)
+
+    asyncio.run(main())
