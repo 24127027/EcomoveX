@@ -11,7 +11,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from services.map_service import MapService
+from services.map_service import RouteService
 
 
 def print_route_summary(route: dict, route_name: str):
@@ -84,7 +84,7 @@ async def test_three_optimal_routes():
         print(f"{'#'*80}")
         
         try:
-            result = await MapService.find_three_optimal_routes(
+            result = await RouteService.find_three_optimal_routes(
                 origin=test_case["origin"],
                 destination=test_case["destination"],
                 max_time_ratio=1.3  # Smart route can be max 30% slower than fastest

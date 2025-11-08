@@ -6,29 +6,56 @@ from integration.climatiq_api import get_climatiq_client
 from typing import Dict, Optional
 import httpx
 from utils.config import settings
+from schemas.carbon_schema import EmissionResult, CompareModesResponse, ModeComparison, FuelType
 
 class CarbonService:    
-    # Vietnam emission factors (gCO2/km per passenger) - Source: Climatiq, IPCC 2019
+    # Vietnam emission factors by fuel type (gCO2/km per passenger) - Source: Climatiq, IPCC 2019
     EMISSION_FACTORS_VN = {
+        # Cars by fuel type
         "car_petrol": 192,
+        "car_gasoline": 192,  # Same as petrol
         "car_diesel": 171,
         "car_hybrid": 120,
         "car_electric": 0,
-        "motorbike": 84,
+        "car_cng": 145,  # Compressed Natural Gas
+        "car_lpg": 165,  # Liquefied Petroleum Gas
+        
+        # Motorbikes by fuel type
+        "motorbike_petrol": 84,
+        "motorbike_gasoline": 84,
+        "motorbike_electric": 0,
         "motorbike_small": 65,
         "motorbike_large": 95,
-        "bus_standard": 68,
+        
+        # Buses by fuel type
+        "bus_diesel": 68,
         "bus_cng": 58,
         "bus_electric": 0,
+        
+        # Trains/Metro
         "metro": 35,
         "train_diesel": 41,
         "train_electric": 27,
+        
+        # Non-motorized
         "bicycle": 0,
         "bicycle_electric": 7,
         "walking": 0,
+        
+        # Taxis/Ride-sharing (default petrol)
+        "taxi_petrol": 155,
+        "taxi_hybrid": 110,
+        "grab_car_petrol": 155,
+        "grab_car_hybrid": 110,
+        "grab_bike": 84,
+        
+        # Legacy mappings (default to petrol)
+        "car": 192,
+        "motorbike": 84,
+        "bus": 68,
+        "train": 41,
         "taxi": 155,
         "grab_car": 155,
-        "grab_bike": 84,
         "driving": 192,
         "transit": 68,
         "bicycling": 0,
@@ -44,13 +71,13 @@ class CarbonService:
     }
     
     MODE_MAPPING = {
-        "driving": "car_petrol",
-        "car": "car_petrol",
+        "driving": "car",
+        "car": "car",
         "motorbike": "motorbike",
         "motorcycle": "motorbike",
-        "transit": "bus_standard",
-        "bus": "bus_standard",
-        "train": "train_diesel",
+        "transit": "bus",
+        "bus": "bus",
+        "train": "train",
         "subway": "metro",
         "metro": "metro",
         "bicycling": "bicycle",
@@ -106,38 +133,55 @@ class CarbonService:
             print("⚠️  Using fallback emission factors")
         
         return CarbonService.EMISSION_FACTORS_VN
-
-    @staticmethod
-    async def get_realtime_grid_intensity(zone: str = "VN") -> Optional[float]:
-        """Get real-time carbon intensity of electricity grid from Electricity Maps API"""
-        api_key = settings.ELECTRICCITYMAPS_API_KEY if hasattr(settings, 'ELECTRICCITYMAPS_API_KEY') else None
-        if not api_key:
-            return None
-        
-        try:
-            url = f"https://api.electricitymap.org/v3/carbon-intensity/latest"
-            headers = {"auth-token": api_key}
-            params = {"zone": zone}
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url, headers=headers, params=params)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    intensity = data.get("carbonIntensity")  # gCO2eq/kWh
-                    if intensity:
-                        CarbonService._grid_intensity_cache = intensity
-                        CarbonService._cache_timestamp = datetime.now()
-                        return intensity
-        except Exception as e:
-            print(f"Error fetching grid intensity: {e}")
-        
-        return None
     
     @staticmethod
-    def get_emission_factor_for_mode(mode: str) -> str:
-        """Map transport mode name to emission factor key"""
-        return CarbonService.MODE_MAPPING.get(mode.lower(), "car_petrol")
+    def get_emission_factor_for_mode(mode: str, fuel_type: Optional[str] = None) -> str:
+        """
+        Map transport mode and fuel type to emission factor key
+        
+        Args:
+            mode: Transport mode (e.g., "car", "motorbike", "bus")
+            fuel_type: Fuel type (e.g., "petrol", "diesel", "electric")
+        
+        Returns:
+            Emission factor key (e.g., "car_petrol", "bus_diesel")
+        """
+        mode_lower = mode.lower()
+        
+        # Map mode to base type
+        base_mode = CarbonService.MODE_MAPPING.get(mode_lower, "car")
+        
+        # For modes that don't use fuel (walking, bicycling, metro)
+        if base_mode in ["walking", "bicycle", "metro"]:
+            # Check for electric bicycle
+            if base_mode == "bicycle" and fuel_type and fuel_type.lower() == "electric":
+                return "bicycle_electric"
+            return base_mode
+        
+        # Default fuel type is petrol if not specified
+        if not fuel_type:
+            fuel_type = "petrol"
+        
+        fuel_lower = fuel_type.lower()
+        
+        # Normalize gasoline to petrol
+        if fuel_lower == "gasoline":
+            fuel_lower = "petrol"
+        
+        # Combine mode and fuel type
+        combined_key = f"{base_mode}_{fuel_lower}"
+        
+        # Check if combined key exists in emission factors
+        if combined_key in CarbonService.EMISSION_FACTORS_VN:
+            return combined_key
+        
+        # Fallback to base mode with default fuel
+        fallback_key = f"{base_mode}_petrol"
+        if fallback_key in CarbonService.EMISSION_FACTORS_VN:
+            return fallback_key
+        
+        # Final fallback
+        return base_mode if base_mode in CarbonService.EMISSION_FACTORS_VN else "car_petrol"
     
     @staticmethod
     async def get_emission_factor(mode: str, use_realtime_grid: bool = True) -> float:
@@ -156,29 +200,92 @@ class CarbonService:
         # Check if it's an electric vehicle
         if mode_lower in CarbonService.EV_EFFICIENCY:
             efficiency = CarbonService.EV_EFFICIENCY[mode_lower]
-            
-            # Use real-time grid intensity if available
-            grid_intensity = CarbonService.GRID_INTENSITY_VN
-            if use_realtime_grid:
-                realtime_intensity = await CarbonService.get_realtime_grid_intensity()
-                if realtime_intensity:
-                    grid_intensity = realtime_intensity
-            
+            grid_intensity = CarbonService._grid_intensity_cache
             return efficiency * grid_intensity
         
         # Return pre-defined factor from Vietnam-specific data
-        return CarbonService.EMISSION_FACTORS_VN.get(mode_lower, CarbonService.EMISSION_FACTORS_VN.get("driving", 192))
+        return CarbonService.EMISSION_FACTORS_VN.get(mode_lower, CarbonService.EMISSION_FACTORS_VN.get("car_petrol", 192))
+    
+    @staticmethod
+    def calculate_traffic_multiplier(congestion_ratio: float) -> float:
+        """
+        Calculate carbon emission multiplier based on traffic congestion
+        
+        Traffic increases fuel consumption due to:
+        - Frequent acceleration/braking
+        - Lower average speed (less efficient engine operation)
+        - Longer idle time
+        
+        Based on research:
+        - US EPA (2011): Stop-and-go traffic +40-50%
+        - Berkeley Studies (2019): Severe congestion +65-80%
+        - Vietnam MOST (2020): Hanoi rush hour +45%
+        
+        Args:
+            congestion_ratio: duration_in_traffic / duration_normal
+        
+        Returns:
+            Multiplier for carbon emission (1.0 = no traffic, higher = more congestion)
+        """
+        if congestion_ratio <= 1.0:
+            # No traffic delay
+            return 1.0
+        elif congestion_ratio <= 1.2:
+            # Light traffic: +10-20% emissions
+            return 1.0 + (congestion_ratio - 1.0) * 1.0
+        elif congestion_ratio <= 1.5:
+            # Moderate traffic: +20-40% emissions
+            return 1.2 + (congestion_ratio - 1.2) * 0.67
+        elif congestion_ratio <= 2.0:
+            # Heavy traffic: +40-70% emissions
+            return 1.4 + (congestion_ratio - 1.5) * 0.6
+        else:
+            # Severe gridlock: +70-100% emissions (capped at 100%)
+            # Based on extreme stop-and-go conditions with significant idle time
+            multiplier = 1.7 + (congestion_ratio - 2.0) * 0.3
+            return min(multiplier, 2.0)  # Cap at 100% increase
     
     @staticmethod
     async def calculate_emission_by_mode(
         distance_km: float,
         mode: str,
+        fuel_type: Optional[str] = None,
         passengers: int = 1,
-        use_realtime_grid: bool = True
-    ) -> Dict[str, any]:
-        """Calculate carbon emission for a trip using Vietnam-specific emission factors"""
-        emission_mode = CarbonService.get_emission_factor_for_mode(mode)
+        use_realtime_grid: bool = True,
+        congestion_ratio: float = 1.0
+    ) -> EmissionResult:
+        """
+        Calculate carbon emission for a trip using Vietnam-specific emission factors
+        
+        Args:
+            distance_km: Distance in kilometers
+            mode: Transport mode
+            fuel_type: Fuel type (petrol, diesel, electric, hybrid, cng, lpg). Default: petrol
+            passengers: Number of passengers
+            use_realtime_grid: Use real-time grid intensity for EVs
+            congestion_ratio: Traffic congestion ratio (duration_in_traffic / duration_normal)
+        """
+        # Default fuel type to petrol if not specified
+        if not fuel_type:
+            fuel_type = "petrol"
+        
+        emission_mode = CarbonService.get_emission_factor_for_mode(mode, fuel_type)
         factor = await CarbonService.get_emission_factor(emission_mode, use_realtime_grid)
+        
+        # Apply traffic multiplier for vehicles affected by congestion
+        traffic_multiplier = 1.0
+        # Traffic affects all motorized vehicles except trains/metro
+        traffic_affected_modes = [
+            "car_petrol", "car_gasoline", "car_diesel", "car_hybrid", "car_cng", "car_lpg",
+            "motorbike_petrol", "motorbike_gasoline", "motorbike",
+            "taxi_petrol", "taxi_hybrid", "taxi",
+            "grab_car_petrol", "grab_car_hybrid", "grab_car",
+            "grab_bike", "driving"
+        ]
+        
+        if emission_mode in traffic_affected_modes and congestion_ratio > 1.0:
+            traffic_multiplier = CarbonService.calculate_traffic_multiplier(congestion_ratio)
+            factor = factor * traffic_multiplier
         
         total_grams = distance_km * factor
         per_passenger_grams = total_grams / passengers if passengers > 0 else total_grams
@@ -187,9 +294,10 @@ class CarbonService:
         if emission_mode in CarbonService.EV_EFFICIENCY:
             grid_intensity_used = CarbonService._grid_intensity_cache
         
-        return {
+        result_data = {
             "distance_km": round(distance_km, 2),
             "mode": emission_mode,
+            "fuel_type": fuel_type,
             "passengers": passengers,
             "emission_factor_g_per_km": round(factor, 2),
             "total_co2_grams": round(total_grams, 2),
@@ -199,33 +307,44 @@ class CarbonService:
             "grid_intensity_used": grid_intensity_used,
             "data_source": "Vietnam-specific (Climatiq + Electricity Maps)"
         }
+        
+        # Add traffic info if applicable
+        if congestion_ratio > 1.0 and traffic_multiplier > 1.0:
+            result_data["traffic_congestion_ratio"] = round(congestion_ratio, 2)
+            result_data["traffic_multiplier"] = round(traffic_multiplier, 2)
+            result_data["emission_increase_percent"] = round((traffic_multiplier - 1.0) * 100, 1)
+        
+        return EmissionResult(**result_data)
     
     @staticmethod
-    async def compare_transport_modes(distance_km: float, modes: list) -> Dict[str, any]:
+    async def compare_transport_modes(distance_km: float, modes: list) -> CompareModesResponse:
         """Compare carbon emissions across multiple transport modes"""
-        results = {}
+        comparisons = []
         
         for mode in modes:
-            results[mode] = await CarbonService.calculate_emission_by_mode(distance_km, mode)
+            try:
+                emission = await CarbonService.calculate_emission_by_mode(distance_km, mode)
+                comparisons.append(ModeComparison(
+                    mode=mode,
+                    result=emission
+                ))
+            except ValueError:
+                # Skip invalid modes
+                continue
         
-        sorted_modes = sorted(results.items(), key=lambda x: x[1]["total_co2_kg"])
+        # Find lowest emission mode
+        if not comparisons:
+            raise ValueError("No valid transport modes provided")
         
-        return {
-            "distance_km": distance_km,
-            "modes": results,
-            "best_option": {
-                "mode": sorted_modes[0][0],
-                "co2_kg": sorted_modes[0][1]["total_co2_kg"]
-            },
-            "worst_option": {
-                "mode": sorted_modes[-1][0],
-                "co2_kg": sorted_modes[-1][1]["total_co2_kg"]
-            },
-            "savings_potential_kg": round(
-                sorted_modes[-1][1]["total_co2_kg"] - sorted_modes[0][1]["total_co2_kg"],
-                3
-            )
-        }
+        sorted_comparisons = sorted(comparisons, key=lambda x: x.result.total_co2_kg)
+        lowest = sorted_comparisons[0]
+        
+        return CompareModesResponse(
+            distance_km=distance_km,
+            comparisons=comparisons,
+            lowest_emission_mode=lowest.mode,
+            lowest_emission_kg=lowest.result.total_co2_kg
+        )
     
     @staticmethod
     def get_all_emission_factors() -> Dict[str, float]:
@@ -242,402 +361,3 @@ class CarbonService:
             all_factors[mode] = round(efficiency * CarbonService._grid_intensity_cache, 2)
         
         return all_factors
-
-    # @staticmethod
-    # async def create_carbon_emission(db: AsyncSession, user_id: int, create_data: CarbonEmissionCreate):
-    #     try:
-    #         mode_key = CarbonService.get_emission_factor_for_mode(create_data.vehicle_type.value)
-    #         emission_factor = CarbonService.EMISSION_FACTORS_VN.get(mode_key, 192)
-    #         carbon_emission_kg = round(emission_factor * create_data.distance_km / 1000, 3)
-            
-    #         new_emission = await CarbonRepository.create_carbon_emission(db, user_id, create_data, carbon_emission_kg)
-    #         if not new_emission:
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #                 detail="Failed to create carbon emission record"
-    #             )
-    #         return new_emission
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error creating carbon emission record: {e}"
-    #         )
-    
-    # @staticmethod
-    # async def get_carbon_emission_by_id(db: AsyncSession, emission_id: int, user_id: int):
-    #     try:
-    #         emission = await CarbonRepository.get_carbon_emission_by_id(db, emission_id, user_id)
-    #         if not emission:
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_404_NOT_FOUND,
-    #                 detail=f"Carbon emission record with ID {emission_id} not found"
-    #             )
-    #         return emission
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error retrieving carbon emission ID {emission_id}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def get_user_carbon_emissions(db: AsyncSession, user_id: int):
-    #     try:
-    #         emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
-    #         return emissions
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error retrieving carbon emissions for user ID {user_id}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def get_total_carbon_by_user(db: AsyncSession, user_id: int):
-    #     try:
-    #         total = await CarbonRepository.get_total_carbon_by_user(db, user_id)
-    #         return {"user_id": user_id, "total_carbon_emission_kg": total}
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error calculating total carbon emissions for user ID {user_id}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def get_total_carbon_by_day(db: AsyncSession, user_id: int, date: datetime):
-    #     try:
-    #         current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
-    #         current_day_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions if e.calculated_at.date() == date.date()
-    #         ]
-            
-    #         previous_date = date - timedelta(days=1)
-    #         previous_day_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions if e.calculated_at.date() == previous_date.date()
-    #         ]
-            
-    #         text_generator = get_text_generator()
-    #         prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
-
-    #             Time Range: Daily comparison
-    #             Current Day: {date.strftime("%Y-%m-%d")}
-    #             Previous Day: {previous_date.strftime("%Y-%m-%d")}
-
-    #             Current Day Data ({len(current_day_data)} trips):
-    #             {current_day_data}
-
-    #             Previous Day Data ({len(previous_day_data)} trips):
-    #             {previous_day_data}
-
-    #             Instructions:
-    #             1. Calculate the total emissions for each day
-    #             2. Compare the two days and determine the percentage change
-    #             3. Analyze the types of transportation used
-    #             4. Generate a short personalized message (2-3 sentences) that:
-    #             - If emissions decreased: Congratulate the user and encourage them to keep it up
-    #             - If emissions increased: Gently remind them and suggest eco-friendly alternatives
-    #             - If emissions stayed the same: Encourage them to try reducing further
-    #             5. Include specific insights about their travel patterns if relevant
-
-    #             Format your response as a brief, friendly message."""
-
-    #         summary_message = await text_generator.generate_text(prompt)
-            
-    #         return {
-    #             "user_id": user_id,
-    #             "date": date.strftime("%Y-%m-%d"),
-    #             "summary": summary_message
-    #         }
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for day of {date}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def get_total_carbon_by_week(db: AsyncSession, user_id: int, date: datetime):
-    #     try:
-    #         start_of_week = date - timedelta(days=date.weekday())
-    #         end_of_week = start_of_week + timedelta(days=6)
-            
-    #         start_of_previous_week = start_of_week - timedelta(days=7)
-    #         end_of_previous_week = start_of_previous_week + timedelta(days=6)
-            
-    #         current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
-            
-    #         current_week_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "fuel_type": e.fuel_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions 
-    #             if start_of_week.date() <= e.calculated_at.date() <= end_of_week.date()
-    #         ]
-            
-    #         previous_week_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "fuel_type": e.fuel_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions 
-    #             if start_of_previous_week.date() <= e.calculated_at.date() <= end_of_previous_week.date()
-    #         ]
-            
-    #         text_generator = get_text_generator()
-    #         prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
-
-    #             Time Range: Weekly comparison
-    #             Current Week: {start_of_week.strftime("%Y-%m-%d")} to {end_of_week.strftime("%Y-%m-%d")}
-    #             Previous Week: {start_of_previous_week.strftime("%Y-%m-%d")} to {end_of_previous_week.strftime("%Y-%m-%d")}
-
-    #             Current Week Data ({len(current_week_data)} trips):
-    #             {current_week_data}
-
-    #             Previous Week Data ({len(previous_week_data)} trips):
-    #             {previous_week_data}
-
-    #             Instructions:
-    #             1. Calculate the total emissions for each week
-    #             2. Compare the two weeks and determine the percentage change
-    #             3. Analyze the patterns: most common transportation types, daily distribution, etc.
-    #             4. Generate a short personalized message (2-3 sentences) that:
-    #             - If emissions decreased: Celebrate their eco-friendly choices and motivate them to continue
-    #             - If emissions increased: Suggest sustainable alternatives like public transportation, walking, or combining trips
-    #             - If emissions stayed the same: Challenge them to reduce it next week
-    #             5. Provide actionable insights based on their weekly travel patterns
-
-    #             Format your response as a brief, encouraging message."""
-
-    #         summary_message = await text_generator.generate_text(prompt)
-            
-    #         return {
-    #             "user_id": user_id,
-    #             "week_starting": start_of_week.strftime("%Y-%m-%d"),
-    #             "week_ending": end_of_week.strftime("%Y-%m-%d"),
-    #             "summary": summary_message
-    #         }
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for week of {date}: {e}"
-    #         )
-        
-    # @staticmethod
-    # async def get_total_carbon_by_month(db: AsyncSession, user_id: int, date: datetime):
-    #     try:
-    #         start_of_month = datetime(date.year, date.month, 1)
-    #         if date.month == 12:
-    #             end_of_month = datetime(date.year + 1, 1, 1) - timedelta(days=1)
-    #         else:
-    #             end_of_month = datetime(date.year, date.month + 1, 1) - timedelta(days=1)
-            
-    #         if date.month == 1:
-    #             start_of_previous_month = datetime(date.year - 1, 12, 1)
-    #             end_of_previous_month = datetime(date.year - 1, 12, 31)
-    #         else:
-    #             start_of_previous_month = datetime(date.year, date.month - 1, 1)
-    #             end_of_previous_month = datetime(date.year, date.month, 1) - timedelta(days=1)
-            
-    #         current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
-            
-    #         current_month_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "fuel_type": e.fuel_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions 
-    #             if start_of_month.date() <= e.calculated_at.date() <= end_of_month.date()
-    #         ]
-            
-    #         previous_month_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "fuel_type": e.fuel_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions 
-    #             if start_of_previous_month.date() <= e.calculated_at.date() <= end_of_previous_month.date()
-    #         ]
-            
-    #         text_generator = get_text_generator()
-    #         prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
-
-    #             Time Range: Monthly comparison
-    #             Current Month: {start_of_month.strftime("%B %Y")} ({start_of_month.strftime("%Y-%m-%d")} to {end_of_month.strftime("%Y-%m-%d")})
-    #             Previous Month: {start_of_previous_month.strftime("%B %Y")} ({start_of_previous_month.strftime("%Y-%m-%d")} to {end_of_previous_month.strftime("%Y-%m-%d")})
-
-    #             Current Month Data ({len(current_month_data)} trips):
-    #             {current_month_data}
-
-    #             Previous Month Data ({len(previous_month_data)} trips):
-    #             {previous_month_data}
-
-    #             Instructions:
-    #             1. Calculate the total emissions for each month
-    #             2. Compare the two months and determine the percentage change
-    #             3. Analyze monthly patterns: preferred transportation modes, peak emission days, trends
-    #             4. Generate a short personalized message (2-3 sentences) that:
-    #             - If emissions decreased: Praise their commitment to sustainability and inspire them to maintain this trend
-    #             - If emissions increased: Suggest planning eco-friendly travel routes, using greener transportation, or tracking daily emissions more carefully
-    #             - If emissions stayed the same: Encourage them to set new reduction goals for next month
-    #             5. Provide monthly insights and actionable recommendations
-
-    #             Format your response as a brief, motivational message."""
-
-    #         summary_message = await text_generator.generate_text(prompt)
-            
-    #         return {
-    #             "user_id": user_id,
-    #             "month": f"{date.year}-{date.month:02d}",
-    #             "summary": summary_message
-    #         }
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for month {date.month}/{date.year}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def get_total_carbon_by_year(db: AsyncSession, user_id: int, year: int):
-    #     try:
-    #         current_emissions = await CarbonRepository.get_carbon_emissions_by_user(db, user_id)
-            
-    #         current_year_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "fuel_type": e.fuel_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions 
-    #             if e.calculated_at.year == year
-    #         ]
-            
-    #         previous_year = year - 1
-    #         previous_year_data = [
-    #             {
-    #                 "vehicle_type": e.vehicle_type.value,
-    #                 "fuel_type": e.fuel_type.value,
-    #                 "distance_km": e.distance_km,
-    #                 "carbon_emission_kg": e.carbon_emission_kg,
-    #                 "calculated_at": e.calculated_at.isoformat()
-    #             }
-    #             for e in current_emissions 
-    #             if e.calculated_at.year == previous_year
-    #         ]
-            
-    #         text_generator = get_text_generator()
-    #         prompt = f"""Analyze the following carbon emission data and provide a summary with a motivational message:
-
-    #             Time Range: Annual comparison
-    #             Current Year: {year}
-    #             Previous Year: {previous_year}
-
-    #             Current Year Data ({len(current_year_data)} trips):
-    #             {current_year_data}
-
-    #             Previous Year Data ({len(previous_year_data)} trips):
-    #             {previous_year_data}
-
-    #             Instructions:
-    #             1. Calculate the total emissions for each year
-    #             2. Compare the two years and determine the percentage change
-    #             3. Analyze annual patterns: seasonal trends, most/least eco-friendly months, transportation preferences
-    #             4. Generate a short personalized message (2-3 sentences) that:
-    #             - If emissions decreased: Celebrate this impressive achievement and their dedication to fighting climate change
-    #             - If emissions increased: Encourage them to set concrete goals for the new year, such as using electric vehicles, public transport more often, or offsetting emissions
-    #             - If emissions stayed the same: Challenge them to make meaningful reductions in the coming year
-    #             5. Provide a year-in-review perspective with long-term recommendations
-
-    #             Format your response as a brief, impactful message."""
-
-    #         summary_message = await text_generator.generate_text(prompt)
-            
-    #         return {
-    #             "user_id": user_id,
-    #             "year": year,
-    #             "summary": summary_message
-    #         }
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} for year {year}: {e}"
-    #         )
-        
-    # @staticmethod
-    # async def get_total_carbon_by_date_range(db: AsyncSession, user_id: int, start_date: datetime, end_date: datetime):
-    #     try:
-    #         total = await CarbonRepository.get_total_carbon_by_date_range(db, user_id, start_date, end_date)
-    #         return {"user_id": user_id, "total_carbon_emission_kg": total}
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error calculating total carbon emissions for user ID {user_id} from {start_date} to {end_date}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def update_carbon_emission(db: AsyncSession, emission_id: int, user_id: int, updated_data: CarbonEmissionUpdate):
-    #     try:
-    #         existing_emission = await CarbonRepository.get_carbon_emission_by_id(db, emission_id, user_id)
-    #         if not existing_emission:
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_404_NOT_FOUND,
-    #                 detail=f"Carbon emission record with ID {emission_id} not found"
-    #             )
-            
-    #         vehicle_type = updated_data.vehicle_type if updated_data.vehicle_type is not None else existing_emission.vehicle_type
-    #         distance_km = updated_data.distance_km if updated_data.distance_km is not None else existing_emission.distance_km
-    #         fuel_type = updated_data.fuel_type if updated_data.fuel_type is not None else existing_emission.fuel_type
-            
-    #         carbon_emission_kg = CarbonService.calculate_carbon_emission(vehicle_type, distance_km, fuel_type)
-            
-    #         updated_emission = await CarbonRepository.update_carbon_emission(db, emission_id, updated_data, carbon_emission_kg)
-    #         if not updated_emission:
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_404_NOT_FOUND,
-    #                 detail=f"Carbon emission record with ID {emission_id} not found"
-    #             )
-    #         return updated_emission
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error updating carbon emission ID {emission_id}: {e}"
-    #         )
-
-    # @staticmethod
-    # async def delete_carbon_emission(db: AsyncSession, emission_id: int, user_id: int):
-    #     try:
-    #         success = await CarbonRepository.delete_carbon_emission(db, emission_id, user_id)
-    #         if not success:
-    #             raise HTTPException(
-    #                 status_code=status.HTTP_404_NOT_FOUND,
-    #                 detail=f"Carbon emission record with ID {emission_id} not found"
-    #             )
-    #         return {"detail": "Carbon emission record deleted successfully"}
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #             detail=f"Unexpected error deleting carbon emission ID {emission_id}: {e}"
-    #         )

@@ -11,7 +11,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from services.map_service import MapService
+from services.map_service import RouteService
 
 
 async def test_special_cases():
@@ -36,7 +36,7 @@ async def test_special_cases():
     print(f"🎯 Điểm đến: {destination}")
     print()
     
-    result = await MapService.find_three_optimal_routes(
+    result = await RouteService.find_three_optimal_routes(
         origin=origin,
         destination=destination,
         max_time_ratio=2.0  # Cho phép smart route chậm hơn 2x
@@ -168,7 +168,7 @@ async def test_special_cases():
     else:
         print(f"❌ Lỗi: {result.get('message', 'Unknown error')}")
     
-    # MapService uses static methods, no need to close
+    # RouteService uses static methods, no need to close
     
     print()
     print("=" * 100)

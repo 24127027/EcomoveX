@@ -3,7 +3,6 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from utils.config import settings
 
-
 class ClimatiqAPI:
     """Climatiq API client for fetching emission factors"""
     
@@ -108,18 +107,33 @@ class ClimatiqAPI:
         factors = {}
         
         transport_queries = {
+            # Cars by fuel type
             "car_petrol": "passenger vehicle car petrol",
+            "car_gasoline": "passenger vehicle car petrol",
             "car_diesel": "passenger vehicle car diesel",
-            "car_hybrid": "passenger vehicle car hybrid",
-            "car_electric": "passenger vehicle car electric",
-            "motorbike": "motorcycle",
-            "bus_standard": "bus diesel",
-            "bus_cng": "bus cng",
-            "bus_electric": "bus electric",
+            "car_hybrid": "hybrid car",
+            "car_electric": "electric car battery electric vehicle",
+            "car_cng": "vehicle cng compressed natural gas",
+            "car_lpg": "vehicle lpg liquefied petroleum gas",
+            
+            # Motorbikes by fuel type
+            "motorbike_petrol": "motorcycle petrol",
+            "motorbike_gasoline": "motorcycle petrol",
+            "motorbike_electric": "electric motorcycle",
+            
+            # Buses by fuel type
+            "bus_diesel": "bus diesel",
+            "bus_cng": "bus cng compressed natural gas",
+            "bus_electric": "electric bus battery",
+            
+            # Trains/Metro
             "metro": "rail metro",
             "train_diesel": "rail diesel",
             "train_electric": "rail electric",
-            "taxi": "taxi",
+            
+            # Taxis (default petrol)
+            "taxi_petrol": "taxi petrol",
+            "taxi_hybrid": "taxi hybrid",
         }
         
         for mode, query in transport_queries.items():
@@ -131,18 +145,33 @@ class ClimatiqAPI:
                 unit = factor_data.get("unit", "")
                 
                 default_values = {
+                    # Cars by fuel type
                     "car_petrol": 192,
+                    "car_gasoline": 192,
                     "car_diesel": 171,
                     "car_hybrid": 120,
                     "car_electric": 104,
-                    "motorbike": 84,
-                    "bus_standard": 68,
+                    "car_cng": 145,  # 25% lower than petrol
+                    "car_lpg": 165,  # 14% lower than petrol
+                    
+                    # Motorbikes by fuel type
+                    "motorbike_petrol": 84,
+                    "motorbike_gasoline": 84,
+                    "motorbike_electric": 16,
+                    
+                    # Buses by fuel type
+                    "bus_diesel": 68,
                     "bus_cng": 58,
                     "bus_electric": 104,
+                    
+                    # Trains/Metro
                     "metro": 35,
                     "train_diesel": 41,
                     "train_electric": 27,
-                    "taxi": 155,
+                    
+                    # Taxis
+                    "taxi_petrol": 155,
+                    "taxi_hybrid": 110,
                 }
                 
                 value = default_values.get(mode, 100)
