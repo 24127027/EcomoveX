@@ -63,14 +63,6 @@ async def add_eco_point(
         )
     return await UserService.add_eco_point(db, current_user["user_id"], point)
 
-@router.post("/me/activity", status_code=status.HTTP_201_CREATED)
-async def log_user_activity(
-    data: UserActivityCreate,
-    db: AsyncSession = Depends(get_user_db),
-    current_user: dict = Depends(get_current_user)
-):
-    return await UserActivityService.log_user_activity(db, current_user["user_id"], data)
-
 @router.get("/me/activity", response_model=List[UserActivityResponse], status_code=status.HTTP_200_OK)
 async def get_user_activities(
     db: AsyncSession = Depends(get_user_db),

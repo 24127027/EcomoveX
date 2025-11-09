@@ -7,9 +7,9 @@ from services.authentication_service import AuthenticationService
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=AuthenticationResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserRegister, db: AsyncSession = Depends(get_user_db)):
-    return await AuthenticationService.register_user(db, user_data)
+async def register_user(user_data: UserRegister, user_db: AsyncSession = Depends(get_user_db)):
+    return await AuthenticationService.register_user(user_db, user_data)
 
 @router.post("/login", response_model=AuthenticationResponse, status_code=status.HTTP_200_OK)
-async def login_user(credentials: UserLogin, db: AsyncSession = Depends(get_user_db)):
-    return await AuthenticationService.login_user(db, credentials.email, credentials.password)
+async def login_user(credentials: UserLogin, user_db: AsyncSession = Depends(get_user_db)):
+    return await AuthenticationService.login_user(user_db, credentials.email, credentials.password)
