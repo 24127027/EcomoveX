@@ -58,7 +58,7 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def login_user(db: AsyncSession, email: str, password: str):
+    async def login_user(db: AsyncSession, email: str, password: str) -> AuthenticationResponse:
         try:
             from repository.user_repository import UserRepository
             user = await UserRepository.get_user_by_email(db, email)
@@ -86,7 +86,7 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def register_user(db: AsyncSession, user: UserRegister):
+    async def register_user(db: AsyncSession, user: UserRegister) -> AuthenticationResponse:
         try:
             from repository.user_repository import UserRepository
             

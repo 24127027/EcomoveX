@@ -20,7 +20,7 @@ async def save_destination_for_current_user(
         destination_id
     )
 
-@router.get("/saved/me/all", status_code=status.HTTP_200_OK)
+@router.get("/saved/me/all", response_model=list[UserSavedDestinationResponse], status_code=status.HTTP_200_OK)
 async def get_my_saved_destinations(
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)

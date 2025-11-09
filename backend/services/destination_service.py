@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from repository.destination_repository import DestinationRepository, UserSavedDestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.destination_schema import DestinationCreate, DestinationUpdate
+from schemas.destination_schema import DestinationCreate, DestinationUpdate, UserSavedDestinationResponse
 
 class DestinationService:
     @staticmethod
@@ -70,7 +70,7 @@ class DestinationService:
 
 class UserSavedDestinationService:  
     @staticmethod
-    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: int):
+    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: int) -> UserSavedDestinationResponse:
         try:
             saved = await UserSavedDestinationRepository.save_destination_for_user(db, user_id, destination_id)
             if not saved:
@@ -86,10 +86,17 @@ class UserSavedDestinationService:
             )
             
     @staticmethod
-    async def get_saved_destinations_for_user(db: AsyncSession, user_id: int):
+    async def get_saved_destinations_for_user(db: AsyncSession, user_id: int) -> list[UserSavedDestinationResponse]:
         try:
             saved_destinations = await UserSavedDestinationRepository.get_saved_destinations_for_user(db, user_id)
-            return saved_destinations
+            saved_list = []
+            for saved in saved_destinations:
+                saved_list.append(UserSavedDestinationResponse(
+                    user_id=saved.user_id,
+                    destination_id=saved.destination_id,
+                    saved_at=saved.saved_at
+                ))
+            return saved_list
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
