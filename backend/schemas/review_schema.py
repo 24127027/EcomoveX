@@ -3,7 +3,6 @@ from typing import Optional, List
 from datetime import datetime
 
 class ReviewCreate(BaseModel):
-    destination_id: int = Field(..., gt=0)
     rating: int = Field(..., ge=1, le=5, description="Rating from 1 to 5")
     content: Optional[str] = Field(None, description="Review content")
 
@@ -26,10 +25,9 @@ class ReviewUpdate(BaseModel):
         return v.strip() if v else None
 
 class ReviewResponse(BaseModel):
-    review_id: int = Field(alias="id")
     destination_id: int
+    user_id: int
     rating: int
     content: str
-    user_id: int
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

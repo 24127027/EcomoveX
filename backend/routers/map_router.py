@@ -10,9 +10,6 @@ router = APIRouter(prefix="/map", tags=["Map Search"])
 
 @router.post("/search", response_model=SearchLocationResponse, status_code=status.HTTP_200_OK)
 async def search_location(request: SearchLocationRequest, db: AsyncSession = Depends(get_destination_db)):
-    user_location = None
-    if request.user_lat is not None and request.user_lng is not None:
-        user_location = request.user_location
     result = await MapService.search_location(db=db, request=request)
     return result
 

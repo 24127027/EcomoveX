@@ -15,13 +15,6 @@ async def get_reviews_by_destination(
 ):
     return await ReviewService.get_reviews_by_destination(db, destination_id)
 
-@router.get("/user/{user_id}", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
-async def get_reviews_by_user(
-    user_id: int = Path(..., gt=0, description="User ID"),
-    db: AsyncSession = Depends(get_destination_db)
-):
-    return await ReviewService.get_reviews_by_user(db, user_id)
-
 @router.get("/me", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
 async def get_my_reviews(
     db: AsyncSession = Depends(get_destination_db),
@@ -37,19 +30,19 @@ async def create_review(
 ):
     return await ReviewService.create_review(dest_db, review_data, current_user["user_id"])
 
-@router.put("/{review_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
+@router.put("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
 async def update_review(
-    review_id: int = Path(..., gt=0, description="Review ID"),
+    destination_id: int = Path(..., gt=0, description="Destination ID"),
     updated_data: ReviewUpdate = ...,
     db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await ReviewService.update_review(db, review_id, updated_data)
+    return await ReviewService.update_review(db, destination_id, current_user["user_id"], updated_data)
 
-@router.delete("/{review_id}", status_code=status.HTTP_200_OK)
+@router.delete("/{destination_id}", status_code=status.HTTP_200_OK)
 async def delete_review(
-    review_id: int = Path(..., gt=0, description="Review ID"),
+    destination_id: int = Path(..., gt=0, description="Destination ID"),
     db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await ReviewService.delete_review(db, review_id)
+    return await ReviewService.delete_review(db, destination_id, current_user["user_id"])
