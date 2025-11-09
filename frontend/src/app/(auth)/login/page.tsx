@@ -33,7 +33,7 @@ export default function SigninPage() {
       localStorage.setItem("user_id", response.user_id.toString());
 
       // Redirect to dashboard or home
-      router.push("../../(main)/homepage");
+      router.push("/homepage");
     } catch (err: any) {
       setError(err.message || "Login failed. Please try again.");
     } finally {
