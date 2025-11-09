@@ -13,15 +13,24 @@ class FriendRepository:
             if existing:
                 return None
             
-            friendship = Friend(
+            friendship_user = Friend(
                 user_id=user_id,
                 friend_id=friend_id,
+                status=FriendStatus.requested
+            )
+            db.add(friendship_user)
+            await db.commit()
+            await db.refresh(friendship_user)
+            
+            friendship_friend = Friend(
+                user_id=friend_id,
+                friend_id=user_id,
                 status=FriendStatus.pending
             )
-            db.add(friendship)
+            db.add(friendship_friend)
             await db.commit()
-            await db.refresh(friendship)
-            return friendship
+            await db.refresh(friendship_friend)
+            return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error sending friend request: {e}")
@@ -30,7 +39,7 @@ class FriendRepository:
     @staticmethod
     async def accept_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
-            result = await db.execute(
+            result_user = await db.execute(
                 select(Friend).where(
                     and_(
                         Friend.user_id == friend_id,
@@ -39,15 +48,34 @@ class FriendRepository:
                     )
                 )
             )
-            friendship = result.scalar_one_or_none()
-            
-            if not friendship:
+            friendship_user = result_user.scalar_one_or_none()
+
+            if not friendship_user:
                 return None
-            
-            friendship.status = FriendStatus.accepted
+
+            friendship_user.status = FriendStatus.friend
             await db.commit()
-            await db.refresh(friendship)
-            return friendship
+            await db.refresh(friendship_user)
+            
+            result_friend = await db.execute(
+                select(Friend).where(
+                    and_(
+                        Friend.user_id == friend_id,
+                        Friend.friend_id == user_id,
+                        Friend.status == FriendStatus.requested
+                    )
+                )
+            )
+            friendship_friend = result_friend.scalar_one_or_none()
+
+            if not friendship_friend:
+                return None
+
+            friendship_friend.status = FriendStatus.friend
+            await db.commit()
+            await db.refresh(friendship_friend)
+
+            return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error accepting friend request: {e}")
@@ -56,7 +84,7 @@ class FriendRepository:
     @staticmethod
     async def reject_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
-            result = await db.execute(
+            result_user = await db.execute(
                 select(Friend).where(
                     and_(
                         Friend.user_id == friend_id,
@@ -65,67 +93,37 @@ class FriendRepository:
                     )
                 )
             )
-            friendship = result.scalar_one_or_none()
-            
-            if not friendship:
+            friendship_user = result_user.scalar_one_or_none()
+
+            if not friendship_user:
                 return False
-            
-            await db.delete(friendship)
+
+            await db.delete(friendship_user)
             await db.commit()
+            
+            result_friend = await db.execute(
+                select(Friend).where(
+                    and_(
+                        Friend.user_id == friend_id,
+                        Friend.friend_id == user_id,
+                        Friend.status == FriendStatus.requested
+                    )
+                )
+            )
+            friendship_friend = result_friend.scalar_one_or_none()
+
+            if not friendship_friend:
+                return False
+
+            await db.delete(friendship_friend)
+            await db.commit()
+            
             return True
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"Error rejecting friend request: {e}")
             return False
-    
-    @staticmethod
-    async def block_user(db: AsyncSession, user_id: int, friend_id: int):
-        try:
-            friendship = await FriendRepository.get_friendship(db, user_id, friend_id)
-            
-            if friendship:
-                friendship.status = FriendStatus.blocked
-            else:
-                friendship = Friend(
-                    user_id=user_id,
-                    friend_id=friend_id,
-                    status=FriendStatus.blocked
-                )
-                db.add(friendship)
-            
-            await db.commit()
-            await db.refresh(friendship)
-            return friendship
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error blocking user: {e}")
-            return None
-    
-    @staticmethod
-    async def unblock_user(db: AsyncSession, user_id: int, friend_id: int):
-        try:
-            result = await db.execute(
-                select(Friend).where(
-                    and_(
-                        Friend.user_id == user_id,
-                        Friend.friend_id == friend_id,
-                        Friend.status == FriendStatus.blocked
-                    )
-                )
-            )
-            friendship = result.scalar_one_or_none()
-            
-            if not friendship:
-                return False
-            
-            await db.delete(friendship)
-            await db.commit()
-            return True
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error unblocking user: {e}")
-            return False
-    
+        
     @staticmethod
     async def unfriend(db: AsyncSession, user_id: int, friend_id: int):
         try:
@@ -154,10 +152,7 @@ class FriendRepository:
         try:
             result = await db.execute(
                 select(Friend).where(
-                    or_(
-                        and_(Friend.user_id == user_id, Friend.friend_id == friend_id),
-                        and_(Friend.user_id == friend_id, Friend.friend_id == user_id)
-                    )
+                    and_(Friend.user_id == user_id, Friend.friend_id == friend_id),
                 )
             )
             return result.scalar_one_or_none()
@@ -170,10 +165,7 @@ class FriendRepository:
         try:
             result = await db.execute(
                 select(Friend).where(
-                    or_(
-                        and_(Friend.user_id == user_id, Friend.status == FriendStatus.accepted),
-                        and_(Friend.friend_id == user_id, Friend.status == FriendStatus.accepted)
-                    )
+                    and_(Friend.user_id == user_id, Friend.status == FriendStatus.friend),
                 )
             )
             return result.scalars().all()
@@ -204,7 +196,7 @@ class FriendRepository:
                 select(Friend).where(
                     and_(
                         Friend.user_id == user_id,
-                        Friend.status == FriendStatus.pending
+                        Friend.status == FriendStatus.requested
                     )
                 )
             )
@@ -212,52 +204,3 @@ class FriendRepository:
         except SQLAlchemyError as e:
             print(f"Error getting sent requests: {e}")
             return []
-    
-    @staticmethod
-    async def get_blocked_users(db: AsyncSession, user_id: int):
-        try:
-            result = await db.execute(
-                select(Friend).where(
-                    and_(
-                        Friend.user_id == user_id,
-                        Friend.status == FriendStatus.blocked
-                    )
-                )
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"Error getting blocked users: {e}")
-            return []
-    
-    @staticmethod
-    async def are_friends(db: AsyncSession, user_id: int, friend_id: int) -> bool:
-        try:
-            result = await db.execute(
-                select(Friend).where(
-                    or_(
-                        and_(Friend.user_id == user_id, Friend.friend_id == friend_id, Friend.status == FriendStatus.accepted),
-                        and_(Friend.user_id == friend_id, Friend.friend_id == user_id, Friend.status == FriendStatus.accepted)
-                    )
-                )
-            )
-            return result.scalar_one_or_none() is not None
-        except SQLAlchemyError as e:
-            print(f"Error checking friendship: {e}")
-            return False
-    
-    @staticmethod
-    async def is_blocked(db: AsyncSession, user_id: int, friend_id: int) -> bool:
-        try:
-            result = await db.execute(
-                select(Friend).where(
-                    and_(
-                        Friend.user_id == user_id,
-                        Friend.friend_id == friend_id,
-                        Friend.status == FriendStatus.blocked
-                    )
-                )
-            )
-            return result.scalar_one_or_none() is not None
-        except SQLAlchemyError as e:
-            print(f"Error checking block status: {e}")
-            return False

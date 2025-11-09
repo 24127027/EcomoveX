@@ -3,11 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repository.friend_repository import FriendRepository
 from repository.user_repository import UserRepository
 from schemas.friend_schema import FriendRequest, FriendResponse
+from typing import List
 
 class FriendService:
-    
     @staticmethod
-    async def send_friend_request(db: AsyncSession, user_id: int, friend_request: FriendRequest):
+    async def send_friend_request(db: AsyncSession, user_id: int, friend_request: FriendRequest) -> FriendResponse:
         try:
             if user_id == friend_request.friend_id:
                 raise HTTPException(
@@ -35,8 +35,12 @@ class FriendService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to send friend request"
                 )
+            return FriendResponse(
+                user_id=friendship.user_id,
+                friend_id=friendship.friend_id,
+                status=friendship.status,
+            )
             
-            return friendship
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -44,7 +48,7 @@ class FriendService:
             )
     
     @staticmethod
-    async def accept_friend_request(db: AsyncSession, user_id: int, friend_id: int):
+    async def accept_friend_request(db: AsyncSession, user_id: int, friend_id: int) -> FriendResponse:
         try:
             friendship = await FriendRepository.accept_friend_request(db, user_id, friend_id)
             if not friendship:
@@ -52,7 +56,12 @@ class FriendService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Friend request not found"
                 )
-            return friendship
+                
+            return FriendResponse(
+                user_id=friendship.user_id,
+                friend_id=friendship.friend_id,
+                status=friendship.status,
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -74,45 +83,7 @@ class FriendService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error rejecting friend request: {e}"
             )
-    
-    @staticmethod
-    async def block_user(db: AsyncSession, user_id: int, friend_id: int):
-        try:
-            if user_id == friend_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot block yourself"
-                )
-            
-            friendship = await FriendRepository.block_user(db, user_id, friend_id)
-            if not friendship:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to block user"
-                )
-            return friendship
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error blocking user: {e}"
-            )
-    
-    @staticmethod
-    async def unblock_user(db: AsyncSession, user_id: int, friend_id: int):
-        try:
-            result = await FriendRepository.unblock_user(db, user_id, friend_id)
-            if not result:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Block not found"
-                )
-            return {"message": "User unblocked successfully"}
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error unblocking user: {e}"
-            )
-    
+        
     @staticmethod
     async def unfriend(db: AsyncSession, user_id: int, friend_id: int):
         try:
@@ -130,7 +101,7 @@ class FriendService:
             )
     
     @staticmethod
-    async def get_friends(db: AsyncSession, user_id: int):
+    async def get_friends(db: AsyncSession, user_id: int) -> List[FriendResponse]:
         try:
             friends = await FriendRepository.get_friends(db, user_id)
             friend_list = []
@@ -155,7 +126,7 @@ class FriendService:
             )
     
     @staticmethod
-    async def get_pending_requests(db: AsyncSession, user_id: int):
+    async def get_pending_requests(db: AsyncSession, user_id: int) -> List[FriendResponse]:
         try:
             requests = await FriendRepository.get_pending_requests(db, user_id)
             request_list = []
@@ -179,7 +150,7 @@ class FriendService:
             )
     
     @staticmethod
-    async def get_sent_requests(db: AsyncSession, user_id: int):
+    async def get_sent_requests(db: AsyncSession, user_id: int) -> List[FriendResponse]:
         try:
             from schemas.friend_schema import FriendResponse
             requests = await FriendRepository.get_sent_requests(db, user_id)
@@ -201,29 +172,4 @@ class FriendService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error getting sent requests: {e}"
-            )
-    
-    @staticmethod
-    async def get_blocked_users(db: AsyncSession, user_id: int):
-        try:
-            from schemas.friend_schema import FriendResponse
-            blocked = await FriendRepository.get_blocked_users(db, user_id)
-            blocked_list = []
-            
-            for block in blocked:
-                blocked_user = await UserRepository.get_user_by_id(db, block.friend_id)
-                
-                if blocked_user:
-                    blocked_list.append(FriendResponse(
-                        user_id=block.user_id,
-                        friend_id=block.friend_id,
-                        status=block.status,
-                        created_at=block.created_at
-                    ))
-            
-            return blocked_list
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error getting blocked users: {e}"
             )

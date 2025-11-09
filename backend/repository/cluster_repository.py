@@ -18,7 +18,6 @@ class ClusterRepository:
             result = await db.execute(select(Cluster))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching all clusters: {e}")
             return []
 
@@ -29,7 +28,6 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching cluster ID {cluster_id}: {e}")
             return None
 
@@ -40,7 +38,6 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.name == name))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching cluster by name {name}: {e}")
             return None
 
@@ -51,7 +48,6 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.algorithm == algorithm))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching clusters by algorithm {algorithm}: {e}")
             return []
 
@@ -182,7 +178,6 @@ class UserClusterAssociationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching users in cluster {cluster_id}: {e}")
             return []
 
@@ -197,7 +192,6 @@ class UserClusterAssociationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching clusters for user {user_id}: {e}")
             return []
 
@@ -298,7 +292,6 @@ class ClusterDestinationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching destinations in cluster {cluster_id}: {e}")
             return []
 
@@ -312,7 +305,6 @@ class ClusterDestinationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching clusters for destination {destination_id}: {e}")
             return []
 
@@ -365,7 +357,6 @@ class ClusterDestinationRepository:
             await db.commit()
             return True
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error removing all destinations from cluster {cluster_id}: {e}")
             return False
 
@@ -385,6 +376,5 @@ class ClusterDestinationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching top destinations in cluster {cluster_id}: {e}")
             return []

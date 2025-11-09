@@ -11,7 +11,6 @@ class DestinationRepository:
             result = await db.execute(select(Destination).where(Destination.google_place_id == destination_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error retrieving destination by ID {destination_id}: {e}")
             return None
         
@@ -94,7 +93,6 @@ class UserSavedDestinationRepository:
             result = await db.execute(select(UserSavedDestination).where(UserSavedDestination.user_id == user_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error retrieving saved destinations for user ID {user_id}: {e}")
             return []
         
@@ -130,6 +128,5 @@ class UserSavedDestinationRepository:
             )
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error checking saved destination for user ID {user_id} and destination ID {destination_id}: {e}")
             return False

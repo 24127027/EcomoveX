@@ -6,9 +6,9 @@ from enum import Enum
 from sqlalchemy.sql import func
 
 class FriendStatus(str, Enum):
+    requested = "Requested"
     pending = "Pending"
-    accepted = "Accepted"
-    blocked = "Blocked"
+    friend = "Friend"
     
 class Friend(UserBase):
     __tablename__ = "friends"
