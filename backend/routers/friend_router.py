@@ -56,28 +56,28 @@ async def unfriend(
 ):
     return await FriendService.unfriend(db, current_user["user_id"], friend_id)
 
-@router.get("/", response_model=List[FriendWithUserInfo], status_code=status.HTTP_200_OK)
+@router.get("/", response_model=List[FriendResponse], status_code=status.HTTP_200_OK)
 async def get_friends(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await FriendService.get_friends(db, current_user["user_id"])
 
-@router.get("/pending", response_model=List[FriendWithUserInfo], status_code=status.HTTP_200_OK)
+@router.get("/pending", response_model=List[FriendResponse], status_code=status.HTTP_200_OK)
 async def get_pending_requests(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await FriendService.get_pending_requests(db, current_user["user_id"])
 
-@router.get("/sent", response_model=List[FriendWithUserInfo], status_code=status.HTTP_200_OK)
+@router.get("/sent", response_model=List[FriendResponse], status_code=status.HTTP_200_OK)
 async def get_sent_requests(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await FriendService.get_sent_requests(db, current_user["user_id"])
 
-@router.get("/blocked", response_model=List[FriendWithUserInfo], status_code=status.HTTP_200_OK)
+@router.get("/blocked", response_model=List[FriendResponse], status_code=status.HTTP_200_OK)
 async def get_blocked_users(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)

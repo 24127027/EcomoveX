@@ -8,21 +8,21 @@ from typing import List
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
-@router.get("/destination/{destination_id}", response_model=List[ReviewResponse])
+@router.get("/destination/{destination_id}", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
 async def get_reviews_by_destination(
     destination_id: int = Path(..., gt=0, description="Destination ID"),
     db: AsyncSession = Depends(get_destination_db)
 ):
     return await ReviewService.get_reviews_by_destination(db, destination_id)
 
-@router.get("/user/{user_id}", response_model=List[ReviewResponse])
+@router.get("/user/{user_id}", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
 async def get_reviews_by_user(
     user_id: int = Path(..., gt=0, description="User ID"),
     db: AsyncSession = Depends(get_destination_db)
 ):
     return await ReviewService.get_reviews_by_user(db, user_id)
 
-@router.get("/me", response_model=List[ReviewResponse])
+@router.get("/me", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
 async def get_my_reviews(
     db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
@@ -37,7 +37,7 @@ async def create_review(
 ):
     return await ReviewService.create_review(dest_db, review_data, current_user["user_id"])
 
-@router.put("/{review_id}", response_model=ReviewResponse)
+@router.put("/{review_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
 async def update_review(
     review_id: int = Path(..., gt=0, description="Review ID"),
     updated_data: ReviewUpdate = ...,
@@ -46,7 +46,7 @@ async def update_review(
 ):
     return await ReviewService.update_review(db, review_id, updated_data)
 
-@router.delete("/{review_id}")
+@router.delete("/{review_id}", status_code=status.HTTP_200_OK)
 async def delete_review(
     review_id: int = Path(..., gt=0, description="Review ID"),
     db: AsyncSession = Depends(get_destination_db),
