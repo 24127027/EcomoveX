@@ -1,15 +1,25 @@
 import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
-from schemas.reward_schema import MissionCreate, MissionUpdate
+from schemas.reward_schema import MissionCreate, MissionUpdate, MissionResponse, UserRewardResponse
 from repository.mission_repository import MissionRepository, UserMissionRepository
 
 class RewardService:
     @staticmethod
-    async def get_all_missions(db: AsyncSession):
+    async def get_all_missions(db: AsyncSession) -> list[MissionResponse]:
         try:
             missions = await MissionRepository.get_all_missions(db)
-            return missions
+            mission_list = []
+            for mission in missions:
+                mission_list.append(MissionResponse(
+                    id=mission.id,
+                    name=mission.name,
+                    description=mission.description,
+                    reward_type=mission.reward_type,
+                    action_trigger=mission.action_trigger,
+                    value=mission.value
+                ))
+            return mission_list
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -17,7 +27,7 @@ class RewardService:
             )
         
     @staticmethod
-    async def get_mission_by_id(db: AsyncSession, mission_id: int):
+    async def get_mission_by_id(db: AsyncSession, mission_id: int) -> MissionResponse:
         try:
             mission = await MissionRepository.get_mission_by_id(db, mission_id)
             if not mission:
@@ -25,31 +35,22 @@ class RewardService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Mission with ID {mission_id} not found"
                 )
-            return mission
+            return MissionResponse(
+                id=mission.id,
+                name=mission.name,
+                description=mission.description,
+                reward_type=mission.reward_type,
+                action_trigger=mission.action_trigger,
+                value=mission.value
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving mission by ID {mission_id}: {e}"
             )
-    
+            
     @staticmethod
-    async def get_mission_by_name(db: AsyncSession, name: str):
-        try:
-            mission = await MissionRepository.get_mission_by_name(db, name)
-            if not mission:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Mission with name '{name}' not found"
-                )
-            return mission
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error retrieving mission by name '{name}': {e}"
-            )
-        
-    @staticmethod
-    async def update_mission(db: AsyncSession, mission_id: int, updated_data: MissionUpdate):
+    async def update_mission(db: AsyncSession, mission_id: int, updated_data: MissionUpdate)-> MissionResponse:
         try:
             mission = await MissionRepository.get_mission_by_id(db, mission_id)
             if not mission:
@@ -64,7 +65,14 @@ class RewardService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update mission"
                 )
-            return updated_mission
+            return MissionResponse(
+                id=updated_mission.id,
+                name=updated_mission.name,
+                description=updated_mission.description,
+                reward_type=updated_mission.reward_type,
+                action_trigger=updated_mission.action_trigger,
+                value=updated_mission.value
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -72,7 +80,7 @@ class RewardService:
             )
 
     @staticmethod
-    async def create_mission(db: AsyncSession, mission_data: MissionCreate):
+    async def create_mission(db: AsyncSession, mission_data: MissionCreate)-> MissionResponse:
         try:
             existing_mission = await MissionRepository.get_mission_by_name(db, mission_data.name)
             if existing_mission:
@@ -87,7 +95,14 @@ class RewardService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create mission"
                 )
-            return new_mission
+            return MissionResponse(
+                id=new_mission.id,
+                name=new_mission.name,
+                description=new_mission.description,
+                reward_type=new_mission.reward_type,
+                action_trigger=new_mission.action_trigger,
+                value=new_mission.value
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -95,10 +110,28 @@ class RewardService:
             )
         
     @staticmethod
-    async def all_completed_missions(db: AsyncSession, user_id: int):
+    async def all_completed_missions(db: AsyncSession, user_id: int) -> UserRewardResponse:
         try:
             completed_missions = await UserMissionRepository.get_all_missions_by_user(db, user_id)
-            return completed_missions
+            mission_list = []
+            value = 0
+            for mission_id in completed_missions:
+                mission = await MissionRepository.get_mission_by_id(db, mission_id)
+                if mission:
+                    mission_list.append(MissionResponse(
+                        id=mission.id,
+                        name=mission.name,
+                        description=mission.description,
+                        reward_type=mission.reward_type,
+                        action_trigger=mission.action_trigger,
+                        value=mission.value
+                    ))
+                    value += mission.value
+            return UserRewardResponse(
+                user_id=user_id,    
+                missions=mission_list,
+                total_value=value
+                )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -137,6 +170,22 @@ class RewardService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error completing mission: {e}"
+            )
+            
+    @staticmethod
+    async def remove_mission_from_user(db: AsyncSession, user_id: int, mission_id: int):
+        try:
+            success = await UserMissionRepository.remove_user_mission(db, user_id, mission_id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to remove mission {mission_id} from user {user_id}"
+                )
+            return {"detail": "Mission removed from user successfully"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error removing mission from user: {e}"
             )
         
     @staticmethod

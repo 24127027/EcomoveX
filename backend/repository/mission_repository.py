@@ -141,7 +141,6 @@ class UserMissionRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"Error fetching user badges for user {user_id}: {e}")
             return []
 
