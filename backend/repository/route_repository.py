@@ -1,9 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, and_, func
-from models.route import Route
-from schemas.route_schema import RouteCreate, RouteUpdate, RouteResponse
+from sqlalchemy import func, select, delete, and_
+from models.route import *
+from schemas.route_schema import *
 from typing import Optional, List
-from datetime import datetime
 
 class RouteRepository:
     @staticmethod
@@ -19,7 +18,7 @@ class RouteRepository:
                 distance_km=route_data.distance_km,
                 estimated_travel_time_min=route_data.estimated_travel_time_min,
                 carbon_emission_kg=route_data.carbon_emission_kg,
-                created_at=datetime.now()
+                created_at=func.now()
             )
             db.add(new_route)
             await db.commit()
@@ -27,7 +26,7 @@ class RouteRepository:
             return RouteResponse.model_validate(new_route)
         except Exception as e:
             await db.rollback()
-            print(f"Error creating route: {route_data}, {e}")
+            print(f"ERROR: creating route: {route_data}, {e}")
             return None
 
     @staticmethod
@@ -45,7 +44,7 @@ class RouteRepository:
             return [RouteResponse.model_validate(route) for route in routes]
         except Exception as e:
             await db.rollback()
-            print(f"Error fetching routes for user {user_id}: {e}")
+            print(f"ERROR: fetching routes for user {user_id} - {e}")
             return []
 
     @staticmethod
@@ -68,7 +67,7 @@ class RouteRepository:
             return RouteResponse.model_validate(route) if route else None
         except Exception as e:
             await db.rollback()
-            print(f"Error fetching route for user {user_id} from {origin_id} to {destination_id}: {e}")
+            print(f"ERROR: fetching route for user {user_id} from {origin_id} to {destination_id} - {e}")
             return None
 
     @staticmethod
@@ -86,7 +85,7 @@ class RouteRepository:
             return [RouteResponse.model_validate(route) for route in routes]
         except Exception as e:
             await db.rollback()
-            print(f"Error fetching routes from origin {origin_id}: {e}")
+            print(f"ERROR: fetching routes from origin {origin_id} - {e}")
             return []
 
     @staticmethod
@@ -105,7 +104,7 @@ class RouteRepository:
             return [RouteResponse.model_validate(route) for route in routes]
         except Exception as e:
             await db.rollback()
-            print(f"Error fetching routes from destination {destination_id}: {e}")
+            print(f"ERROR: fetching routes from destination {destination_id} - {e}")
             return []
 
     @staticmethod
@@ -142,7 +141,7 @@ class RouteRepository:
             return RouteResponse.model_validate(route)
         except Exception as e:
             await db.rollback()
-            print(f"Error updating route for user {user_id} from {origin_id} to {destination_id}: {e}")
+            print(f"ERROR: updating route for user {user_id} from {origin_id} to {destination_id} - {e}")
             return None
 
     @staticmethod
@@ -165,5 +164,5 @@ class RouteRepository:
             return result.rowcount > 0
         except Exception as e:
             await db.rollback()
-            print(f"Error deleting route for user {user_id} from {origin_id} to {destination_id}: {e}")
+            print(f"ERROR: deleting route for user {user_id} from {origin_id} to {destination_id} - {e}")
             return False

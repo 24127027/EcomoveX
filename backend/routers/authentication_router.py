@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_user_db
-from schemas.authentication_schema import UserLogin, UserRegister, AuthenticationResponse
+from schemas.authentication_schema import *
 from services.authentication_service import AuthenticationService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])

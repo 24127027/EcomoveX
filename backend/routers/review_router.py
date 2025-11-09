@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Path
+from typing import List
+from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.models.user import Activity
+from models.user import *
 from database.destination_database import get_destination_db
 from database.user_database import get_user_db
-from schemas.review_schema import ReviewCreate, ReviewUpdate, ReviewResponse
-from schemas.user_schema import UserActivityCreate
+from schemas.review_schema import *
+from schemas.user_schema import *
 from services.review_service import ReviewService
 from services.user_service import UserActivityService
 from utils.authentication_util import get_current_user
-from typing import List
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 

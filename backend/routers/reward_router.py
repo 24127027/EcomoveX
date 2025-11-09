@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Path
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_user_db
-from schemas.reward_schema import MissionCreate, MissionUpdate, MissionResponse, UserRewardResponse
+from schemas.reward_schema import *
 from services.reward_service import RewardService
 from utils.authentication_util import get_current_user
-from typing import List
 
 router = APIRouter(prefix="/rewards", tags=["Rewards & Missions"])
 

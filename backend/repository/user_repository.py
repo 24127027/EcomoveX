@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
-from models.user import User, Rank, Activity, UserActivity
-from schemas.user_schema import UserProfileUpdate, UserCredentialUpdate, UserActivityCreate
-from schemas.authentication_schema import UserRegister
+from sqlalchemy.ext.asyncio import AsyncSession
+from models.user import *
+from schemas.authentication_schema import *
+from schemas.user_schema import *
 
 class UserRepository:
     @staticmethod
@@ -14,7 +13,7 @@ class UserRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error retrieving user by ID {user_id}: {e}")
+            print(f"ERROR: Failed to retrieve user by ID {user_id} - {e}")
             return None
                   
     @staticmethod
@@ -24,7 +23,7 @@ class UserRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error retrieving user by email {email}: {e}")
+            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
             return None
         
     @staticmethod
@@ -34,7 +33,7 @@ class UserRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error retrieving user by username {username}: {e}")
+            print(f"ERROR: Failed to retrieve user by username {username} - {e}")
             return None
 
     @staticmethod
@@ -53,7 +52,7 @@ class UserRepository:
             return new_user
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating user: {e}")
+            print(f"ERROR: Failed to create user - {e}")
             return None
 
     @staticmethod
@@ -61,7 +60,7 @@ class UserRepository:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
-                print(f"User with ID {user_id} not found")
+                print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return None
 
             if updated_data.new_username is not None:
@@ -77,7 +76,7 @@ class UserRepository:
             return user
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating user ID {user_id}: {e}")
+            print(f"ERROR: Failed to update user credentials for ID {user_id} - {e}")
             return None
         
     @staticmethod
@@ -85,7 +84,7 @@ class UserRepository:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
-                print(f"User with ID {user_id} not found")
+                print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return None
 
             if updated_data.eco_point is not None:
@@ -99,7 +98,7 @@ class UserRepository:
             return user
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating user information {user_id}: {e}")
+            print(f"ERROR: Failed to update user profile for ID {user_id} - {e}")
             return None
         
     @staticmethod
@@ -107,7 +106,7 @@ class UserRepository:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
-                print(f"User with ID {user_id} not found")
+                print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return False
 
             await db.delete(user)
@@ -115,7 +114,7 @@ class UserRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting user ID {user_id}: {e}")
+            print(f"ERROR: Failed to delete user with ID {user_id} - {e}")
             return False
         
 class UserActivityRepository:
@@ -126,7 +125,7 @@ class UserActivityRepository:
                 user_id=user_id,
                 activity_type=data.activity_type,
                 destination_id=data.destination_id,
-                timestamp=datetime.utcnow()
+                timestamp=func.now()
             )
             db.add(new_activity)
             await db.commit()
@@ -134,7 +133,7 @@ class UserActivityRepository:
             return new_activity
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error logging user activity for user ID {user_id}: {e}")
+            print(f"ERROR: Failed to log activity for user ID {user_id} - {e}")
             return None
         
     @staticmethod
@@ -148,5 +147,5 @@ class UserActivityRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error retrieving activities for user ID {user_id}: {e}")
+            print(f"ERROR: Failed to retrieve activities for user ID {user_id} - {e}")
             return []

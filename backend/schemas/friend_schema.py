@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
 from datetime import datetime
 from enum import Enum
 from models.friend import FriendStatus

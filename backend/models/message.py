@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import relationship
-from database.user_database import UserBase
 from enum import Enum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from database.user_database import UserBase
 
 class MessageType(str, Enum):
     text = "text"

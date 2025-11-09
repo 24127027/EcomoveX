@@ -1,10 +1,9 @@
+from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
-from typing import Any, List, Dict, Optional
-from services.map_service import create_maps_client
+from models.route import RouteType
 from schemas.route_schema import *
 from services.carbon_service import CarbonService
-from sqlalchemy.ext.asyncio import AsyncSession
-from models.route import RouteType
+from services.map_service import create_maps_client
 
 class RouteService:
     @staticmethod
@@ -330,7 +329,7 @@ class RouteService:
             
             return None
         except Exception as e:
-            print(f"Warning: Failed to find smart route: {str(e)}")
+            print(f"WARNING: Failed to find smart route - {str(e)}")
             return None
         
     @staticmethod
@@ -364,7 +363,7 @@ class RouteService:
             
             return recommendation
         except Exception as e:
-            print(f"Warning: Failed to generate recommendation: {str(e)}")
+            print(f"WARNING: Failed to generate recommendation - {str(e)}")
             return {
                 "route": "fastest",
                 "reason": "Default recommendation"

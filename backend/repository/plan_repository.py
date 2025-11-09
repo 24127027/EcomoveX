@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from models.plan import Plan, PlanDestination
-from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
+from models.plan import *
+from schemas.plan_schema import *
 
 class PlanRepository:
     @staticmethod
@@ -12,7 +12,7 @@ class PlanRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error retrieving plans for user ID {user_id}: {e}")
+            print(f"ERROR: retrieving plans for user ID {user_id} - {e}")
             return None
 
     @staticmethod
@@ -31,7 +31,7 @@ class PlanRepository:
             return new_plan
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating plan: {e}")
+            print(f"ERROR: creating plan - {e}")
             return None
 
     @staticmethod
@@ -40,7 +40,7 @@ class PlanRepository:
             result = await db.execute(select(Plan).where(Plan.id == plan_id))
             plan = result.scalar_one_or_none()
             if not plan:
-                print(f"Plan ID {plan_id} not found")
+                print(f"WARNING: WARNING: Plan ID {plan_id} not found")
                 return None
 
             if updated_data.place_name is not None:
@@ -58,7 +58,7 @@ class PlanRepository:
             return plan
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating plan ID {plan_id}: {e}")
+            print(f"ERROR: updating plan ID {plan_id} - {e}")
             return None
         
     @staticmethod
@@ -67,7 +67,7 @@ class PlanRepository:
             result = await db.execute(select(Plan).where(Plan.id == plan_id))
             plan = result.scalar_one_or_none()
             if not plan:
-                print(f"Plan ID {plan_id} not found")
+                print(f"WARNING: WARNING: Plan ID {plan_id} not found")
                 return False
 
             await db.delete(plan)
@@ -75,7 +75,7 @@ class PlanRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting plan ID {plan_id}: {e}")
+            print(f"ERROR: deleting plan ID {plan_id} - {e}")
             return False
 
     @staticmethod
@@ -88,7 +88,7 @@ class PlanRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error retrieving destinations for plan ID {plan_id}: {e}")
+            print(f"ERROR: retrieving destinations for plan ID {plan_id} - {e}")
             return []
 
     @staticmethod
@@ -108,7 +108,7 @@ class PlanRepository:
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error adding destination {destination_id} to plan {plan_id}: {e}")
+            print(f"ERROR: adding destination {destination_id} to plan {plan_id} - {e}")
             return None
 
     @staticmethod
@@ -120,7 +120,7 @@ class PlanRepository:
             )
             plan_dest = result.scalar_one_or_none()
             if not plan_dest:
-                print(f"PlanDestination ID {plan_destination_id} not found")
+                print(f"WARNING: WARNING: PlanDestination ID {plan_destination_id} not found")
                 return False
 
             await db.delete(plan_dest)
@@ -128,5 +128,5 @@ class PlanRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error removing plan destination ID {plan_destination_id}: {e}")
+            print(f"ERROR: removing plan destination ID {plan_destination_id} - {e}")
             return False

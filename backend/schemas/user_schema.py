@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
-from typing import Optional   
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from models.user import Activity
 
 class UserCredentialUpdate(BaseModel):

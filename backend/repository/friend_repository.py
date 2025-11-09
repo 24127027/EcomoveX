@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, and_
 from sqlalchemy.exc import SQLAlchemyError
-from models.friend import Friend, FriendStatus
+from models.friend import *
 
 class FriendRepository:
     
@@ -33,7 +33,7 @@ class FriendRepository:
             return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error sending friend request: {e}")
+            print(f"ERROR: sending friend request - {e}")
             return None
     
     @staticmethod
@@ -78,7 +78,7 @@ class FriendRepository:
             return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error accepting friend request: {e}")
+            print(f"ERROR: accepting friend request - {e}")
             return None
     
     @staticmethod
@@ -121,7 +121,7 @@ class FriendRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error rejecting friend request: {e}")
+            print(f"ERROR: rejecting friend request - {e}")
             return False
         
     @staticmethod
@@ -144,7 +144,7 @@ class FriendRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error unfriending: {e}")
+            print(f"ERROR: unfriending - {e}")
             return False
     
     @staticmethod
@@ -157,7 +157,7 @@ class FriendRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"Error getting friendship: {e}")
+            print(f"ERROR: getting friendship - {e}")
             return None
     
     @staticmethod
@@ -170,7 +170,7 @@ class FriendRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"Error getting friends: {e}")
+            print(f"ERROR: getting friends - {e}")
             return []
     
     @staticmethod
@@ -186,7 +186,7 @@ class FriendRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"Error getting pending requests: {e}")
+            print(f"ERROR: getting pending requests - {e}")
             return []
     
     @staticmethod
@@ -202,5 +202,5 @@ class FriendRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"Error getting sent requests: {e}")
+            print(f"ERROR: getting sent requests - {e}")
             return []

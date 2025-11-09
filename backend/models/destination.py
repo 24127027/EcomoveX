@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Integer, Float, String, PrimaryKeyConstraint, ForeignKey, DateTime, Enum as SQLEnum
+from enum import Enum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from database.destination_database import DestinationBase
 from database.user_database import UserBase
-from sqlalchemy.sql import func
-from enum import Enum
 
 class GreenVerifiedStatus(str, Enum):
     Green_Certified = "Green Certified"
@@ -25,8 +25,8 @@ class UserSavedDestination(UserBase):
         PrimaryKeyConstraint('user_id', 'destination_id'),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    destination_id = Column(String(255), nullable=False, primary_key=True)
     saved_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User", back_populates="saved_destinations")

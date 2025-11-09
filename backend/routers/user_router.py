@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_user_db
-from schemas.user_schema import UserActivityCreate, UserActivityResponse, UserCredentialUpdate, UserResponse, UserProfileUpdate
-from schemas.authentication_schema import UserRegister
+from schemas.authentication_schema import *
+from schemas.user_schema import *
 from services.user_service import UserActivityService, UserService
-from repository.user_repository import UserRepository
 from utils.authentication_util import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -35,14 +34,14 @@ async def update_user_profile(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await UserRepository.update_user_profile(db, current_user["user_id"], updated_data)
+    return await UserService.update_user_profile(db, current_user["user_id"], updated_data)
 
 @router.delete("/me", status_code=status.HTTP_200_OK)
 async def delete_user(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
-    deleted = await UserRepository.delete_user(db, current_user["user_id"])
+    deleted = await UserService.delete_user(db, current_user["user_id"])
     if deleted:
         return {"message": "User deleted successfully"}
     raise HTTPException(

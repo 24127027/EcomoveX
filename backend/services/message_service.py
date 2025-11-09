@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from repository.message_repository import MessageRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.message_schema import MessageCreate, MessageUpdate
+from schemas.message_schema import *
 
 class MessageService:
     @staticmethod

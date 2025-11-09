@@ -1,13 +1,13 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from typing import Optional, List, Tuple
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional
 from models.destination import GreenVerifiedStatus
 
 class DestinationCreate(BaseModel):
-    place_id: str = Field(..., description="Google Place ID")
+    place_id: str
     green_verified_status: Optional[GreenVerifiedStatus] = None 
 
 class DestinationUpdate(BaseModel):
-    green_verified_status: Optional[GreenVerifiedStatus] = Field(None, description="Trạng thái xanh verified")
+    green_verified_status: Optional[GreenVerifiedStatus] = None
     
 class UserSavedDestinationCreate(BaseModel):
     user_id: int = Field(..., gt=0)

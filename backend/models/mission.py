@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, String, PrimaryKeyConstraint
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import relationship
-from database.user_database import UserBase
 from enum import Enum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from database.user_database import UserBase
 
 class RewardType(str, Enum):
     eco_point = "eco_point"
@@ -36,8 +35,8 @@ class UserMission(UserBase):
         PrimaryKeyConstraint('user_id', 'mission_id'),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    mission_id = Column(Integer, ForeignKey("missions.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    mission_id = Column(Integer, ForeignKey("missions.id", ondelete="CASCADE"), nullable=False, primary_key=True)
     completed_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="missions")

@@ -1,10 +1,10 @@
-from polars import List
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
 from repository.user_repository import UserRepository, UserActivityRepository
-from schemas.user_schema import UserActivityResponse, UserProfileUpdate, UserCredentialUpdate, UserActivityCreate, UserResponse
 from schemas.authentication_schema import UserRegister
+from schemas.user_schema import *
 
 class UserService:
     @staticmethod

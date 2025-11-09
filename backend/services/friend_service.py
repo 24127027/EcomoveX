@@ -1,9 +1,9 @@
+from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from repository.friend_repository import FriendRepository
 from repository.user_repository import UserRepository
-from schemas.friend_schema import FriendRequest, FriendResponse
-from typing import List
+from schemas.friend_schema import *
 
 class FriendService:
     @staticmethod

@@ -1,8 +1,7 @@
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from integration.climatiq_api import create_climatiq_client
 from typing import Optional
-from models.route import TransportMode
+from models.route import *
 
 class CarbonService:
     @staticmethod

@@ -1,15 +1,9 @@
-﻿import httpx
-from typing import Dict, List, Optional, Any, Tuple
-from utils.config import settings
-import math
-from schemas.map_schema import (
-    SearchLocationRequest,
-    DirectionsResponse,
-    GeocodingResponse,
-    AutocompleteResponse,
-    PlaceDetailsResponse
-)
+﻿import math
+from typing import Any, Dict, List, Optional, Tuple
+import httpx
 from models.route import TransportMode
+from schemas.map_schema import *
+from utils.config import settings
 
 class GoogleMapsAPI:   
     def __init__(self, api_key: Optional[str] = None):

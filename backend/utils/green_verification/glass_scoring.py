@@ -1,8 +1,8 @@
-from ultralytics import YOLO
-import cv2
-from typing import Optional, Dict, List
-import numpy as np
 import os
+from typing import Dict, List, Optional
+import cv2
+import numpy as np
+from ultralytics import YOLO
 
 class CupDetectorScorer:
     def __init__(

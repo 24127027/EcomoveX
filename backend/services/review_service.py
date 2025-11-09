@@ -1,9 +1,9 @@
-from fastapi import HTTPException, status
 from typing import List
-from repository.review_repository import ReviewRepository
-from repository.destination_repository import DestinationRepository
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.review_schema import ReviewCreate, ReviewUpdate, ReviewResponse
+from repository.destination_repository import DestinationRepository
+from repository.review_repository import ReviewRepository
+from schemas.review_schema import *
 
 class ReviewService:
     @staticmethod

@@ -1,13 +1,12 @@
-from .user import User, Role, Activity, Rank
-UserRole = Role
-from .message import Message
-from .review import Review
+from .cluster import Cluster, ClusterDestination, UserClusterAssociation
 from .destination import Destination, UserSavedDestination
+from .friend import Friend
+from .message import Message
 from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
-from .cluster import Cluster, ClusterDestination, UserClusterAssociation
-from .friend import Friend
+from .review import Review
 from .route import Route
+from .user import User
 
 __all__ = [
     "User",

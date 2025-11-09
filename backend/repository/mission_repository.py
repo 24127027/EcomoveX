@@ -1,12 +1,9 @@
-from datetime import datetime, UTC
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
-from models.user import User
-from models.mission import Mission, UserMission
-from schemas.reward_schema import MissionAction, MissionCreate, MissionUpdate
-from schemas.user_schema import UserCredentialUpdate
-from repository.user_repository import UserRepository
+from models.user import *
+from models.mission import *
+from schemas.reward_schema import *
 
 class MissionRepository:
     @staticmethod
@@ -16,7 +13,7 @@ class MissionRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching all missions: {e}")
+            print(f"ERROR: fetching all missions - {e}")
             return []
 
     @staticmethod
@@ -26,7 +23,7 @@ class MissionRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching mission with id {mission_id}: {e}")
+            print(f"ERROR: fetching mission with id {mission_id} - {e}")
             return None
         
     @staticmethod
@@ -36,7 +33,7 @@ class MissionRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching mission with name {name}: {e}")
+            print(f"ERROR: fetching mission with name {name} - {e}")
             return None
 
     @staticmethod
@@ -55,7 +52,7 @@ class MissionRepository:
             return new_mission
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating mission: {mission_data}, {e}")
+            print(f"ERROR: creating mission: {mission_data}, {e}")
             return None
 
     @staticmethod
@@ -64,7 +61,7 @@ class MissionRepository:
             result = await db.execute(select(Mission).where(Mission.id == mission_id))
             mission = result.scalar_one_or_none()
             if not mission:
-                print(f"Mission with id {mission_id} not found for update.")
+                print(f"WARNING: WARNING: Mission with id {mission_id} not found for update.")
                 return None
 
             if updated_data.name is not None:
@@ -84,7 +81,7 @@ class MissionRepository:
             return mission
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating mission with id {mission_id}: {e}")
+            print(f"ERROR: updating mission with id {mission_id} - {e}")
             return None
 
     @staticmethod
@@ -100,7 +97,7 @@ class MissionRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting mission with id {mission_id}: {e}")
+            print(f"ERROR: deleting mission with id {mission_id} - {e}")
             return False
 
 class UserMissionRepository:
@@ -110,18 +107,18 @@ class UserMissionRepository:
             user = await db.get(User, user_id)
             mission = await db.get(Mission, mission_id)
             if not user or not mission:
-                print(f"User or Mission not found (user={user_id}, mission={mission_id})")
+                print(f"WARNING: User or Mission not found (user={user_id}, mission={mission_id})")
                 return None
 
             existing = await UserMissionRepository.completed_mission(db, user_id, mission_id)
             if existing:
-                print("User already completed this mission.")
+                print("WARNING: User already completed this mission")
                 return existing
 
             new_user_mission = UserMission(
                 user_id=user_id,
                 mission_id=mission_id,
-                completed_at=datetime.now(UTC).replace(tzinfo=None)
+                completed_at=func.now()
             )
             db.add(new_user_mission)
             await db.commit()
@@ -130,7 +127,7 @@ class UserMissionRepository:
 
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error while adding mission to user: {e}")
+            print(f"ERROR: while adding mission to user - {e}")
             return None
 
     @staticmethod
@@ -141,7 +138,7 @@ class UserMissionRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"Error fetching user badges for user {user_id}: {e}")
+            print(f"ERROR: fetching user badges for user {user_id} - {e}")
             return []
 
     @staticmethod
@@ -153,7 +150,7 @@ class UserMissionRepository:
             )
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
-            print(f"Error checking if user has completed mission: {e}")
+            print(f"ERROR: checking if user has completed mission - {e}")
             return False
 
     @staticmethod
@@ -167,7 +164,7 @@ class UserMissionRepository:
             )
             user_mission = result.scalar_one_or_none()
             if not user_mission:
-                print(f"Mission {mission_id} not found for user {user_id}.")
+                print(f"WARNING: WARNING: Mission {mission_id} not found for user {user_id}.")
                 return False
 
             await db.delete(user_mission)
@@ -175,5 +172,5 @@ class UserMissionRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting mission for user {user_id}: {e}")
+            print(f"ERROR: deleting mission for user {user_id} - {e}")
             return False

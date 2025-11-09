@@ -1,9 +1,9 @@
+from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from schemas.friend_schema import FriendRequest, FriendResponse, FriendWithUserInfo
-from services.friend_service import FriendService
 from database.user_database import get_user_db
+from schemas.friend_schema import *
+from services.friend_service import FriendService
 from utils.authentication_util import get_current_user
 
 router = APIRouter(prefix="/friends", tags=["friends"])

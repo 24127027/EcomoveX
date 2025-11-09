@@ -1,8 +1,8 @@
+from typing import Optional
 import httpx
 import requests
-from typing import Dict, Any, Optional
-from utils.config import settings
 from models.route import TransportMode
+from utils.config import settings
 class climatiqAPI:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.CLIMATIQ_API_KEY

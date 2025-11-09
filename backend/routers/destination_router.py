@@ -1,13 +1,12 @@
-from fastapi import APIRouter, Depends, Query, Path, status
+from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.destination_database import get_destination_db
+from models.user import *
 from database.user_database import get_user_db
-from schemas.destination_schema import UserSavedDestinationResponse
-from schemas.user_schema import UserActivityCreate
-from services.destination_service import DestinationService, UserSavedDestinationService
+from schemas.destination_schema import *
+from schemas.user_schema import *
+from services.destination_service import UserSavedDestinationService
 from services.user_service import UserActivityService
 from utils.authentication_util import get_current_user
-from models.user import Activity
 
 router = APIRouter(prefix="/destinations", tags=["Destinations"])
 

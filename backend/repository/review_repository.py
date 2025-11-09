@@ -1,9 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from models.review import Review
-from datetime import datetime, UTC
-from schemas.review_schema import ReviewCreate, ReviewUpdate
+from models.review import *
+from schemas.review_schema import *
 
 class ReviewRepository:
     @staticmethod
@@ -12,7 +11,7 @@ class ReviewRepository:
             result = await db.execute(select(Review).where(Review.destination_id == destination_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"Error fetching all reviews: {e}")
+            print(f"ERROR: fetching all reviews - {e}")
             return []
 
     @staticmethod
@@ -21,7 +20,7 @@ class ReviewRepository:
             result = await db.execute(select(Review).where(Review.user_id == user_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"Error fetching review for user {user_id}: {e}")
+            print(f"ERROR: fetching review for user {user_id} - {e}")
             return None
         
     @staticmethod
@@ -35,7 +34,7 @@ class ReviewRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"Error fetching review for destination {destination_id} and user {user_id}: {e}")
+            print(f"ERROR: fetching review for destination {destination_id} and user {user_id} - {e}")
             return None
         
     @staticmethod
@@ -53,7 +52,7 @@ class ReviewRepository:
             return new_review
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating review: {e}")
+            print(f"ERROR: creating review - {e}")
             return None
 
     @staticmethod
@@ -61,7 +60,7 @@ class ReviewRepository:
         try:
             review = await ReviewRepository.get_review_by_destination_and_user(db, destination_id, user_id)
             if not review:
-                print(f"Review for destination {destination_id} and user {user_id} not found")
+                print(f"WARNING: WARNING: Review for destination {destination_id} and user {user_id} not found")
                 return None
 
             if updated_data.rating is not None:
@@ -75,7 +74,7 @@ class ReviewRepository:
             return review
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating review for destination {destination_id} and user {user_id}: {e}")
+            print(f"ERROR: updating review for destination {destination_id} and user {user_id} - {e}")
             return None
 
     @staticmethod
@@ -89,7 +88,7 @@ class ReviewRepository:
             )
             review = result.scalar_one_or_none()
             if not review:
-                print(f"Review for destination {destination_id} and user {user_id} not found")
+                print(f"WARNING: WARNING: Review for destination {destination_id} and user {user_id} not found")
                 return False
 
             await db.delete(review)
@@ -97,5 +96,5 @@ class ReviewRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting review for destination {destination_id} and user {user_id}: {e}")
+            print(f"ERROR: deleting review for destination {destination_id} and user {user_id} - {e}")
             return False

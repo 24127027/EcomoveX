@@ -1,6 +1,6 @@
+import re
 import spacy
 from spacy.matcher import PhraseMatcher
-import re
 
 nlp = spacy.load("en_core_web_sm")
 
@@ -80,7 +80,3 @@ def parse_query(text):
     result["price"] = extract_price(text)
 
     return result
-
-if __name__ == "__main__":
-    q = "cheap vegan cafe open now around here 3 less than 50k with plants"
-    print(parse_query(q))

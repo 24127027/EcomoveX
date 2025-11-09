@@ -1,8 +1,8 @@
 from fastapi import HTTPException, status
-from repository.plan_repository import PlanRepository
-from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.plan_schema import PlanRequestCreate, PlanRequestUpdate
+from repository.destination_repository import DestinationRepository
+from repository.plan_repository import PlanRepository
+from schemas.plan_schema import *
 
 class PlanService:
     @staticmethod

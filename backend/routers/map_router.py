@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.user import Activity
-from services.map_service import MapService
-from services.user_service import UserActivityService
-from schemas.map_schema import SearchLocationRequest, SearchLocationResponse, PlaceDetailsResponse
-from schemas.user_schema import UserActivityCreate
+from models.user import *
 from database.destination_database import get_destination_db
 from database.user_database import get_user_db
+from schemas.map_schema import *
+from schemas.user_schema import *
+from services.map_service import MapService
+from services.user_service import UserActivityService
 from utils.authentication_util import get_current_user
 
 router = APIRouter(prefix="/map", tags=["Map Search"])

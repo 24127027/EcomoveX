@@ -25,44 +25,44 @@ from services.carbon_service import CarbonService
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("🚀 Starting EcomoveX Backend...")
+    print("Starting EcomoveX Backend...")
     
     try:
         await init_user_db(drop_all=False)
-        print("✅ Main database initialized")
+        print("User database initialized")
     except Exception as e:
-        print(f"⚠️  Main database initialization failed: {e}")
+        print(f"WARNING: User database initialization failed - {e}")
     
     try:
         await init_destination_db(drop_all=False)
-        print("✅ Destination database initialized")
+        print("Destination database initialized")
     except Exception as e:
-        print(f"⚠️  Destination database initialization failed: {e}")
+        print(f"WARNING: Destination database initialization failed - {e}")
     
     # Refresh emission factors from Climatiq API
     try:
-        print("🌍 Loading latest emission factors from Climatiq API...")
+        print("Loading emission factors from Climatiq API...")
         await CarbonService.refresh_emission_factors()
-        print("✅ Emission factors loaded successfully")
+        print("Emission factors loaded successfully")
     except Exception as e:
-        print(f"⚠️  Emission factors refresh failed (using fallback values): {e}")
+        print(f"WARNING: Emission factors refresh failed, using fallback values - {e}")
     
     yield  # App is running
     
     # Shutdown: Cleanup
-    print("🛑 Shutting down EcomoveX Backend...")
+    print("Shutting down EcomoveX Backend...")
     
     try:
         await user_engine.dispose()
-        print("✅ Main database connections closed")
+        print("User database connections closed")
     except Exception as e:
-        print(f"⚠️  Error closing main database: {e}")
+        print(f"ERROR: Failed to close user database - {e}")
     
     try:
         await destination_engine.dispose()
-        print("✅ Destination database connections closed")
+        print("Destination database connections closed")
     except Exception as e:
-        print(f"⚠️  Error closing destination database: {e}")
+        print(f"ERROR: Failed to close destination database - {e}")
 
 
 # Create FastAPI application
