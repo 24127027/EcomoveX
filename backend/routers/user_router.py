@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.user_database import get_user_db
-from schemas.user_schema import UserCredentialUpdate, UserResponse, UserProfileUpdate
+from schemas.user_schema import UserActivityCreate, UserActivityResponse, UserCredentialUpdate, UserResponse, UserProfileUpdate
 from schemas.authentication_schema import UserRegister
-from services.user_service import UserService
+from services.user_service import UserActivityService, UserService
 from repository.user_repository import UserRepository
 from utils.authentication_util import get_current_user
 
@@ -15,13 +16,6 @@ async def get_my_profile(
     current_user: dict = Depends(get_current_user)
 ):
     return await UserService.get_user_by_id(db, current_user["user_id"])
-
-@router.get("/{user_id}", response_model=UserResponse, status_code=status.HTTP_200_OK)
-async def get_user_by_id(
-    user_id: int = Path(..., gt=0, description="User ID"),
-    db: AsyncSession = Depends(get_user_db)
-):
-    return await UserService.get_user_by_id(db, user_id)
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(user_data: UserRegister, db: AsyncSession = Depends(get_user_db)):
@@ -68,3 +62,18 @@ async def add_eco_point(
             detail="Only admin users can add eco point"
         )
     return await UserService.add_eco_point(db, current_user["user_id"], point)
+
+@router.post("/me/activity", status_code=status.HTTP_201_CREATED)
+async def log_user_activity(
+    data: UserActivityCreate,
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await UserActivityService.log_user_activity(db, current_user["user_id"], data)
+
+@router.get("/me/activity", response_model=List[UserActivityResponse], status_code=status.HTTP_200_OK)
+async def get_user_activities(
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await UserActivityService.get_user_activities(db, current_user["user_id"])

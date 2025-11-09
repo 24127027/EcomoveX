@@ -37,3 +37,11 @@ class UserResponse(BaseModel):
 class UserActivityCreate(BaseModel):
     activity_type: str
     destination_id: int
+    
+class UserActivityResponse(BaseModel):
+    user_id: int
+    destination_id: int
+    activity: str
+    timestamp: str
+
+    model_config = ConfigDict(from_attributes=True)

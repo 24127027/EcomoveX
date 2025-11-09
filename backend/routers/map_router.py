@@ -5,6 +5,7 @@ from services.map_service import MapService
 from schemas.map_schema import SearchLocationRequest, SearchLocationResponse, PlaceDetailsResponse
 from pydantic import BaseModel, Field
 from database.destination_database import get_destination_db
+from utils.authentication_util import get_current_user
 
 router = APIRouter(prefix="/map", tags=["Map Search"])
 
@@ -16,7 +17,8 @@ async def search_location(request: SearchLocationRequest, db: AsyncSession = Dep
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
     place_id: str,
-    language: str = Query("vi")
+    language: str = Query("vi"),
+    current_user: dict = Depends(get_current_user)
 ):
     result = await MapService.get_location_details(
         place_id=place_id,

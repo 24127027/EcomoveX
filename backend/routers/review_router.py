@@ -22,13 +22,14 @@ async def get_my_reviews(
 ):
     return await ReviewService.get_reviews_by_user(db, current_user["user_id"])
 
-@router.post("/", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(
-    review_data: ReviewCreate,
+    destination_id: int = Path(..., gt=0, description="Destination ID"),
+    review_data: ReviewCreate = ...,
     dest_db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await ReviewService.create_review(dest_db, review_data, current_user["user_id"])
+    return await ReviewService.create_review(dest_db, destination_id, review_data, current_user["user_id"])
 
 @router.put("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
 async def update_review(
