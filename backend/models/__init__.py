@@ -6,7 +6,7 @@ from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
 from .review import Review
 from .route import Route
-from .user import User
+from .user import User, UserActivity
 
 __all__ = [
     "User",
@@ -17,11 +17,11 @@ __all__ = [
     "PlanDestination",
     "Mission",
     "UserMission",
-    "CarbonEmission",
     "Cluster",
     "ClusterDestination",
     "UserClusterAssociation",
     "Friend",
     "UserSavedDestination",
     "Route",
+    "UserActivity",
 ]

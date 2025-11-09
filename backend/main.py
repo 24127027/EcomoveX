@@ -8,7 +8,7 @@ from routers.review_router import router as review_router
 from routers.friend_router import router as friend_router
 from routers.destination_router import router as destination_router
 from routers.route_router import router as route_router
-from backend.routers.map_router import router as map_search_router
+from routers.map_router import router as map_search_router
 # from routers.chatbot_router import router as chatbot_router
 # from routers.recommendation_router import router as recommendation_router
 from routers.reward_router import router as reward_router
