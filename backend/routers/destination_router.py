@@ -12,7 +12,7 @@ router = APIRouter(prefix="/destinations", tags=["Destinations"])
 
 @router.post("/saved/{destination_id}", response_model=UserSavedDestinationResponse, status_code=status.HTTP_201_CREATED)
 async def save_destination_for_current_user(
-    destination_id: int = Path(..., gt=0, description="Destination ID to save"),
+    destination_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -40,7 +40,7 @@ async def get_my_saved_destinations(
 
 @router.delete("/saved/{destination_id}", status_code=status.HTTP_200_OK)
 async def unsave_destination_for_current_user(
-    destination_id: int = Path(..., gt=0, description="Destination ID to unsave"),
+    destination_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):

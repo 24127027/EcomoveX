@@ -14,7 +14,7 @@ async def get_all_missions(user_db: AsyncSession = Depends(get_user_db)):
 
 @router.get("/missions/{mission_id}", response_model=MissionResponse, status_code=status.HTTP_200_OK)
 async def get_mission_by_id(
-    mission_id: int = Path(..., gt=0, description="Mission ID"),
+    mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db)
 ):
     return await RewardService.get_mission_by_id(user_db, mission_id)
@@ -34,7 +34,7 @@ async def create_mission(
 
 @router.put("/missions/{mission_id}", response_model=MissionResponse, status_code=status.HTTP_200_OK)
 async def update_mission(
-    mission_id: int = Path(..., gt=0, description="Mission ID"),
+    mission_id: int = Path(..., gt=0),
     updated_data: MissionUpdate = ...,
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
@@ -55,7 +55,7 @@ async def get_my_completed_missions(
 
 @router.post("/missions/{mission_id}/complete", status_code=status.HTTP_200_OK)
 async def complete_mission(
-    mission_id: int = Path(..., gt=0, description="Mission ID"),
+    mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -63,7 +63,7 @@ async def complete_mission(
 
 @router.delete("/missions/{mission_id}/remove", status_code=status.HTTP_200_OK)
 async def remove_completed_mission(
-    mission_id: int = Path(..., gt=0, description="Mission ID"),
+    mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -71,7 +71,7 @@ async def remove_completed_mission(
 
 @router.delete("/missions/{mission_id}", status_code=status.HTTP_200_OK)
 async def delete_mission(
-    mission_id: int = Path(..., gt=0, description="Mission ID"),
+    mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):

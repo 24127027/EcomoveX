@@ -51,7 +51,7 @@ async def delete_user(
 
 @router.post("/me/eco_point/add", response_model=UserResponse, status_code=status.HTTP_200_OK)
 async def add_eco_point(
-    point: int = Query(..., gt=0, description="Eco points to add (must be positive)"),
+    point: int = Query(..., gt=0),
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):

@@ -7,13 +7,9 @@ from database.user_database import UserBase
 class TransportMode(str, Enum):
     car = "car"
     motorbike = "motorbike"
-    cycling = "cycling"
     walking = "walking"
     metro = "metro"
     bus = "bus"
-    taxi = "taxi"
-    grab_car = "grab car"
-    grab_bike = "grab bike"
     train = "train"
     
 class FuelType(str, Enum):

@@ -20,14 +20,15 @@ class RouteService:
             walking_steps = []
             
             for step in leg.get("steps", []):
-                if step.get("travel_mode") == "bus":
+                # Google Maps API returns travel_mode in uppercase: "TRANSIT", "WALKING", etc.
+                if step.get("travel_mode") == "TRANSIT":
                     transit_details = step.get("transit_details", {})
                     departure_stop = transit_details.get("departure_stop", {})
                     arrival_stop = transit_details.get("arrival_stop", {})
                     
                     transit_steps.append({
                         "line": transit_details.get("line", {}).get("short_name", "N/A"),
-                        "vehicle": TransportMode.transit,
+                        "vehicle": TransportMode.bus,
                         "departure_stop": {
                             "lat": departure_stop.get("location", {}).get("lat", 0.0),
                             "lng": departure_stop.get("location", {}).get("lng", 0.0)
@@ -39,7 +40,7 @@ class RouteService:
                         "num_stops": transit_details.get("num_stops", 0),
                         "duration": step.get("duration", {}).get("value", 0) / 60
                     })
-                elif step.get("travel_mode") == "walking":
+                elif step.get("travel_mode") == "WALKING":
                     walking_steps.append({
                         "distance": step.get("distance", {}).get("value", 0),
                         "duration": step.get("duration", {}).get("value", 0) / 60,
@@ -90,9 +91,10 @@ class RouteService:
 
             carbon_response = await CarbonService.estimate_transport_emission(mode, distance_km)
 
+            # mode should be a list according to schema
             result = RouteData(
                 type=route_type,
-                mode=mode,
+                mode=[mode],
                 distance=distance_km,
                 duration=duration_min,
                 carbon=carbon_response,
@@ -132,9 +134,8 @@ class RouteService:
             
             routes_dict = {}
             
-            maps = await create_maps_client()
-            
             try:
+                maps = await create_maps_client()
                 driving_result = await maps.get_route(origin, destination)
 
                 driving_alternatives = await maps.get_directions(
@@ -247,7 +248,8 @@ class RouteService:
                 )
                 
             finally:
-                await maps.close()
+                if maps:
+                    await maps.close()
             
             return FindRoutesResponse(
                 origin={"lat": origin[0], "lng": origin[1]},
@@ -269,11 +271,13 @@ class RouteService:
     ) -> Optional[RouteData]:
         """Find smart route prioritizing transit, walking, or bicycling"""
         try:
+            # r.mode is a list of TransportMode
             transit_routes = [r for r in all_routes if TransportMode.bus in r.mode]
             
             if transit_routes:
                 best_transit = min(transit_routes, key=lambda x: x.carbon)
                 
+                # Check if any route contains car mode
                 driving_routes = [r for r in all_routes if TransportMode.car in r.mode]
                 if driving_routes:
                     best_driving = min(driving_routes, key=lambda x: x.duration)
@@ -292,9 +296,10 @@ class RouteService:
                             duration=best_transit.duration,
                             carbon=best_transit.carbon,
                             route_details=best_transit.route_details,
-                            transit_info=best_transit.transit_info
-                        )
+                        transit_info=best_transit.transit_info
+                    )
             
+            # Check for walking routes
             walking_routes = [r for r in all_routes if TransportMode.walking in r.mode]
             if walking_routes:
                 walk_route = walking_routes[0]
@@ -311,6 +316,7 @@ class RouteService:
                         transit_info=walk_route.transit_info
                     )
 
+            # Check for cycling routes
             cycling_routes = [r for r in all_routes if TransportMode.cycling in r.mode]
             if cycling_routes:
                 bike_route = cycling_routes[0]

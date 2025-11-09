@@ -39,14 +39,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"WARNING: Destination database initialization failed - {e}")
     
-    # Refresh emission factors from Climatiq API
-    try:
-        print("Loading emission factors from Climatiq API...")
-        await CarbonService.refresh_emission_factors()
-        print("Emission factors loaded successfully")
-    except Exception as e:
-        print(f"WARNING: Emission factors refresh failed, using fallback values - {e}")
-    
+    # Refresh emission factors from Climatiq API    
     yield  # App is running
     
     # Shutdown: Cleanup
