@@ -1,18 +1,24 @@
+from typing import List
 from fastapi import HTTPException, status
-from repository.review_repository import ReviewRepository
-from repository.destination_repository import DestinationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.review_schema import ReviewCreate, ReviewUpdate
-
-# Note: ReviewService uses user database (get_db)
-# For operations validating destinations, pass destination_db separately
+from repository.destination_repository import DestinationRepository
+from repository.review_repository import ReviewRepository
+from schemas.review_schema import *
 
 class ReviewService:
     @staticmethod
-    async def get_reviews_by_destination(db: AsyncSession, destination_id: int):
+    async def get_reviews_by_destination(db: AsyncSession, destination_id: int)-> List[ReviewResponse]:
         try:
-            reviews = await ReviewRepository.get_reviews_by_destination(db, destination_id)
-            return reviews
+            reviews = await ReviewRepository.get_all_reviews_by_destination(db, destination_id)
+            review_lists = []
+            for review in reviews:
+                review_lists.append(ReviewResponse(
+                    destination_id=review.destination_id,
+                    rating=review.rating,
+                    content=review.content,
+                    user_id=review.user_id
+                ))
+            return review_lists
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -20,10 +26,18 @@ class ReviewService:
             )
         
     @staticmethod
-    async def get_reviews_by_user(db: AsyncSession, user_id: int):
+    async def get_reviews_by_user(db: AsyncSession, user_id: int) -> List[ReviewResponse]:
         try:
-            reviews = await ReviewRepository.get_reviews_by_user(db, user_id)
-            return reviews
+            reviews = await ReviewRepository.get_all_reviews_by_user(db, user_id)
+            review_lists = []
+            for review in reviews:
+                review_lists.append(ReviewResponse(
+                    destination_id=review.destination_id,
+                    rating=review.rating,
+                    content=review.content,
+                    user_id=review.user_id
+                ))
+            return review_lists
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -31,38 +45,27 @@ class ReviewService:
             )
     
     @staticmethod
-    async def create_review(
-        user_db: AsyncSession, 
-        destination_db: AsyncSession,
-        review_data: ReviewCreate, 
-        user_id: int
-    ):
-        """
-        Create a review with destination validation.
-        Requires both user_db and destination_db sessions.
-        """
+    async def create_review(dest_db: AsyncSession, user_id: int, destination_id: int, review_data: ReviewCreate) -> ReviewResponse:
         try:
-            # Verify destination exists in destination database
-            destination = await DestinationRepository.get_destination_by_id(
-                destination_db, 
-                review_data.destination_id
-            )
+            destination = await DestinationRepository.get_destination_by_id(dest_db, destination_id)
             if not destination:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Destination with ID {review_data.destination_id} not found"
+                    detail=f"Destination with ID {destination_id} not found"
                 )
             
-            # Create review in user database
-            new_review = await ReviewRepository.create_review(user_db, review_data, user_id)
+            new_review = await ReviewRepository.create_review(dest_db, user_id, destination_id, review_data)
             if not new_review:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create review"
                 )
-            return new_review
-        except HTTPException:
-            raise
+            return ReviewResponse(
+                destination_id=new_review.destination_id,
+                rating=new_review.rating,
+                content=new_review.content,
+                user_id=new_review.user_id
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -70,37 +73,38 @@ class ReviewService:
             )
         
     @staticmethod
-    async def update_review(db: AsyncSession, review_id: int, updated_data: ReviewUpdate):
+    async def update_review(db: AsyncSession, user_id: int, destination_id: int, updated_data: ReviewUpdate) -> ReviewResponse:
         try:
-            updated_review = await ReviewRepository.update_review(db, review_id, updated_data)
+            updated_review = await ReviewRepository.update_review(db, user_id, destination_id, updated_data)
             if not updated_review:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Review with ID {review_id} not found"
+                    detail=f"Review for destination {destination_id} and user {user_id} not found"
                 )
-            return updated_review
-        except HTTPException:
-            raise
+            return ReviewResponse(  
+                destination_id=updated_review.destination_id,
+                rating=updated_review.rating,
+                content=updated_review.content,
+                user_id=updated_review.user_id
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error updating review ID {review_id}: {e}"
+                detail=f"Unexpected error updating review: {e}"
             )
         
     @staticmethod
-    async def delete_review(db: AsyncSession, review_id: int):
+    async def delete_review(db: AsyncSession, user_id: int, destination_id: int):
         try:
-            success = await ReviewRepository.delete_review(db, review_id)
+            success = await ReviewRepository.delete_review(db, user_id, destination_id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Review with ID {review_id} not found"
+                    detail=f"Review for destination {destination_id} and user {user_id} not found"
                 )
             return {"detail": "Review deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error deleting review ID {review_id}: {e}"
+                detail=f"Unexpected error deleting review: {e}"
             )
