@@ -13,24 +13,46 @@ class StorageService:
             raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
         
         try:
-            contents = await file.read()
+            file.file.seek(0)
+
             client = storage.Client()
             bucket = client.bucket(bucket_name)
             blob_name = f"{uuid.uuid4()}_{file.filename}"
             blob = bucket.blob(blob_name)
-            blob.upload_from_string(contents, content_type=file.content_type)
+            
+            blob.upload_from_file(file.file, content_type=file.content_type)
+
             url = StorageService.generate_signed_url(bucket_name, blob_name)
+
+            file.file.seek(0, 2)  
+            size = file.file.tell()
+            file.file.seek(0)
+
             return {
                 "url": url,
                 "blob_name": blob_name,
                 "content_type": file.content_type,
                 "filename": file.filename,
                 "bucket": bucket_name,
-                "size": len(contents)
+                "size": size
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to upload file to GCS: {e}")
         
+    @staticmethod
+    def delete_file(bucket_name: str, blob_name: str):
+        bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+        if not bucket_name:
+            raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
+        
+        try:
+            client = storage.Client()
+            bucket = client.bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+            blob.delete()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete file from GCS: {e}")
+
     @staticmethod
     def get_file_url(bucket_name: str, blob_name: str) -> str:
         # Use configured default bucket if none supplied
