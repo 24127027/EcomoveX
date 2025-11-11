@@ -1,5 +1,9 @@
 import asyncio
 import asyncpg
+
+from pathlib import Path
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
 
 async def create_databases():

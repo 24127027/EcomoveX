@@ -1,6 +1,9 @@
 import asyncio
 import asyncpg
 import sys
+
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
 
 async def drop_databases():
