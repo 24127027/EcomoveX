@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import torch 
+import os
+import torch  
 
 class CupDetectorScorer:
     def __init__(

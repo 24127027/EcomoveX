@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
@@ -8,7 +9,7 @@ class Settings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DEST_DB_NAME: str = "ecomovex_destinations"
-    USER_DB_NAME: str = "postgres"
+    USER_DB_NAME: str = "ecomovex_user"
     DB_USER: str = "postgres"
     DB_PASS: str = ""
     
