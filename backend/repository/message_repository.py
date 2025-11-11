@@ -1,9 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
-from models.message import Message
-from datetime import datetime, UTC
-from schema.message_schema import MessageCreate, MessageUpdate
+from models.message import *
+from schemas.message_schema import *
 
 class MessageRepository:
     @staticmethod
@@ -13,7 +12,7 @@ class MessageRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching message ID {message_id}: {e}")
+            print(f"ERROR: fetching message ID {message_id} - {e}")
             return None
 
     @staticmethod
@@ -23,7 +22,7 @@ class MessageRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error fetching message with content '{keyword}' for user {user_id}: {e}")
+            print(f"ERROR: fetching message with content '{keyword}' for user {user_id} - {e}")
             return None
 
     @staticmethod
@@ -35,14 +34,14 @@ class MessageRepository:
                 content=message_data.content,
                 message_type=message_data.message_type
             )
-            new_message.created_at = datetime.now(UTC).replace(tzinfo=None)
+            new_message.created_at = func.now()
             db.add(new_message)
             await db.commit()
             await db.refresh(new_message)
             return new_message
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating message: {e}")
+            print(f"ERROR: creating message - {e}")
             return None
     
     @staticmethod
@@ -51,7 +50,7 @@ class MessageRepository:
             result = await db.execute(select(Message).where(Message.id == message_id))
             message = result.scalar_one_or_none()
             if not message:
-                print(f"Message ID {message_id} not found")
+                print(f"WARNING: WARNING: Message ID {message_id} not found")
                 return None
 
             if updated_data.content is not None:
@@ -63,7 +62,7 @@ class MessageRepository:
             return message
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating message ID {message_id}: {e}")
+            print(f"ERROR: updating message ID {message_id} - {e}")
             return None
 
     @staticmethod
@@ -72,7 +71,7 @@ class MessageRepository:
             result = await db.execute(select(Message).where(Message.id == message_id))
             message = result.scalar_one_or_none()
             if not message:
-                print(f"Message ID {message_id} not found")
+                print(f"WARNING: WARNING: Message ID {message_id} not found")
                 return False
 
             await db.delete(message)
@@ -80,5 +79,5 @@ class MessageRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting message ID {message_id}: {e}")
+            print(f"ERROR: deleting message ID {message_id} - {e}")
             return False

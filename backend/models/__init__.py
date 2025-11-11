@@ -1,21 +1,27 @@
-from .user import User
+from .cluster import Cluster, ClusterDestination, UserClusterAssociation
+from .destination import Destination, UserSavedDestination
+from .friend import Friend
 from .message import Message
-from .review import Review
-from .media import MediaFile
-from .destination import Destination
 from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
-from .carbon import CarbonEmission
+from .review import Review
+from .route import Route
+from .user import User, UserActivity
 
 __all__ = [
     "User",
     "Message",
     "Review",
-    "MediaFile",
     "Destination",
     "Plan",
     "PlanDestination",
     "Mission",
     "UserMission",
-    "CarbonEmission",
+    "Cluster",
+    "ClusterDestination",
+    "UserClusterAssociation",
+    "Friend",
+    "UserSavedDestination",
+    "Route",
+    "UserActivity",
 ]

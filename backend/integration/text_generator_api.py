@@ -1,6 +1,6 @@
-from openai import OpenAI
-from typing import List, Dict, Optional, Any
+from typing import Dict, List, Optional
 import httpx
+from openai import OpenAI
 from utils.config import settings
 
 class TextGenerator:
@@ -28,7 +28,7 @@ class TextGenerator:
             )
             return response.choices[0].message.content
         except Exception as e:
-            print(f"Error in chat completion: {e}")
+            print(f"ERROR: Chat completion failed - {e}")
             return "I'm sorry, I encountered an error. Please try again."
 
     async def generate_text(self, prompt: str) -> str:
