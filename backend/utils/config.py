@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
-import base64
+from pathlib import Path
 
 load_dotenv()
 
@@ -23,5 +23,8 @@ class Settings(BaseSettings):
     
     SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
     SUSTAINABILITY_DATA_API_CLIENT_SECRET: str = ""
-    
+
+    GCS_BUCKET_NAME: str = ""
+    GOOGLE_APPLICATION_CREDENTIALS: Path = Path("service-account.json")
+
 settings = Settings()
