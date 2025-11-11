@@ -1,9 +1,11 @@
 from fastapi import File, UploadFile, HTTPException
 from google.cloud import storage
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.config import settings
+from backend.utils.config import settings
+from backend.repository.storage_repository import StorageRepository
 import uuid
 from datetime import timedelta
+import asyncio
 
 """
     Other improvements for future:
@@ -21,14 +23,13 @@ class StorageService:
             raise HTTPException(status_code=400, detail="User ID must be provided for file upload.")
         
         file_metadata = await StorageService.upload_file_to_gcs(file, bucket_name)
-
-        from repository.storage_repository import StorageRepository
-        StorageRepository.store_metadata(db, file_metadata, user_id)
+        
+        # await the async repository call
+        await StorageRepository.store_metadata(db, file_metadata, user_id)
         return file_metadata
 
     @staticmethod
-    async def upload_file_to_gcs(db: AsyncSession,
-                                file: UploadFile = File(...), 
+    async def upload_file_to_gcs(file: UploadFile = File(...), 
                                 bucket_name: str = None) -> dict:
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
@@ -37,14 +38,20 @@ class StorageService:
         try:
             file.file.seek(0)
 
-            client = storage.Client()
-            bucket = client.bucket(bucket_name)
-            blob_name = f"{uuid.uuid4()}_{file.filename}"
-            blob = bucket.blob(blob_name)
+            # Run blocking GCS operations in thread pool to avoid blocking event loop
+            loop = asyncio.get_event_loop()
             
-            blob.upload_from_file(file.file, content_type=file.content_type)
-
-            url = StorageService.generate_signed_url(bucket_name, blob_name)
+            def _upload():
+                client = storage.Client()
+                bucket = client.bucket(bucket_name)
+                blob_name = f"{uuid.uuid4()}_{file.filename}"
+                blob = bucket.blob(blob_name)
+                blob.upload_from_file(file.file, content_type=file.content_type)
+                return blob_name
+            
+            blob_name = await loop.run_in_executor(None, _upload)
+            
+            url = await StorageService.generate_signed_url(bucket_name, blob_name)
 
             file.file.seek(0, 2)  
             size = file.file.tell()
@@ -62,34 +69,41 @@ class StorageService:
             raise HTTPException(status_code=500, detail=f"Failed to upload file to GCS: {e}")
         
     @staticmethod
-    def delete_file(db: AsyncSession,
-                    bucket_name: str,
-                    blob_name: str) -> dict:
+    async def delete_file(db: AsyncSession,
+                         bucket_name: str,
+                         blob_name: str) -> dict:
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
             raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
         
         try:
-            client = storage.Client()
-            bucket = client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            blob.delete()
+            # Run blocking delete in thread pool
+            loop = asyncio.get_event_loop()
+            
+            def _delete():
+                client = storage.Client()
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(blob_name)
+                blob.delete()
+            
+            await loop.run_in_executor(None, _delete)
+            
+            # await the async repository call
+            await StorageRepository.delete_metadata_by_blob_name(db, blob_name)
+
             return {"detail": "File deleted successfully"}
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to delete file from GCS: {e}")
 
     @staticmethod
-    def get_file_url(bucket_name: str, 
-                     blob_name: str) -> str:
-        # Use configured default bucket if none supplied
+    async def get_file_url(bucket_name: str, 
+                          blob_name: str) -> str:
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
             raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
         
         try:
-            # Return a signed URL (safe for private buckets). If your bucket is public
-            # you can return blob.public_url instead.
-            return StorageService.generate_signed_url(bucket_name=bucket_name, blob_name=blob_name)
+            return await StorageService.generate_signed_url(bucket_name=bucket_name, blob_name=blob_name)
         except HTTPException:
             raise
         except Exception as e:
@@ -97,11 +111,17 @@ class StorageService:
         
 
     @staticmethod
-    def generate_signed_url(bucket_name: str, blob_name: str, expiration_seconds: int = 3600) -> str:
+    async def generate_signed_url(bucket_name: str, blob_name: str, expiration_seconds: int = 3600) -> str:
         try:
-            client = storage.Client()
-            bucket = client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            return blob.generate_signed_url(expiration=timedelta(seconds=expiration_seconds))
+            # Run blocking signed URL generation in thread pool
+            loop = asyncio.get_event_loop()
+            
+            def _generate():
+                client = storage.Client()
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(blob_name)
+                return blob.generate_signed_url(expiration=timedelta(seconds=expiration_seconds), version="v4")
+            
+            return await loop.run_in_executor(None, _generate)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to generate signed URL: {e}")
