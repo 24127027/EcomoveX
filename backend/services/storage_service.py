@@ -1,6 +1,6 @@
 from fastapi import File, UploadFile, HTTPException
 from google.cloud import storage
-from fastapi.responses import RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.config import settings
 import uuid
 from datetime import timedelta
@@ -14,7 +14,22 @@ from datetime import timedelta
 
 class StorageService:
     @staticmethod
-    async def upload_file_to_gcs(file: UploadFile = File(...), bucket_name: str = None) -> dict:
+    async def upload_file(db: AsyncSession,
+                          file: UploadFile = File(...), 
+                          user_id: str = None, bucket_name: str = None) -> dict:
+        if user_id is None:
+            raise HTTPException(status_code=400, detail="User ID must be provided for file upload.")
+        
+        file_metadata = await StorageService.upload_file_to_gcs(file, bucket_name)
+
+        from repository.storage_repository import StorageRepository
+        StorageRepository.store_metadata(db, file_metadata, user_id)
+        return file_metadata
+
+    @staticmethod
+    async def upload_file_to_gcs(db: AsyncSession,
+                                file: UploadFile = File(...), 
+                                bucket_name: str = None) -> dict:
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
             raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
@@ -47,7 +62,9 @@ class StorageService:
             raise HTTPException(status_code=500, detail=f"Failed to upload file to GCS: {e}")
         
     @staticmethod
-    def delete_file(bucket_name: str, blob_name: str) -> dict:
+    def delete_file(db: AsyncSession,
+                    bucket_name: str,
+                    blob_name: str) -> dict:
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
             raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
@@ -62,7 +79,8 @@ class StorageService:
             raise HTTPException(status_code=500, detail=f"Failed to delete file from GCS: {e}")
 
     @staticmethod
-    def get_file_url(bucket_name: str, blob_name: str) -> str:
+    def get_file_url(bucket_name: str, 
+                     blob_name: str) -> str:
         # Use configured default bucket if none supplied
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
