@@ -1,17 +1,12 @@
-from ultralytics import YOLO
+import os
+from typing import Dict, List, Optional
 import cv2
-from typing import Optional, Dict, List
 import numpy as np
 import os
 import torch  # added for device detection
 
 
 class CupDetectorScorer:
-    """
-    Detect cup materials in images using a YOLO model that outputs material classes.
-    Processes batches of images efficiently. Glass is weighted as most reliable.
-    """
-
     def __init__(
         self,
         model_path: Optional[str] = None,
@@ -29,7 +24,7 @@ class CupDetectorScorer:
         """
         self.conf_threshold = conf_threshold
         self._model: Optional[YOLO] = None
-        # sensible defaults: glass most reliable
+
         default_weights = {"glass": 1.0, "plastic": 0.6, "paper": 0.6}
         self.category_weights = {k.lower(): float(v) for k, v in (category_weights or default_weights).items()}
         
@@ -61,19 +56,6 @@ class CupDetectorScorer:
                 pass
 
     def score_images(self, image_paths: List[str]) -> float:
-        """
-        Process batch of images and return final normalized score (-10..10).
-        
-        Args:
-            image_paths: List of image file paths
-            
-        Returns:
-            float: Normalized score in range [-10, 10]. 
-                   Returns -10 if no cups detected.
-                   10 represents all glass cups with high confidence.
-                   -10 represents low-quality non-glass cups or no detections.
-        """
-        # Load and resize images
         images: List[np.ndarray] = []
         for p in image_paths:
             img = cv2.imread(p)
@@ -84,32 +66,29 @@ class CupDetectorScorer:
         if not images:
             return -10.0
 
-        # Detect
         self._load_model()
         imgs_rgb = [cv2.cvtColor(img, cv2.COLOR_BGR2RGB) for img in images]
         # pass device to inference
         results = self._model(imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device)
 
-        # Score all detections
         all_scores: List[float] = []
         for res in results:
             for box in res.boxes:
-                # Fix deprecation warnings by extracting scalar properly
+
                 conf = float(box.conf.item()) if hasattr(box.conf, "item") else float(box.conf)
                 cls = int(box.cls.item()) if hasattr(box.cls, "item") else int(box.cls)
                 class_name = str(self._model.names[cls]) if hasattr(self._model, "names") and cls in self._model.names else str(cls)
                 material = class_name.lower()
                 
                 weight = float(self.category_weights.get(material, 0.5))
-                score = min(1.0, conf * weight)  # score in 0..1
+                score = min(1.0, conf * weight)
                 all_scores.append(score)
         
         if not all_scores:
             return -10.0
         
-        # Average score 0..1, normalize to -10..10
         avg_score = float(np.mean(all_scores))
-        # Map [0, 1] -> [-10, 10]
+
         normalized = (avg_score * 20.0) - 10.0
         return float(normalized)
 

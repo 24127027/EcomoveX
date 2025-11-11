@@ -1,10 +1,9 @@
+import re
 import spacy
 from spacy.matcher import PhraseMatcher
-import re
 
 nlp = spacy.load("en_core_web_sm")
 
-# Canonical vocab
 POI_TYPES = ["cafe", "coffee shop", "restaurant", "park", "coworking", "library", "ev charger"]
 ECO_TERMS = ["vegan", "organic", "eco-friendly", "zero waste", "plastic-free",
              "bike-friendly", "recycling", "compost", "plants", "greenery"]
@@ -17,17 +16,11 @@ PRICE_PATTERNS = [
     r"less than (\d+)(k|k vnd| vnd)?"
 ]
 
-# Phrase matcher
 phrase_matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
 phrase_matcher.add("POI", [nlp.make_doc(t) for t in POI_TYPES])
 phrase_matcher.add("ECO", [nlp.make_doc(t) for t in ECO_TERMS])
 phrase_matcher.add("MOBILITY", [nlp.make_doc(t) for t in MOBILITY_TERMS])
 phrase_matcher.add("TIME", [nlp.make_doc(t) for t in TIME_TERMS])
-
-
-# -----------------------------
-# Helpers
-# -----------------------------
 
 def extract_price(text):
     text = text.lower()
@@ -37,16 +30,11 @@ def extract_price(text):
             return {"price_max": int(m.group(1)) * 1000}
     return None
 
-
 def extract_district(text):
     text = text.lower()
     district_pattern = r"\b(?:district|d|q|quận)\s*\.?(\d+)\b"
     m = re.search(district_pattern, text)
     return f"District {m.group(1)}" if m else None
-
-# -----------------------------
-# Main parser
-# -----------------------------
 
 def parse_query(text):
     doc = nlp(text)
@@ -58,19 +46,15 @@ def parse_query(text):
         "price": None
     }
 
-    # Extract location first (before phrase matching)
-    # This prevents "near District X" from being treated as just "walkable"
     for ent in doc.ents:
         if ent.label_ in ["GPE", "LOC", "FAC"] and not result["location"]:
             result["location"] = ent.text
     
-    # Fallback: District rule
     if not result["location"]:
         district = extract_district(text)
         if district:
             result["location"] = district
 
-    # Rule-based phrase matching
     matches = phrase_matcher(doc)
     for match_id, start, end in matches:
         label = nlp.vocab.strings[match_id]
@@ -81,25 +65,18 @@ def parse_query(text):
         elif label == "ECO":
             result["eco_tags"].append(span)
         elif label == "MOBILITY":
-            # Only set walkable if "near" is NOT followed by a location
-            # Check if this is "near <location>"
+
             text_lower = text.lower()
             if span == "near" and result["location"]:
-                # Check if "near" appears right before the location
+
                 near_pattern = rf"\bnear\s+{re.escape(result['location'].lower())}"
                 if re.search(near_pattern, text_lower):
-                    # This is "near <location>", not a walkability filter
+
                     continue
             result["filters"]["walkable"] = True
         elif label == "TIME" and span == "open now":
             result["filters"]["open_now"] = True
 
-    # Price
     result["price"] = extract_price(text)
 
     return result
-
-# Example usage
-if __name__ == "__main__":
-    q = "cheap vegan cafe open now around here 3 less than 50k with plants"
-    print(parse_query(q))

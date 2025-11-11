@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import relationship
-from datetime import datetime, UTC
-from database.user_database import UserBase
 from enum import Enum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, Text
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from database.user_database import UserBase
 
 class MessageType(str, Enum):
     text = "text"
@@ -17,10 +16,6 @@ class MessageStatus(str, Enum):
     sent = "sent"
     failed = "failed"
 
-# Helper function to get current UTC time as naive datetime
-def utc_now():
-    return datetime.now(UTC).replace(tzinfo=None)
-
 class Message(UserBase):
     __tablename__ = "messages"
 
@@ -29,7 +24,7 @@ class Message(UserBase):
     sender = Column(SQLEnum(Sender), default=Sender.user)
     message_type = Column(SQLEnum(MessageType), default=MessageType.text)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=utc_now)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(SQLEnum(MessageStatus), default=MessageStatus.sent)
 
     user = relationship("User", back_populates="sent_messages")

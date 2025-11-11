@@ -5,7 +5,10 @@ from contextlib import asynccontextmanager
 from routers.authentication_router import router as auth_router
 from routers.user_router import router as user_router
 from routers.review_router import router as review_router
-from routers.carbon_router import router as carbon_router
+from routers.friend_router import router as friend_router
+from routers.destination_router import router as destination_router
+# from routers.route_router import router as route_router
+# from routers.map_router import router as map_search_router
 # from routers.chatbot_router import router as chatbot_router
 # from routers.recommendation_router import router as recommendation_router
 from routers.reward_router import router as reward_router
@@ -13,44 +16,46 @@ from routers.reward_router import router as reward_router
 # Import database setup
 from database.user_database import user_engine
 from database.destination_database import destination_engine
-from models.init_user_database import init_db
+from models.init_user_database import init_user_db
 from models.init_destination_database import init_destination_db
 from utils.config import settings
+from services.carbon_service import CarbonService
 
 # Lifespan event handler (startup/shutdown)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("🚀 Starting EcomoveX Backend...")
+    print("Starting EcomoveX Backend...")
     
     try:
-        await init_db(drop_all=False)
-        print("✅ Main database initialized")
+        await init_user_db(drop_all=False)
+        print("User database initialized")
     except Exception as e:
-        print(f"⚠️  Main database initialization failed: {e}")
+        print(f"WARNING: User database initialization failed - {e}")
     
     try:
         await init_destination_db(drop_all=False)
-        print("✅ Destination database initialized")
+        print("Destination database initialized")
     except Exception as e:
-        print(f"⚠️  Destination database initialization failed: {e}")
+        print(f"WARNING: Destination database initialization failed - {e}")
     
+    # Refresh emission factors from Climatiq API    
     yield  # App is running
     
     # Shutdown: Cleanup
-    print("🛑 Shutting down EcomoveX Backend...")
+    print("Shutting down EcomoveX Backend...")
     
     try:
         await user_engine.dispose()
-        print("✅ Main database connections closed")
+        print("User database connections closed")
     except Exception as e:
-        print(f"⚠️  Error closing main database: {e}")
+        print(f"ERROR: Failed to close user database - {e}")
     
     try:
         await destination_engine.dispose()
-        print("✅ Destination database connections closed")
+        print("Destination database connections closed")
     except Exception as e:
-        print(f"⚠️  Error closing destination database: {e}")
+        print(f"ERROR: Failed to close destination database - {e}")
 
 
 # Create FastAPI application
@@ -78,7 +83,10 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(review_router)
-app.include_router(carbon_router)
+app.include_router(friend_router)
+app.include_router(destination_router)
+# app.include_router(route_router)
+# app.include_router(map_search_router)  # Search Bar feature
 #app.include_router(chatbot_router)
 #app.include_router(recommendation_router)
 app.include_router(reward_router)

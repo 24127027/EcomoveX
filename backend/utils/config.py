@@ -1,6 +1,6 @@
-from pydantic_settings import BaseSettings
-from pathlib import Path
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
+import base64
 
 load_dotenv()
 
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     DEST_DB_NAME: str = "ecomovex_destinations"
     USER_DB_NAME: str = "postgres"
     DB_USER: str = "postgres"
-    DB_PASS: str = "142857"
+    DB_PASS: str = ""
     
     # JWT settings
     SECRET_KEY: str = "super_secret_key"
@@ -22,9 +22,12 @@ class Settings(BaseSettings):
 
     #For Huggingface API (text generation)
     HUGGINGFACE_API_KEY: str = ""
-
-    #For Climatiq API (carbon emissions)
+    GOOGLE_MAPS_API_KEY: str = ""
     CLIMATIQ_API_KEY: str = ""
+    
+    SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
+    SUSTAINABILITY_DATA_API_CLIENT_SECRET: str = ""
+    
 
     #For Google Cloud Storage
     GCS_BUCKET_NAME: str = ""
