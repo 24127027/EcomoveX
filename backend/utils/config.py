@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from pathlib import Path
 from pydantic_settings import BaseSettings
 import base64
 
