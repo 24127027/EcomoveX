@@ -20,4 +20,6 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_KEY: str = ""
     GEOAPIFY_API_KEY: str = ""
 
+    CLIMATIQ_API_KEY: str = ""
+
 settings = Settings()

@@ -1,0 +1,11 @@
+# MiDaS Green Verification Dependencies (Python 3.10.19)
+# PyTorch with CUDA 11.8 support
+torch==1.13.0
+torchvision==0.14.0
+
+# Core dependencies
+numpy==1.23.4
+opencv-python==4.6.0.66
+imutils==0.5.4
+timm==0.6.12
+einops==0.6.0
