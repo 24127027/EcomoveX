@@ -4,7 +4,6 @@ from models.user import Activity
 
 class UserCredentialUpdate(BaseModel):
     old_password: str = Field(..., min_length=1)
-    new_username: Optional[str] = Field(None, min_length=1, max_length=100)
     new_email: Optional[EmailStr] = None
     new_password: Optional[str] = Field(None, min_length=6)
 
@@ -13,18 +12,19 @@ class UserCredentialUpdate(BaseModel):
     def validate_password(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Password cannot be empty or whitespace")
-        return v
+        return v.strip() if v else None
 
-    @field_validator('new_username')
+class UserProfileUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=1, max_length=100)
+    eco_point: Optional[int] = Field(None, ge=0)
+    rank: Optional[str] = None
+    
+    @field_validator('username')
     @classmethod
     def validate_username(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Username cannot be empty or whitespace")
         return v.strip() if v else None
-
-class UserProfileUpdate(BaseModel):
-    eco_point: Optional[int] = Field(None, ge=0)
-    rank: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -34,9 +34,9 @@ class UserResponse(BaseModel):
     rank: str
 
     model_config = ConfigDict(from_attributes=True)
-    
+
 class UserActivityCreate(BaseModel):
-    activity_type: Activity
+    activity: Activity
     destination_id: int
     
 class UserActivityResponse(BaseModel):

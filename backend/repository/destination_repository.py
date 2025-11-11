@@ -72,11 +72,11 @@ class DestinationRepository:
         
 class UserSavedDestinationRepository:
     @staticmethod
-    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_data: UserSavedDestinationCreate):
+    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
         try:
             new_saved_destination = UserSavedDestination(
                 user_id=user_id,
-                destination_id=destination_data.destination_id,
+                destination_id=destination_id,
             )
             db.add(new_saved_destination)
             await db.commit()
@@ -97,7 +97,7 @@ class UserSavedDestinationRepository:
             return []
         
     @staticmethod
-    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             result = await db.execute(
                 select(UserSavedDestination).where(

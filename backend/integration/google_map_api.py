@@ -36,41 +36,40 @@ class GoogleMapsAPI:
         
         url = f"{self.base_url}/place/autocomplete/json"
         response = await self.client.get(url, params=params)
-        return AutocompleteResponse(**response.json())
+        list = response.json().get("predictions", [])
+        list_places = []
+        for place in list:
+            place_obj = PlaceSearchDisplay(
+                description=place.get("description"),
+                place_id=place.get("place_id"),
+                structured_formatting=place.get("structured_formatting"),
+                types=place.get("types", []),
+                matched_substrings=place.get("matched_substrings", []),
+                distance=place.get("distance")
+            )
+            list_places.append(place_obj)
+        return AutocompleteResponse(predictions=list_places)
 
-    async def query_autocomplete(self, data: SearchLocationRequest) -> AutocompleteResponse:
-        params = {
-            "input": data.query.strip(),
-            "language": data.language,
-            "key": self.api_key
-        }
-
-        if data.user_location:
-            params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
-        if data.radius:
-            params["radius"] = data.radius
-
-        url = f"{self.base_url}/place/queryautocomplete/json"
-        response = await self.client.get(url, params=params)
-        return AutocompleteResponse(**response.json())
-
-    async def get_place_details_from_autocomplete(self, place_id: str, fields: Optional[List[str]] = None, language: str = "vi") -> PlaceDetailsResponse:
-        """Get detailed place information with Pydantic response"""
-        if fields is None:
-            fields = [
-                "place_id",
-                "name", 
-                "formatted_address",
-                "geometry/location",
-                "address_components",
-                "rating",
-                "opening_hours",
-                "formatted_phone_number",
-                "website",
-                "photos",
-                "types"
-            ]
-        
+    async def get_place_details_from_autocomplete(self, place_id: str, language: str = "vi") -> PlaceDetailsResponse:
+        fields = [
+            "place_id",
+            "name", 
+            "formatted_address",
+            "address_components",
+            "formatted_phone_number",
+            "geometry/location",
+            "geometry/viewport",
+            "types",
+            "rating",
+            "user_ratings_total",
+            "price_level",
+            "opening_hours",
+            "website",
+            "photos",
+            "reviews",
+            "vicinity",
+            "utc_offset",
+        ]
         params = {
             "place_id": place_id,
             "fields": ",".join(fields),

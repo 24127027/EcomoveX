@@ -19,6 +19,8 @@ class RewardService:
                     value=mission.value
                 ))
             return mission_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -42,6 +44,8 @@ class RewardService:
                 action_trigger=mission.action_trigger,
                 value=mission.value
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -72,6 +76,8 @@ class RewardService:
                 action_trigger=updated_mission.action_trigger,
                 value=updated_mission.value
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -102,6 +108,8 @@ class RewardService:
                 action_trigger=new_mission.action_trigger,
                 value=new_mission.value
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -131,6 +139,8 @@ class RewardService:
                 missions=mission_list,
                 total_value=value
                 )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -165,6 +175,8 @@ class RewardService:
                     detail=f"Failed to create user mission for user {user_id} and mission {mission_id}"
                 )
             return new_user_mission
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -177,10 +189,12 @@ class RewardService:
             success = await UserMissionRepository.remove_user_mission(db, user_id, mission_id)
             if not success:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to remove mission {mission_id} from user {user_id}"
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Mission {mission_id} not found for user {user_id}"
                 )
             return {"detail": "Mission removed from user successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -204,6 +218,8 @@ class RewardService:
                     detail="Failed to delete mission"
                 )
             return {"detail": "Mission deleted successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

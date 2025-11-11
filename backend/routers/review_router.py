@@ -34,14 +34,16 @@ async def create_review(
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
-    result = await ReviewService.create_review(dest_db, destination_id, review_data, current_user["user_id"])
-    
-    activity_data = UserActivityCreate(
-        activity_type=Activity.review_destination,
-        destination_id=destination_id
-    )
-    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
-    
+    result = await ReviewService.create_review(dest_db, current_user["user_id"], destination_id, review_data)
+    try:
+        activity_data = UserActivityCreate(
+            activity=Activity.review_destination,
+            destination_id=destination_id
+        )
+        await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    except Exception as e:
+        # Log activity failure shouldn't break the main flow
+        print(f"Warning: Failed to log activity - {e}")    
     return result
 
 @router.put("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
@@ -51,7 +53,7 @@ async def update_review(
     dest_db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await ReviewService.update_review(dest_db, destination_id, current_user["user_id"], updated_data)
+    return await ReviewService.update_review(dest_db, current_user["user_id"], destination_id, updated_data)
 
 @router.delete("/{destination_id}", status_code=status.HTTP_200_OK)
 async def delete_review(
@@ -59,4 +61,4 @@ async def delete_review(
     dest_db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await ReviewService.delete_review(dest_db, destination_id, current_user["user_id"])
+    return await ReviewService.delete_review(dest_db, current_user["user_id"], destination_id)

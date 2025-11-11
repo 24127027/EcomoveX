@@ -14,6 +14,8 @@ class DestinationService:
                     detail=f"Destination with ID {destination_id} not found"
                 )
             return destination
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -30,6 +32,8 @@ class DestinationService:
                     detail="Failed to create destination"
                 )
             return new_destination
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -46,6 +50,8 @@ class DestinationService:
                     detail=f"Destination with ID {destination_id} not found"
                 )
             return updated_destination
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -62,6 +68,8 @@ class DestinationService:
                     detail=f"Destination with ID {destination_id} not found"
                 )
             return {"detail": "Destination deleted successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -70,8 +78,14 @@ class DestinationService:
 
 class UserSavedDestinationService:  
     @staticmethod
-    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: int) -> UserSavedDestinationResponse:
+    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str) -> UserSavedDestinationResponse:
         try:
+            is_saved = await UserSavedDestinationRepository.is_saved_destination(db, user_id, destination_id)
+            if is_saved:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Destination already saved for this user"
+                )
             saved = await UserSavedDestinationRepository.save_destination_for_user(db, user_id, destination_id)
             if not saved:
                 raise HTTPException(
@@ -79,6 +93,8 @@ class UserSavedDestinationService:
                     detail="Failed to save destination for user"
                 )
             return saved
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -97,6 +113,8 @@ class UserSavedDestinationService:
                     saved_at=saved.saved_at
                 ))
             return saved_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -104,7 +122,7 @@ class UserSavedDestinationService:
             )
             
     @staticmethod
-    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             success = await UserSavedDestinationRepository.delete_saved_destination(db, user_id, destination_id)
             if not success:
@@ -113,6 +131,8 @@ class UserSavedDestinationService:
                     detail="Saved destination not found for user"
                 )
             return {"detail": "Saved destination deleted successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -120,13 +140,15 @@ class UserSavedDestinationService:
             )
             
     @staticmethod
-    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             saved_destinations = await UserSavedDestinationRepository.get_saved_destinations_for_user(db, user_id)
             for saved in saved_destinations:
                 if saved.destination_id == destination_id:
                     return True
             return False
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

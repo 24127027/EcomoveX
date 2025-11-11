@@ -19,6 +19,8 @@ class ReviewService:
                     user_id=review.user_id
                 ))
             return review_lists
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -38,6 +40,8 @@ class ReviewService:
                     user_id=review.user_id
                 ))
             return review_lists
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -66,6 +70,8 @@ class ReviewService:
                 content=new_review.content,
                 user_id=new_review.user_id
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -87,6 +93,8 @@ class ReviewService:
                 content=updated_review.content,
                 user_id=updated_review.user_id
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -103,6 +111,8 @@ class ReviewService:
                     detail=f"Review for destination {destination_id} and user {user_id} not found"
                 )
             return {"detail": "Review deleted successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

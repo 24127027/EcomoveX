@@ -7,8 +7,8 @@ from routers.user_router import router as user_router
 from routers.review_router import router as review_router
 from routers.friend_router import router as friend_router
 from routers.destination_router import router as destination_router
-from routers.route_router import router as route_router
-from routers.map_router import router as map_search_router
+# from routers.route_router import router as route_router
+# from routers.map_router import router as map_search_router
 # from routers.chatbot_router import router as chatbot_router
 # from routers.recommendation_router import router as recommendation_router
 from routers.reward_router import router as reward_router
@@ -85,8 +85,8 @@ app.include_router(user_router)
 app.include_router(review_router)
 app.include_router(friend_router)
 app.include_router(destination_router)
-app.include_router(route_router)
-app.include_router(map_search_router)  # Search Bar feature
+# app.include_router(route_router)
+# app.include_router(map_search_router)  # Search Bar feature
 #app.include_router(chatbot_router)
 #app.include_router(recommendation_router)
 app.include_router(reward_router)

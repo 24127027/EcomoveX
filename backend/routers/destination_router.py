@@ -19,13 +19,17 @@ async def save_destination_for_current_user(
     result = await UserSavedDestinationService.save_destination_for_user(
         user_db, 
         current_user["user_id"], 
-        destination_id
+        str(destination_id)  # Convert to string for Google Place ID
     )
-    activity_data = UserActivityCreate(
-        activity_type=Activity.save_destination,
-        destination_id=destination_id
-    )
-    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)    
+    try:
+        activity_data = UserActivityCreate(
+            activity=Activity.save_destination,
+            destination_id=destination_id
+        )
+        await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    except Exception as e:
+        # Log activity failure shouldn't break the main flow
+        print(f"Warning: Failed to log activity - {e}")
     return result
 
 @router.get("/saved/me/all", response_model=list[UserSavedDestinationResponse], status_code=status.HTTP_200_OK)

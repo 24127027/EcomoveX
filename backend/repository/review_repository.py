@@ -18,10 +18,10 @@ class ReviewRepository:
     async def get_all_reviews_by_user(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(select(Review).where(Review.user_id == user_id))
-            return result.scalar_one_or_none()
+            return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching review for user {user_id} - {e}")
-            return None
+            return []
         
     @staticmethod
     async def get_review_by_destination_and_user(db: AsyncSession, destination_id: int, user_id: int):

@@ -48,19 +48,17 @@ class PlaceDetailsResponse(BaseModel):
     place_id: str
     name: str
     formatted_address: str
-    geometry: Geometry
-    types: List[str]
     address_components: Optional[List[AddressComponent]] = None
     formatted_phone_number: Optional[str] = None
-    international_phone_number: Optional[str] = None
-    opening_hours: Optional[OpeningHours] = None
+    geometry: Geometry
+    types: List[str]
     rating: Optional[float] = None
     user_ratings_total: Optional[int] = None
     price_level: Optional[int] = None
+    opening_hours: Optional[OpeningHours] = None
     website: Optional[str] = None
     photos: Optional[List[PhotoInfo]] = None
     reviews: Optional[List[Dict[str, Any]]] = None
-    url: Optional[str] = None
     vicinity: Optional[str] = None
     utc_offset: Optional[int] = None
     sustainable_certified: bool = False

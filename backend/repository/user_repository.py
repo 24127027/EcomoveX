@@ -63,8 +63,6 @@ class UserRepository:
                 print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return None
 
-            if updated_data.new_username is not None:
-                user.username = updated_data.new_username
             if updated_data.new_email is not None:
                 user.email = updated_data.new_email
             if updated_data.new_password is not None:
@@ -87,6 +85,8 @@ class UserRepository:
                 print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return None
 
+            if updated_data.username is not None:
+                user.username = updated_data.username
             if updated_data.eco_point is not None:
                 user.eco_point = updated_data.eco_point
             if updated_data.rank is not None:
@@ -123,7 +123,7 @@ class UserActivityRepository:
         try:
             new_activity = UserActivity(
                 user_id=user_id,
-                activity_type=data.activity_type,
+                activity_type=data.activity,
                 destination_id=data.destination_id,
                 timestamp=func.now()
             )

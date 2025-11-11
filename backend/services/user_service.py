@@ -183,6 +183,38 @@ class UserService:
             )
     
     @staticmethod
+    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate) -> UserResponse:
+        try:
+            user = await UserRepository.get_user_by_id(db, user_id)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with ID {user_id} not found"
+                )
+
+            updated_user = await UserRepository.update_user_profile(db, user_id, updated_data)
+            if not updated_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to update profile for user {user_id}"
+                )
+
+            return UserResponse(
+                id=updated_user.id,
+                username=updated_user.username,
+                email=updated_user.email,
+                eco_point=updated_user.eco_point,
+                rank=updated_user.rank
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error updating profile for user {user_id}: {e}"
+            )
+    
+    @staticmethod
     async def delete_user(db: AsyncSession, user_id: int):
         try:
             deleted = await UserRepository.delete_user(db, user_id)
