@@ -12,10 +12,15 @@ class FileMetadata(BaseModel):
     url: str = Field(...)
     blob_name: str = Field(...)
     filename: str = Field(...)
+    content_type: str = Field(...)
     bucket: str = Field(...)
     size: int = Field(...)
     
 class FileMetadataResponse(BaseModel):
     url: str = Field(...)
+    blob_name: str = Field(...)
+    filename: str = Field(...)
     content_type: str = Field(...)
+    category: str = Field(...)
+    size: int = Field(...)
     updated_at: Optional[datetime] = Field(None)

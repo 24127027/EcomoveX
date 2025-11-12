@@ -1,10 +1,9 @@
-from fastapi import UploadFile, HTTPException, status
+from fastapi import File, UploadFile, HTTPException, status
 from google.cloud import storage
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.utils.config import settings
-from backend.repository.storage_repository import StorageRepository
-from backend.schemas.storage_schema import FileCategory, FileMetadataResponse
-from backend.models.metadata import FileMetadata
+from utils.config import settings
+from repository.storage_repository import StorageRepository
+from schemas.storage_schema import FileCategory, FileMetadata, FileMetadataResponse
 import uuid
 from datetime import timedelta
 import asyncio
@@ -17,27 +16,50 @@ class StorageService:
                           user_id: int,
                           category: FileCategory,
                           bucket_name: str = None
-                          ) -> dict:
+                          ) -> FileMetadataResponse:
         """Upload a file to GCS and store metadata in database"""
-        file_metadata = await StorageService.upload_file_to_gcs(file, category, bucket_name)
-        
-        # Store metadata in database
-        await StorageRepository.store_metadata(db, file_metadata, user_id, category.value)
-        return file_metadata
+        try:
+            file_metadata = await StorageService.upload_file_to_gcs(file, category, bucket_name)
+            
+            # Store metadata in database
+            stored_metadata = await StorageRepository.store_metadata(db, user_id, file_metadata, category)
+            
+            if not stored_metadata:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to store file metadata in database"
+                )
+            
+            return FileMetadataResponse(
+                url=file_metadata.url,
+                blob_name=file_metadata.blob_name,
+                filename=file_metadata.filename,
+                content_type=file_metadata.content_type,
+                category=category.value,
+                size=file_metadata.size,
+                updated_at=stored_metadata.uploaded_at if stored_metadata else None
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error uploading file: {str(e)}"
+            )
 
     @staticmethod
     async def upload_file_to_gcs(file: UploadFile, 
                                  category: FileCategory,
-                                 bucket_name: str = None) -> dict:
+                                 bucket_name: str = None) -> FileMetadata:
         """Upload file to Google Cloud Storage"""
-        bucket_name = bucket_name or settings.GCS_BUCKET_NAME
-        if not bucket_name:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="GCS bucket name is not configured."
-            )
-        
         try:
+            bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+            if not bucket_name:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="GCS bucket name is not configured"
+                )
+            
             file.file.seek(0)
 
             loop = asyncio.get_event_loop()
@@ -60,14 +82,14 @@ class StorageService:
             size = file.file.tell()
             file.file.seek(0)
 
-            return {
-                "url": url,
-                "blob_name": blob_name,
-                "content_type": file.content_type,
-                "filename": file.filename,
-                "bucket": bucket_name,
-                "size": size
-            }
+            return FileMetadata(
+                url=url,
+                blob_name=blob_name,
+                content_type=file.content_type,
+                filename=file.filename,
+                bucket=bucket_name,
+                size=size
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -81,14 +103,14 @@ class StorageService:
                          blob_name: str,
                          bucket_name: str = None) -> dict:
         """Delete file from GCS and remove metadata from database"""
-        bucket_name = bucket_name or settings.GCS_BUCKET_NAME
-        if not bucket_name:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="GCS bucket name is not configured."
-            )
-        
         try:
+            bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+            if not bucket_name:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="GCS bucket name is not configured"
+                )
+            
             # Delete from GCS
             loop = asyncio.get_event_loop()
             
@@ -116,15 +138,15 @@ class StorageService:
     async def get_file_url(blob_name: str,
                           bucket_name: str = None) -> str:
         """Get signed URL for a file in GCS"""
-        bucket_name = bucket_name or settings.GCS_BUCKET_NAME
-        if not bucket_name:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="GCS bucket name is not configured."
-            )
-        
         try:
-            return await StorageService.generate_signed_url(bucket_name, blob_name)
+            bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+            if not bucket_name:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="GCS bucket name is not configured"
+                )
+            
+            return await StorageService.generate_signed_url(bucket_name=bucket_name, blob_name=blob_name)
         except HTTPException:
             raise
         except Exception as e:
@@ -155,7 +177,7 @@ class StorageService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to generate signed URL: {str(e)}"
+                detail=f"Unexpected error generating signed URL: {str(e)}"
             )
             
     @staticmethod
@@ -163,7 +185,22 @@ class StorageService:
         """Get all file metadata for a specific user"""
         try:
             metadata_list = await StorageRepository.get_metadata_by_user_id(db, user_id)
-            return [FileMetadataResponse.model_validate(metadata) for metadata in metadata_list]
+            
+            # Generate fresh signed URLs for each file
+            result = []
+            for metadata in metadata_list:
+                url = await StorageService.generate_signed_url(metadata.bucket, metadata.blob_name)
+                result.append(FileMetadataResponse(
+                    url=url,
+                    blob_name=metadata.blob_name,
+                    filename=metadata.filename,
+                    content_type=metadata.content_type,
+                    category=metadata.category,
+                    size=metadata.size,
+                    updated_at=metadata.uploaded_at
+                ))
+            
+            return result
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
