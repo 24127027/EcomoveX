@@ -1,10 +1,11 @@
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
+from backend.schemas.storage_schema import FileCategory
 
 
 class StorageRepository:
     @staticmethod
-    async def store_metadata(db: AsyncSession, file_metadata: dict, user_id: int, category: str = None):
+    async def store_metadata(db: AsyncSession, file_metadata: dict, user_id: int, category: FileCategory):
         pass
 
     @staticmethod
