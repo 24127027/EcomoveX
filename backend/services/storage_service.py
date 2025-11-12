@@ -1,9 +1,9 @@
-from fastapi import File, UploadFile, HTTPException
+from fastapi import UploadFile, HTTPException
 from google.cloud import storage
-from matplotlib import category
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.utils.config import settings
 from backend.repository.storage_repository import StorageRepository
+from backend.schemas.storage_schema import FileCategory
 import uuid
 from datetime import timedelta
 import asyncio
@@ -20,18 +20,20 @@ class StorageService:
     async def upload_file(db: AsyncSession,
                           file: UploadFile,
                           user_id: str,
+                          category: FileCategory,
                           bucket_name: str = None
                           ) -> dict:
 
-        file_metadata = await StorageService.upload_file_to_gcs(file, bucket_name)
+        file_metadata = await StorageService.upload_file_to_gcs(file, category, bucket_name)
         
         # await the async repository call
-        await StorageRepository.store_metadata(db, file_metadata, user_id)
+        await StorageRepository.store_metadata(db, file_metadata, user_id, category.value)
         return file_metadata
 
     @staticmethod
     async def upload_file_to_gcs(file: UploadFile, 
-                                bucket_name: str = None) -> dict:
+                                 category: FileCategory,
+                                 bucket_name: str = None) -> dict:
         bucket_name = bucket_name or settings.GCS_BUCKET_NAME
         if not bucket_name:
             raise HTTPException(status_code=500, detail="GCS bucket name is not configured.")
@@ -45,7 +47,7 @@ class StorageService:
             def _upload():
                 client = storage.Client()
                 bucket = client.bucket(bucket_name)
-                blob_name = f"{uuid.uuid4()}_{file.filename}"
+                blob_name = f"{category.value}/{uuid.uuid4()}_{file.filename}"
                 blob = bucket.blob(blob_name)
                 blob.upload_from_file(file.file, content_type=file.content_type)
                 return blob_name

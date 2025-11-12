@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class StorageRepository:
     @staticmethod
-    async def store_metadata(db: AsyncSession, file_metadata: dict, user_id: int):
+    async def store_metadata(db: AsyncSession, file_metadata: dict, user_id: int, category: str = None):
         pass
 
     @staticmethod
