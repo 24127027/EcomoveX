@@ -32,8 +32,7 @@ class SearchLocationRequest(BaseModel):
 
 class PhotoInfo(BaseModel):
     photo_reference: str
-    width: int
-    height: int
+    size: Tuple[int, int]
 
 class OpeningHours(BaseModel):
     open_now: bool
@@ -43,6 +42,10 @@ class OpeningHours(BaseModel):
 class AddressComponent(BaseModel):
     name: str
     types: List[str]
+    
+class Review(BaseModel):
+    rating: float
+    text: str
 
 class PlaceDetailsResponse(BaseModel):
     place_id: str
@@ -58,8 +61,7 @@ class PlaceDetailsResponse(BaseModel):
     opening_hours: Optional[OpeningHours] = None
     website: Optional[str] = None
     photos: Optional[List[PhotoInfo]] = None
-    reviews: Optional[List[Dict[str, Any]]] = None
-    vicinity: Optional[str] = None
+    reviews: Optional[List[Review]] = None
     utc_offset: Optional[int] = None
     sustainable_certified: bool = False
 
@@ -98,6 +100,23 @@ class Route(BaseModel):
     legs: List[Leg]
     overview_polyline: str
     bounds: Bounds
+    distance: float
+    duration: float
+    duration_in_traffic: Optional[float] = None
+
+class DirectionsRequest(BaseModel):
+    origin: Tuple[float, float]
+    destination: Tuple[float, float]
+    waypoints: Optional[List[Tuple[float, float]]] = None
+    alternatives: bool = False
+    avoid: Optional[List[str]] = None
+    get_traffic: bool = False
+
+class DirectionsResponse(BaseModel):
+    routes: List[Route] = Field(default_factory=list)
+    available_travel_modes: Optional[TransportMode] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class GeocodingResult(BaseModel):
     place_id: str
@@ -111,19 +130,20 @@ class GeocodingResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-class TrafficCondition(BaseModel):
-    duration_in_traffic: float
-    duration_normal: float
-
-class RouteWithTrafficResponse(BaseModel):
-    route: Optional[Route] = None
-    traffic: Optional[TrafficCondition] = None
-
-class DirectionsResponse(BaseModel):
-    routes: List[RouteWithTrafficResponse] = Field(default_factory=list)
-    available_travel_modes: Optional[List[str]] = None
     
-    model_config = ConfigDict(from_attributes=True)
+class AirQualityIndex(BaseModel):
+    display_name: str
+    aqi: int
+    category: str
+
+class HealthRecommendation(BaseModel):
+    general_population: Optional[str] = None
+    sensitive_groups: Optional[str] = None
+
+class AirQualityResponse(BaseModel):
+    location: Tuple[float, float]
+    aqi_data: AirQualityIndex
+    recommendations: Optional[HealthRecommendation] = None
     
 class EcoRouteRequest(BaseModel):
     origin: Tuple[float, float]
@@ -142,6 +162,13 @@ class EcoRouteData(BaseModel):
 class EcoRouteResponse(BaseModel):
     recommended_route: Optional[EcoRouteData] = None
     alternatives: List[EcoRouteData] = Field(default_factory=list)
+    
+class NearbyPlaceResquest(BaseModel):
+    location: Tuple[float, float]
+    radius: Optional[int]
+    rank_by: str = "prominence"
+    place_type: Optional[str] = None
+    keyword: Optional[str] = None
 
 class NearbyPlaceSimple(BaseModel):
     place_id: str
@@ -149,13 +176,13 @@ class NearbyPlaceSimple(BaseModel):
     location: Tuple[float, float]
     rating: Optional[float] = None
     types: List[str]
-    vicinity: Optional[str] = None
-    distance_meters: Optional[int] = None
 
 class NearbyPlacesResponse(BaseModel):
     center: Tuple[float, float]
     places: List[NearbyPlaceSimple]
     next_page_token: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class RouteComparisonMode(BaseModel):
     mode: TransportMode
