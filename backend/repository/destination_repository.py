@@ -6,7 +6,7 @@ from schemas.destination_schema import *
 
 class DestinationRepository:       
     @staticmethod
-    async def get_destination_by_id(db: AsyncSession, destination_id: int):
+    async def get_destination_by_id(db: AsyncSession, destination_id: str):
         try:
             result = await db.execute(select(Destination).where(Destination.google_place_id == destination_id))
             return result.scalar_one_or_none()
@@ -35,7 +35,7 @@ class DestinationRepository:
             return None
 
     @staticmethod
-    async def update_destination(db: AsyncSession, destination_id: int, updated_data: DestinationUpdate):
+    async def update_destination(db: AsyncSession, destination_id: str, updated_data: DestinationUpdate):
         try:
             destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
@@ -55,7 +55,7 @@ class DestinationRepository:
             return None
         
     @staticmethod
-    async def delete_destination(db: AsyncSession, destination_id: int):
+    async def delete_destination(db: AsyncSession, destination_id: str):
         try:
             destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
@@ -118,7 +118,7 @@ class UserSavedDestinationRepository:
             return False
 
     @staticmethod
-    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             result = await db.execute(
                 select(UserSavedDestination).where(

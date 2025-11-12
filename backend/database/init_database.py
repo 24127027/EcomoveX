@@ -1,5 +1,6 @@
 from sqlalchemy import text
 from database.user_database import UserBase, user_engine
+from database.destination_database import DestinationBase, destination_engine
 from models import *
 
 async def drop_specific_tables(table_names: list[str]):
@@ -29,3 +30,15 @@ async def init_user_db(drop_all: bool = False):
         print("Creating user tables...")
         await conn.run_sync(UserBase.metadata.create_all)
     print("User database initialized successfully")
+    
+async def init_destination_db(drop_all: bool = False):
+    async with destination_engine.begin() as conn:
+        if drop_all:
+            print("Dropping existing destination tables with CASCADE...")
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+            await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+            await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+        print("Creating destination tables...")
+        await conn.run_sync(DestinationBase.metadata.create_all)
+    print("Destination database initialized successfully")

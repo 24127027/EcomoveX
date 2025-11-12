@@ -6,12 +6,10 @@ from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 
-# Mapping Google Maps API travel modes to our TransportMode enum
 GOOGLE_TO_TRANSPORT_MODE = {
-    "driving": TransportMode.car,
-    "walking": TransportMode.walking,
-    "bicycling": TransportMode.motorbike,  # Best approximation
-    "transit": TransportMode.bus,  # Can be bus, train, or metro
+    "driving": [TransportMode.car, TransportMode.motorbike],
+    "walking": [TransportMode.walking],
+    "transit": [TransportMode.bus, TransportMode.metro, TransportMode.train],
 }
 
 class GoogleMapsAPI:   
@@ -184,7 +182,9 @@ class GoogleMapsAPI:
                     for step_data in leg_data.get("steps", []):
                         # Map Google's travel mode to our TransportMode enum
                         google_mode = step_data["travel_mode"].lower()
-                        transport_mode = GOOGLE_TO_TRANSPORT_MODE.get(google_mode, TransportMode.walking)
+                        transport_modes = GOOGLE_TO_TRANSPORT_MODE.get(google_mode, [TransportMode.walking])
+                        # Use the first mode in the list as the primary mode
+                        transport_mode = transport_modes[0] if isinstance(transport_modes, list) else transport_modes
                         
                         steps.append(
                             Step(
@@ -271,20 +271,30 @@ class GoogleMapsAPI:
                 params={"key": self.api_key},
                 json=payload
             )
-            data=response.json()
-            if data.get("status") != "OK":
-                raise ValueError(f"Error fetching air quality data: {data.get('status')}")
+            data = response.json()
+            
+            # Air Quality API doesn't return "status" field like other APIs
+            if "error" in data:
+                raise ValueError(f"Error fetching air quality data: {data.get('error', {}).get('message', 'Unknown error')}")
+            
+            # Get the first index (usually UAQI)
+            indexes = data.get("indexes", [])
+            if not indexes:
+                raise ValueError("No air quality index data available")
+            
+            primary_index = indexes[0]
+            
             return AirQualityResponse(
                 location=location,
                 aqi_data=AirQualityIndex(
-                    display_name="Universal Air Quality Index",
-                    aqi=data.get("indexes", {}).get("aqi"),
-                    category=data.get("indexes", {}).get("category")
+                    display_name=primary_index.get("displayName", "Air Quality Index"),
+                    aqi=primary_index.get("aqi"),
+                    category=primary_index.get("category")
                 ),
                 recommendations=HealthRecommendation(
                     general_population=data.get("healthRecommendations", {}).get("generalPopulation"),
                     sensitive_groups=data.get("healthRecommendations", {}).get("sensitiveGroups")
-                    )
+                ) if data.get("healthRecommendations") else None
             )
         except Exception as e:
             print(f"Error in get_air_quality: {e}")

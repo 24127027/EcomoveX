@@ -199,5 +199,5 @@ class RouteComparisonResponse(BaseModel):
 
 class SearchAlongRouteResponse(BaseModel):
     route_polyline: str
-    places_along_route: List[PlaceDetailsResponse]
+    places_along_route: List[NearbyPlaceSimple]
     search_type: str

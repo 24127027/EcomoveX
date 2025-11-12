@@ -1,6 +1,6 @@
 import math
 
-async def interpolate_search_params(distance: float) -> tuple[float, float]:
+async def interpolate_search_params(distance: float) -> tuple[int, float]:
     r_min, r_max = 300, 5000
     d_max = 500000
     alpha = 1.2
@@ -16,4 +16,4 @@ async def interpolate_search_params(distance: float) -> tuple[float, float]:
         radius += 1000 * math.log10(distance / d_max + 1)
 
     interval = radius * alpha
-    return radius, interval
+    return int(radius), interval

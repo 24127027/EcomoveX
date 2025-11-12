@@ -6,7 +6,7 @@ from models.route import TransportMode, RouteType
 class RouteCreate(BaseModel):
     user_id: int
     origin_id: int
-    destination_id: int
+    destination_id: str
     distance_km: float = Field(..., ge=0)
     estimated_travel_time_min: float = Field(..., ge=0)
     carbon_emission_kg: float = Field(..., ge=0)
@@ -19,7 +19,7 @@ class RouteUpdate(BaseModel):
 class RouteResponse(BaseModel):
     user_id: int
     origin_id: int
-    destination_id: int
+    destination_id: str
     distance_km: float
     estimated_travel_time_min: float
     carbon_emission_kg: float

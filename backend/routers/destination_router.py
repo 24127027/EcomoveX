@@ -12,14 +12,14 @@ router = APIRouter(prefix="/destinations", tags=["Destinations"])
 
 @router.post("/saved/{destination_id}", response_model=UserSavedDestinationResponse, status_code=status.HTTP_201_CREATED)
 async def save_destination_for_current_user(
-    destination_id: int = Path(..., gt=0),
+    destination_id: str = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     result = await UserSavedDestinationService.save_destination_for_user(
         user_db, 
         current_user["user_id"], 
-        str(destination_id)  # Convert to string for Google Place ID
+        destination_id
     )
     try:
         activity_data = UserActivityCreate(
@@ -28,7 +28,6 @@ async def save_destination_for_current_user(
         )
         await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
     except Exception as e:
-        # Log activity failure shouldn't break the main flow
         print(f"Warning: Failed to log activity - {e}")
     return result
 
@@ -44,7 +43,7 @@ async def get_my_saved_destinations(
 
 @router.delete("/saved/{destination_id}", status_code=status.HTTP_200_OK)
 async def unsave_destination_for_current_user(
-    destination_id: int = Path(..., gt=0),
+    destination_id: str = Path(...),
     user_db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):

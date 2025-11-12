@@ -16,10 +16,8 @@ from routers.reward_router import router as reward_router
 # Import database setup
 from database.user_database import user_engine
 from database.destination_database import destination_engine
-from database.init_user_database import init_user_db
-from database.init_destination_database import init_destination_db
+from backend.database.init_database import init_user_db, init_destination_db
 from utils.config import settings
-from services.carbon_service import CarbonService
 
 # Lifespan event handler (startup/shutdown)
 @asynccontextmanager
@@ -86,7 +84,7 @@ app.include_router(review_router)
 app.include_router(friend_router)
 app.include_router(destination_router)
 # app.include_router(route_router)
-# app.include_router(map_search_router)  # Search Bar feature
+# app.include_router(map_search_router)
 #app.include_router(chatbot_router)
 #app.include_router(recommendation_router)
 app.include_router(reward_router)

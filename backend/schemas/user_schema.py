@@ -37,11 +37,11 @@ class UserResponse(BaseModel):
 
 class UserActivityCreate(BaseModel):
     activity: Activity
-    destination_id: int
+    destination_id: str
     
 class UserActivityResponse(BaseModel):
     user_id: int
-    destination_id: int
+    destination_id: str
     activity: Activity
     timestamp: str
 

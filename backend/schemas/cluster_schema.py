@@ -40,7 +40,7 @@ class UserClusterBatchCreate(BaseModel):
 
 class ClusterDestinationCreate(BaseModel):
     cluster_id: int = Field(..., gt=0)
-    destination_id: int = Field(..., gt=0)
+    destination_id: str = Field(..., gt=0)
     popularity_score: Optional[float] = Field(None, ge=0.0, le=100.0)
 
 class ClusterDestinationUpdate(BaseModel):
