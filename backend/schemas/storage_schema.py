@@ -1,20 +1,21 @@
-from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
+from enum import Enum
 
 class FileCategory(str, Enum):
     PROFILE_AVATAR = "profile_avatar"
     PROFILE_COVER = "profile_cover"
     TRAVEL_PHOTO = "travel_photo"
-    
-class FileUploadResponse(BaseModel):
-    url: str
-    blob_name: str
-    content_type: str
-    filename: str
-    bucket: str
-    size: int
-    category: FileCategory
 
-class FileDeleteResponse(BaseModel):
-    detail: str
+class FileMetadata(BaseModel):
+    url: str = Field(...)
+    blob_name: str = Field(...)
+    filename: str = Field(...)
+    bucket: str = Field(...)
+    size: int = Field(...)
+    
+class FileMetadataResponse(BaseModel):
+    url: str = Field(...)
+    content_type: str = Field(...)
+    updated_at: Optional[datetime] = Field(None)

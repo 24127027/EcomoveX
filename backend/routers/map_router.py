@@ -9,7 +9,7 @@
 # from schemas.user_schema import *
 # from services.map_service import MapService
 # from services.user_service import UserActivityService
-# from utils.authentication_util import get_current_user
+# from utils.token.authentication_util import get_current_user
 
 # router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 

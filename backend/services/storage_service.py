@@ -7,13 +7,8 @@ from backend.schemas.storage_schema import FileCategory
 import uuid
 from datetime import timedelta
 import asyncio
-
-"""
-    Other improvements for future:
-    - Add caching for signed URLs to reduce generation overhead
-    - File type validation
-    - Max file size check 
-"""
+from models.metadata import *
+from schemas.storage_schema import *
 
 class StorageService:
     @staticmethod
@@ -41,7 +36,6 @@ class StorageService:
         try:
             file.file.seek(0)
 
-            # Run blocking GCS operations in thread pool to avoid blocking event loop
             loop = asyncio.get_event_loop()
             
             def _upload():
@@ -68,8 +62,12 @@ class StorageService:
                 "bucket": bucket_name,
                 "size": size
             }
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to upload file to GCS: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail=f"Unexpected error uploading file to GCS: {e}")
         
     @staticmethod
     async def delete_file(db: AsyncSession,
@@ -91,12 +89,15 @@ class StorageService:
             
             await loop.run_in_executor(None, _delete)
             
-            # await the async repository call
             await StorageRepository.delete_metadata_by_blob_name(db, blob_name)
 
             return {"detail": "File deleted successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to delete file from GCS: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail=f"Unexpected error deleting file from GCS: {e}")
 
     @staticmethod
     async def get_file_url(blob_name: str,
@@ -110,7 +111,10 @@ class StorageService:
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get file URL from GCS: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail=f"Unexpected error retrieving file URL from GCS: {e}"
+            )
         
 
     @staticmethod
@@ -118,15 +122,28 @@ class StorageService:
                                   blob_name: str, 
                                   expiration_seconds: int = 3600) -> str:
         try:
-            # Run blocking signed URL generation in thread pool
             loop = asyncio.get_event_loop()
             
             def _generate():
                 client = storage.Client()
                 bucket = client.bucket(bucket_name)
                 blob = bucket.blob(blob_name)
-                return blob.generate_signed_url(expiration=timedelta(seconds=expiration_seconds), version="v4")
+                return blob.generate_signed_url(
+                    expiration=timedelta(seconds=expiration_seconds), 
+                    version="v4"
+                )
             
             return await loop.run_in_executor(None, _generate)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to generate signed URL: {e}")
+            
+    @staticmethod
+    async def get_metadata_by_user_id(db: AsyncSession, user_id: int) -> list[FileMetadataResponse]:
+        try:
+            metadata_list = await StorageRepository.get_metadata_by_user_id(db, user_id)
+            return metadata_list
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving metadata by user ID: {e}"
+            )

@@ -5,7 +5,7 @@ from database.user_database import get_user_db
 from schemas.authentication_schema import *
 from schemas.user_schema import *
 from services.user_service import UserActivityService, UserService
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

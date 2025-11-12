@@ -1,6 +1,6 @@
 import requests
 import base64
-from config import settings
+from ..config import settings
 
 client_id = settings.SUSTAINABILITY_DATA_API_CLIENT_ID
 client_secret = settings.SUSTAINABILITY_DATA_API_CLIENT_SECRET
@@ -20,3 +20,4 @@ data = {
 
 response = requests.post(url, headers=headers, data=data)
 access_token = response.json().get("access_token")
+

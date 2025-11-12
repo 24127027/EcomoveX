@@ -2,9 +2,10 @@ import os
 from typing import Dict, List, Optional
 import cv2
 import numpy as np
+from ultralytics import YOLO
+import torch 
 import os
-import torch  # added for device detection
-
+import torch  
 
 class CupDetectorScorer:
     def __init__(
@@ -12,30 +13,20 @@ class CupDetectorScorer:
         model_path: Optional[str] = None,
         conf_threshold: float = 0.25,
         category_weights: Optional[Dict[str, float]] = None,
-        device: Optional[str] = None,  # new optional device param
+        device: Optional[str] = None,
     ):
-        """
-        Args:
-            model_path: path to YOLO model. Defaults to ../models/glass_classification_model.pt
-            conf_threshold: minimum confidence to keep a detection.
-            category_weights: per-material weight (higher -> more reliable).
-                Example: {"glass": 1.0, "plastic": 0.6, "paper": 0.6}
-            device: torch device string, e.g. "cuda:0" or "cpu". If None, auto-selects.
-        """
         self.conf_threshold = conf_threshold
         self._model: Optional[YOLO] = None
 
         default_weights = {"glass": 1.0, "plastic": 0.6, "paper": 0.6}
         self.category_weights = {k.lower(): float(v) for k, v in (category_weights or default_weights).items()}
         
-        # device selection: explicit arg -> CUDA if available -> CPU
         if device:
             self.device = device
         else:
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         print(f"CupDetectorScorer using device: {self.device}")
         
-        # compute default model path if not provided (sibling ../models/)
         if model_path is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             self.model_path = os.path.abspath(os.path.join(script_dir, "..", "models", "glass_classification_model.pt"))
@@ -50,7 +41,6 @@ class CupDetectorScorer:
                 raise FileNotFoundError(f"Model file not found: {self.model_path}")
             self._model = YOLO(self.model_path)
             try:
-                # ultralytics may accept .to; ignore if not supported
                 self._model.to(self.device)
             except Exception:
                 pass
@@ -68,7 +58,7 @@ class CupDetectorScorer:
 
         self._load_model()
         imgs_rgb = [cv2.cvtColor(img, cv2.COLOR_BGR2RGB) for img in images]
-        # pass device to inference
+
         results = self._model(imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device)
 
         all_scores: List[float] = []
@@ -91,17 +81,3 @@ class CupDetectorScorer:
 
         normalized = (avg_score * 20.0) - 10.0
         return float(normalized)
-
-
-# Example usage:
-if __name__ == "__main__":
-    
-    detector = CupDetectorScorer(
-        conf_threshold=0.25,
-        category_weights={"glass": 1.0, "plastic": -0.4, "paper": 0.6},
-    )
-
-    test_image_paths = ["D:/MyML/cup/weights/paper.jpg", "D:/MyML/cup/weights/unnamed.jpg"]
-    final_score = detector.score_images(test_image_paths)
-    
-    print(f"Final Score: {final_score:.2f} (range: -10 to 10)")

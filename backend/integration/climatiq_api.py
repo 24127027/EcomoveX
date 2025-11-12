@@ -1,3 +1,5 @@
+from typing import Optional
+import httpx
 import requests
 from models.route import TransportMode
 from utils.config import settings
@@ -61,7 +63,7 @@ class climatiqAPI:
             response = requests.post(url, headers=self.headers, json=params)
             response.raise_for_status()
             data = response.json()
-            return data["co2e"] * passenger / 30 # assuming average bus occupancy of 30
+            return data["co2e"] * passenger / 30
         except requests.exceptions.RequestException as e:
             raise Exception(f"Electric bus estimation failed: {e}")
 
@@ -94,13 +96,7 @@ class climatiqAPI:
         passengers: int = 1,
         fuel_type: Optional[str] = None
     ) -> float:
-        """
-        Unified transport emission estimator.
-        Uses the Travel API for 'car', 'rail', 'air';
-        Uses Basic Estimate API for 'motorbike'.
-        Returns only co2e_total and unit.
-        """
-        # Zero emissions for walking and bicycling
+
         if mode in [TransportMode.walking, TransportMode.bicycle, TransportMode.bicycling]:
             return 0.0
 

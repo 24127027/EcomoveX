@@ -6,7 +6,7 @@ from schemas.destination_schema import *
 from schemas.user_schema import *
 from services.destination_service import UserSavedDestinationService
 from services.user_service import UserActivityService
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/destinations", tags=["Destinations"])
 

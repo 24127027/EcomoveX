@@ -7,6 +7,7 @@ from .plan import Plan, PlanDestination
 from .review import Review
 from .route import Route
 from .user import User, UserActivity
+from .metadata import Metadata
 
 __all__ = [
     "User",
@@ -24,4 +25,5 @@ __all__ = [
     "UserSavedDestination",
     "Route",
     "UserActivity",
+    "Metadata",
 ]

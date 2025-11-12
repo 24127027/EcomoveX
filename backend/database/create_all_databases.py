@@ -1,10 +1,11 @@
 import asyncio
 import asyncpg
-
 from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
+from .init_user_database import init_user_db
+from .init_destination_database import init_destination_db
 
 async def create_databases():
     conn = await asyncpg.connect(
@@ -39,8 +40,6 @@ async def create_databases():
     finally:
         await conn.close()
     
-    from models.init_user_database import init_user_db
-    from models.init_destination_database import init_destination_db
     
     print("\nInitializing user database tables...")
     await init_user_db(drop_all=False)

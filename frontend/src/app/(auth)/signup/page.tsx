@@ -85,7 +85,7 @@ export default function SignupPage() {
         localStorage.setItem("user_id", response.user_id.toString());
       }
       // Redirect to dashboard
-      router.replace("/dashboard");
+      router.replace("/homepage");
     } catch (err: any) {
       setError(err.message || "Registration failed. Please try again.");
     } finally {

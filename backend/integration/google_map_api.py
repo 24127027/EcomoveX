@@ -4,6 +4,15 @@ import httpx
 from models.route import TransportMode
 from schemas.map_schema import *
 from utils.config import settings
+from utils.maps.map_utils import interpolate_search_params
+
+# Mapping Google Maps API travel modes to our TransportMode enum
+GOOGLE_TO_TRANSPORT_MODE = {
+    "driving": TransportMode.car,
+    "walking": TransportMode.walking,
+    "bicycling": TransportMode.motorbike,  # Best approximation
+    "transit": TransportMode.bus,  # Can be bus, train, or metro
+}
 
 class GoogleMapsAPI:   
     def __init__(self, api_key: Optional[str] = None):
@@ -18,159 +27,319 @@ class GoogleMapsAPI:
         await self.client.aclose()
 
     async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> AutocompleteResponse:
-        """Search for places using autocomplete with Pydantic response"""
-        params = {
-            "input": data.query.strip(),
-            "language": data.language,
-            "key": self.api_key
-        }
+        try:
+            params = {
+                "input": data.query.strip(),
+                "language": data.language,
+                "key": self.api_key
+            }
 
-        if data.user_location:
-            params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
-        if data.radius:
-            params["radius"] = data.radius
-        if data.place_types:
-            params["types"] = data.place_types
-        if components:
-            params["components"] = components
-        
-        url = f"{self.base_url}/place/autocomplete/json"
-        response = await self.client.get(url, params=params)
-        list = response.json().get("predictions", [])
-        list_places = []
-        for place in list:
-            place_obj = PlaceSearchDisplay(
-                description=place.get("description"),
-                place_id=place.get("place_id"),
-                structured_formatting=place.get("structured_formatting"),
-                types=place.get("types", []),
-                matched_substrings=place.get("matched_substrings", []),
-                distance=place.get("distance")
-            )
-            list_places.append(place_obj)
-        return AutocompleteResponse(predictions=list_places)
+            if data.user_location:
+                params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
+            if data.radius:
+                params["radius"] = data.radius
+            if data.place_types:
+                params["types"] = data.place_types
+            if components:
+                params["components"] = components
+            
+            url = f"{self.base_url}/place/autocomplete/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching autocomplete places: {data.get('status')}")
+            list = data.get("predictions", [])
+            list_places = []
+            for place in list:
+                place_obj = PlaceSearchDisplay(
+                    description=place.get("description"),
+                    place_id=place.get("place_id"),
+                    structured_formatting=place.get("structured_formatting"),
+                    types=place.get("types", []),
+                    matched_substrings=place.get("matched_substrings", []),
+                    distance=place.get("distance")
+                )
+                list_places.append(place_obj)
+            return AutocompleteResponse(predictions=list_places)
+        except Exception as e:
+            print(f"Error in autocomplete_place: {e}")
+            raise e
 
     async def get_place_details_from_autocomplete(self, place_id: str, language: str = "vi") -> PlaceDetailsResponse:
-        fields = [
-            "place_id",
-            "name", 
-            "formatted_address",
-            "address_components",
-            "formatted_phone_number",
-            "geometry/location",
-            "geometry/viewport",
-            "types",
-            "rating",
-            "user_ratings_total",
-            "price_level",
-            "opening_hours",
-            "website",
-            "photos",
-            "reviews",
-            "vicinity",
-            "utc_offset",
-        ]
-        params = {
-            "place_id": place_id,
-            "fields": ",".join(fields),
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/place/details/json"
-        response = await self.client.get(url, params=params)
-        return PlaceDetailsResponse(**response.json())
+        try:
+            fields = [
+                "place_id",
+                "name", 
+                "formatted_address",
+                "address_components",
+                "formatted_phone_number",
+                "geometry/location",
+                "geometry/viewport",
+                "types",
+                "rating",
+                "user_ratings_total",
+                "price_level",
+                "opening_hours",
+                "website",
+                "photos",
+                "reviews",
+                "vicinity",
+                "utc_offset",
+            ]
+            params = {
+                "place_id": place_id,
+                "fields": ",".join(fields),
+                "language": language,
+                "key": self.api_key
+            }
+            
+            url = f"{self.base_url}/place/details/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching place details: {data.get('status')}")
+            return PlaceDetailsResponse(
+                place_id=data.get("result", {}).get("place_id"),
+                name=data.get("result", {}).get("name"),
+                formatted_address=data.get("result", {}).get("formatted_address"),
+                address_components=[AddressComponent(
+                    name=comp.get("long_name"),
+                    types=comp.get("types", [])
+                ) for comp in data.get("result", {}).get("address_components", [])],
+                formatted_phone_number=data.get("result", {}).get("formatted_phone_number"),
+                geometry=Geometry(
+                    location=(
+                        data.get("result", {}).get("geometry", {}).get("location", {}).get("lat"),
+                        data.get("result", {}).get("geometry", {}).get("location", {}).get("lng")
+                    ),
+                    bounds=Bounds(
+                        northeast=(
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                        ),
+                        southwest=(
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                        )
+                    ),
+                ),
+                types=data.get("result", {}).get("types", []),
+                rating=data.get("result", {}).get("rating"),
+                user_ratings_total=data.get("result", {}).get("user_ratings_total"),
+                price_level=data.get("result", {}).get("price_level"),
+                opening_hours=OpeningHours(
+                    open_now=data.get("result", {}).get("opening_hours", {}).get("open_now", False),
+                    periods=data.get("result", {}).get("opening_hours", {}).get("periods"),
+                    weekday_text=data.get("result", {}).get("opening_hours", {}).get("weekday_text")
+                ) if data.get("result", {}).get("opening_hours") else None,
+                website=data.get("result", {}).get("website"),
+                photos=[PhotoInfo(
+                    photo_reference=photo.get("photo_reference"),  
+                    size=(photo.get("width"), photo.get("height"))
+                ) for photo in data.get("result", {}).get("photos", [])] if data.get("result", {}).get("photos") else None,
+                reviews=[Review(
+                    rating=review.get("rating"),
+                    text=review.get("text")
+                ) for review in data.get("result", {}).get("reviews", [])] if data.get("result", {}).get("reviews") else None,
+                utc_offset=data.get("result", {}).get("utc_offset"),
+            )
+        except Exception as e:
+            print(f"Error in get_place_details_from_autocomplete: {e}")
+            raise e
     
     async def get_directions(
         self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
+        data: DirectionsRequest,
         mode: TransportMode,
-        waypoints: Optional[List[str]] = None,
-        alternatives: bool = False,
-        avoid: Optional[List[str]] = None,
         language: str = "vi"
     ) -> DirectionsResponse:
-        """Get directions between locations with Pydantic response"""
-        params = {
-            "origin": f"{origin[0]},{origin[1]}",
-            "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode.value,
-            "alternatives": str(alternatives).lower(),
-            "language": language,
-            "key": self.api_key
-        }
-        
-        if waypoints:
-            params["waypoints"] = "optimize:true|" + "|".join(waypoints)
-        if avoid:
-            params["avoid"] = "|".join(avoid)
-        
-        url = f"{self.base_url}/directions/json"
-        response = await self.client.get(url, params=params)
-        return DirectionsResponse(**response.json())
+        try:
+            params = {
+                "origin": f"{data.origin[0]},{data.origin[1]}",
+                "destination": f"{data.destination[0]},{data.destination[1]}",
+                "mode": mode.value,
+                "departure_time": "now" if data.get_traffic else None,
+                "alternatives": str(data.alternatives).lower(),
+                "language": language,
+                "key": self.api_key
+            }
+            
+            if data.waypoints:
+                waypoints_str = "|".join([f"{wp[0]},{wp[1]}" for wp in data.waypoints])
+                params["waypoints"] = "optimize:true|" + waypoints_str
+            if data.avoid:
+                params["avoid"] = "|".join(data.avoid)
+            
+            url = f"{self.base_url}/directions/json"
+            response = await self.client.get(url, params=params)
+            response_data = response.json()
+            if response_data.get("status") != "OK":
+                raise ValueError(f"Error fetching directions: {response_data.get('status')}")
+
+            routes = []
+            for route_data in response_data.get("routes", []):
+                legs = []
+                for leg_data in route_data.get("legs", []):
+                    steps = []
+                    for step_data in leg_data.get("steps", []):
+                        # Map Google's travel mode to our TransportMode enum
+                        google_mode = step_data["travel_mode"].lower()
+                        transport_mode = GOOGLE_TO_TRANSPORT_MODE.get(google_mode, TransportMode.walking)
+                        
+                        steps.append(
+                            Step(
+                                distance=step_data["distance"]["value"],
+                                duration=step_data["duration"]["value"],
+                                start_location=(step_data["start_location"]["lat"], step_data["start_location"]["lng"]),
+                                end_location=(step_data["end_location"]["lat"], step_data["end_location"]["lng"]),
+                                html_instructions=step_data.get("html_instructions", ""),
+                                travel_mode=transport_mode,
+                                polyline=step_data.get("polyline", {}).get("points"),
+                                transit_details=step_data.get("transit_details")
+                            )
+                        )
+                    leg = Leg(
+                        distance=leg_data["distance"]["value"],
+                        duration=leg_data["duration"]["value"],
+                        start_location=(leg_data["start_address"], (leg_data["start_location"]["lat"], leg_data["start_location"]["lng"])),
+                        end_location=(leg_data["end_address"], (leg_data["end_location"]["lat"], leg_data["end_location"]["lng"])),
+                        steps=steps,
+                        duration_in_traffic=leg_data.get("duration_in_traffic", {}).get("value"),
+                        arrival_time=leg_data.get("arrival_time"),
+                        departure_time=leg_data.get("departure_time")
+                    )
+                    legs.append(leg)
+                route = Route(
+                    summary=route_data.get("summary", ""),
+                    legs=legs,
+                    overview_polyline=route_data.get("overview_polyline", {}).get("points", ""),
+                    bounds=Bounds(
+                        northeast=(route_data["bounds"]["northeast"]["lat"], route_data["bounds"]["northeast"]["lng"]),
+                        southwest=(route_data["bounds"]["southwest"]["lat"], route_data["bounds"]["southwest"]["lng"])
+                    ),
+                    distance=sum(leg.distance for leg in legs),
+                    duration=sum(leg.duration for leg in legs),
+                    duration_in_traffic=route_data.get("duration_in_traffic", {}).get("value") if "duration_in_traffic" in route_data else None
+                )
+                routes.append(route)
+            return DirectionsResponse(routes=routes, available_travel_modes=mode)
+        except Exception as e:
+            print(f"Error in get_directions: {e}")
+            raise e
+    
+    async def get_direction_for_multiple_modes(
+        self,
+        data: DirectionsRequest,
+        modes: List[TransportMode]
+    ) -> List[DirectionsResponse]:
+        try:
+            all_responses = []
+            
+            for mode in modes:
+                directions = await self.get_directions(
+                    data=data,
+                    mode=mode
+                )
+                all_responses.append(directions)
+            
+            return all_responses    
+        except Exception as e:
+            print(f"Error in get_direction_for_multiple_modes: {e}")
+            raise e
     
     async def get_air_quality(
         self,
-        lat: float,
-        lng: float,
-        extra_computations: Optional[List[str]] = None,
+        location: Tuple[float, float],
+        extra_computations: Optional[List[str]] = ["HEALTH_RECOMMENDATIONS"],
         language_code: str = "vi"
-    ) -> Dict[str, Any]:
-        """Get current air quality data with optional pollutant details"""
-        payload = {
-            "location": {
-                "latitude": lat,
-                "longitude": lng
-            },
-            "languageCode": language_code
-        }
-        
-        if extra_computations:
-            payload["extraComputations"] = extra_computations
-        
-        url = "https://airquality.googleapis.com/v1/currentConditions:lookup"
-        response = await self.client.post(
-            url,
-            params={"key": self.api_key},
-            json=payload
-        )
-        return response.json()
-    
-    async def get_route(
-        self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
-        mode: TransportMode,
-    ) -> DirectionsResponse:
-        """Get single route between locations with Pydantic response"""
-        params = {
-            "origin": f"{origin[0]},{origin[1]}",
-            "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode.value,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/directions/json"
-        response = await self.client.get(url, params=params)
-        return DirectionsResponse(**response.json())
+    ) -> AirQualityResponse:
+        try:
+            payload = {
+                "location": {
+                    "latitude": location[0],
+                    "longitude": location[1]
+                },
+                "languageCode": language_code
+            }
+            
+            if extra_computations:
+                payload["extraComputations"] = extra_computations
+            
+            url = "https://airquality.googleapis.com/v1/currentConditions:lookup"
+            response = await self.client.post(
+                url,
+                params={"key": self.api_key},
+                json=payload
+            )
+            data=response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching air quality data: {data.get('status')}")
+            return AirQualityResponse(
+                location=location,
+                aqi_data=AirQualityIndex(
+                    display_name="Universal Air Quality Index",
+                    aqi=data.get("indexes", {}).get("aqi"),
+                    category=data.get("indexes", {}).get("category")
+                ),
+                recommendations=HealthRecommendation(
+                    general_population=data.get("healthRecommendations", {}).get("generalPopulation"),
+                    sensitive_groups=data.get("healthRecommendations", {}).get("sensitiveGroups")
+                    )
+            )
+        except Exception as e:
+            print(f"Error in get_air_quality: {e}")
+            raise e
     
     async def reverse_geocode(
         self,
-        lat: float,
-        lng: float,
+        location: Tuple[float, float],
         language: str = "vi"
     ) -> GeocodingResponse:
-        """Convert coordinates to address with Pydantic response"""
-        params = {
-            "latlng": f"{lat},{lng}",
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/geocode/json"
-        response = await self.client.get(url, params=params)
-        return GeocodingResponse(**response.json())
+        try:
+            params = {
+                "latlng": f"{location[0]},{location[1]}",
+                "language": language,
+                "key": self.api_key
+            }
+            
+            url = f"{self.base_url}/geocode/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error in reverse geocoding: {data.get('status')}")
+            
+            results = []
+            for result in data.get("results", []):
+                results.append(GeocodingResult(
+                    place_id=result.get("place_id"),
+                    formatted_address=result.get("formatted_address"),
+                    address_components=[AddressComponent(
+                        name=comp.get("long_name"),
+                        types=comp.get("types", [])
+                    ) for comp in result.get("address_components", [])],
+                    geometry=Geometry(
+                        location=(
+                            result.get("geometry", {}).get("location", {}).get("lat"),
+                            result.get("geometry", {}).get("location", {}).get("lng")
+                        ),
+                        bounds=Bounds(
+                            northeast=(
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            ),
+                            southwest=(
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            )
+                        )
+                    ),
+                    types=result.get("types", [])
+                ))
+            
+            return GeocodingResponse(results=results)
+        except Exception as e:
+            print(f"Error in reverse_geocode: {e}")
+            raise e
     
     async def geocode(
         self,
@@ -178,495 +347,152 @@ class GoogleMapsAPI:
         language: str = "vi",
         region: str = "vn"
     ) -> GeocodingResponse:
-        """Convert address to coordinates with Pydantic response"""
-        params = {
-            "address": address,
-            "language": language,
-            "region": region,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/geocode/json"
-        response = await self.client.get(url, params=params)
-        return GeocodingResponse(**response.json())
-    
-    # ============= CORE FEATURES FOR ECO APP =============
-    
-    async def get_directions_with_traffic(
-        self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
-        mode: TransportMode,
-        departure_time: Optional[str] = "now",
-        language: str = "vi"
-    ) -> RouteWithTrafficResponse:
-        """Get route with real-time traffic information"""
-        params = {
-            "origin": f"{origin[0]},{origin[1]}",
-            "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode.value,
-            "departure_time": departure_time,
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/directions/json"
-        response = await self.client.get(url, params=params)
-        data = response.json()
-        
-        if data.get("status") != "OK" or not data.get("routes"):
-            return RouteWithTrafficResponse(
-                status=data.get("status", "ERROR"),
-                error_message=data.get("error_message", "No routes found")
-            )
-        
-        route_data = data["routes"][0]
-        leg = route_data["legs"][0]
-        
-        route = Route(**route_data)
-        
-        traffic_info = None
-        if leg.get("duration_in_traffic"):
-            normal_duration = leg["duration"]["value"]
-            traffic_duration = leg["duration_in_traffic"]["value"]
-            delay = traffic_duration - normal_duration
-            
-            if delay < 300:
-                level = "light"
-            elif delay < 900:
-                level = "moderate"
-            elif delay < 1800:
-                level = "heavy"
-            else:
-                level = "severe"
-            
-            traffic_info = TrafficCondition(
-                duration_in_traffic=traffic_duration,
-                duration_normal=normal_duration,
-                traffic_level=level,
-            )
-        
-        return RouteWithTrafficResponse(
-            status="OK",
-            route=route,
-            traffic=traffic_info
-        )
-        
-    async def get_eco_optimized_routes(
-        self,
-        request: EcoRouteRequest,
-        carbon_service=None
-    ) -> EcoRouteResponse:
-        """Get eco-friendly route recommendations optimized for lowest carbon footprint"""
-        all_routes = []
-        
-        # Try different eco-friendly modes
-        for mode_str in request.preferred_modes:
-            try:
-                mode = TransportMode[mode_str]
-            except KeyError:
-                continue
-            
+        try:
             params = {
-                "origin": f"{request.origin[0]},{request.origin[1]}",
-                "destination": f"{request.destination[0]},{request.destination[1]}",
-                "mode": mode.value,
-                "language": "vi",
+                "address": address,
+                "language": language,
+                "region": region,
                 "key": self.api_key
             }
             
-            if request.avoid_highways:
-                params["avoid"] = "highways"
-            if request.departure_time:
-                params["departure_time"] = request.departure_time
-            
-            url = f"{self.base_url}/directions/json"
+            url = f"{self.base_url}/geocode/json"
             response = await self.client.get(url, params=params)
             data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error in geocoding: {data.get('status')}")
             
-            if data.get("status") == "OK" and data.get("routes"):
-                route = data["routes"][0]
-                leg = route["legs"][0]
-                distance_km = leg["distance"]["value"] / 1000
-                duration_min = leg["duration"]["value"] / 60
-                
-                # Skip if exceeds max duration
-                if request.max_duration_minutes and duration_min > request.max_duration_minutes:
-                    continue
-                
-                # Calculate carbon (mock if service not available)
-                carbon_kg = distance_km * 0.02  # Placeholder
-                
-                # Calculate eco score (0-100)
-                eco_score = 100
-                if mode_str == "walking":
-                    eco_score = 100
-                elif mode_str == "cycling":
-                    eco_score = 95
-                elif mode_str == "transit":
-                    eco_score = 85
-                elif mode_str == "bus":
-                    eco_score = 80
-                
-                all_routes.append(EcoRouteData(
-                    mode=[mode_str],
-                    distance_km=distance_km,
-                    duration_minutes=duration_min,
-                    carbon_kg=carbon_kg,
-                    carbon_saved_vs_car=max(0, distance_km * 0.12 - carbon_kg),
-                    eco_score=eco_score,
-                    polyline=route["overview_polyline"]["points"],
-                    bounds=Bounds(
-                        northeast=tuple(route["bounds"]["northeast"].values()),
-                        southwest=tuple(route["bounds"]["southwest"].values())
-                    )
+            results = []
+            for result in data.get("results", []):
+                results.append(GeocodingResult(
+                    place_id=result.get("place_id"),
+                    formatted_address=result.get("formatted_address"),
+                    address_components=[AddressComponent(
+                        name=comp.get("long_name"),
+                        types=comp.get("types", [])
+                    ) for comp in result.get("address_components", [])],
+                    geometry=Geometry(
+                        location=(
+                            result.get("geometry", {}).get("location", {}).get("lat"),
+                            result.get("geometry", {}).get("location", {}).get("lng")
+                        ),
+                        bounds=Bounds(
+                            northeast=(
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            ),
+                            southwest=(
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            )
+                        )
+                    ),
+                    types=result.get("types", [])
                 ))
+            
+            return GeocodingResponse(results=results)
+        except Exception as e:
+            print(f"Error in geocode: {e}")
+            raise e
         
-        if not all_routes:
-            return EcoRouteResponse(
-                status="ZERO_RESULTS",
-                comparison_with_car=None
-            )
-        
-        # Sort by eco score
-        all_routes.sort(key=lambda x: (-x.eco_score, x.duration_minutes))
-        
-        return EcoRouteResponse(
-            status="OK",
-            recommended_route=all_routes[0],
-            alternatives=all_routes[1:3],
-            comparison_with_car={
-                "carbon_saved_kg": all_routes[0].carbon_saved_vs_car,
-                "trees_equivalent": round(all_routes[0].carbon_saved_vs_car / 0.02, 1)
-            }
-        )
-    
-    async def search_ev_charging_stations(
-        self,
-        lat: float,
-        lng: float,
-        radius: int = 5000,
-        language: str = "vi"
-    ) -> NearbyPlacesResponse:
-        """Search for EV charging stations nearby"""
-        params = {
-            "location": f"{lat},{lng}",
-            "radius": radius,
-            "keyword": "ev charging station|electric vehicle charging",
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/place/nearbysearch/json"
-        response = await self.client.get(url, params=params)
-        data = response.json()
-        
-        if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-            return NearbyPlacesResponse(
-                status=data.get("status", "ERROR"),
-                center=(lat, lng),
-                places=[]
-            )
-        
-        places = [
-            NearbyPlaceSimple(
-                place_id=result["place_id"],
-                name=result["name"],
-                location=(result["geometry"]["location"]["lat"], 
-                         result["geometry"]["location"]["lng"]),
-                rating=result.get("rating"),
-                types=result.get("types", []),
-                vicinity=result.get("vicinity")
-            )
-            for result in data.get("results", [])[:20]
-        ]
-        
-        return NearbyPlacesResponse(
-            status="OK",
-            center=(lat, lng),
-            places=places,
-            next_page_token=data.get("next_page_token")
-        )
-    
-    async def search_bike_sharing_stations(
-        self,
-        lat: float,
-        lng: float,
-        radius: int = 2000,
-        language: str = "vi"
-    ) -> NearbyPlacesResponse:
-        """Search for bike sharing stations nearby"""
-        params = {
-            "location": f"{lat},{lng}",
-            "radius": radius,
-            "keyword": "bike sharing|bicycle rental|bike station",
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/place/nearbysearch/json"
-        response = await self.client.get(url, params=params)
-        data = response.json()
-        
-        if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-            return NearbyPlacesResponse(
-                status=data.get("status", "ERROR"),
-                center=(lat, lng),
-                places=[]
-            )
-        
-        places = [
-            NearbyPlaceSimple(
-                place_id=result["place_id"],
-                name=result["name"],
-                location=(result["geometry"]["location"]["lat"], 
-                         result["geometry"]["location"]["lng"]),
-                rating=result.get("rating"),
-                types=result.get("types", []),
-                vicinity=result.get("vicinity")
-            )
-            for result in data.get("results", [])[:20]
-        ]
-        
-        return NearbyPlacesResponse(
-            status="OK",
-            center=(lat, lng),
-            places=places,
-            next_page_token=data.get("next_page_token")
-        )
-    
-    # ============= UI HELPER FUNCTIONS =============
-    
-    async def get_air_quality_heatmap(
-        self,
-        lat: float,
-        lng: float,
-        zoom: int = 12
-    ) -> Dict[str, Any]:
-        """Get air quality heatmap tile for UI visualization"""
-        n = 2.0 ** zoom
-        x = int((lng + 180.0) / 360.0 * n)
-        y = int((1.0 - math.log(math.tan(math.radians(lat)) + (1 / math.cos(math.radians(lat)))) / math.pi) / 2.0 * n)
-        
-        url = f"https://airquality.googleapis.com/v1/mapTypes/UAQI_RED_GREEN/heatmapTiles/{zoom}/{x}/{y}"
-        response = await self.client.get(url, params={"key": self.api_key})
-        
-        return {
-            "tile_url": url,
-            "zoom": zoom,
-            "x": x,
-            "y": y,
-            "location": {"lat": lat, "lng": lng},
-            "status_code": response.status_code
-        }
-    
-    async def get_photo_url(
-        self,
-        photo_reference: str,
-        max_width: int = 400,
-        max_height: Optional[int] = None
-    ) -> str:
-        """Get photo URL for displaying place images in UI"""
-        params = {
-            "photoreference": photo_reference,
-            "maxwidth": max_width,
-            "key": self.api_key
-        }
-        
-        if max_height:
-            params["maxheight"] = max_height
-        
-        return f"{self.base_url}/place/photo?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
-    
-    async def get_multiple_routes_for_comparison(
-        self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
-        modes: List[TransportMode]
-    ) -> RouteComparisonResponse:
-        """Get routes for multiple transport modes for UI comparison with carbon data"""
-        results = {}
-        
-        for mode in modes:
-            try:
-                directions = await self.get_directions(
-                    origin=origin,
-                    destination=destination,
-                    mode=mode,
-                    alternatives=False
-                )
-                
-                if directions.status == "OK" and directions.routes:
-                    route = directions.routes[0]
-                    leg = route.legs[0]
-                    distance_km = leg.distance.value / 1000
-                    
-                    # Estimate carbon (simplified)
-                    carbon_factors = {
-                        "car": 0.12,
-                        "motorbike": 0.08,
-                        "bus": 0.04,
-                        "metro": 0.03,
-                        "train": 0.03,
-                        "cycling": 0.0,
-                        "walking": 0.0
-                    }
-                    carbon_kg = distance_km * carbon_factors.get(mode.value, 0.1)
-                    
-                    results[mode.value] = RouteComparisonMode(
-                        mode=mode.value,
-                        available=True,
-                        distance_meters=leg.distance.value,
-                        distance_text=leg.distance.text,
-                        duration_seconds=leg.duration.value,
-                        duration_text=leg.duration.text,
-                        carbon_kg=carbon_kg,
-                        polyline=route.overview_polyline.points,
-                        summary=route.summary,
-                        bounds=route.bounds
-                    )
-                else:
-                    results[mode.value] = RouteComparisonMode(
-                        mode=mode.value,
-                        available=False,
-                        error="Route not available for this mode"
-                    )
-            except Exception as e:
-                results[mode.value] = RouteComparisonMode(
-                    mode=mode.value,
-                    available=False,
-                    error=str(e)
-                )
-        
-        return RouteComparisonResponse(
-            status="OK",
-            origin=origin,
-            destination=destination,
-            routes=results
-        )
-    
     async def get_nearby_places_for_map(
         self,
-        lat: float,
-        lng: float,
-        radius: int = 1000,
-        place_type: Optional[str] = None,
-        keyword: Optional[str] = None,
+        data: NearbyPlaceResquest,
+        page_token: Optional[str] = None,   
         language: str = "vi"
     ) -> NearbyPlacesResponse:
-        """Get nearby places for displaying on map UI"""
-        params = {
-            "location": f"{lat},{lng}",
-            "radius": radius,
-            "language": language,
-            "key": self.api_key
-        }
-        
-        if place_type:
-            params["type"] = place_type
-        if keyword:
-            params["keyword"] = keyword
-        
-        url = f"{self.base_url}/place/nearbysearch/json"
-        response = await self.client.get(url, params=params)
-        data = response.json()
-        
-        if data.get("status") not in ["OK", "ZERO_RESULTS"]:
+        try:
+            if page_token:
+                params = {
+                    "pagetoken": page_token,
+                    "key": self.api_key
+                }
+            else:
+                params = {
+                    "location": f"{data.location[0]},{data.location[1]}",
+                    "radius": data.radius if data.radius else 3600,
+                    "rankby": data.rank_by,
+                    "language": language,
+                    "key": self.api_key
+                }
+                if data.place_type:
+                    params["type"] = data.place_type
+                if data.keyword:
+                    params["keyword"] = data.keyword
+            
+            url = f"{self.base_url}/place/nearbysearch/json"
+            response = await self.client.get(url, params=params)
+            response_data = response.json()
+            
+            if response_data.get("status") != "OK":
+                raise ValueError(f"Error fetching nearby places: {response_data.get('status')}")
+            
+            places = [
+                NearbyPlaceSimple(
+                    place_id=result["place_id"],
+                    name=result["name"],
+                    location=(result["geometry"]["location"]["lat"], 
+                            result["geometry"]["location"]["lng"]),
+                    rating=result.get("rating"),
+                    types=result.get("types", []),
+                )
+                for result in response_data.get("results", [])
+            ]
+            
             return NearbyPlacesResponse(
-                status=data.get("status", "ERROR"),
-                center=(lat, lng),
-                places=[]
+                center=data.location,
+                places=places,
+                next_page_token=response_data.get("next_page_token")
             )
-        
-        places = [
-            NearbyPlaceSimple(
-                place_id=result["place_id"],
-                name=result["name"],
-                location=(result["geometry"]["location"]["lat"], 
-                         result["geometry"]["location"]["lng"]),
-                rating=result.get("rating"),
-                types=result.get("types", []),
-                vicinity=result.get("vicinity")
-            )
-            for result in data.get("results", [])[:10]
-        ]
-        
-        return NearbyPlacesResponse(
-            status="OK",
-            center=(lat, lng),
-            places=places,
-            next_page_token=data.get("next_page_token")
-        )
-        
+        except Exception as e:
+            print(f"Error in get_nearby_places_for_map: {e}")
+            raise e
+  
     async def search_along_route(
         self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
+        data: DirectionsRequest,
+        travel_mode: TransportMode,
         search_type: str,
-        mode: TransportMode = TransportMode.car
     ) -> SearchAlongRouteResponse:
-        """Search for places (gas stations, restaurants, etc.) along a route"""
-        # Get the route first
-        directions = await self.get_directions(origin, destination, mode)
-        
-        if directions.status != "OK" or not directions.routes:
-            return SearchAlongRouteResponse(
-                status="ERROR",
-                route_polyline="",
-                places_along_route=[],
-                search_type=search_type,
-                error_message="Could not find route"
-            )
-        
+        directions = await self.get_directions(data=data, mode=travel_mode)        
         route = directions.routes[0]
         
-        # Sample points along the route (every ~5km)
         sample_points = []
         total_distance = 0
-        sample_interval = 5000  # 5km
+        interpolate = await interpolate_search_params(distance=route.legs[0].distance)
+        sample_interval = interpolate[1]
         
         for leg in route.legs:
             for step in leg.steps:
-                total_distance += step.distance.value
+                total_distance += step.distance
                 if total_distance >= sample_interval:
                     sample_points.append(step.start_location)
                     total_distance = 0
         
-        # Search for places near each sample point
         all_places = []
         seen_place_ids = set()
         
-        for point in sample_points[:5]:  # Limit to 5 sample points
-            params = {
-                "location": f"{point[0]},{point[1]}",
-                "radius": 2000,
-                "type": search_type,
-                "key": self.api_key
-            }
-            
-            url = f"{self.base_url}/place/nearbysearch/json"
-            response = await self.client.get(url, params=params)
-            data = response.json()
-            
-            if data.get("status") == "OK":
-                for place in data.get("results", [])[:3]:  # Top 3 per point
-                    place_id = place.get("place_id")
-                    if place_id not in seen_place_ids:
-                        seen_place_ids.add(place_id)
-                        location = place.get("geometry", {}).get("location", {})
-                        all_places.append(PlaceDetailsResponse(
-                            place_id=place_id,
-                            name=place.get("name"),
-                            location=(location.get("lat"), location.get("lng")),
-                            rating=place.get("rating"),
-                            vicinity=place.get("vicinity"),
-                            types=place.get("types", [])
-                        ))
+        for point in sample_points:
+            data = await self.get_nearby_places_for_map(
+                NearbyPlaceResquest(
+                    location=point,
+                    radius=interpolate[0],
+                    place_type=search_type
+                )
+            )
+            for place in data.places:  # Top 3 per point
+                if place.place_id not in seen_place_ids:
+                    seen_place_ids.add(place.place_id)
+                    all_places.append(NearbyPlaceSimple(
+                        place_id=place.place_id,
+                        name=place.name,
+                        location=place.location,
+                        rating=place.rating,
+                        types=place.types
+                    ))
         
         return SearchAlongRouteResponse(
-            status="OK",
-            route_polyline=route.overview_polyline.points,
-            places_along_route=all_places[:10],
+            route_polyline=route.overview_polyline,
+            places_along_route=all_places,
             search_type=search_type
         )
 

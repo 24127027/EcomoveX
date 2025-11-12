@@ -8,7 +8,7 @@ from schemas.review_schema import *
 from schemas.user_schema import *
 from services.review_service import ReviewService
 from services.user_service import UserActivityService
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
