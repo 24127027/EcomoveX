@@ -5,14 +5,14 @@ from sqlalchemy import select
 
 class StorageRepository:
     @staticmethod
-    async def store_metadata(db: AsyncSession, user_id: int, file_metadata: FileMetadata):
+    async def store_metadata(db: AsyncSession, user_id: int, file_metadata: FileMetadata, category: FileCategory):
         try:
             new_metadata = Metadata(
                 blob_name=file_metadata.blob_name,
                 user_id=user_id,
-                filename="image",
-                url=file_metadata.url,
+                filename=file_metadata.filename,
                 content_type=file_metadata.content_type,
+                category=category.value,
                 bucket=file_metadata.bucket,
                 size=file_metadata.size
             )
@@ -22,8 +22,9 @@ class StorageRepository:
             return new_metadata
         except Exception as e:
             await db.rollback()
-            print(f"Error storing metadata: {e}")
-            return None
+            import traceback
+            traceback.print_exc()
+            raise  # Re-raise the exception instead of returning None
 
     @staticmethod
     async def get_metadata_by_blob_name(db: AsyncSession, blob_name: str):
