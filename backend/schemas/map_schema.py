@@ -130,7 +130,6 @@ class GeocodingResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-    
 class AirQualityIndex(BaseModel):
     display_name: str
     aqi: int
@@ -144,26 +143,8 @@ class AirQualityResponse(BaseModel):
     location: Tuple[float, float]
     aqi_data: AirQualityIndex
     recommendations: Optional[HealthRecommendation] = None
-    
-class EcoRouteRequest(BaseModel):
-    origin: Tuple[float, float]
-    destination: Tuple[float, float]
-    max_duration_ratio: Optional[int] = None
-    departure_time: Optional[str] = None
-
-class EcoRouteData(BaseModel):
-    mode: List[TransportMode]
-    distance_km: float
-    duration_minutes: float
-    carbon_kg: float
-    polyline: str
-    bounds: Bounds
-
-class EcoRouteResponse(BaseModel):
-    recommended_route: Optional[EcoRouteData] = None
-    alternatives: List[EcoRouteData] = Field(default_factory=list)
-    
-class NearbyPlaceResquest(BaseModel):
+        
+class NearbyPlaceRequest(BaseModel):
     location: Tuple[float, float]
     radius: Optional[int]
     rank_by: str = "prominence"

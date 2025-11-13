@@ -273,11 +273,9 @@ class GoogleMapsAPI:
             )
             data = response.json()
             
-            # Air Quality API doesn't return "status" field like other APIs
-            if "error" in data:
-                raise ValueError(f"Error fetching air quality data: {data.get('error', {}).get('message', 'Unknown error')}")
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching air quality data: {data.get('status')}")
             
-            # Get the first index (usually UAQI)
             indexes = data.get("indexes", [])
             if not indexes:
                 raise ValueError("No air quality index data available")
@@ -406,28 +404,21 @@ class GoogleMapsAPI:
         
     async def get_nearby_places_for_map(
         self,
-        data: NearbyPlaceResquest,
-        page_token: Optional[str] = None,   
+        data: NearbyPlaceRequest,
         language: str = "vi"
     ) -> NearbyPlacesResponse:
         try:
-            if page_token:
-                params = {
-                    "pagetoken": page_token,
-                    "key": self.api_key
-                }
-            else:
-                params = {
-                    "location": f"{data.location[0]},{data.location[1]}",
-                    "radius": data.radius if data.radius else 3600,
-                    "rankby": data.rank_by,
-                    "language": language,
-                    "key": self.api_key
-                }
-                if data.place_type:
-                    params["type"] = data.place_type
-                if data.keyword:
-                    params["keyword"] = data.keyword
+            params = {
+                "location": f"{data.location[0]},{data.location[1]}",
+                "radius": data.radius if data.radius else 3600,
+                "rankby": data.rank_by,
+                "language": language,
+                "key": self.api_key
+            }
+            if data.place_type:
+                params["type"] = data.place_type
+            if data.keyword:
+                params["keyword"] = data.keyword
             
             url = f"{self.base_url}/place/nearbysearch/json"
             response = await self.client.get(url, params=params)
@@ -440,8 +431,10 @@ class GoogleMapsAPI:
                 NearbyPlaceSimple(
                     place_id=result["place_id"],
                     name=result["name"],
-                    location=(result["geometry"]["location"]["lat"], 
-                            result["geometry"]["location"]["lng"]),
+                    location=(
+                        result["geometry"]["location"]["lat"], 
+                        result["geometry"]["location"]["lng"]
+                    ),
                     rating=result.get("rating"),
                     types=result.get("types", []),
                 )
@@ -456,7 +449,44 @@ class GoogleMapsAPI:
         except Exception as e:
             print(f"Error in get_nearby_places_for_map: {e}")
             raise e
-  
+        
+    async def get_next_page_nearby_places(
+        self,
+        page_token: str,
+    ) -> NearbyPlacesResponse:
+        try:
+            params = {
+                "pagetoken": page_token,
+                "key": self.api_key
+            }
+            url = f"{self.base_url}/place/nearbysearch/json"
+            response = await self.client.get(url, params=params)
+            response_data = response.json()
+            if response_data.get("status") != "OK":
+                raise ValueError(f"Error fetching next page of nearby places: {response_data.get('status')}")
+            places = [
+                NearbyPlaceSimple(
+                    place_id=result["place_id"],
+                    name=result["name"],
+                    location=(
+                        result["geometry"]["location"]["lat"],
+                        result["geometry"]["location"]["lng"]
+                    ),
+                    rating=result.get("rating"),
+                    types=result.get("types", []),
+                )
+                for result in response_data.get("results", [])
+            ]
+            
+            return NearbyPlacesResponse(
+                center=None,
+                places=places,
+                next_page_token=response_data.get("next_page_token")
+            )
+        except Exception as e:
+            print(f"Error in get_next_page_nearby_places: {e}")
+            raise e
+        
     async def search_along_route(
         self,
         data: DirectionsRequest,
@@ -483,7 +513,7 @@ class GoogleMapsAPI:
         
         for point in sample_points:
             data = await self.get_nearby_places_for_map(
-                NearbyPlaceResquest(
+                NearbyPlaceRequest(
                     location=point,
                     radius=interpolate[0],
                     place_type=search_type
@@ -492,13 +522,7 @@ class GoogleMapsAPI:
             for place in data.places:  # Top 3 per point
                 if place.place_id not in seen_place_ids:
                     seen_place_ids.add(place.place_id)
-                    all_places.append(NearbyPlaceSimple(
-                        place_id=place.place_id,
-                        name=place.name,
-                        location=place.location,
-                        rating=place.rating,
-                        types=place.types
-                    ))
+                    all_places.append(place)
         
         return SearchAlongRouteResponse(
             route_polyline=route.overview_polyline,
