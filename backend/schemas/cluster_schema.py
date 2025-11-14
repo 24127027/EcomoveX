@@ -12,7 +12,6 @@ class ClusterCreate(BaseModel):
             raise ValueError("Field cannot be empty or whitespace")
         return v.strip()
 
-
 class ClusterUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     algorithm: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -24,11 +23,9 @@ class ClusterUpdate(BaseModel):
             raise ValueError("Field cannot be empty or whitespace")
         return v.strip() if v else None
 
-
 class UserClusterAssociationCreate(BaseModel):
     user_id: int = Field(..., gt=0)
     cluster_id: int = Field(..., gt=0)
-
 
 class UserClusterBatchCreate(BaseModel):
     cluster_id: int = Field(..., gt=0)
@@ -41,16 +38,13 @@ class UserClusterBatchCreate(BaseModel):
             raise ValueError("All user IDs must be positive integers")
         return list(dict.fromkeys(v))
 
-
 class ClusterDestinationCreate(BaseModel):
     cluster_id: int = Field(..., gt=0)
     destination_id: int = Field(..., gt=0)
     popularity_score: Optional[float] = Field(None, ge=0.0, le=100.0)
 
-
 class ClusterDestinationUpdate(BaseModel):
     popularity_score: float = Field(..., ge=0.0, le=100.0)
-
 
 class ClusterDestinationBatchCreate(BaseModel):
     cluster_id: int = Field(..., gt=0)

@@ -1,20 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
-from models.cluster import Cluster, UserClusterAssociation, ClusterDestination
-from schemas.cluster_schema import (
-    ClusterCreate, ClusterUpdate, 
-    UserClusterAssociationCreate, 
-    ClusterDestinationCreate, ClusterDestinationUpdate
-)
+from models.cluster import *
+from schemas.cluster_schema import *
 from typing import List, Optional
 
 class ClusterRepository:
-    """Repository for Cluster-related database operations"""
-    
-    # ==================== Cluster Operations ====================
-    
     @staticmethod
     async def get_all_clusters(db: AsyncSession) -> List[Cluster]:
         """Get all clusters"""
@@ -22,8 +13,7 @@ class ClusterRepository:
             result = await db.execute(select(Cluster))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching all clusters: {e}")
+            print(f"ERROR: fetching all clusters - {e}")
             return []
 
     @staticmethod
@@ -33,8 +23,7 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching cluster ID {cluster_id}: {e}")
+            print(f"ERROR: fetching cluster ID {cluster_id} - {e}")
             return None
 
     @staticmethod
@@ -44,8 +33,7 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.name == name))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching cluster by name {name}: {e}")
+            print(f"ERROR: fetching cluster by name {name} - {e}")
             return None
 
     @staticmethod
@@ -55,8 +43,7 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.algorithm == algorithm))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching clusters by algorithm {algorithm}: {e}")
+            print(f"ERROR: fetching clusters by algorithm {algorithm} - {e}")
             return []
 
     @staticmethod
@@ -73,7 +60,7 @@ class ClusterRepository:
             return new_cluster
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error creating cluster: {e}")
+            print(f"ERROR: creating cluster - {e}")
             return None
 
     @staticmethod
@@ -83,7 +70,7 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
             cluster = result.scalar_one_or_none()
             if not cluster:
-                print(f"Cluster ID {cluster_id} not found")
+                print(f"WARNING: WARNING: Cluster ID {cluster_id} not found")
                 return None
 
             if updated_data.name is not None:
@@ -97,7 +84,7 @@ class ClusterRepository:
             return cluster
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating cluster ID {cluster_id}: {e}")
+            print(f"ERROR: updating cluster ID {cluster_id} - {e}")
             return None
 
     @staticmethod
@@ -107,7 +94,7 @@ class ClusterRepository:
             result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
             cluster = result.scalar_one_or_none()
             if not cluster:
-                print(f"Cluster ID {cluster_id} not found")
+                print(f"WARNING: WARNING: Cluster ID {cluster_id} not found")
                 return False
 
             await db.delete(cluster)
@@ -115,16 +102,15 @@ class ClusterRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error deleting cluster ID {cluster_id}: {e}")
+            print(f"ERROR: deleting cluster ID {cluster_id} - {e}")
             return False
 
-    # ==================== UserClusterAssociation Operations ====================
-
+class UserClusterAssociationRepository:
     @staticmethod
     async def add_user_to_cluster(db: AsyncSession, association_data: UserClusterAssociationCreate) -> Optional[UserClusterAssociation]:
         """Associate a user with a cluster"""
         try:
-            # Check if association already exists
+
             result = await db.execute(
                 select(UserClusterAssociation).where(
                     and_(
@@ -135,7 +121,7 @@ class ClusterRepository:
             )
             existing = result.scalar_one_or_none()
             if existing:
-                print(f"User {association_data.user_id} already associated with cluster {association_data.cluster_id}")
+                print(f"WARNING: User {association_data.user_id} already associated with cluster {association_data.cluster_id}")
                 return existing
 
             new_association = UserClusterAssociation(
@@ -148,7 +134,7 @@ class ClusterRepository:
             return new_association
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error adding user {association_data.user_id} to cluster {association_data.cluster_id}: {e}")
+            print(f"ERROR: adding user {association_data.user_id} to cluster {association_data.cluster_id} - {e}")
             return None
 
     @staticmethod
@@ -165,7 +151,7 @@ class ClusterRepository:
             )
             association = result.scalar_one_or_none()
             if not association:
-                print(f"Association between user {user_id} and cluster {cluster_id} not found")
+                print(f"WARNING: WARNING: Association between user {user_id} and cluster {cluster_id} not found")
                 return False
 
             await db.delete(association)
@@ -173,7 +159,7 @@ class ClusterRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error removing user {user_id} from cluster {cluster_id}: {e}")
+            print(f"ERROR: removing user {user_id} from cluster {cluster_id} - {e}")
             return False
 
     @staticmethod
@@ -187,8 +173,7 @@ class ClusterRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching users in cluster {cluster_id}: {e}")
+            print(f"ERROR: fetching users in cluster {cluster_id} - {e}")
             return []
 
     @staticmethod
@@ -202,8 +187,7 @@ class ClusterRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching clusters for user {user_id}: {e}")
+            print(f"ERROR: fetching clusters for user {user_id} - {e}")
             return []
 
     @staticmethod
@@ -224,11 +208,10 @@ class ClusterRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error removing all users from cluster {cluster_id}: {e}")
+            print(f"ERROR: removing all users from cluster {cluster_id} - {e}")
             return False
 
-    # ==================== ClusterDestination Operations ====================
-
+class ClusterDestinationRepository:
     @staticmethod
     async def add_destination_to_cluster(
         db: AsyncSession, 
@@ -236,7 +219,7 @@ class ClusterRepository:
     ) -> Optional[ClusterDestination]:
         """Associate a destination with a cluster"""
         try:
-            # Check if association already exists
+
             result = await db.execute(
                 select(ClusterDestination).where(
                     and_(
@@ -247,7 +230,7 @@ class ClusterRepository:
             )
             existing = result.scalar_one_or_none()
             if existing:
-                # Update popularity score if provided
+
                 if destination_data.popularity_score is not None:
                     existing.popularity_score = destination_data.popularity_score
                     await db.commit()
@@ -265,7 +248,7 @@ class ClusterRepository:
             return new_cluster_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error adding destination {destination_data.destination_id} to cluster {destination_data.cluster_id}: {e}")
+            print(f"ERROR: adding destination {destination_data.destination_id} to cluster {destination_data.cluster_id} - {e}")
             return None
 
     @staticmethod
@@ -282,7 +265,7 @@ class ClusterRepository:
             )
             cluster_dest = result.scalar_one_or_none()
             if not cluster_dest:
-                print(f"Destination {destination_id} not found in cluster {cluster_id}")
+                print(f"WARNING: Destination {destination_id} not found in cluster {cluster_id}")
                 return False
 
             await db.delete(cluster_dest)
@@ -290,7 +273,7 @@ class ClusterRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error removing destination {destination_id} from cluster {cluster_id}: {e}")
+            print(f"ERROR: removing destination {destination_id} from cluster {cluster_id} - {e}")
             return False
 
     @staticmethod
@@ -304,8 +287,7 @@ class ClusterRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching destinations in cluster {cluster_id}: {e}")
+            print(f"ERROR: fetching destinations in cluster {cluster_id} - {e}")
             return []
 
     @staticmethod
@@ -318,8 +300,7 @@ class ClusterRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching clusters for destination {destination_id}: {e}")
+            print(f"ERROR: fetching clusters for destination {destination_id} - {e}")
             return []
 
     @staticmethod
@@ -341,7 +322,7 @@ class ClusterRepository:
             )
             cluster_dest = result.scalar_one_or_none()
             if not cluster_dest:
-                print(f"Destination {destination_id} not found in cluster {cluster_id}")
+                print(f"WARNING: Destination {destination_id} not found in cluster {cluster_id}")
                 return None
 
             cluster_dest.popularity_score = updated_data.popularity_score
@@ -351,7 +332,7 @@ class ClusterRepository:
             return cluster_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"Error updating popularity score: {e}")
+            print(f"ERROR: updating popularity score - {e}")
             return None
 
     @staticmethod
@@ -371,8 +352,7 @@ class ClusterRepository:
             await db.commit()
             return True
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error removing all destinations from cluster {cluster_id}: {e}")
+            print(f"ERROR: removing all destinations from cluster {cluster_id} - {e}")
             return False
 
     @staticmethod
@@ -391,6 +371,5 @@ class ClusterRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"Error fetching top destinations in cluster {cluster_id}: {e}")
+            print(f"ERROR: fetching top destinations in cluster {cluster_id} - {e}")
             return []

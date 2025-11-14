@@ -1,21 +1,10 @@
-from datetime import datetime
-from jose import jwt, JWTError
-from passlib.context import CryptContext
 from fastapi import HTTPException, status
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from .user_service import UserService
-from schemas.authentication_schema import UserLogin, AuthenticationResponse, UserRegister
-from models.user import User
-from dotenv import load_dotenv
-import os
-from pathlib import Path
-
-backend_dir = Path(__file__).resolve().parent.parent
-env_path = backend_dir / "local.env"
-load_dotenv(dotenv_path=env_path)
-
-SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+from models.user import *
+from schemas.authentication_schema import *
+from utils.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -36,8 +25,6 @@ class AuthenticationService:
                     detail="Invalid email or password"
                 )
             return user
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -51,7 +38,7 @@ class AuthenticationService:
                 "sub": str(user.id),
                 "role": user.role.value if hasattr(user.role, 'value') else str(user.role)
             }
-            token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+            token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
             return token
         except Exception as e:
             raise HTTPException(
@@ -60,7 +47,7 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def login_user(db: AsyncSession, email: str, password: str):
+    async def login_user(db: AsyncSession, email: str, password: str) -> AuthenticationResponse:
         try:
             from repository.user_repository import UserRepository
             user = await UserRepository.get_user_by_email(db, email)
@@ -81,8 +68,6 @@ class AuthenticationService:
                 access_token=token,
                 token_type="bearer"
             )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -90,11 +75,10 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def register_user(db: AsyncSession, user: UserRegister):
+    async def register_user(db: AsyncSession, user: UserRegister) -> AuthenticationResponse:
         try:
             from repository.user_repository import UserRepository
             
-            # Check for duplicate email
             existing = await UserRepository.get_user_by_email(db, user.email)
             if existing:
                 raise HTTPException(
@@ -102,7 +86,6 @@ class AuthenticationService:
                     detail="Email already registered"
                 )
             
-            # Check for duplicate username
             existing_username = await UserRepository.get_user_by_username(db, user.username)
             if existing_username:
                 raise HTTPException(
@@ -123,8 +106,6 @@ class AuthenticationService:
                 access_token=token,
                 token_type="bearer"
             )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

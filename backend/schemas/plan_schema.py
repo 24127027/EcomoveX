@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Tuple
 from datetime import date
 from models.plan import DestinationType
@@ -37,8 +37,7 @@ class PlanRequestUpdate(BaseModel):
         return v.strip() if v else None
 
 class DestinationInfo(BaseModel):
-    longitude: float
-    latitude: float
+    location: Tuple[float, float]
     visit_date: date
     type: DestinationType
 
@@ -51,6 +50,4 @@ class PlanResponse(BaseModel):
     budget_limit: Optional[float] = None
     destinations: List[DestinationInfo]
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from models.mission import RewardType, MissionAction
 
@@ -52,15 +52,11 @@ class MissionResponse(BaseModel):
     action_trigger: MissionAction
     value: Optional[int]
     
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)
 
 class UserRewardResponse(BaseModel):
     user_id: int
     missions: List[MissionResponse]
     total_point: Optional[int] = 0
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)

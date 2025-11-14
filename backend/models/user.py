@@ -1,13 +1,8 @@
-﻿#================================================================
-# Mô hình User đã được tích hợp các cột từ Preference vào
-#================================================================
-# Cấu trúc bảng User (nếu tích hợp Preference vào User)
-from sqlalchemy import Column, Integer, String, DateTime, PrimaryKeyConstraint, Float, ForeignKey, JSON
-from sqlalchemy import Enum as SQLEnum
+﻿from enum import Enum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
-from database.user_database import UserBase
-from enum import Enum
 from sqlalchemy.sql import func
+from database.user_database import UserBase
 
 
 class Role(str, Enum):
@@ -20,11 +15,11 @@ class Activity(str, Enum):
     review_destination = "review destination"
 
 class Rank(str, Enum):
-    bronze = "Bronze" 
-    silver = "Silver" 
-    gold = "Gold" 
-    platinum = "Platinum" 
-    diamond = "Diamond" 
+    bronze = "Bronze"
+    silver = "Silver"
+    gold = "Gold"
+    platinum = "Platinum"
+    diamond = "Diamond"
     
 class User(UserBase):
     __tablename__ = "users"
@@ -41,28 +36,26 @@ class User(UserBase):
     rank = Column(SQLEnum(Rank), nullable=True, default=Rank.bronze)
     role = Column(SQLEnum(Role), nullable=True, default=Role.user)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    embedding = Column(JSON, nullable=True)  
 
     sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
-    media_files = relationship("MediaFile", back_populates="owner", cascade="all, delete-orphan")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
-    routes = relationship("UserRoute", back_populates="user", cascade="all, delete-orphan")
+    routes = relationship("Route", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
 
 class UserActivity(UserBase):
     __tablename__ = "user_activities"
     
     __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'destination_id'),
+        PrimaryKeyConstraint('user_id', 'destination_id', 'timestamp'),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=True)  # Optional FK to destination
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    destination_id = Column(Integer, nullable=False, primary_key=True)
     activity = Column(SQLEnum(Activity), nullable=False)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), primary_key=True)
 
     user = relationship("User", back_populates="activity_logs")

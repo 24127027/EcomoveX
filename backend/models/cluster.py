@@ -1,38 +1,40 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float
-from database.user_database import UserBase
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime, UTC
-
-def utc_now():
-    return datetime.now(UTC).replace(tzinfo=None)
-
+from sqlalchemy.sql import func
+from database.user_database import UserBase
 class Cluster(UserBase):
     __tablename__ = "clusters"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     algorithm = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=utc_now)
-    preferences = relationship("Preference", back_populates="cluster")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    users = relationship("UserClusterAssociation", back_populates="cluster", cascade="all, delete-orphan")
+    destinations = relationship("ClusterDestination", back_populates="cluster", cascade="all, delete-orphan")    
 
 class UserClusterAssociation(UserBase):
     __tablename__ = "user_cluster_associations"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
-    # score = Column(Float, nullable=False) # Optional: score indicating strength of association
-    
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'cluster_id'),
+    )
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+
     user = relationship("User", back_populates="clusters")
-    cluster = relationship("Cluster")
-    
+    cluster = relationship("Cluster", back_populates="users")
+
 class ClusterDestination(UserBase):
     __tablename__ = "cluster_destinations"
     
-    id = Column(Integer, primary_key=True, index=True)
-    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(Integer, nullable=False)  # No FK - destination in separate DB
+    __table_args__ = (
+        PrimaryKeyConstraint('cluster_id', 'destination_id'),
+    )
+
+    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    destination_id = Column(String(255), nullable=False, primary_key=True)
     popularity_score = Column(Float, nullable=True)
-    
-    cluster = relationship("Cluster")
+
+    cluster = relationship("Cluster", back_populates="destinations")

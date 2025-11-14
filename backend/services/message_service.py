@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from repository.message_repository import MessageRepository
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.message_schema import MessageCreate, MessageUpdate
+from schemas.message_schema import *
 
 class MessageService:
     @staticmethod
@@ -14,8 +14,6 @@ class MessageService:
                     detail=f"Message with ID {message_id} not found"
                 )
             return message
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -45,8 +43,6 @@ class MessageService:
                     detail="Failed to create message"
                 )
             return new_message
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -63,8 +59,6 @@ class MessageService:
                     detail=f"Message with ID {message_id} not found"
                 )
             return updated_message
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -81,8 +75,6 @@ class MessageService:
                     detail=f"Message with ID {message_id} not found"
                 )
             return {"detail": "Message deleted successfully"}
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

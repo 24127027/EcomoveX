@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from models.user import Role
 
 class UserLogin(BaseModel):
@@ -26,6 +26,8 @@ class UserRegister(BaseModel):
 
 class AuthenticationResponse(BaseModel):
     user_id: int
-    role: Role  
+    role: Role
     access_token: str
     token_type: str = "bearer"
+    
+    model_config = ConfigDict(from_attributes=True)

@@ -1,10 +1,21 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional
+from models.destination import GreenVerifiedStatus
 
 class DestinationCreate(BaseModel):
-    longitude: float = Field(..., ge=-180, le=180)
-    latitude: float = Field(..., ge=-90, le=90)
+    place_id: str
+    green_verified_status: Optional[GreenVerifiedStatus] = None 
 
 class DestinationUpdate(BaseModel):
-    longitude: Optional[float] = Field(None, ge=-180, le=180)
-    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    green_verified_status: Optional[GreenVerifiedStatus] = None
+    
+class UserSavedDestinationCreate(BaseModel):
+    user_id: int = Field(..., gt=0)
+    destination_id: int = Field(..., gt=0)
+    
+class UserSavedDestinationResponse(BaseModel):
+    id: int
+    user_id: int
+    destination_id: int
+
+    model_config = ConfigDict(from_attributes=True)

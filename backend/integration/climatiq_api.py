@@ -1,20 +1,10 @@
-import sys
-from pathlib import Path
-backend_dir = Path(__file__).parent.parent
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
+from typing import Optional
+import httpx
 import requests
-from typing import Dict, Any, Optional
+from models.route import TransportMode
 from utils.config import settings
 class climatiqAPI:
-    """
-    A class to estimate carbon emissions for transport using the Climatiq API.
-    """
-
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize the estimator with Climatiq API credentials.
-        """
         self.api_key = api_key or settings.CLIMATIQ_API_KEY
         if not self.api_key:
             raise ValueError("CLIMATIQ_API_KEY not found in environment variables")
@@ -25,29 +15,28 @@ class climatiqAPI:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        self.client = httpx.AsyncClient(headers=self.headers, timeout=10)
+        
+    async def close(self):
+        await self.client.aclose()
 
     async def estimate_travel_distance(
         self,
-        mode: str,
+        mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
         fuel_type: Optional[str] = None
     ) -> float:
-        """
-        Estimate emissions using the Travel API with a known distance.
-        Returns only co2e_total and unit.
-        """
         url = f"{self.travel_base_url}/estimate"
         payload = {
-            "travel_mode": mode,
+            "travel_mode": mode.value,
             "distance": distance_km,
             "distance_unit": "km",
             "passengers": passengers
         }
 
-        # Include fuel type only if supported (car mode)
-        if mode == "car" and fuel_type:
-            payload["vehicle"] = {"fuel": fuel_type.lower()}  # e.g., "petrol", "diesel", "electric"
+        if mode == TransportMode.car and fuel_type:
+            payload["vehicle"] = {"fuel": fuel_type.lower()}
 
         try:
             res = requests.post(url, headers=self.headers, json=payload)
@@ -57,12 +46,8 @@ class climatiqAPI:
 
         except requests.exceptions.RequestException as e:
             raise Exception(f"Travel estimation failed: {e}")
-
+        
     async def estimate_electric_bus(self, distance_km: float = 100, passenger: int = 1) -> float:
-        """
-        Estimate emissions for electric bus using Basic Estimate API.
-        Returns only co2e_total and unit.
-        """
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
@@ -82,11 +67,8 @@ class climatiqAPI:
         except requests.exceptions.RequestException as e:
             raise Exception(f"Electric bus estimation failed: {e}")
 
+
     async def estimate_motorbike(self, distance_km: float = 100) -> float:
-        """
-        Estimate emissions for motorbike using Basic Estimate API.
-        Returns only co2e_total and unit.
-        """
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
@@ -109,7 +91,7 @@ class climatiqAPI:
 
     async def estimate_transport(
         self,
-        mode: str,
+        mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
         fuel_type: Optional[str] = None
@@ -120,30 +102,20 @@ class climatiqAPI:
         Uses Basic Estimate API for 'motorbike'.
         Returns only co2e_total and unit.
         """
-        travel_modes = {"car", "rail", "air"}
+        # Zero emissions for walking and bicycling
+        if mode in [TransportMode.walking, TransportMode.bicycle, TransportMode.bicycling]:
+            return 0.0
+
+        travel_modes = {TransportMode.car, TransportMode.rail, TransportMode.air}
 
         if mode in travel_modes:
             return await self.estimate_travel_distance(mode, distance_km, passengers, fuel_type)
-        elif mode == "motorbike":
+        elif mode == TransportMode.motorbike:
             return await self.estimate_motorbike(distance_km)
-        elif mode == "electric_bus":
+        elif mode == TransportMode.electric_bus:
             return await self.estimate_electric_bus(distance_km, passengers)
         else:
-            raise ValueError(f"Unsupported travel mode: {mode}")
+            raise ValueError(f"Unsupported travel mode: {mode.value}")
 
-# usage example (to be run in an async context):
-
-if __name__ == "__main__":
-    import asyncio
-
-    async def main():
-        climatiq = climatiqAPI()
-        estimation = await climatiq.estimate_transport(
-            mode="electric_bus",
-            distance_km=150,
-            passengers=2,
-            fuel_type="petrol"
-        )
-        print(estimation)
-
-    asyncio.run(main())
+async def create_climatiq_client(api_key: Optional[str] = None):
+    return climatiqAPI(api_key=api_key)
