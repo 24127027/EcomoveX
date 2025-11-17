@@ -17,7 +17,7 @@ from routers.reward_router import router as reward_router
 # Import database setup
 from database.user_database import user_engine
 from database.destination_database import destination_engine
-from backend.database.init_database import init_user_db, init_destination_db
+from database.init_database import init_user_db, init_destination_db
 from utils.config import settings
 
 # Lifespan event handler (startup/shutdown)

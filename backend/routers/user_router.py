@@ -16,10 +16,6 @@ async def get_my_profile(
 ):
     return await UserService.get_user_by_id(db, current_user["user_id"])
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserRegister, db: AsyncSession = Depends(get_user_db)):
-    return await UserService.create_user(db, user_data)
-
 @router.put("/me/credentials", response_model=UserResponse, status_code=status.HTTP_200_OK)
 async def update_user_credentials(
     updated_data: UserCredentialUpdate,

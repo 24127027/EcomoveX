@@ -1,6 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from models.user import Activity
+from models.user import *
 
 class UserCredentialUpdate(BaseModel):
     old_password: str = Field(..., min_length=1)
@@ -32,6 +32,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     eco_point: int
     rank: str
+    role: Role
 
     model_config = ConfigDict(from_attributes=True)
 

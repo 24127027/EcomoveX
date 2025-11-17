@@ -21,7 +21,8 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
+                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -38,6 +39,13 @@ class UserService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already exists"
                 )
+                
+            existing_username = await UserRepository.get_user_by_username(db, user_data.username)
+            if existing_username:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
 
             user = await UserRepository.create_user(db, user_data)
             if not user:
@@ -50,7 +58,8 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
+                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -72,7 +81,8 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
+                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -94,7 +104,8 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
+                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -174,7 +185,8 @@ class UserService:
                 username=updated_user.username,
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
-                rank=updated_user.rank
+                rank=updated_user.rank,
+                role=updated_user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -204,7 +216,8 @@ class UserService:
                 username=updated_user.username,
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
-                rank=updated_user.rank
+                rank=updated_user.rank,
+                role=updated_user.role
             )
         except HTTPException:
             raise
