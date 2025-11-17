@@ -32,7 +32,6 @@ class UserResponse(BaseModel):
     email: EmailStr
     eco_point: int
     rank: str
-    role: Role
 
     model_config = ConfigDict(from_attributes=True)
 

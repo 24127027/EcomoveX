@@ -21,7 +21,6 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
-                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -44,7 +43,6 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
-                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -67,7 +65,6 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
-                role=user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -148,7 +145,6 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
-                role=updated_user.role
             )
         except Exception as e:
             raise HTTPException(
@@ -179,7 +175,6 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
-                role=updated_user.role
             )
         except HTTPException:
             raise
