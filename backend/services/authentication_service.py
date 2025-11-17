@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
 from schemas.authentication_schema import *
 from utils.config import settings
-from services.user_service import UserService
+from repository.user_repository import UserRepository
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -13,7 +13,7 @@ class AuthenticationService:
     @staticmethod
     async def authenticate_user(db: AsyncSession, credentials: UserLogin):
         try:
-            user = await UserService.get_user_by_email(db, credentials.email)
+            user = await UserRepository.get_user_by_email(db, credentials.email)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -51,7 +51,7 @@ class AuthenticationService:
     @staticmethod
     async def login_user(db: AsyncSession, email: str, password: str) -> AuthenticationResponse:
         try:
-            user = await UserService.get_user_by_email(db, email)
+            user = await UserRepository.get_user_by_email(db, email)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,7 +80,7 @@ class AuthenticationService:
     @staticmethod
     async def register_user(db: AsyncSession, user: UserRegister) -> AuthenticationResponse:
         try:
-            new_user = await UserService.create_user(db, user)
+            new_user = await UserRepository.create_user(db, user)
             if not new_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

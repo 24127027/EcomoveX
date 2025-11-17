@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, Date, Enum as SQLEnum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, Date, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
 from database.user_database import UserBase
 
@@ -20,6 +20,20 @@ class Plan(UserBase):
 
     destinations = relationship("PlanDestination", back_populates="plan", cascade="all, delete-orphan")
     user = relationship("User", back_populates="plans")
+    user_plans = relationship("UserPlan", back_populates="plan", cascade="all, delete-orphan")
+    
+class UserPlan(UserBase):
+    __tablename__ = "user_plans"
+    
+    __table_args__ = (
+        PrimaryKeyConstraint('user_id', 'plan_id'),
+    )
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+
+    user = relationship("User", back_populates="user_plans")
+    plan = relationship("Plan", back_populates="user_plans")
 
 class PlanDestination(UserBase):
     __tablename__ = "plan_destinations"

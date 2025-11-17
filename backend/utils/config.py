@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
     SUSTAINABILITY_DATA_API_CLIENT_SECRET: str = ""
     
-
     #For Google Cloud Storage
     GCS_BUCKET_NAME: str = "ecomovex"
     GOOGLE_APPLICATION_CREDENTIALS: str = "utils/service-account.json"
