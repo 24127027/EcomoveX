@@ -11,8 +11,16 @@ class PlanRepository:
             result = await db.execute(select(Plan).where(Plan.user_id == user_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: retrieving plans for user ID {user_id} - {e}")
+            return []
+        
+    @staticmethod
+    async def get_plan_by_id(db: AsyncSession, plan_id: int):
+        try:
+            result = await db.execute(select(Plan).where(Plan.id == plan_id))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving plan ID {plan_id} - {e}")
             return None
 
     @staticmethod
@@ -87,7 +95,6 @@ class PlanRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: retrieving destinations for plan ID {plan_id} - {e}")
             return []
 
@@ -112,15 +119,14 @@ class PlanRepository:
             return None
 
     @staticmethod
-    async def remove_destination_from_plan(db: AsyncSession, plan_destination_id: int):
-        """Remove a destination from a plan"""
+    async def remove_destination_from_plan(db: AsyncSession, destination_id: str):
         try:
             result = await db.execute(
-                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+                select(PlanDestination).where(PlanDestination.destination_id == destination_id)
             )
             plan_dest = result.scalar_one_or_none()
             if not plan_dest:
-                print(f"WARNING: WARNING: PlanDestination ID {plan_destination_id} not found")
+                print(f"WARNING: Destination ID {destination_id} not found")
                 return False
 
             await db.delete(plan_dest)
@@ -128,5 +134,54 @@ class PlanRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: removing plan destination ID {plan_destination_id} - {e}")
+            print(f"ERROR: removing destination ID {destination_id} - {e}")
+            return False
+    
+    @staticmethod
+    async def add_user_plan(db: AsyncSession, user_id: int, plan_id: int):
+        try:
+            new_user_plan = UserPlan(
+                user_id=user_id,
+                plan_id=plan_id
+            )
+            db.add(new_user_plan)
+            await db.commit()
+            await db.refresh(new_user_plan)
+            return new_user_plan
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: adding user plan for user ID {user_id} and plan ID {plan_id} - {e}")
+            return None
+        
+    @staticmethod
+    async def get_user_plans(db: AsyncSession, plan_id: int):
+        try:
+            result = await db.execute(
+                select(UserPlan).where(UserPlan.plan_id == plan_id)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving user plans for plan ID {plan_id} - {e}")
+            return []
+    
+    @staticmethod
+    async def remove_user_plan(db: AsyncSession, user_id:int, plan_id:int):
+        try:
+            result = await db.execute(
+                select(UserPlan).where(
+                    UserPlan.user_id == user_id,
+                    UserPlan.plan_id == plan_id
+                )
+            )
+            user_plan = result.scalar_one_or_none()
+            if not user_plan:
+                print(f"WARNING: WARNING: UserPlan for user ID {user_id} and plan ID {plan_id} not found")
+                return False
+
+            await db.delete(user_plan)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: removing user plan for user ID {user_id} and plan ID {plan_id} - {e}")
             return False

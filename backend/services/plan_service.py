@@ -90,9 +90,7 @@ class PlanService:
 
     @staticmethod
     async def get_plan_destinations(db: AsyncSession, plan_id: int, user_id: int):
-        """Get all destinations for a user's plan"""
         try:
-
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if plans is None:
                 plans = []
@@ -172,17 +170,15 @@ class PlanService:
     @staticmethod
     async def remove_destination_from_plan(
         db: AsyncSession, 
-        plan_destination_id: int,
-        user_id: int = None
+        destination_id: str,
     ):
-        """Remove a destination from a plan"""
         try:
 
-            success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
+            success = await PlanRepository.remove_destination_from_plan(db, destination_id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Plan destination with ID {plan_destination_id} not found"
+                    detail=f"Destination with ID {destination_id} not found"
                 )
             
             return {"detail": "Destination removed from plan successfully"}
@@ -190,4 +186,53 @@ class PlanService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error removing destination from plan: {e}"
+            )
+            
+    @staticmethod
+    async def get_user_plans(db: AsyncSession, plan_id: int):
+        try:
+            user_plans = await PlanRepository.get_user_plans(db, plan_id)
+            return user_plans
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving users for plan ID {plan_id}: {e}"
+            )
+    
+    @staticmethod
+    async def add_user_plan(db: AsyncSession, user_id: int, plan_id: int):
+        try:
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if plan.user_id == user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Owner of the plan cannot be added as a user"
+                )
+            user_plan = await PlanRepository.add_user_plan(db, user_id, plan_id)
+            if not user_plan:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to associate user with plan"
+                )
+            return user_plan
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error associating user with plan: {e}"
+            )
+            
+    @staticmethod
+    async def remove_user_plan(db: AsyncSession, user_plan_id: int):
+        try:
+            success = await PlanRepository.remove_user_plan(db, user_plan_id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User plan with ID {user_plan_id} not found"
+                )
+            return {"detail": "User removed from plan successfully"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error removing user from plan: {e}"
             )
