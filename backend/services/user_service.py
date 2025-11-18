@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
 from repository.user_repository import UserRepository, UserActivityRepository
+from storage_service import StorageService
 from schemas.user_schema import *
 
 class UserService:
@@ -10,6 +11,10 @@ class UserService:
     async def get_user_by_id(db: AsyncSession, user_id: int) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
+            if user.avt_blob_name:
+                url = await StorageService.get_file_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.get_file_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -21,6 +26,8 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
+                avt_url=url if user.avt_blob_name else None,
+                cover_url=cover_url if user.cover_blob_name else None,
             )
         except Exception as e:
             raise HTTPException(
@@ -32,6 +39,10 @@ class UserService:
     async def get_user_by_email(db: AsyncSession, email: str) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_email(db, email)
+            if user.avt_blob_name:
+                url = await StorageService.get_file_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.get_file_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -43,6 +54,8 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
+                avt_url=url if user.avt_blob_name else None,
+                cover_url=cover_url if user.cover_blob_name else None,
             )
         except Exception as e:
             raise HTTPException(
@@ -54,6 +67,10 @@ class UserService:
     async def get_user_by_username(db: AsyncSession, username: str) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_username(db, username)
+            if user.avt_blob_name:
+                url = await StorageService.get_file_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.get_file_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -65,6 +82,8 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
+                avt_url=url if user.avt_blob_name else None,
+                cover_url=cover_url if user.cover_blob_name else None,
             )
         except Exception as e:
             raise HTTPException(
@@ -82,34 +101,46 @@ class UserService:
                 )
 
             user = await UserRepository.get_user_by_id(db, user_id)
+            if user.avt_blob_name:
+                url = await StorageService.get_file_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.get_file_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with ID {user_id} not found"
                 )
 
-            user_update = UserProfileUpdate()
-            user_update.eco_point = (user.eco_point or 0) + point
+            user_update = UserUpdateEcoPoint()
+            user_update.point = (user.eco_point or 0) + point
 
-            if user_update.eco_point <= 500:
+            if user_update.point <= 500:
                 user_update.rank = Rank.bronze
-            elif user_update.eco_point <= 2000:
+            elif user_update.point <= 2000:
                 user_update.rank = Rank.silver
-            elif user_update.eco_point <= 5000:
+            elif user_update.point <= 5000:
                 user_update.rank = Rank.gold
-            elif user_update.eco_point <= 10000:
+            elif user_update.point <= 10000:
                 user_update.rank = Rank.platinum
             else:
                 user_update.rank = Rank.diamond
 
-            updated_user = await UserRepository.update_user_profile(db, user_id, user_update)
+            updated_user = await UserRepository.add_eco_point(db, user_id, user_update)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to update eco point for user {user_id}"
                 )
 
-            return updated_user
+            return UserResponse(
+                id=updated_user.id,
+                username=updated_user.username,
+                email=updated_user.email,
+                eco_point=updated_user.eco_point,
+                rank=updated_user.rank,
+                avt_url=url if user.avt_blob_name else None,
+                cover_url=cover_url if user.cover_blob_name else None,
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -120,6 +151,10 @@ class UserService:
     async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
+            if user.avt_blob_name:
+                url = await StorageService.get_file_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.get_file_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -145,6 +180,8 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
+                avt_url=url if user.avt_blob_name else None,
+                cover_url=cover_url if user.cover_blob_name else None,
             )
         except Exception as e:
             raise HTTPException(
@@ -156,6 +193,10 @@ class UserService:
     async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
+            if user.avt_blob_name:
+                url = await StorageService.get_file_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.get_file_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -175,6 +216,8 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
+                avt_url=url if user.avt_blob_name else None,
+                cover_url=cover_url if user.cover_blob_name else None,
             )
         except HTTPException:
             raise

@@ -95,10 +95,10 @@ class UserRepository:
 
             if updated_data.username is not None:
                 user.username = updated_data.username
-            if updated_data.eco_point is not None:
-                user.eco_point = updated_data.eco_point
-            if updated_data.rank is not None:
-                user.rank = updated_data.rank
+            if updated_data.avt_blob_name is not None:
+                user.avt_blob_name = updated_data.avt_blob_name
+            if updated_data.cover_blob_name is not None:
+                user.cover_blob_name = updated_data.cover_blob_name
 
             db.add(user)
             await db.commit()
@@ -107,6 +107,26 @@ class UserRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: Failed to update user profile for ID {user_id} - {e}")
+            return None
+        
+    @staticmethod
+    async def add_eco_point(db: AsyncSession, user_id: int, data: UserUpdateEcoPoint):
+        try:
+            user = await UserRepository.get_user_by_id(db, user_id)
+            if not user:
+                print(f"WARNING: WARNING: User not found with ID {user_id}")
+                return None
+
+            user.eco_point = data.point
+            user.rank = data.rank
+
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            return user
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to add eco point for user ID {user_id} - {e}")
             return None
         
     @staticmethod

@@ -27,6 +27,8 @@ class User(UserBase):
     username = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)
+    avt_blob_name = Column(String(255), nullable=True)
+    cover_blob_name = Column(String(255), nullable=True)
     temp_min = Column(Float, nullable=True, default=0)
     temp_max = Column(Float, nullable=True, default=0)
     budget_min = Column(Float, nullable=True, default=0)
