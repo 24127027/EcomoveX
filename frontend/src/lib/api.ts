@@ -5,6 +5,10 @@ interface LoginCredentials {
   password: string;
 }
 
+export interface UserCredentialUpdate {
+  password?: string;
+}
+
 interface SignupData {
   username: string;
   email: string;
@@ -21,6 +25,119 @@ interface AuthResponse {
 
 interface ApiError {
   detail: string;
+}
+
+interface ValidationError {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+}
+
+interface ValidationErrorResponse {
+  detail?: string | ValidationError[];
+}
+
+export interface UserProfile {
+  id: number;
+  username: string;
+  email: string;
+  phone_number?: string | null;
+  avatar_url?: string | null;
+  role?: string;
+}
+// Map/Location Types
+export interface Position {
+  lat: number;
+  lng: number;
+}
+
+export interface AutocompletePrediction {
+  place_id: string;
+  description: string;
+  structured_formatting?: Record<string, any>;
+  types: string[];
+  matched_substrings?: Array<Record<string, any>>;
+  distance?: number;
+}
+
+export interface PlaceDetails {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  address_components?: Array<{
+    name: string;
+    types: string[];
+  }>;
+  location: Position;
+  geometry?: {
+    location: Position;
+    bounds?: {
+      northeast: Position;
+      southwest: Position;
+    };
+  };
+  rating?: number;
+  user_ratings_total?: number;
+  photos?: Array<{
+    photo_reference: string;
+    width: number;
+    height: number;
+  }>;
+  formatted_phone_number?: string;
+  opening_hours?: {
+    open_now: boolean;
+    periods?: Array<Record<string, any>>;
+    weekday_text?: string[];
+  };
+  website?: string;
+  types: string[];
+  vicinity?: string;
+}
+
+export interface SearchPlacesResponse {
+  predictions: AutocompletePrediction[];
+}
+
+export interface ReverseGeocodeResponse {
+  results: Array<{
+    formatted_address: string;
+    address_components?: Array<{
+      name: string;
+      types: string[];
+    }>;
+    place_id: string;
+    geometry: {
+      location: Position;
+    };
+    types: string[];
+  }>;
+}
+
+export interface PhotoUrlResponse {
+  photo_url: string;
+}
+
+export interface SavedDestination {
+  id: number; // ID in DB saved_destinations
+  destination_id: string; // ID Google Place
+  name?: string;
+  address?: string;
+  image_url?: string;
+  distance?: string;
+}
+
+export interface UserProfileUpdate {
+  username?: string;
+  email?: string;
+  phone_number?: string;
+  avatar_url?: string;
+}
+
+export class ApiValidationError extends Error {
+  constructor(public field: string, public message: string) {
+    super(message);
+    this.name = "ApiValidationError";
+  }
 }
 
 class ApiClient {
@@ -70,8 +187,29 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error: ApiError = await response.json();
-      throw new Error(error.detail || "An error occurred");
+      try {
+        const errorData = await response.json();
+
+        // Handle FastAPI validation errors (422)
+        if (response.status === 422 && Array.isArray(errorData.detail)) {
+          const validationErrors = errorData.detail as ValidationError[];
+          const firstError = validationErrors[0];
+          const fieldName = String(firstError.loc[firstError.loc.length - 1]);
+          throw new ApiValidationError(fieldName, firstError.msg);
+        }
+
+        // Handle other error responses
+        console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
+        throw new Error(
+          errorData.detail || `HTTP ${response.status}: An error occurred`
+        );
+      } catch (e) {
+        if (e instanceof ApiValidationError) {
+          throw e;
+        }
+        console.error(`API Error [${response.status}] ${endpoint}:`, e);
+        throw new Error(`HTTP ${response.status}: An error occurred`);
+      }
     }
 
     return response.json();
@@ -110,6 +248,45 @@ class ApiClient {
     return this.request("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ email }),
+    });
+  }
+  //User endpoint
+  async getUserProfile(): Promise<UserProfile> {
+    return this.request<UserProfile>("/users/me", {
+      method: "GET",
+    });
+  }
+
+  async updateCredentials(data: UserCredentialUpdate): Promise<any> {
+    return this.request("/users/me/credentials", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(): Promise<void> {
+    return this.request("/users/me", {
+      method: "DELETE",
+    });
+  }
+
+  //Saved Destinantions Endpoint
+  async getSavedDestinations(): Promise<SavedDestination[]> {
+    return this.request<SavedDestination[]>("/destinations/saved/me/all", {
+      method: "GET",
+    });
+  }
+
+  async unsaveDestination(destinationId: number): Promise<void> {
+    return this.request(`/destinations/saved/${destinationId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
+    return this.request<UserProfile>("/users/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
     });
   }
 }
