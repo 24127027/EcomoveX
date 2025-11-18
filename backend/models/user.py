@@ -45,6 +45,7 @@ class User(UserBase):
     routes = relationship("Route", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
+    user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
 
 class UserActivity(UserBase):
     __tablename__ = "user_activities"

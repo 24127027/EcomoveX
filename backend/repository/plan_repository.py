@@ -92,7 +92,7 @@ class PlanRepository:
             return []
 
     @staticmethod
-    async def add_destination_to_plan(db: AsyncSession, plan_id: int, destination_id: int, 
+    async def add_destination_to_plan(db: AsyncSession, plan_id: int, destination_id: str, 
                                      destination_type: str, visit_date, note: str = None):
         try:
             new_plan_dest = PlanDestination(

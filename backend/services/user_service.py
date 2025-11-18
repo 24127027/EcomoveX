@@ -3,7 +3,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
 from repository.user_repository import UserRepository, UserActivityRepository
-from schemas.authentication_schema import UserRegister
 from schemas.user_schema import *
 
 class UserService:
@@ -21,41 +20,12 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
             )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving user by ID {user_id}: {e}"
-            )
-
-    @staticmethod
-    async def create_user(db: AsyncSession, user_data: UserRegister) -> UserResponse:
-        try:
-            existing = await UserRepository.get_user_by_email(db, user_data.email)
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already exists"
-                )
-
-            user = await UserRepository.create_user(db, user_data)
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create user"
-                )
-            return UserResponse(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                eco_point=user.eco_point,
-                rank=user.rank
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error creating user: {e}"
             )
 
     @staticmethod
@@ -72,7 +42,7 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
             )
         except Exception as e:
             raise HTTPException(
@@ -94,7 +64,7 @@ class UserService:
                 username=user.username,
                 email=user.email,
                 eco_point=user.eco_point,
-                rank=user.rank
+                rank=user.rank,
             )
         except Exception as e:
             raise HTTPException(
@@ -174,7 +144,7 @@ class UserService:
                 username=updated_user.username,
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
-                rank=updated_user.rank
+                rank=updated_user.rank,
             )
         except Exception as e:
             raise HTTPException(
@@ -204,7 +174,7 @@ class UserService:
                 username=updated_user.username,
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
-                rank=updated_user.rank
+                rank=updated_user.rank,
             )
         except HTTPException:
             raise

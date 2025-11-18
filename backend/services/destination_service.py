@@ -5,7 +5,7 @@ from schemas.destination_schema import *
 
 class DestinationService:
     @staticmethod
-    async def get_destination_by_id(db: AsyncSession, destination_id: int):
+    async def get_destination_by_id(db: AsyncSession, destination_id: str):
         try:
             destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
@@ -41,7 +41,7 @@ class DestinationService:
             )
     
     @staticmethod
-    async def update_destination(db: AsyncSession, destination_id: int, updated_data: DestinationUpdate):
+    async def update_destination(db: AsyncSession, destination_id: str, updated_data: DestinationUpdate):
         try:
             updated_destination = await DestinationRepository.update_destination(db, destination_id, updated_data)
             if not updated_destination:
@@ -59,7 +59,7 @@ class DestinationService:
             )
     
     @staticmethod
-    async def delete_destination(db: AsyncSession, destination_id: int):
+    async def delete_destination(db: AsyncSession, destination_id: str):
         try:
             success = await DestinationRepository.delete_destination(db, destination_id)
             if not success:

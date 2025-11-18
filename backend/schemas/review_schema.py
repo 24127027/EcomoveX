@@ -24,7 +24,7 @@ class ReviewUpdate(BaseModel):
         return v.strip() if v else None
 
 class ReviewResponse(BaseModel):
-    destination_id: int
+    destination_id: str
     user_id: int
     rating: int
     content: str

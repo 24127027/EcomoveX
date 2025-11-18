@@ -8,13 +8,13 @@ from schemas.review_schema import *
 from schemas.user_schema import *
 from services.review_service import ReviewService
 from services.user_service import UserActivityService
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 @router.get("/destination/{destination_id}", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
 async def get_reviews_by_destination(
-    destination_id: int = Path(..., gt=0),
+    destination_id: str = Path(...),
     dest_db: AsyncSession = Depends(get_destination_db)
 ):
     return await ReviewService.get_reviews_by_destination(dest_db, destination_id)
@@ -28,7 +28,7 @@ async def get_my_reviews(
 
 @router.post("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(
-    destination_id: int = Path(..., gt=0),
+    destination_id: str = Path(...),
     review_data: ReviewCreate = Body(...),
     dest_db: AsyncSession = Depends(get_destination_db),
     user_db: AsyncSession = Depends(get_user_db),
@@ -48,7 +48,7 @@ async def create_review(
 
 @router.put("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
 async def update_review(
-    destination_id: int = Path(..., gt=0),
+    destination_id: str = Path(...),
     updated_data: ReviewUpdate = ...,
     dest_db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
@@ -57,7 +57,7 @@ async def update_review(
 
 @router.delete("/{destination_id}", status_code=status.HTTP_200_OK)
 async def delete_review(
-    destination_id: int = Path(..., gt=0),
+    destination_id: str = Path(...),
     dest_db: AsyncSession = Depends(get_destination_db),
     current_user: dict = Depends(get_current_user)
 ):

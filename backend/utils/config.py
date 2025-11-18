@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     
     SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
     SUSTAINABILITY_DATA_API_CLIENT_SECRET: str = ""
-
-    GCS_BUCKET_NAME: str = ""
-    GOOGLE_APPLICATION_CREDENTIALS: Path = Path("service-account.json")
+    
+    #For Google Cloud Storage
+    GCS_BUCKET_NAME: str = "ecomovex"
+    GOOGLE_APPLICATION_CREDENTIALS: str = "utils/service-account.json"
 
 settings = Settings()

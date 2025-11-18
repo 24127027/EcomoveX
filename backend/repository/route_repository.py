@@ -52,7 +52,7 @@ class RouteRepository:
         db: AsyncSession,
         user_id: int,
         origin_id: int,
-        destination_id: int
+        destination_id: str
     ) -> Optional[RouteResponse]:
         try:
             query = select(Route).where(
@@ -91,7 +91,7 @@ class RouteRepository:
     @staticmethod
     async def get_routes_by_destination(
         db: AsyncSession,
-        destination_id: int,
+        destination_id: str,
         limit: Optional[int] = 10
     ) -> List[RouteResponse]:
         """Get all routes going to a specific destination"""
@@ -112,7 +112,7 @@ class RouteRepository:
         db: AsyncSession,
         user_id: int,
         origin_id: int,
-        destination_id: int,
+        destination_id: str,
         route_update: RouteUpdate
     ) -> Optional[RouteResponse]:
         try:
@@ -149,7 +149,7 @@ class RouteRepository:
         db: AsyncSession,
         user_id: int,
         origin_id: int,
-        destination_id: int
+        destination_id: str
     ) -> bool:
         try:
             query = delete(Route).where(

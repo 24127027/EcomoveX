@@ -5,7 +5,7 @@ from database.user_database import get_user_db
 from schemas.authentication_schema import *
 from schemas.user_schema import *
 from services.user_service import UserActivityService, UserService
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -15,10 +15,6 @@ async def get_my_profile(
     current_user: dict = Depends(get_current_user)
 ):
     return await UserService.get_user_by_id(db, current_user["user_id"])
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserRegister, db: AsyncSession = Depends(get_user_db)):
-    return await UserService.create_user(db, user_data)
 
 @router.put("/me/credentials", response_model=UserResponse, status_code=status.HTTP_200_OK)
 async def update_user_credentials(

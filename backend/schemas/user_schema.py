@@ -1,6 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from models.user import Activity
+from models.user import *
 
 class UserCredentialUpdate(BaseModel):
     old_password: str = Field(..., min_length=1)
@@ -37,11 +37,11 @@ class UserResponse(BaseModel):
 
 class UserActivityCreate(BaseModel):
     activity: Activity
-    destination_id: int
+    destination_id: str
     
 class UserActivityResponse(BaseModel):
     user_id: int
-    destination_id: int
+    destination_id: str
     activity: Activity
     timestamp: str
 

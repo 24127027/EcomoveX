@@ -117,7 +117,7 @@ class PlanService:
         user_db: AsyncSession, 
         destination_db: AsyncSession,
         plan_id: int, 
-        destination_id: int,
+        destination_id: str,
         destination_type: str,
         visit_date,
         note: str = None,

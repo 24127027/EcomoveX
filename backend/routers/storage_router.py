@@ -1,33 +1,36 @@
-from fastapi import APIRouter, Depends, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, Path, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 from database.user_database import get_user_db
 from services.storage_service import StorageService
 from models.metadata import *
 from schemas.storage_schema import *
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
 
-@router.get("/{bucket_name}/me", response_model= list[FileMetadataResponse], status_code=status.HTTP_200_OK)
+@router.get("/me", response_model=list[FileMetadataResponse], status_code=status.HTTP_200_OK)
 async def get_metadata_by_user_id(
     db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await StorageService.get_metadata_by_user_id(db, current_user["user_id"])
 
-@router.post("/{bucket_name}/upload", response_model=FileMetadataResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", response_model=FileMetadataResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
-    db: AsyncSession = Depends(get_user_db),
+    category: FileCategory,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
-    bucket_name: str = Query(None)
-):
-    return await StorageService.upload_file(db, file, current_user["user_id"], bucket_name)
-
-@router.delete("/{bucket_name}/delete/{blob_name}", status_code=status.HTTP_200_OK)
-async def delete_file(
+    bucket_name: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_user_db),
-    blob_name: str = Query(...),
-    bucket_name: str = Query(...)
+    current_user: dict = Depends(get_current_user)
 ):
-    return await StorageService.delete_file(db, bucket_name, blob_name)
+    return await StorageService.upload_file(db, file, current_user["user_id"], category, bucket_name)
+
+@router.delete("/delete/{blob_name:path}", status_code=status.HTTP_200_OK)
+async def delete_file(
+    blob_name: str = Path(...),
+    bucket_name: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await StorageService.delete_file(db, blob_name, bucket_name)

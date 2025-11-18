@@ -7,7 +7,7 @@ from schemas.review_schema import *
 
 class ReviewService:
     @staticmethod
-    async def get_reviews_by_destination(db: AsyncSession, destination_id: int)-> List[ReviewResponse]:
+    async def get_reviews_by_destination(db: AsyncSession, destination_id: str)-> List[ReviewResponse]:
         try:
             reviews = await ReviewRepository.get_all_reviews_by_destination(db, destination_id)
             review_lists = []
@@ -49,7 +49,7 @@ class ReviewService:
             )
     
     @staticmethod
-    async def create_review(dest_db: AsyncSession, user_id: int, destination_id: int, review_data: ReviewCreate) -> ReviewResponse:
+    async def create_review(dest_db: AsyncSession, user_id: int, destination_id: str, review_data: ReviewCreate) -> ReviewResponse:
         try:
             destination = await DestinationRepository.get_destination_by_id(dest_db, destination_id)
             if not destination:
@@ -79,7 +79,7 @@ class ReviewService:
             )
         
     @staticmethod
-    async def update_review(db: AsyncSession, user_id: int, destination_id: int, updated_data: ReviewUpdate) -> ReviewResponse:
+    async def update_review(db: AsyncSession, user_id: int, destination_id: str, updated_data: ReviewUpdate) -> ReviewResponse:
         try:
             updated_review = await ReviewRepository.update_review(db, user_id, destination_id, updated_data)
             if not updated_review:
@@ -102,7 +102,7 @@ class ReviewService:
             )
         
     @staticmethod
-    async def delete_review(db: AsyncSession, user_id: int, destination_id: int):
+    async def delete_review(db: AsyncSession, user_id: int, destination_id: str):
         try:
             success = await ReviewRepository.delete_review(db, user_id, destination_id)
             if not success:

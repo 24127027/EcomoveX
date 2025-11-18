@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
 from schemas.authentication_schema import *
 from utils.config import settings
+from repository.user_repository import UserRepository
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -12,7 +13,6 @@ class AuthenticationService:
     @staticmethod
     async def authenticate_user(db: AsyncSession, credentials: UserLogin):
         try:
-            from repository.user_repository import UserRepository
             user = await UserRepository.get_user_by_email(db, credentials.email)
             if not user:
                 raise HTTPException(
@@ -51,7 +51,6 @@ class AuthenticationService:
     @staticmethod
     async def login_user(db: AsyncSession, email: str, password: str) -> AuthenticationResponse:
         try:
-            from repository.user_repository import UserRepository
             user = await UserRepository.get_user_by_email(db, email)
             if not user:
                 raise HTTPException(
@@ -81,22 +80,6 @@ class AuthenticationService:
     @staticmethod
     async def register_user(db: AsyncSession, user: UserRegister) -> AuthenticationResponse:
         try:
-            from repository.user_repository import UserRepository
-            
-            existing = await UserRepository.get_user_by_email(db, user.email)
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already registered"
-                )
-            
-            existing_username = await UserRepository.get_user_by_username(db, user.username)
-            if existing_username:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Username already taken"
-                )
-            
             new_user = await UserRepository.create_user(db, user)
             if not new_user:
                 raise HTTPException(
