@@ -161,13 +161,6 @@ export default function ProfilePage() {
                         {place.name || `Saved Place #${place.destination_id}`}
                       </h3>
                     </div>
-                    {place.distance && (
-                      <p
-                        className={`${jost.className} text-gray-500 text-xs mt-1`}
-                      >
-                        {place.distance}
-                      </p>
-                    )}
                   </div>
                 </div>
               ))}

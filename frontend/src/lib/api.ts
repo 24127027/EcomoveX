@@ -121,9 +121,7 @@ export interface SavedDestination {
   id: number; // ID in DB saved_destinations
   destination_id: string; // ID Google Place
   name?: string;
-  address?: string;
   image_url?: string;
-  distance?: string;
 }
 
 export interface UserProfileUpdate {
@@ -284,7 +282,7 @@ class ApiClient {
   }
 
   async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
-    return this.request<UserProfile>("/users/me/profile", {
+    return this.request<UserProfile>("/users/me/credentials", {
       method: "PUT",
       body: JSON.stringify(data),
     });
