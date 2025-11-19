@@ -53,6 +53,8 @@ class RouteService:
                 total_transit_steps=len(transit_steps),
                 total_walking_steps=len(walking_steps)
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -91,6 +93,8 @@ class RouteService:
                 result.transit_info = RouteService.extract_transit_details(leg)
 
             return result
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -99,7 +103,6 @@ class RouteService:
     
     @staticmethod
     async def find_three_optimal_routes(request: FindRoutesRequest) -> FindRoutesResponse:
-        """Find 3 optimal routes: fastest, lowest carbon, and smart combination"""
         try:
             origin = request.origin
             destination = request.destination
@@ -224,6 +227,9 @@ class RouteService:
                 routes=routes_dict,
                 recommendation=recommendation.recommendation
             )
+        
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -290,7 +296,6 @@ class RouteService:
         fastest_route: RouteData,
         lowest_carbon_route: RouteData
     ) -> RecommendResponse:
-        """Generate route recommendation based on carbon savings and time trade-offs using AI"""
         try:
             carbon_savings_vs_fastest = fastest_route.carbon - lowest_carbon_route.carbon
             carbon_savings_percent = (
