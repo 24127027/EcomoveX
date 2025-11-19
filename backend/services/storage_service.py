@@ -3,7 +3,7 @@ from google.cloud import storage
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.config import settings
 from repository.storage_repository import StorageRepository
-from schemas.storage_schema import FileCategory, FileMetadata, FileMetadataResponse
+from schemas.storage_schema import FileCategory, FileMetadata, FileMetadataFilter, FileMetadataResponse
 import uuid
 from datetime import timedelta
 import asyncio
@@ -100,8 +100,9 @@ class StorageService:
         
     @staticmethod
     async def delete_file(db: AsyncSession,
-                         blob_name: str,
-                         bucket_name: str = None) -> dict:
+                     user_id: int,  
+                     blob_name: str,
+                     bucket_name: str = None) -> dict:
         """Delete file from GCS and remove metadata from database"""
         try:
             bucket_name = bucket_name or settings.GCS_BUCKET_NAME
@@ -109,6 +110,14 @@ class StorageService:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="GCS bucket name is not configured"
+                )
+            
+            # Verify ownership before deleting
+            metadata = await StorageRepository.get_metadata_by_blob_name(db, user_id, blob_name)
+            if not metadata:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="File not found or you don't have permission to delete it"
                 )
             
             # Delete from GCS
@@ -181,10 +190,12 @@ class StorageService:
             )
             
     @staticmethod
-    async def get_metadata_by_user_id(db: AsyncSession, user_id: int) -> list[FileMetadataResponse]:
+    async def get_user_files(db: AsyncSession, 
+                             user_id: int, 
+                             filters: FileMetadataFilter) -> list[FileMetadataResponse]:
         """Get all file metadata for a specific user"""
         try:
-            metadata_list = await StorageRepository.get_metadata_by_user_id(db, user_id)
+            metadata_list = await StorageRepository.get_user_files_metadata(db, user_id, filters)
             
             # Generate fresh signed URLs for each file
             result = []
@@ -205,4 +216,38 @@ class StorageService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving metadata by user ID: {str(e)}"
+            )
+    @staticmethod
+    async def get_file_by_blob_name(
+        db: AsyncSession,
+        user_id: int,
+        blob_name: str
+    ) -> FileMetadataResponse:
+        """Get metadata for a specific file by blob name"""
+        try:
+            metadata = await StorageRepository.get_metadata_by_blob_name(db, user_id, blob_name)
+            
+            if not metadata:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="File not found"
+                )
+            
+            url = await StorageService.generate_signed_url(metadata.bucket, metadata.blob_name)
+            
+            return FileMetadataResponse(
+                url=url,
+                blob_name=metadata.blob_name,
+                filename=metadata.filename,
+                content_type=metadata.content_type,
+                category=metadata.category,
+                size=metadata.size,
+                updated_at=metadata.uploaded_at
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving file: {str(e)}"
             )
