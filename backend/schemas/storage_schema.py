@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime
 from enum import Enum
@@ -24,3 +24,5 @@ class FileMetadataResponse(BaseModel):
     category: str = Field(...)
     size: int = Field(...)
     updated_at: Optional[datetime] = Field(None)
+
+    model_config = ConfigDict(from_attributes=True)
