@@ -8,7 +8,6 @@ import uuid
 from datetime import timedelta
 import asyncio
 
-
 class StorageService:
     @staticmethod
     async def upload_file(db: AsyncSession,
