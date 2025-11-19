@@ -131,12 +131,32 @@ export interface UserProfileUpdate {
   avatar_url?: string;
 }
 
+export interface PlanActivity {
+  id: number;
+  title: string;
+  address: string;
+  image_url: string;
+  time_slot: "Morning" | "Afternoon" | "Evening";
+}
+
+export interface TravelPlan {
+  id: number;
+  destination: string;
+  date: string; // e.g., "Day 1"
+  activities: PlanActivity[];
+}
+
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
     this.name = "ApiValidationError";
   }
 }
+
+const parseMockDate = (dateStr: string) => {
+  const [day, month, year] = dateStr.split("/").map(Number);
+  return new Date(year, month - 1, day);
+};
 
 class ApiClient {
   private baseURL: string;
@@ -286,6 +306,43 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify(data),
     });
+  }
+
+  async getPlans(): Promise<TravelPlan[]> {
+    // Giả lập delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    return [
+      {
+        id: 201,
+        destination: "Ho Chi Minh City (Upcoming)",
+        date: "20/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        activities: [
+          {
+            id: 1,
+            title: "Thảo Cầm Viên",
+            address: "2 Nguyen Binh Khiem, D1",
+            image_url:
+              "https://images.unsplash.com/photo-1596263576925-48c581d6a90a?q=80&w=200",
+            time_slot: "Morning",
+          },
+        ],
+      },
+      {
+        id: 101,
+        destination: "District 1 (Past)",
+        date: "04/01/2024", // Ngày quá khứ
+        activities: [
+          // ... (Dữ liệu cũ)
+        ],
+      },
+      {
+        id: 102,
+        destination: "District 5 (Past)",
+        date: "01/01/2023", // Ngày quá khứ xa hơn
+        activities: [],
+      },
+    ];
   }
 }
 

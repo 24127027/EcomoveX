@@ -227,7 +227,7 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="#"
+              href="/planning_page/showing_plan_page"
               className="flex flex-col items-center justify-center w-1/4 text-gray-400"
             >
               <MapPin
