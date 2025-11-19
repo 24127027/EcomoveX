@@ -1,7 +1,7 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.database import UserBase
+from database.db import UserBase
 
 class Metadata(UserBase):
     __tablename__ = "metadata"

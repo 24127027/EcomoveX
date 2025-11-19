@@ -1,5 +1,5 @@
 from sqlalchemy import text
-from database.database import UserBase, engine
+from database.db import UserBase, engine
 from models import *
 
 async def drop_specific_tables(table_names: list[str]):

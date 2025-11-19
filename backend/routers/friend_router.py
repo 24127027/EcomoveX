@@ -1,7 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import get_db
+from database.db import get_db
 from schemas.friend_schema import *
 from services.friend_service import FriendService
 from utils.token.authentication_util import get_current_user

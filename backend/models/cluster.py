@@ -1,7 +1,7 @@
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.database import UserBase
+from database.db import UserBase
 class Cluster(UserBase):
     __tablename__ = "clusters"
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Path, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from database.database import get_db
+from database.db import get_db
 from services.storage_service import StorageService
 from models.metadata import *
 from schemas.storage_schema import *

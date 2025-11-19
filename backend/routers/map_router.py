@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
-from database.database import get_db
+from database.db import get_db
 from schemas.map_schema import *
 from schemas.user_schema import *
 from services.map_service import MapService

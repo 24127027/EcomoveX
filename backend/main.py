@@ -15,7 +15,7 @@ from routers.storage_router import router as storage_router
 from routers.reward_router import router as reward_router
 
 # Import database setup
-from database.database import engine
+from database.db import engine
 from database.init_database import init_db
 from utils.config import settings
 
@@ -23,7 +23,7 @@ from utils.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("Starting EcomoveX Backend...")
+    print("Starting EcomoveX ..")
     
     try:
         await init_db(drop_all=False)
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     yield  # App is running
     
     # Shutdown: Cleanup
-    print("Shutting down EcomoveX Backend...")
+    print("Shutting down EcomoveX ..")
     
     try:
         await engine.dispose()

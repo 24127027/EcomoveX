@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
-from .init_database import init_db
+from init_database import init_db
 
 async def create_databases():
     conn = await asyncpg.connect(

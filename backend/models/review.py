@@ -1,6 +1,6 @@
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, PrimaryKeyConstraint, SmallInteger, String, Text
 from sqlalchemy.orm import relationship
-from database.database import UserBase
+from database.db import UserBase
 
 class Review(UserBase):
     __tablename__ = "reviews"
