@@ -4,7 +4,7 @@ from utils.config import settings
 
 USER_DATABASE_URL = (
     f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASS}"
-    f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.USER_DB_NAME}"
+    f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 )
 
 engine = create_async_engine(
