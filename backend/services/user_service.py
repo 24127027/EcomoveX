@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
 from repository.user_repository import UserRepository, UserActivityRepository
-from storage_service import StorageService
+from services.storage_service import StorageService
 from schemas.user_schema import *
 
 class UserService:

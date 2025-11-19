@@ -5,7 +5,6 @@ from .message import Message
 from .mission import Mission, UserMission
 from .plan import Plan, PlanDestination
 from .review import Review
-from .route import Route
 from .user import User, UserActivity
 from .metadata import Metadata
 
@@ -23,7 +22,6 @@ __all__ = [
     "UserClusterAssociation",
     "Friend",
     "UserSavedDestination",
-    "Route",
     "UserActivity",
     "Metadata",
 ]
