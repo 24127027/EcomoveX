@@ -3,14 +3,14 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, PrimaryKeyConstrai
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum as SQLEnum
-from database.db import UserBase
+from database.db import Base
 
 class FriendStatus(str, Enum):
     requested = "Requested"
     pending = "Pending"
     friend = "Friend"
     
-class Friend(UserBase):
+class Friend(Base):
     __tablename__ = "friends"
     
     __table_args__ = (

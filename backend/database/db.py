@@ -21,7 +21,7 @@ UserAsyncSessionLocal = sessionmaker(
     expire_on_commit=False
 )
 
-UserBase = declarative_base()
+Base = declarative_base()
 
 async def get_db():
     async with UserAsyncSessionLocal() as session:

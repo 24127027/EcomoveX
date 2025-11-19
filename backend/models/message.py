@@ -2,7 +2,7 @@ from enum import Enum
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.db import UserBase
+from database.db import Base
 
 class MessageType(str, Enum):
     text = "text"
@@ -16,7 +16,7 @@ class MessageStatus(str, Enum):
     sent = "sent"
     failed = "failed"
 
-class Message(UserBase):
+class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)

@@ -2,7 +2,7 @@ from enum import Enum
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.db import UserBase
+from database.db import Base
 
 class RewardType(str, Enum):
     eco_point = "eco_point"
@@ -16,7 +16,7 @@ class MissionAction(str, Enum):
     daily_login = "daily_login"
     referral = "referral"
 
-class Mission(UserBase):
+class Mission(Base):
     __tablename__ = "missions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -28,7 +28,7 @@ class Mission(UserBase):
 
     users = relationship("UserMission", back_populates="mission")
     
-class UserMission(UserBase):
+class UserMission(Base):
     __tablename__ = "mission_users"
     
     __table_args__ = (

@@ -1,14 +1,14 @@
 from enum import Enum
 from sqlalchemy import Column, Date, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
-from database.db import UserBase
+from database.db import Base
 
 class DestinationType(str, Enum):
     restaurant = "restaurant"
     hotel = "hotel"
     attraction = "attraction"
 
-class Plan(UserBase):
+class Plan(Base):
     __tablename__ = "plans"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -22,7 +22,7 @@ class Plan(UserBase):
     user = relationship("User", back_populates="plans")
     user_plans = relationship("UserPlan", back_populates="plan", cascade="all, delete-orphan")
     
-class UserPlan(UserBase):
+class UserPlan(Base):
     __tablename__ = "user_plans"
     
     __table_args__ = (
@@ -35,7 +35,7 @@ class UserPlan(UserBase):
     user = relationship("User", back_populates="user_plans")
     plan = relationship("Plan", back_populates="user_plans")
 
-class PlanDestination(UserBase):
+class PlanDestination(Base):
     __tablename__ = "plan_destinations"
 
     id = Column(Integer, primary_key=True, index=True)

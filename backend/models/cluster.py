@@ -1,8 +1,8 @@
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.db import UserBase
-class Cluster(UserBase):
+from database.db import Base
+class Cluster(Base):
     __tablename__ = "clusters"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -13,7 +13,7 @@ class Cluster(UserBase):
     users = relationship("UserClusterAssociation", back_populates="cluster", cascade="all, delete-orphan")
     destinations = relationship("ClusterDestination", back_populates="cluster", cascade="all, delete-orphan")    
 
-class UserClusterAssociation(UserBase):
+class UserClusterAssociation(Base):
     __tablename__ = "user_cluster_associations"
     
     __table_args__ = (
@@ -26,7 +26,7 @@ class UserClusterAssociation(UserBase):
     user = relationship("User", back_populates="clusters")
     cluster = relationship("Cluster", back_populates="users")
 
-class ClusterDestination(UserBase):
+class ClusterDestination(Base):
     __tablename__ = "cluster_destinations"
     
     __table_args__ = (

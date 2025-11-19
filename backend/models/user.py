@@ -2,7 +2,7 @@ from enum import Enum
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.db import UserBase
+from database.db import Base
 
 class Role(str, Enum):
     user = "User"
@@ -20,7 +20,7 @@ class Rank(str, Enum):
     platinum = "Platinum"
     diamond = "Diamond"
     
-class User(UserBase):
+class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -49,7 +49,7 @@ class User(UserBase):
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
     user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
 
-class UserActivity(UserBase):
+class UserActivity(Base):
     __tablename__ = "user_activities"
     
     __table_args__ = (
