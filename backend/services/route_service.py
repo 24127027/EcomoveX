@@ -222,7 +222,7 @@ class RouteService:
                 origin={"lat": origin[0], "lng": origin[1]},
                 destination={"lat": destination[0], "lng": destination[1]},
                 routes=routes_dict,
-                recommendation=recommendation["reason"]
+                recommendation=recommendation.recommendation
             )
         except Exception as e:
             raise HTTPException(
@@ -289,7 +289,7 @@ class RouteService:
         routes: Dict[RouteType, RouteData],
         fastest_route: RouteData,
         lowest_carbon_route: RouteData
-    ) -> Dict[str, str]:
+    ) -> RecommendResponse:
         """Generate route recommendation based on carbon savings and time trade-offs using AI"""
         try:
             carbon_savings_vs_fastest = fastest_route.carbon - lowest_carbon_route.carbon
@@ -344,10 +344,10 @@ Provide a concise recommendation that balances environmental impact and convenie
             elif RouteType.smart_combination in routes and routes[RouteType.smart_combination].carbon < fastest_route.carbon * 0.7:
                 recommended_route = "smart_combination"
             
-            return {
-                "route": recommended_route,
-                "reason": ai_recommendation.strip()
-            }
+            return RecommendResponse(
+                route=recommended_route,
+                recommendation=ai_recommendation.strip()
+            )
         except Exception as e:
             print(f"WARNING: Failed to generate AI recommendation - {str(e)}")
             
@@ -356,11 +356,11 @@ Provide a concise recommendation that balances environmental impact and convenie
             ) if fastest_route.carbon > 0 else 0
             
             if carbon_savings_percent > 50:
-                return {
-                    "route": "lowest_carbon",
-                    "reason": f"Saves {carbon_savings_percent:.1f}% carbon emissions with only {abs(lowest_carbon_route.duration - fastest_route.duration):.1f} minutes difference"
-                }
-            return {
-                "route": "fastest",
-                "reason": "Optimal balance of time and efficiency"
-            }
+                return RecommendResponse(
+                    route="lowest_carbon",
+                    recommendation=f"Saves {carbon_savings_percent:.1f}% carbon emissions with only {abs(lowest_carbon_route.duration - fastest_route.duration):.1f} minutes difference"
+                )
+            return RecommendResponse(
+                route="fastest",
+                recommendation="Optimal balance of time and efficiency"
+            )

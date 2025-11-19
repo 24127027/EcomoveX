@@ -11,16 +11,7 @@ class TransportMode(str, Enum):
     metro = "metro"
     bus = "bus"
     train = "train"
-    
-class FuelType(str, Enum):
-    PETROL = "petrol"
-    GASOLINE = "gasoline"
-    DIESEL = "diesel"
-    HYBRID = "hybrid"
-    ELECTRIC = "electric"
-    CNG = "cng"
-    LPG = "lpg"
-    
+        
 class RouteType(str, Enum):
     fastest = "fastest"
     low_carbon = "low_carbon"

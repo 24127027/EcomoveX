@@ -67,6 +67,10 @@ class FindRoutesResponse(BaseModel):
     routes: Dict[RouteType, RouteData]
     recommendation: str
     
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
+    model_config = ConfigDict(from_attributes=True,)
+    
+class RecommendResponse(BaseModel):
+    route: str
+    recommendation: str
+    
+    model_config = ConfigDict(from_attributes=True,)
