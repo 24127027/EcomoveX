@@ -6,7 +6,7 @@ from models.route import TransportMode
 from schemas.destination_schema import DestinationCreate
 from schemas.map_schema import *
 from services.destination_service import DestinationService
-
+from schemas.air_schema import AirQualityResponse
 class MapService:
     @staticmethod
     async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
