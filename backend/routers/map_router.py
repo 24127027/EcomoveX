@@ -7,6 +7,7 @@ from database.destination_database import get_destination_db
 from database.user_database import get_user_db
 from schemas.map_schema import *
 from schemas.user_schema import *
+from schemas.air_schema import AirQualityResponse
 from services.map_service import MapService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
@@ -36,15 +37,6 @@ async def get_place_details(
         destination_id=place_id
     )
     await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
-    return result
-
-@router.get("/air-quality", response_model=AirQualityResponse, status_code=status.HTTP_200_OK)
-async def get_air_quality(
-    lat: float = Query(..., ge=-90.0, le=90.0),
-    lng: float = Query(..., ge=-180.0, le=180.0)
-):
-    location = (lat, lng)
-    result = await MapService.get_air_quality(location=location)
     return result
 
 @router.post("/geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)

@@ -50,21 +50,6 @@ class MapService:
             )
             
     @staticmethod
-    async def get_air_quality(location: Tuple[float, float]) -> AirQualityResponse:
-        try:
-            try:
-                maps = await create_maps_client()
-                return await maps.get_air_quality(location=location)
-            finally:
-                if maps:
-                    await maps.close()
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get air quality data: {str(e)}"
-            )
-            
-    @staticmethod
     async def geocode_address(address: str) -> GeocodingResponse:
         try:
             maps = await create_maps_client()
