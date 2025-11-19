@@ -18,6 +18,7 @@ class Destination(UserBase):
     reviews = relationship("Review", back_populates="destination", cascade="all, delete-orphan")
     plan_destinations = relationship("PlanDestination", back_populates="destination", cascade="all, delete-orphan")
     user_saved_destinations = relationship("UserSavedDestination", back_populates="destination", cascade="all, delete-orphan")
+    cluster_destinations = relationship("ClusterDestination", back_populates="destination", cascade="all, delete-orphan")
     
 class UserSavedDestination(UserBase):
     __tablename__ = "user_saved_destinations"
