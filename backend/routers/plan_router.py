@@ -1,0 +1,95 @@
+from typing import List
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from database.user_database import get_user_db
+from schemas.plan_schema import *
+from services.plan_service import PlanService
+from utils.token.authentication_util import get_current_user
+
+router = APIRouter(prefix="/plans", tags=["Plans"])
+
+@router.get("/", response_model=List[PlanResponse], status_code=status.HTTP_200_OK)
+async def get_plans(
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.get_plans_by_user(db, current_user["user_id"])
+
+@router.post("/", response_model=PlanResponse, status_code=status.HTTP_201_CREATED)
+async def create_plan(
+    plan_data: PlanCreate,
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.create_plan(db, current_user["user_id"], plan_data)
+
+@router.put("/{plan_id}", response_model=PlanResponse, status_code=status.HTTP_200_OK)
+async def update_plan(
+    plan_id: int,
+    updated_data: PlanUpdate,
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.update_plan(db, current_user["user_id"], plan_id, updated_data)
+
+@router.delete("/{plan_id}", status_code=status.HTTP_200_OK)
+async def delete_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.delete_plan(db, current_user["user_id"], plan_id)
+
+@router.get("/{plan_id}/destinations", response_model=List[PlanDestinationResponse], status_code=status.HTTP_200_OK)
+async def get_plan_destinations(
+    plan_id: int,
+    db: AsyncSession = Depends(get_user_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.get_plan_destinations(db, plan_id, current_user["user_id"])
+
+@router.post("/{plan_id}/destinations", response_model=PlanDestinationResponse, status_code=status.HTTP_201_CREATED)
+async def add_destination_to_plan(
+    plan_id: int,
+    data: PlanDestinationCreate,
+    db: AsyncSession = Depends(get_user_db),
+):
+    return await PlanService.add_destination_to_plan(db, plan_id, data)
+
+@router.put("/destinations/{destination_id}", response_model=PlanDestinationResponse, status_code=status.HTTP_200_OK)
+async def update_plan_destination(
+    destination_id: str,
+    updated_data: PlanDestinationUpdate,
+    db: AsyncSession = Depends(get_user_db),
+):
+    return await PlanService.update_plan_destination(db, destination_id, updated_data)
+
+@router.delete("/destinations/{destination_id}", status_code=status.HTTP_200_OK)
+async def remove_destination_from_plan(
+    destination_id: str,
+    db: AsyncSession = Depends(get_user_db),
+):
+    return await PlanService.remove_destination_from_plan(db, destination_id)
+
+@router.get("/{plan_id}/users", response_model=UserPlanResponse, status_code=status.HTTP_200_OK)
+async def get_plan_users(
+    plan_id: int,
+    db: AsyncSession = Depends(get_user_db),
+):
+    return await PlanService.get_user_plans(db, plan_id)
+
+@router.post("/{plan_id}/users", response_model=UserPlanResponse, status_code=status.HTTP_201_CREATED)
+async def add_users_to_plan(
+    plan_id: int,
+    data: UserPlansCreate,
+    db: AsyncSession = Depends(get_user_db),
+):
+    return await PlanService.add_user_plan(db, plan_id, data)
+
+@router.delete("/{plan_id}/users", status_code=status.HTTP_200_OK)
+async def remove_users_from_plan(
+    plan_id: int,
+    data: UserPlanDelete,
+    db: AsyncSession = Depends(get_user_db),
+):
+    return await PlanService.remove_user_plan(db, plan_id, data)
