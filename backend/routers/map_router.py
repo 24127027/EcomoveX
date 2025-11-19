@@ -1,31 +1,32 @@
-from fastapi import APIRouter, Depends, Query, status
+from typing import List
+from fastapi import APIRouter, Depends, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
-from database.destination_database import get_destination_db
-from database.user_database import get_user_db
+from database.db import get_db
 from schemas.map_schema import *
 from schemas.user_schema import *
 from services.map_service import MapService
 from services.user_service import UserActivityService
-from utils.authentication_util import get_current_user
+from utils.token.authentication_util import get_current_user
 
-router = APIRouter(prefix="/map", tags=["Map Search"])
+router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 
-@router.post("/search", response_model=SearchLocationResponse, status_code=status.HTTP_200_OK)
-async def search_location(request: SearchLocationRequest, dest_db: AsyncSession = Depends(get_destination_db)):
-    result = await MapService.search_location(dest_db, request)
+@router.post("/search", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
+async def search_location(
+    request: SearchLocationRequest,
+    user_db: AsyncSession = Depends(get_db)
+):
+    result = await MapService.search_location(user_db, request)
     return result
 
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
     place_id: str,
-    language: str = Query("vi"),
-    user_db: AsyncSession = Depends(get_user_db),
+    user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     result = await MapService.get_location_details(
         place_id=place_id,
-        language=language
     )
     
     activity_data = UserActivityCreate(
@@ -33,5 +34,29 @@ async def get_place_details(
         destination_id=place_id
     )
     await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
-    
+    return result
+
+@router.get("/air-quality", response_model=AirQualityResponse, status_code=status.HTTP_200_OK)
+async def get_air_quality(
+    lat: float = Query(..., ge=-90.0, le=90.0),
+    lng: float = Query(..., ge=-180.0, le=180.0)
+):
+    location = (lat, lng)
+    result = await MapService.get_air_quality(location=location)
+    return result
+
+@router.post("/geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)
+async def geocode_address(
+    address: str = Body(..., min_length=2),
+):
+    result = await MapService.geocode_address(address=address)
+    return result
+
+@router.post("/reverse-geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)
+async def reverse_geocode(
+    lat: float = Body(..., ge=-90.0, le=90.0),
+    lng: float = Body(..., ge=-180.0, le=180.0)
+):    
+    location = (lat, lng)
+    result = await MapService.reverse_geocode(location=location)
     return result

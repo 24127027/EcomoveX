@@ -39,8 +39,11 @@ class FriendService:
                 user_id=friendship.user_id,
                 friend_id=friendship.friend_id,
                 status=friendship.status,
+                created_at=friendship.created_at
             )
             
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -61,7 +64,10 @@ class FriendService:
                 user_id=friendship.user_id,
                 friend_id=friendship.friend_id,
                 status=friendship.status,
+                created_at=friendship.created_at
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -78,6 +84,8 @@ class FriendService:
                     detail="Friend request not found"
                 )
             return {"message": "Friend request rejected successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -94,6 +102,8 @@ class FriendService:
                     detail="Friendship not found"
                 )
             return {"message": "Unfriended successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -119,6 +129,8 @@ class FriendService:
                     ))
             
             return friend_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -143,6 +155,8 @@ class FriendService:
                     ))
             
             return request_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -168,6 +182,8 @@ class FriendService:
                     ))
             
             return request_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

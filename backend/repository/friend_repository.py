@@ -5,7 +5,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from models.friend import *
 
 class FriendRepository:
-    
     @staticmethod
     async def send_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
@@ -39,11 +38,12 @@ class FriendRepository:
     @staticmethod
     async def accept_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
+            # Find the pending request for the current user (who is accepting)
             result_user = await db.execute(
                 select(Friend).where(
                     and_(
-                        Friend.user_id == friend_id,
-                        Friend.friend_id == user_id,
+                        Friend.user_id == user_id,
+                        Friend.friend_id == friend_id,
                         Friend.status == FriendStatus.pending
                     )
                 )
@@ -57,6 +57,7 @@ class FriendRepository:
             await db.commit()
             await db.refresh(friendship_user)
             
+            # Find the requested status for the friend (who sent the request)
             result_friend = await db.execute(
                 select(Friend).where(
                     and_(
@@ -84,11 +85,12 @@ class FriendRepository:
     @staticmethod
     async def reject_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
+            # Find the pending request for the current user (who is rejecting)
             result_user = await db.execute(
                 select(Friend).where(
                     and_(
-                        Friend.user_id == friend_id,
-                        Friend.friend_id == user_id,
+                        Friend.user_id == user_id,
+                        Friend.friend_id == friend_id,
                         Friend.status == FriendStatus.pending
                     )
                 )
@@ -101,6 +103,7 @@ class FriendRepository:
             await db.delete(friendship_user)
             await db.commit()
             
+            # Find the requested status for the friend (who sent the request)
             result_friend = await db.execute(
                 select(Friend).where(
                     and_(

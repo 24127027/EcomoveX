@@ -7,63 +7,42 @@ from routers.user_router import router as user_router
 from routers.review_router import router as review_router
 from routers.friend_router import router as friend_router
 from routers.destination_router import router as destination_router
-from routers.route_router import router as route_router
-from routers.map_router import router as map_search_router
+from routers.storage_router import router as storage_router
+# from routers.route_router import router as route_router
+# from routers.map_router import router as map_search_router
 # from routers.chatbot_router import router as chatbot_router
 # from routers.recommendation_router import router as recommendation_router
 from routers.reward_router import router as reward_router
 
 # Import database setup
-from database.user_database import user_engine
-from database.destination_database import destination_engine
-from models.init_user_database import init_user_db
-from models.init_destination_database import init_destination_db
+from database.db import engine
+from database.init_database import init_db
 from utils.config import settings
-from services.carbon_service import CarbonService
 
 # Lifespan event handler (startup/shutdown)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("Starting EcomoveX Backend...")
+    print("Starting EcomoveX ..")
     
     try:
-        await init_user_db(drop_all=False)
+        await init_db(drop_all=False)
         print("User database initialized")
     except Exception as e:
         print(f"WARNING: User database initialization failed - {e}")
-    
-    try:
-        await init_destination_db(drop_all=False)
-        print("Destination database initialized")
-    except Exception as e:
-        print(f"WARNING: Destination database initialization failed - {e}")
-    
-    # Refresh emission factors from Climatiq API
-    try:
-        print("Loading emission factors from Climatiq API...")
-        await CarbonService.refresh_emission_factors()
-        print("Emission factors loaded successfully")
-    except Exception as e:
-        print(f"WARNING: Emission factors refresh failed, using fallback values - {e}")
-    
+        
+    # Refresh emission factors from Climatiq API    
     yield  # App is running
     
     # Shutdown: Cleanup
-    print("Shutting down EcomoveX Backend...")
+    print("Shutting down EcomoveX ..")
     
     try:
-        await user_engine.dispose()
+        await engine.dispose()
         print("User database connections closed")
     except Exception as e:
         print(f"ERROR: Failed to close user database - {e}")
     
-    try:
-        await destination_engine.dispose()
-        print("Destination database connections closed")
-    except Exception as e:
-        print(f"ERROR: Failed to close destination database - {e}")
-
 
 # Create FastAPI application
 app = FastAPI(
@@ -92,8 +71,9 @@ app.include_router(user_router)
 app.include_router(review_router)
 app.include_router(friend_router)
 app.include_router(destination_router)
-app.include_router(route_router)
-app.include_router(map_search_router)  # Search Bar feature
+app.include_router(storage_router)
+# app.include_router(route_router)
+# app.include_router(map_search_router)
 #app.include_router(chatbot_router)
 #app.include_router(recommendation_router)
 app.include_router(reward_router)

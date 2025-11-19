@@ -1,12 +1,25 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
-from models.route import TransportMode, RouteType
+from enum import Enum
+
+class TransportMode(str, Enum):
+    car = "car"
+    motorbike = "motorbike"
+    walking = "walking"
+    metro = "metro"
+    bus = "bus"
+    train = "train"
+        
+class RouteType(str, Enum):
+    fastest = "fastest"
+    low_carbon = "low_carbon"
+    smart_combination = "smart_combination"
 
 class RouteCreate(BaseModel):
     user_id: int
     origin_id: int
-    destination_id: int
+    destination_id: str
     distance_km: float = Field(..., ge=0)
     estimated_travel_time_min: float = Field(..., ge=0)
     carbon_emission_kg: float = Field(..., ge=0)
@@ -19,7 +32,7 @@ class RouteUpdate(BaseModel):
 class RouteResponse(BaseModel):
     user_id: int
     origin_id: int
-    destination_id: int
+    destination_id: str
     distance_km: float
     estimated_travel_time_min: float
     carbon_emission_kg: float
@@ -67,6 +80,10 @@ class FindRoutesResponse(BaseModel):
     routes: Dict[RouteType, RouteData]
     recommendation: str
     
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
+    model_config = ConfigDict(from_attributes=True,)
+    
+class RecommendResponse(BaseModel):
+    route: str
+    recommendation: str
+    
+    model_config = ConfigDict(from_attributes=True,)

@@ -1,13 +1,23 @@
-﻿import math
+﻿import time
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
-from models.route import TransportMode
+from schemas.route_schema import *
 from schemas.map_schema import *
 from utils.config import settings
+from utils.maps.map_utils import interpolate_search_params
+
+TRANSPORT_MODE_TO_ROUTES_API = {
+    "car": "DRIVE",
+    "motorbike": "DRIVE",
+    "walking": "WALK",
+    "bus": "TRANSIT",
+    "metro": "TRANSIT",
+    "train": "TRANSIT"
+}
 
 class GoogleMapsAPI:   
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.GOOGLE_MAPS_API_KEY
+        self.api_key = api_key or settings.GOOGLE_API_KEY
         if not self.api_key:
             raise ValueError("Google Maps API key is required")
         
@@ -18,250 +28,227 @@ class GoogleMapsAPI:
         await self.client.aclose()
 
     async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> AutocompleteResponse:
-        """Search for places using autocomplete with Pydantic response"""
-        params = {
-            "input": data.query.strip(),
-            "language": data.language,
-            "key": self.api_key
-        }
+        try:
+            params = {
+                "input": data.query.strip(),
+                "language": data.language,
+                "key": self.api_key
+            }
 
-        if data.user_location:
-            params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
-        if data.radius:
-            params["radius"] = data.radius
-        if data.place_types:
-            params["types"] = data.place_types
-        if components:
-            params["components"] = components
-        
-        url = f"{self.base_url}/place/autocomplete/json"
-        response = await self.client.get(url, params=params)
-        return AutocompleteResponse(**response.json())
+            if data.user_location:
+                params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
+            if data.radius:
+                params["radius"] = data.radius
+            if data.place_types:
+                params["types"] = data.place_types
+            if components:
+                params["components"] = components
+            
+            url = f"{self.base_url}/place/autocomplete/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching autocomplete places: {data.get('status')}")
+            list = data.get("predictions", [])
+            list_places = []
+            for place in list:
+                place_obj = PlaceSearchDisplay(
+                    description=place.get("description"),
+                    place_id=place.get("place_id"),
+                    structured_formatting=place.get("structured_formatting"),
+                    types=place.get("types", []),
+                    matched_substrings=place.get("matched_substrings", []),
+                    distance=place.get("distance")
+                )
+                list_places.append(place_obj)
+            return AutocompleteResponse(predictions=list_places)
+        except Exception as e:
+            print(f"Error in autocomplete_place: {e}")
+            raise e
 
-    async def query_autocomplete(self, data: SearchLocationRequest) -> AutocompleteResponse:
-        params = {
-            "input": data.query.strip(),
-            "language": data.language,
-            "key": self.api_key
-        }
-
-        if data.user_location:
-            params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
-        if data.radius:
-            params["radius"] = data.radius
-
-        url = f"{self.base_url}/place/queryautocomplete/json"
-        response = await self.client.get(url, params=params)
-        return AutocompleteResponse(**response.json())
-
-    async def get_place_details_from_autocomplete(self, place_id: str, fields: Optional[List[str]] = None, language: str = "vi") -> PlaceDetailsResponse:
-        """Get detailed place information with Pydantic response"""
-        if fields is None:
+    async def get_place_details_from_autocomplete(self, place_id: str, language: str = "vi") -> PlaceDetailsResponse:
+        try:
             fields = [
                 "place_id",
                 "name", 
                 "formatted_address",
-                "geometry/location",
                 "address_components",
-                "rating",
-                "opening_hours",
                 "formatted_phone_number",
+                "geometry/location",
+                "geometry/viewport",
+                "types",
+                "rating",
+                "user_ratings_total",
+                "price_level",
+                "opening_hours",
                 "website",
                 "photos",
-                "types"
+                "reviews",
+                "vicinity",
+                "utc_offset",
             ]
+            params = {
+                "place_id": place_id,
+                "fields": ",".join(fields),
+                "language": language,
+                "key": self.api_key
+            }
+            
+            url = f"{self.base_url}/place/details/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching place details: {data.get('status')}")
+            return PlaceDetailsResponse(
+                place_id=data.get("result", {}).get("place_id"),
+                name=data.get("result", {}).get("name"),
+                formatted_address=data.get("result", {}).get("formatted_address"),
+                address_components=[AddressComponent(
+                    name=comp.get("long_name"),
+                    types=comp.get("types", [])
+                ) for comp in data.get("result", {}).get("address_components", [])],
+                formatted_phone_number=data.get("result", {}).get("formatted_phone_number"),
+                geometry=Geometry(
+                    location=(
+                        data.get("result", {}).get("geometry", {}).get("location", {}).get("lat"),
+                        data.get("result", {}).get("geometry", {}).get("location", {}).get("lng")
+                    ),
+                    bounds=Bounds(
+                        northeast=(
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                        ),
+                        southwest=(
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                        )
+                    ),
+                ),
+                types=data.get("result", {}).get("types", []),
+                rating=data.get("result", {}).get("rating"),
+                user_ratings_total=data.get("result", {}).get("user_ratings_total"),
+                price_level=data.get("result", {}).get("price_level"),
+                opening_hours=OpeningHours(
+                    open_now=data.get("result", {}).get("opening_hours", {}).get("open_now", False),
+                    periods=data.get("result", {}).get("opening_hours", {}).get("periods"),
+                    weekday_text=data.get("result", {}).get("opening_hours", {}).get("weekday_text")
+                ) if data.get("result", {}).get("opening_hours") else None,
+                website=data.get("result", {}).get("website"),
+                photos=[PhotoInfo(
+                    photo_reference=photo.get("photo_reference"),  
+                    size=(photo.get("width"), photo.get("height"))
+                ) for photo in data.get("result", {}).get("photos", [])] if data.get("result", {}).get("photos") else None,
+                reviews=[Review(
+                    rating=review.get("rating"),
+                    text=review.get("text")
+                ) for review in data.get("result", {}).get("reviews", [])] if data.get("result", {}).get("reviews") else None,
+                utc_offset=data.get("result", {}).get("utc_offset"),
+            )
+        except Exception as e:
+            print(f"Error in get_place_details_from_autocomplete: {e}")
+            raise e
         
-        params = {
-            "place_id": place_id,
-            "fields": ",".join(fields),
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/place/details/json"
-        response = await self.client.get(url, params=params)
-        return PlaceDetailsResponse(**response.json())
-    
-    async def get_directions(
-        self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
-        mode: TransportMode,
-        waypoints: Optional[List[str]] = None,
-        alternatives: bool = False,
-        avoid: Optional[List[str]] = None,
-        language: str = "vi"
-    ) -> DirectionsResponse:
-        """Get directions between locations with Pydantic response"""
-        params = {
-            "origin": f"{origin[0]},{origin[1]}",
-            "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode.value,
-            "alternatives": str(alternatives).lower(),
-            "language": language,
-            "key": self.api_key
-        }
-        
-        if waypoints:
-            params["waypoints"] = "optimize:true|" + "|".join(waypoints)
-        if avoid:
-            params["avoid"] = "|".join(avoid)
-        
-        url = f"{self.base_url}/directions/json"
-        response = await self.client.get(url, params=params)
-        return DirectionsResponse(**response.json())
-    
     async def get_air_quality(
         self,
-        lat: float,
-        lng: float,
+        location: Tuple[float, float],
+        extra_computations: Optional[List[str]] = ["HEALTH_RECOMMENDATIONS"],
         language_code: str = "vi"
-    ) -> Dict[str, Any]:
-        """Get current air quality data"""
-        payload = {
-            "location": {
-                "latitude": lat,
-                "longitude": lng
-            },
-            "languageCode": language_code
-        }
-        
-        url = "https://airquality.googleapis.com/v1/currentConditions:lookup"
-        response = await self.client.post(
-            url,
-            params={"key": self.api_key},
-            json=payload
-        )
-        return response.json()
-    
-    async def get_air_quality_history(
-        self,
-        lat: float,
-        lng: float,
-        hours: int = 24,
-        language_code: str = "vi"
-    ) -> Dict[str, Any]:
-        """Get historical air quality data"""
-        payload = {
-            "location": {
-                "latitude": lat,
-                "longitude": lng
-            },
-            "hours": hours,
-            "languageCode": language_code
-        }
-        
-        url = "https://airquality.googleapis.com/v1/history:lookup"
-        response = await self.client.post(
-            url,
-            params={"key": self.api_key},
-            json=payload
-        )
-        return response.json()
-    
-    async def get_air_quality_with_pollutants(
-        self,
-        lat: float,
-        lng: float,
-        extra_computations: Optional[List[str]] = None,
-        language_code: str = "vi"
-    ) -> Dict[str, Any]:
-        payload = {
-            "location": {
-                "latitude": lat,
-                "longitude": lng
-            },
-            "languageCode": language_code
-        }
-        
-        if extra_computations:
-            payload["extraComputations"] = extra_computations
-        
-        url = "https://airquality.googleapis.com/v1/currentConditions:lookup"
-        response = await self.client.post(
-            url,
-            params={"key": self.api_key},
-            json=payload
-        )
-        return response.json()
-    
-    async def get_air_quality_heatmap(
-        self,
-        lat: float,
-        lng: float,
-        zoom: int = 12
-    ) -> Dict[str, Any]:
-        n = 2.0 ** zoom
-        x = int((lng + 180.0) / 360.0 * n)
-        y = int((1.0 - math.log(math.tan(math.radians(lat)) + (1 / math.cos(math.radians(lat)))) / math.pi) / 2.0 * n)
-        
-        url = f"https://airquality.googleapis.com/v1/mapTypes/UAQI_RED_GREEN/heatmapTiles/{zoom}/{x}/{y}"
-        response = await self.client.get(url, params={"key": self.api_key})
-        
-        return {
-            "tile_url": url,
-            "zoom": zoom,
-            "x": x,
-            "y": y,
-            "location": {"lat": lat, "lng": lng},
-            "status_code": response.status_code
-        }
-        
-    async def get_weather_forecast(
-        self,
-        lat: float,
-        lng: float
-    ) -> Dict[str, Any]:
-        """Get weather forecast (uses geocoding + external weather API)"""
-        geocode_result = await self.reverse_geocode(lat, lng)
-        
-        location_name = "Unknown"
-        if geocode_result.get("status") == "OK" and geocode_result.get("results"):
-            location_name = geocode_result["results"][0].get("formatted_address", "Unknown")
-        
-        return {
-            "location": {
-                "lat": lat,
-                "lng": lng,
-                "name": location_name
-            },
-            "message": "Use external weather API like OpenWeatherMap for detailed forecast"
-        }
-    
-    async def get_route(
-        self,
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
-        mode: TransportMode,
-    ) -> DirectionsResponse:
-        """Get single route between locations with Pydantic response"""
-        params = {
-            "origin": f"{origin[0]},{origin[1]}",
-            "destination": f"{destination[0]},{destination[1]}",
-            "mode": mode.value,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/directions/json"
-        response = await self.client.get(url, params=params)
-        return DirectionsResponse(**response.json())
+    ) -> AirQualityResponse:
+        try:
+            payload = {
+                "location": {
+                    "latitude": location[0],
+                    "longitude": location[1]
+                },
+                "languageCode": language_code
+            }
+            
+            if extra_computations:
+                payload["extraComputations"] = extra_computations
+            
+            url = "https://airquality.googleapis.com/v1/currentConditions:lookup"
+            response = await self.client.post(
+                url,
+                params={"key": self.api_key},
+                json=payload
+            )
+            data = response.json()
+            
+            if data.get("status") != "OK":
+                raise ValueError(f"Error fetching air quality data: {data.get('status')}")
+            
+            indexes = data.get("indexes", [])
+            if not indexes:
+                raise ValueError("No air quality index data available")
+            
+            primary_index = indexes[0]
+            
+            return AirQualityResponse(
+                location=location,
+                aqi_data=AirQualityIndex(
+                    display_name=primary_index.get("displayName", "Air Quality Index"),
+                    aqi=primary_index.get("aqi"),
+                    category=primary_index.get("category")
+                ),
+                recommendations=HealthRecommendation(
+                    general_population=data.get("healthRecommendations", {}).get("generalPopulation"),
+                    sensitive_groups=data.get("healthRecommendations", {}).get("sensitiveGroups")
+                ) if data.get("healthRecommendations") else None
+            )
+        except Exception as e:
+            print(f"Error in get_air_quality: {e}")
+            raise e
     
     async def reverse_geocode(
         self,
-        lat: float,
-        lng: float,
+        location: Tuple[float, float],
         language: str = "vi"
     ) -> GeocodingResponse:
-        """Convert coordinates to address with Pydantic response"""
-        params = {
-            "latlng": f"{lat},{lng}",
-            "language": language,
-            "key": self.api_key
-        }
-        
-        url = f"{self.base_url}/geocode/json"
-        response = await self.client.get(url, params=params)
-        return GeocodingResponse(**response.json())
+        try:
+            params = {
+                "latlng": f"{location[0]},{location[1]}",
+                "language": language,
+                "key": self.api_key
+            }
+            
+            url = f"{self.base_url}/geocode/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error in reverse geocoding: {data.get('status')}")
+            
+            results = []
+            for result in data.get("results", []):
+                results.append(GeocodingResult(
+                    place_id=result.get("place_id"),
+                    formatted_address=result.get("formatted_address"),
+                    address_components=[AddressComponent(
+                        name=comp.get("long_name"),
+                        types=comp.get("types", [])
+                    ) for comp in result.get("address_components", [])],
+                    geometry=Geometry(
+                        location=(
+                            result.get("geometry", {}).get("location", {}).get("lat"),
+                            result.get("geometry", {}).get("location", {}).get("lng")
+                        ),
+                        bounds=Bounds(
+                            northeast=(
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            ),
+                            southwest=(
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            )
+                        )
+                    ),
+                    types=result.get("types", [])
+                ))
+            
+            return GeocodingResponse(results=results)
+        except Exception as e:
+            print(f"Error in reverse_geocode: {e}")
+            raise e
     
     async def geocode(
         self,
@@ -269,47 +256,180 @@ class GoogleMapsAPI:
         language: str = "vi",
         region: str = "vn"
     ) -> GeocodingResponse:
-        """Convert address to coordinates with Pydantic response"""
-        params = {
-            "address": address,
-            "language": language,
-            "region": region,
-            "key": self.api_key
-        }
+        try:
+            params = {
+                "address": address,
+                "language": language,
+                "region": region,
+                "key": self.api_key
+            }
+            
+            url = f"{self.base_url}/geocode/json"
+            response = await self.client.get(url, params=params)
+            data = response.json()
+            if data.get("status") != "OK":
+                raise ValueError(f"Error in geocoding: {data.get('status')}")
+            
+            results = []
+            for result in data.get("results", []):
+                results.append(GeocodingResult(
+                    place_id=result.get("place_id"),
+                    formatted_address=result.get("formatted_address"),
+                    address_components=[AddressComponent(
+                        name=comp.get("long_name"),
+                        types=comp.get("types", [])
+                    ) for comp in result.get("address_components", [])],
+                    geometry=Geometry(
+                        location=(
+                            result.get("geometry", {}).get("location", {}).get("lat"),
+                            result.get("geometry", {}).get("location", {}).get("lng")
+                        ),
+                        bounds=Bounds(
+                            northeast=(
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            ),
+                            southwest=(
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            )
+                        )
+                    ),
+                    types=result.get("types", [])
+                ))
+            
+            return GeocodingResponse(results=results)
+        except Exception as e:
+            print(f"Error in geocode: {e}")
+            raise e
         
-        url = f"{self.base_url}/geocode/json"
-        response = await self.client.get(url, params=params)
-        return GeocodingResponse(**response.json())
-    
-    def _extract_transit_details(self, leg: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract transit step details (bus/train lines, stops, etc.)"""
-        transit_steps = []
-        walking_steps = []
+    async def get_nearby_places_for_map(
+        self,
+        data: NearbyPlaceRequest,
+        language: str = "vi"
+    ) -> NearbyPlacesResponse:
+        try:
+            params = {
+                "location": f"{data.location[0]},{data.location[1]}",
+                "radius": data.radius if data.radius else 3600,
+                "rankby": data.rank_by,
+                "language": language,
+                "key": self.api_key
+            }
+            if data.place_type:
+                params["type"] = data.place_type
+            if data.keyword:
+                params["keyword"] = data.keyword
+            
+            url = f"{self.base_url}/place/nearbysearch/json"
+            response = await self.client.get(url, params=params)
+            response_data = response.json()
+            
+            if response_data.get("status") != "OK":
+                raise ValueError(f"Error fetching nearby places: {response_data.get('status')}")
+            
+            places = [
+                NearbyPlaceSimple(
+                    place_id=result["place_id"],
+                    name=result["name"],
+                    location=(
+                        result["geometry"]["location"]["lat"], 
+                        result["geometry"]["location"]["lng"]
+                    ),
+                    rating=result.get("rating"),
+                    types=result.get("types", []),
+                )
+                for result in response_data.get("results", [])
+            ]
+            
+            return NearbyPlacesResponse(
+                center=data.location,
+                places=places,
+                next_page_token=response_data.get("next_page_token")
+            )
+        except Exception as e:
+            print(f"Error in get_nearby_places_for_map: {e}")
+            raise e
         
-        for step in leg.get("steps", []):
-            if step.get("travel_mode") == "TRANSIT":
-                transit_details = step.get("transit_details", {})
-                transit_steps.append({
-                    "line": transit_details.get("line", {}).get("short_name", "N/A"),
-                    "vehicle": transit_details.get("line", {}).get("vehicle", {}).get("type", "BUS"),
-                    "departure_stop": transit_details.get("departure_stop", {}).get("name", ""),
-                    "arrival_stop": transit_details.get("arrival_stop", {}).get("name", ""),
-                    "num_stops": transit_details.get("num_stops", 0),
-                    "duration": step.get("duration", {}).get("text", "")
-                })
-            elif step.get("travel_mode") == "WALKING":
-                walking_steps.append({
-                    "distance": step.get("distance", {}).get("text", ""),
-                    "duration": step.get("duration", {}).get("text", ""),
-                    "instruction": step.get("html_instructions", "")
-                })
+    async def get_next_page_nearby_places(
+        self,
+        page_token: str,
+    ) -> NearbyPlacesResponse:
+        try:
+            params = {
+                "pagetoken": page_token,
+                "key": self.api_key
+            }
+            url = f"{self.base_url}/place/nearbysearch/json"
+            response = await self.client.get(url, params=params)
+            response_data = response.json()
+            if response_data.get("status") != "OK":
+                raise ValueError(f"Error fetching next page of nearby places: {response_data.get('status')}")
+            places = [
+                NearbyPlaceSimple(
+                    place_id=result["place_id"],
+                    name=result["name"],
+                    location=(
+                        result["geometry"]["location"]["lat"],
+                        result["geometry"]["location"]["lng"]
+                    ),
+                    rating=result.get("rating"),
+                    types=result.get("types", []),
+                )
+                for result in response_data.get("results", [])
+            ]
+            
+            return NearbyPlacesResponse(
+                center=None,
+                places=places,
+                next_page_token=response_data.get("next_page_token")
+            )
+        except Exception as e:
+            print(f"Error in get_next_page_nearby_places: {e}")
+            raise e
         
-        return {
-            "transit_steps": transit_steps,
-            "walking_steps": walking_steps,
-            "total_transit_steps": len(transit_steps),
-            "total_walking_steps": len(walking_steps)
-        }
+    async def search_along_route(
+        self,
+        data: DirectionsRequest,
+        travel_mode: TransportMode,
+        search_type: str,
+    ) -> SearchAlongRouteResponse:
+        directions = await self.get_routes(data=data, mode=travel_mode)        
+        route = directions.routes[0]
+        
+        sample_points = []
+        total_distance = 0
+        interpolate = await interpolate_search_params(distance=route.legs[0].distance)
+        sample_interval = interpolate[1]
+        
+        for leg in route.legs:
+            for step in leg.steps:
+                total_distance += step.distance
+                if total_distance >= sample_interval:
+                    sample_points.append(step.start_location)
+                    total_distance = 0
+        
+        all_places = []
+        seen_place_ids = set()
+        
+        for point in sample_points:
+            data = await self.get_nearby_places_for_map(
+                NearbyPlaceRequest(
+                    location=point,
+                    radius=interpolate[0],
+                    place_type=search_type
+                )
+            )
+            for place in data.places:  # Top 3 per point
+                if place.place_id not in seen_place_ids:
+                    seen_place_ids.add(place.place_id)
+                    all_places.append(place)
+        
+        return SearchAlongRouteResponse(
+            route_polyline=route.overview_polyline,
+            places_along_route=all_places,
+            search_type=search_type
+        )
 
 async def create_maps_client(api_key: Optional[str] = None) -> GoogleMapsAPI:
     return GoogleMapsAPI(api_key=api_key)

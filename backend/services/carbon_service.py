@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from integration.climatiq_api import create_climatiq_client
 from typing import Optional
-from models.route import *
+from schemas.route_schema import TransportMode
 
 class CarbonService:
     @staticmethod
@@ -9,7 +9,6 @@ class CarbonService:
         mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
-        fuel_type: Optional[str] = None
     ):
         try:
             climatiq = await create_climatiq_client()
@@ -17,7 +16,6 @@ class CarbonService:
                 mode=mode,
                 distance_km=distance_km,
                 passengers=passengers,
-                fuel_type=fuel_type
             )
             return estimation
         except Exception as e:

@@ -6,7 +6,7 @@ from schemas.destination_schema import *
 
 class DestinationRepository:       
     @staticmethod
-    async def get_destination_by_id(db: AsyncSession, destination_id: int):
+    async def get_destination_by_id(db: AsyncSession, destination_id: str):
         try:
             result = await db.execute(select(Destination).where(Destination.google_place_id == destination_id))
             return result.scalar_one_or_none()
@@ -35,7 +35,7 @@ class DestinationRepository:
             return None
 
     @staticmethod
-    async def update_destination(db: AsyncSession, destination_id: int, updated_data: DestinationUpdate):
+    async def update_destination(db: AsyncSession, destination_id: str, updated_data: DestinationUpdate):
         try:
             destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
@@ -55,7 +55,7 @@ class DestinationRepository:
             return None
         
     @staticmethod
-    async def delete_destination(db: AsyncSession, destination_id: int):
+    async def delete_destination(db: AsyncSession, destination_id: str):
         try:
             destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
@@ -72,11 +72,11 @@ class DestinationRepository:
         
 class UserSavedDestinationRepository:
     @staticmethod
-    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_data: UserSavedDestinationCreate):
+    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
         try:
             new_saved_destination = UserSavedDestination(
                 user_id=user_id,
-                destination_id=destination_data.destination_id,
+                destination_id=destination_id,
             )
             db.add(new_saved_destination)
             await db.commit()
@@ -97,7 +97,7 @@ class UserSavedDestinationRepository:
             return []
         
     @staticmethod
-    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             result = await db.execute(
                 select(UserSavedDestination).where(
@@ -118,7 +118,7 @@ class UserSavedDestinationRepository:
             return False
 
     @staticmethod
-    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: int):
+    async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             result = await db.execute(
                 select(UserSavedDestination).where(

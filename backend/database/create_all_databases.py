@@ -9,11 +9,10 @@ import asyncio
 import sys
 import asyncpg
 from pathlib import Path
-
-backend_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(backend_dir))
-
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
+from init_database import init_db
 
 async def create_databases():
     conn = await asyncpg.connect(
@@ -27,37 +26,21 @@ async def create_databases():
     try:
         exists = await conn.fetchval(
             "SELECT 1 FROM pg_database WHERE datname = $1", 
-            settings.USER_DB_NAME
+            settings.DB_NAME
         )
         if not exists:
-            await conn.execute(f'CREATE DATABASE "{settings.USER_DB_NAME}"')
-            print(f"✅ Created main database: {settings.USER_DB_NAME}")
+            await conn.execute(f'CREATE DATABASE "{settings.DB_NAME}"')
+            print(f"Created database: {settings.DB_NAME}")
         else:
-            print(f"ℹ️  Main database already exists: {settings.USER_DB_NAME}")
-
-        exists = await conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = $1", 
-            settings.DEST_DB_NAME
-        )
-        if not exists:
-            await conn.execute(f'CREATE DATABASE "{settings.DEST_DB_NAME}"')
-            print(f"✅ Created destination database: {settings.DEST_DB_NAME}")
-        else:
-            print(f"ℹ️  Destination database already exists: {settings.DEST_DB_NAME}")
-            
+            print(f"Database already exists: {settings.DB_NAME}")
+                        
     finally:
         await conn.close()
     
-    from models.init_user_database import init_user_db
-    from models.init_destination_database import init_destination_db
-    
-    print("\n🧱 Initializing main database tables...")
-    await init_user_db(drop_all=False)
+    print("\nInitializing user database tables...")
+    await init_db(drop_all=False)
 
-    print("\n🧱 Initializing destination database tables...")
-    await init_destination_db(drop_all=False)
-    
-    print("\n✅ All databases initialized successfully!")
+    print("\nDatabase initialization completed successfully")
 
 if __name__ == "__main__":
     asyncio.run(create_databases())

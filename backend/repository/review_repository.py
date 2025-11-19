@@ -6,7 +6,7 @@ from schemas.review_schema import *
 
 class ReviewRepository:
     @staticmethod
-    async def get_all_reviews_by_destination(db: AsyncSession, destination_id: int):
+    async def get_all_reviews_by_destination(db: AsyncSession, destination_id: str):
         try:
             result = await db.execute(select(Review).where(Review.destination_id == destination_id))
             return result.scalars().all()
@@ -18,13 +18,13 @@ class ReviewRepository:
     async def get_all_reviews_by_user(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(select(Review).where(Review.user_id == user_id))
-            return result.scalar_one_or_none()
+            return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching review for user {user_id} - {e}")
-            return None
+            return []
         
     @staticmethod
-    async def get_review_by_destination_and_user(db: AsyncSession, destination_id: int, user_id: int):
+    async def get_review_by_destination_and_user(db: AsyncSession, destination_id: str, user_id: int):
         try:
             result = await db.execute(
                 select(Review).where(
@@ -38,7 +38,7 @@ class ReviewRepository:
             return None
         
     @staticmethod
-    async def create_review(db: AsyncSession, user_id: int, destination_id: int, review_data: ReviewCreate):
+    async def create_review(db: AsyncSession, user_id: int, destination_id: str, review_data: ReviewCreate):
         try:
             new_review = Review(
                 destination_id=destination_id,
@@ -56,7 +56,7 @@ class ReviewRepository:
             return None
 
     @staticmethod
-    async def update_review(db: AsyncSession, user_id: int,destination_id: int, updated_data: ReviewUpdate):
+    async def update_review(db: AsyncSession, user_id: int,destination_id: str, updated_data: ReviewUpdate):
         try:
             review = await ReviewRepository.get_review_by_destination_and_user(db, destination_id, user_id)
             if not review:
@@ -78,7 +78,7 @@ class ReviewRepository:
             return None
 
     @staticmethod
-    async def delete_review(db: AsyncSession, user_id: int, destination_id: int):
+    async def delete_review(db: AsyncSession, user_id: int, destination_id: str):
         try:
             result = await db.execute(
                 select(Review).where(

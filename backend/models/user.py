@@ -2,7 +2,7 @@
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.user_database import UserBase
+from database.db import Base
 
 
 class Role(str, Enum):
@@ -21,13 +21,15 @@ class Rank(str, Enum):
     platinum = "Platinum"
     diamond = "Diamond"
     
-class User(UserBase):
+class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)
+    avt_blob_name = Column(String(255), nullable=True)
+    cover_blob_name = Column(String(255), nullable=True)
     temp_min = Column(Float, nullable=True, default=0)
     temp_max = Column(Float, nullable=True, default=0)
     budget_min = Column(Float, nullable=True, default=0)
@@ -39,14 +41,16 @@ class User(UserBase):
 
     sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
+    reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
-    routes = relationship("Route", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
+    files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
+    user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
 
-class UserActivity(UserBase):
+class UserActivity(Base):
     __tablename__ = "user_activities"
     
     __table_args__ = (

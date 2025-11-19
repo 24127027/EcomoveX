@@ -1,8 +1,8 @@
 from typing import Optional
 import httpx
 import requests
-from models.route import TransportMode
 from utils.config import settings
+from schemas.route_schema import *
 class climatiqAPI:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.CLIMATIQ_API_KEY
@@ -20,32 +20,37 @@ class climatiqAPI:
     async def close(self):
         await self.client.aclose()
 
-    async def estimate_travel_distance(
+    async def estimate_car(
         self,
-        mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
-        fuel_type: Optional[str] = None
     ) -> float:
-        url = f"{self.travel_base_url}/estimate"
-        payload = {
-            "travel_mode": mode.value,
-            "distance": distance_km,
-            "distance_unit": "km",
-            "passengers": passengers
+        """Estimate car emissions using data/v1/estimate endpoint"""
+        url = f"{self.basic_base_url}/estimate"
+        
+        # Default activity_id for cars
+        activity_id = "passenger_vehicle-vehicle_type_car-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na"
+        
+        params = {
+            "emission_factor": {
+                "activity_id": activity_id,
+                "data_version": "^27"
+            },
+            "parameters": {
+                "distance": distance_km,
+                "distance_unit": "km"
+            }
         }
 
-        if mode == TransportMode.car and fuel_type:
-            payload["vehicle"] = {"fuel": fuel_type.lower()}
-
         try:
-            res = requests.post(url, headers=self.headers, json=payload)
+            res = requests.post(url, headers=self.headers, json=params)
             res.raise_for_status()
             data = res.json()
-            return data["co2e"]
+            # Divide by average occupancy if needed
+            return data["co2e"] / passengers if passengers > 1 else data["co2e"]
 
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Travel estimation failed: {e}")
+            raise Exception(f"Car estimation failed: {e}")
         
     async def estimate_electric_bus(self, distance_km: float = 100, passenger: int = 1) -> float:
         url = f"{self.basic_base_url}/estimate"
@@ -63,7 +68,7 @@ class climatiqAPI:
             response = requests.post(url, headers=self.headers, json=params)
             response.raise_for_status()
             data = response.json()
-            return data["co2e"] * passenger / 30 # assuming average bus occupancy of 30
+            return data["co2e"] * passenger / 30
         except requests.exceptions.RequestException as e:
             raise Exception(f"Electric bus estimation failed: {e}")
 
@@ -94,25 +99,16 @@ class climatiqAPI:
         mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
-        fuel_type: Optional[str] = None
     ) -> float:
-        """
-        Unified transport emission estimator.
-        Uses the Travel API for 'car', 'rail', 'air';
-        Uses Basic Estimate API for 'motorbike'.
-        Returns only co2e_total and unit.
-        """
-        # Zero emissions for walking and bicycling
-        if mode in [TransportMode.walking, TransportMode.bicycle, TransportMode.bicycling]:
+
+        if mode == TransportMode.walking:
             return 0.0
 
-        travel_modes = {TransportMode.car, TransportMode.rail, TransportMode.air}
-
-        if mode in travel_modes:
-            return await self.estimate_travel_distance(mode, distance_km, passengers, fuel_type)
+        if mode == TransportMode.car:
+            return await self.estimate_car(distance_km, passengers)
         elif mode == TransportMode.motorbike:
             return await self.estimate_motorbike(distance_km)
-        elif mode == TransportMode.electric_bus:
+        elif mode == TransportMode.bus:
             return await self.estimate_electric_bus(distance_km, passengers)
         else:
             raise ValueError(f"Unsupported travel mode: {mode.value}")

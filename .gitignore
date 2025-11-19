@@ -77,4 +77,10 @@ EcomoveX/
 
 # OS
 Thumbs.db
+<<<<<<< HEAD
 /.vs
+=======
+
+# Cloud storage
+service-account.json
+>>>>>>> 923206a92cf1a4319ea60d3910058a727435bc2e

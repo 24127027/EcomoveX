@@ -252,7 +252,7 @@ class ClusterDestinationRepository:
             return None
 
     @staticmethod
-    async def remove_destination_from_cluster(db: AsyncSession, cluster_id: int, destination_id: int) -> bool:
+    async def remove_destination_from_cluster(db: AsyncSession, cluster_id: int, destination_id: str) -> bool:
         """Remove destination from cluster"""
         try:
             result = await db.execute(
@@ -291,7 +291,7 @@ class ClusterDestinationRepository:
             return []
 
     @staticmethod
-    async def get_clusters_for_destination(db: AsyncSession, destination_id: int) -> List[ClusterDestination]:
+    async def get_clusters_for_destination(db: AsyncSession, destination_id: str) -> List[ClusterDestination]:
         """Get all clusters that include a specific destination"""
         try:
             result = await db.execute(
@@ -307,7 +307,7 @@ class ClusterDestinationRepository:
     async def update_destination_popularity(
         db: AsyncSession, 
         cluster_id: int, 
-        destination_id: int, 
+        destination_id: str, 
         updated_data: ClusterDestinationUpdate
     ) -> Optional[ClusterDestination]:
         """Update the popularity score of a destination in a cluster"""

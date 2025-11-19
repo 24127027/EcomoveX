@@ -39,6 +39,14 @@ class UserRepository:
     @staticmethod
     async def create_user(db: AsyncSession, user: UserRegister):
         try:
+            existed_email = await UserRepository.get_user_by_email(db, user.email)
+            if existed_email:
+                print(f"WARNING: User with email {user.email} already exists")
+                return None
+            existing_username = await UserRepository.get_user_by_username(db, user.username)
+            if existing_username:
+                print(f"WARNING: Username {user.username} already taken")
+                return None
             new_user = User(
                 username=user.username,
                 email=user.email,
@@ -63,8 +71,6 @@ class UserRepository:
                 print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return None
 
-            if updated_data.new_username is not None:
-                user.username = updated_data.new_username
             if updated_data.new_email is not None:
                 user.email = updated_data.new_email
             if updated_data.new_password is not None:
@@ -87,10 +93,12 @@ class UserRepository:
                 print(f"WARNING: WARNING: User not found with ID {user_id}")
                 return None
 
-            if updated_data.eco_point is not None:
-                user.eco_point = updated_data.eco_point
-            if updated_data.rank is not None:
-                user.rank = updated_data.rank
+            if updated_data.username is not None:
+                user.username = updated_data.username
+            if updated_data.avt_blob_name is not None:
+                user.avt_blob_name = updated_data.avt_blob_name
+            if updated_data.cover_blob_name is not None:
+                user.cover_blob_name = updated_data.cover_blob_name
 
             db.add(user)
             await db.commit()
@@ -99,6 +107,26 @@ class UserRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: Failed to update user profile for ID {user_id} - {e}")
+            return None
+        
+    @staticmethod
+    async def add_eco_point(db: AsyncSession, user_id: int, data: UserUpdateEcoPoint):
+        try:
+            user = await UserRepository.get_user_by_id(db, user_id)
+            if not user:
+                print(f"WARNING: WARNING: User not found with ID {user_id}")
+                return None
+
+            user.eco_point = data.point
+            user.rank = data.rank
+
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            return user
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to add eco point for user ID {user_id} - {e}")
             return None
         
     @staticmethod
@@ -123,7 +151,7 @@ class UserActivityRepository:
         try:
             new_activity = UserActivity(
                 user_id=user_id,
-                activity_type=data.activity_type,
+                activity_type=data.activity,
                 destination_id=data.destination_id,
                 timestamp=func.now()
             )
