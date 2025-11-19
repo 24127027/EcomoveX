@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
-from .init_database import init_user_db, init_destination_db
+from .init_database import init_db, init_destination_db
 
 async def create_databases():
     conn = await asyncpg.connect(
@@ -41,7 +41,7 @@ async def create_databases():
     
     
     print("\nInitializing user database tables...")
-    await init_user_db(drop_all=False)
+    await init_db(drop_all=False)
 
     print("\nInitializing destination database tables...")
     await init_destination_db(drop_all=False)

@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, validator, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple, Union
-from models.route import *
 from route_schema import TransportMode
 
 class Bounds(BaseModel):

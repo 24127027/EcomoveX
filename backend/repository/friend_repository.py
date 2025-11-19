@@ -5,7 +5,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from models.friend import *
 
 class FriendRepository:
-    
     @staticmethod
     async def send_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:

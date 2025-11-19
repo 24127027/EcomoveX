@@ -2,7 +2,7 @@ from enum import Enum
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.user_database import UserBase
+from database.database import UserBase
 
 class Role(str, Enum):
     user = "User"
@@ -40,6 +40,7 @@ class User(UserBase):
 
     sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
+    reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
     friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")

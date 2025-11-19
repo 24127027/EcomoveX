@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
-from database.user_database import get_user_db
+from database.database import get_db
 from schemas.destination_schema import *
 from schemas.user_schema import *
 from services.destination_service import UserSavedDestinationService
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/destinations", tags=["Destinations"])
 @router.post("/saved/{destination_id}", response_model=UserSavedDestinationResponse, status_code=status.HTTP_201_CREATED)
 async def save_destination_for_current_user(
     destination_id: str = Path(..., gt=0),
-    user_db: AsyncSession = Depends(get_user_db),
+    user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     result = await UserSavedDestinationService.save_destination_for_user(
@@ -33,7 +33,7 @@ async def save_destination_for_current_user(
 
 @router.get("/saved/me/all", response_model=list[UserSavedDestinationResponse], status_code=status.HTTP_200_OK)
 async def get_my_saved_destinations(
-    user_db: AsyncSession = Depends(get_user_db),
+    user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await UserSavedDestinationService.get_saved_destinations_for_user(
@@ -44,7 +44,7 @@ async def get_my_saved_destinations(
 @router.delete("/saved/{destination_id}", status_code=status.HTTP_200_OK)
 async def unsave_destination_for_current_user(
     destination_id: str = Path(...),
-    user_db: AsyncSession = Depends(get_user_db),
+    user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await UserSavedDestinationService.delete_saved_destination(

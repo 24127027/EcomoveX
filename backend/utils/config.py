@@ -8,8 +8,7 @@ load_dotenv()
 class Settings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DEST_DB_NAME: str = "ecomovex_destinations"
-    USER_DB_NAME: str = "ecomovex_user"
+    DB_NAME: str = "ecomoveX"
     DB_USER: str = "postgres"
     DB_PASS: str = ""
     

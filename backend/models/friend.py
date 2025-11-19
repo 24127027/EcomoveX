@@ -3,7 +3,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, PrimaryKeyConstrai
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum as SQLEnum
-from database.user_database import UserBase
+from database.database import UserBase
 
 class FriendStatus(str, Enum):
     requested = "Requested"
