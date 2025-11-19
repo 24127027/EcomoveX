@@ -16,43 +16,62 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def get_message_by_keyword(db: AsyncSession, user_id: int, keyword: str):
+    async def get_messages_by_user_id_and_room(db: AsyncSession, user_id: int, room_id: int):
         try:
             result = await db.execute(
                 select(Message).where(
-                    Message.content.ilike(f"%{keyword}%"),
-                    (Message.sender_id == user_id) | (Message.receiver_id == user_id)
-                )
+                    (Message.room_id == room_id)
+                ).order_by(Message.created_at.desc())
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: fetching message with content '{keyword}' for user {user_id} - {e}")
-            return None
-
+            print(f"ERROR: fetching messages for user ID {user_id} in room ID {room_id} - {e}")
+            return []
+        
     @staticmethod
-    async def create_message(db: AsyncSession, sender_id: int, receiver_id: int, message_data: MessageCreate):
+    async def search_messages_by_keyword(db: AsyncSession, user_id: int, room_id: int, keyword: str):
+        try:
+            result = await db.execute(
+                select(Message).where(
+                    (Message.content.ilike(f"%{keyword}%")) &
+                    (Message.room_id == room_id)
+                ).order_by(Message.created_at.desc())
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: searching messages for user ID {user_id} with keyword '{keyword}' - {e}")
+            return []
+        
+    @staticmethod
+    async def create_message(db: AsyncSession, sender_id: int, room_id: int, message_data: MessageCreate):
         try:
             new_message = Message(
                 sender_id=sender_id,
-                receiver_id=receiver_id,
+                room_id=room_id,
+                message_type=message_data.message_type,
                 content=message_data.content,
-                message_type=message_data.message_type
+                status=MessageStatus.sent
             )
-            new_message.created_at = func.now()
             db.add(new_message)
             await db.commit()
             await db.refresh(new_message)
             return new_message
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: creating message - {e}")
+            print(f"ERROR: creating message from sender ID {sender_id} - {e}")
             return None
-    
+        
     @staticmethod
-    async def delete_message(db: AsyncSession, sender_id: int, message_id: int):
+    async def delete_message(db: AsyncSession, user_id: int, message_id: int):
         try:
-            result = await db.execute(select(Message).where(Message.id == message_id, Message.sender_id == sender_id))
+            result = await db.execute(
+                select(Message).where(
+                    (Message.id == message_id) &
+                    (Message.sender_id == user_id)
+                )
+            )
             message = result.scalar_one_or_none()
             if message:
                 await db.delete(message)
@@ -61,5 +80,6 @@ class MessageRepository:
             return False
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: deleting message ID {message_id} by sender {sender_id} - {e}")
+            print(f"ERROR: deleting message ID {message_id} by user ID {user_id} - {e}")
             return False
+        
