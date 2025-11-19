@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone as UTC
 from typing import Dict, List, Optional
 import logging
 from models.user import User, UserActivity, Activity

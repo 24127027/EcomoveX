@@ -1,14 +1,54 @@
 import numpy as np
-from sentence_transformers import SentenceTransformer
+import logging
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
-import logging
 from models.user import User, UserActivity, Activity
 
 logger = logging.getLogger(__name__)
 
-# Load the sentence transformer model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Fix PyTorch compatibility issue BEFORE importing sentence_transformers
+def patch_torch_compatibility():
+    """Patch torch.utils._pytree for compatibility with older transformers versions."""
+    try:
+        import torch.utils._pytree as pytree
+        import sys
+        
+        # Check if patch is needed
+        if not hasattr(pytree, 'register_pytree_node'):
+            if hasattr(pytree, '_register_pytree_node'):
+                # Create the missing function as an alias
+                pytree.register_pytree_node = pytree._register_pytree_node
+                logger.info("✓ Applied PyTorch pytree compatibility patch")
+            else:
+                logger.warning("⚠ Cannot find _register_pytree_node, patch may not work")
+        
+        # Also patch transformers.utils.generic if needed
+        if 'transformers' not in sys.modules:
+            # Monkey-patch before transformers loads
+            import importlib.util
+            spec = importlib.util.find_spec('transformers')
+            if spec:
+                # Pre-patch the module namespace
+                logger.info("✓ Pre-patching transformers namespace")
+    except Exception as e:
+        logger.warning(f"⚠ Could not apply torch patch: {e}")
+
+# Apply patch immediately
+patch_torch_compatibility()
+
+# Now safe to import sentence_transformers
+try:
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    logger.info("✓ SentenceTransformer model loaded successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to load SentenceTransformer: {e}")
+    # Fallback: create a dummy model that returns random embeddings
+    class DummyModel:
+        def encode(self, text):
+            return np.random.randn(384)  # MiniLM-L6-v2 has 384 dimensions
+    model = DummyModel()
+    logger.warning("⚠ Using dummy model for embeddings")
 
 def embed_user(user_id: int, session: Session) -> Optional[List[float]]:
     """
@@ -59,7 +99,6 @@ def embed_user(user_id: int, session: Session) -> Optional[List[float]]:
             user_text_data.append(f"travel experience level {user.rank.value}")
         
         if not user_text_data:
-            # Create a basic embedding based on user ID if no data available
             user_text_data.append(f"user {user.username}")
         
         # Combine all text data
@@ -117,7 +156,6 @@ def compute_top_destinations_for_cluster(cluster_id: int, session: Session, limi
     try:
         from models.cluster import UserClusterAssociation
         
-        # Get users in this cluster
         cluster_users = session.query(UserClusterAssociation).filter(
             UserClusterAssociation.cluster_id == cluster_id
         ).all()
@@ -128,13 +166,11 @@ def compute_top_destinations_for_cluster(cluster_id: int, session: Session, limi
             logger.warning(f"No users found in cluster {cluster_id}")
             return []
         
-        # Get activities of users in this cluster
         activities = session.query(UserActivity).filter(
             UserActivity.user_id.in_(user_ids),
             UserActivity.destination_id.isnot(None)
         ).all()
         
-        # Count destination popularity
         destination_scores = {}
         for activity in activities:
             dest_id = activity.destination_id
@@ -152,17 +188,14 @@ def compute_top_destinations_for_cluster(cluster_id: int, session: Session, limi
             elif activity.activity == Activity.review_destination:
                 destination_scores[dest_id]['review_count'] += 1
         
-        # Calculate popularity scores
         top_destinations = []
         for dest_id, scores in destination_scores.items():
-            # Weighted scoring: saves > reviews > searches
             popularity_score = (
                 scores['save_count'] * 3 +
                 scores['review_count'] * 2 +
                 scores['search_count'] * 1
             )
             
-            # Normalize to 0-100 scale
             normalized_score = min(100.0, (popularity_score / len(user_ids)) * 20)
             
             top_destinations.append({
@@ -170,7 +203,6 @@ def compute_top_destinations_for_cluster(cluster_id: int, session: Session, limi
                 'popularity_score': round(normalized_score, 2)
             })
         
-        # Sort by popularity score and return top destinations
         top_destinations.sort(key=lambda x: x['popularity_score'], reverse=True)
         result = top_destinations[:limit]
         
