@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, validator, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple, Union
 from models.route import *
+from route_schema import TransportMode
 
 class Bounds(BaseModel):
     northeast: Tuple[float, float]
@@ -114,7 +115,7 @@ class DirectionsRequest(BaseModel):
 
 class DirectionsResponse(BaseModel):
     routes: List[Route] = Field(default_factory=list)
-    available_travel_modes: Optional[TransportMode] = None
+    travel_mode: Optional[TransportMode] = None
     
     model_config = ConfigDict(from_attributes=True)
 

@@ -125,34 +125,52 @@ class RouteService:
             try:
                 maps = await create_maps_client()
                 
-                driving_alternatives = await maps.get_directions(
+                driving_alternatives = await maps.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination, alternatives=True),
                     mode=TransportMode.car,
                     language=language
                 )
 
-                transit_result = await maps.get_directions(
+                transit_result = await maps.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination, alternatives=True),
                     mode=TransportMode.bus,
                     language=language
                 )
                 
-                walking_result = await maps.get_directions(
+                walking_result = await maps.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination),
                     mode=TransportMode.walking,
                     language=language
                 )
                 
                 all_routes = []
-                
+
                 if driving_alternatives.routes:
                     for idx, route in enumerate(driving_alternatives.routes):
-                        route_type = RouteType.fastest if idx == 0 else RouteType.low_carbon
-                        
+                        # first driving route is treated as the fastest candidate
+                        route_type = RouteType.fastest if idx == 0 else RouteType.fastest
+
                         route_data = await RouteService.process_route_data(
                             route.model_dump(), TransportMode.car, route_type
                         )
                         all_routes.append(route_data)
+
+                try:
+                    eco_result = await maps.get_eco_friendly_route(
+                        data=DirectionsRequest(origin=origin, destination=destination, alternatives=True),
+                        mode=TransportMode.car,
+                        vehicle_type="GASOLINE",
+                        language=language
+                    )
+                except Exception:
+                    eco_result = None
+
+                if eco_result and eco_result.routes:
+                    eco_route = eco_result.routes[0]
+                    eco_route_data = await RouteService.process_route_data(
+                        eco_route.model_dump(), TransportMode.car, RouteType.low_carbon
+                    )
+                    all_routes.append(eco_route_data)
                 
                 if transit_result.routes:
                     for idx, route in enumerate(transit_result.routes):
