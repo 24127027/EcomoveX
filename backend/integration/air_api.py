@@ -4,11 +4,14 @@ from typing import Tuple, Optional, List
 import httpx
 
 class AirQualityAPI:
-    def __init__(self):
-        self.api_key = settings.GOOGLE_API_KEY
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GOOGLE_API_KEY
         self.client = httpx.AsyncClient()
         self.base_url = "https://airquality.googleapis.com/v1/currentConditions:lookup"
 
+    async def close(self):
+        await self.client.aclose()
+    
     async def get_air_quality(
         self,
         location: Tuple[float, float],
@@ -58,3 +61,6 @@ class AirQualityAPI:
         except Exception as e:
             print(f"Error in get_air_quality: {e}")
             raise e
+
+async def create_air_quality_client(api_key: Optional[str] = None) -> AirQualityAPI:
+    return AirQualityAPI(api_key=api_key)
