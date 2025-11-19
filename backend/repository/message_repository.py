@@ -16,9 +16,14 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def get_message_by_keyword(db: AsyncSession, keyword: str, user_id: int):
+    async def get_message_by_keyword(db: AsyncSession, user_id: int, keyword: str):
         try:
-            result = await db.execute(select(Message).where(Message.content.ilike(f"%{keyword}%"), Message.user_id == user_id))
+            result = await db.execute(
+                select(Message).where(
+                    Message.content.ilike(f"%{keyword}%"),
+                    (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+                )
+            )
             return result.scalars().all()
         except SQLAlchemyError as e:
             await db.rollback()
@@ -26,11 +31,11 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def create_message(db: AsyncSession, message_data: MessageCreate, user_id: int):
+    async def create_message(db: AsyncSession, sender_id: int, receiver_id: int, message_data: MessageCreate):
         try:
             new_message = Message(
-                user_id=user_id,
-                sender=message_data.sender,
+                sender_id=sender_id,
+                receiver_id=receiver_id,
                 content=message_data.content,
                 message_type=message_data.message_type
             )
@@ -45,39 +50,16 @@ class MessageRepository:
             return None
     
     @staticmethod
-    async def update_message(db: AsyncSession, message_id: int, updated_data: MessageUpdate):
+    async def delete_message(db: AsyncSession, sender_id: int, message_id: int):
         try:
-            result = await db.execute(select(Message).where(Message.id == message_id))
+            result = await db.execute(select(Message).where(Message.id == message_id, Message.sender_id == sender_id))
             message = result.scalar_one_or_none()
-            if not message:
-                print(f"WARNING: WARNING: Message ID {message_id} not found")
-                return None
-
-            if updated_data.content is not None:
-                message.content = updated_data.content
-
-            db.add(message)
-            await db.commit()
-            await db.refresh(message)
-            return message
+            if message:
+                await db.delete(message)
+                await db.commit()
+                return True
+            return False
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: updating message ID {message_id} - {e}")
-            return None
-
-    @staticmethod
-    async def delete_message(db: AsyncSession, message_id: int):
-        try:
-            result = await db.execute(select(Message).where(Message.id == message_id))
-            message = result.scalar_one_or_none()
-            if not message:
-                print(f"WARNING: WARNING: Message ID {message_id} not found")
-                return False
-
-            await db.delete(message)
-            await db.commit()
-            return True
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: deleting message ID {message_id} - {e}")
+            print(f"ERROR: deleting message ID {message_id} by sender {sender_id} - {e}")
             return False

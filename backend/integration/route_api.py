@@ -260,7 +260,6 @@ class RouteAPI:
             print(f"Error in get_routes: {e}")
             raise e
     
-    
     async def get_eco_friendly_route(
         self,
         data: DirectionsRequest,

@@ -38,7 +38,8 @@ class User(Base):
     role = Column(SQLEnum(Role), nullable=True, default=Role.user)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+    sent_messages = relationship("Message", foreign_keys="[Message.sender_id]", back_populates="sender", cascade="all, delete-orphan")
+    received_messages = relationship("Message", foreign_keys="[Message.receiver_id]", back_populates="receiver", cascade="all, delete-orphan")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
