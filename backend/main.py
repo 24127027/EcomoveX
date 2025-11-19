@@ -15,9 +15,8 @@ from routers.storage_router import router as storage_router
 from routers.reward_router import router as reward_router
 
 # Import database setup
-from database.user_database import user_engine
-from database.destination_database import destination_engine
-from database.init_database import init_user_db, init_destination_db
+from database.database import engine
+from database.init_database import init_db
 from utils.config import settings
 
 # Lifespan event handler (startup/shutdown)
@@ -27,17 +26,11 @@ async def lifespan(app: FastAPI):
     print("Starting EcomoveX Backend...")
     
     try:
-        await init_user_db(drop_all=False)
+        await init_db(drop_all=False)
         print("User database initialized")
     except Exception as e:
         print(f"WARNING: User database initialization failed - {e}")
-    
-    try:
-        await init_destination_db(drop_all=False)
-        print("Destination database initialized")
-    except Exception as e:
-        print(f"WARNING: Destination database initialization failed - {e}")
-    
+        
     # Refresh emission factors from Climatiq API    
     yield  # App is running
     
@@ -45,17 +38,11 @@ async def lifespan(app: FastAPI):
     print("Shutting down EcomoveX Backend...")
     
     try:
-        await user_engine.dispose()
+        await engine.dispose()
         print("User database connections closed")
     except Exception as e:
         print(f"ERROR: Failed to close user database - {e}")
     
-    try:
-        await destination_engine.dispose()
-        print("Destination database connections closed")
-    except Exception as e:
-        print(f"ERROR: Failed to close destination database - {e}")
-
 
 # Create FastAPI application
 app = FastAPI(

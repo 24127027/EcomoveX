@@ -16,15 +16,19 @@ class UserCredentialUpdate(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=1, max_length=100)
-    eco_point: Optional[int] = Field(None, ge=0)
-    rank: Optional[str] = None
-    
+    avt_blob_name: Optional[str] = None
+    cover_blob_name: Optional[str] = None
+        
     @field_validator('username')
     @classmethod
     def validate_username(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Username cannot be empty or whitespace")
         return v.strip() if v else None
+    
+class UserUpdateEcoPoint(BaseModel):
+    point: int = Field(..., gt=0)
+    rank: Optional[Rank] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -32,6 +36,8 @@ class UserResponse(BaseModel):
     email: EmailStr
     eco_point: int
     rank: str
+    avt_url: Optional[str] = None
+    cover_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

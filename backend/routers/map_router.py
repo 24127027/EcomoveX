@@ -2,9 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
-from models.route import *
-from database.destination_database import get_destination_db
-from database.user_database import get_user_db
+from database.database import get_db
 from schemas.map_schema import *
 from schemas.user_schema import *
 from services.map_service import MapService
@@ -16,15 +14,15 @@ router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 @router.post("/search", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
 async def search_location(
     request: SearchLocationRequest,
-    dest_db: AsyncSession = Depends(get_destination_db)
+    user_db: AsyncSession = Depends(get_db)
 ):
-    result = await MapService.search_location(dest_db, request)
+    result = await MapService.search_location(user_db, request)
     return result
 
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
     place_id: str,
-    user_db: AsyncSession = Depends(get_user_db),
+    user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     result = await MapService.get_location_details(

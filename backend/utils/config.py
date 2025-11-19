@@ -8,8 +8,7 @@ load_dotenv()
 class Settings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DEST_DB_NAME: str = "ecomovex_destinations"
-    USER_DB_NAME: str = "ecomovex_user"
+    DB_NAME: str = "ecomoveX"
     DB_USER: str = "postgres"
     DB_PASS: str = ""
     
@@ -19,7 +18,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000," 
 
     HUGGINGFACE_API_KEY: str = ""
-    GOOGLE_MAPS_API_KEY: str = ""
+    GOOGLE_API_KEY: str = ""
     CLIMATIQ_API_KEY: str = ""
     
     SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
@@ -27,6 +26,6 @@ class Settings(BaseSettings):
     
     #For Google Cloud Storage
     GCS_BUCKET_NAME: str = "ecomovex"
-    GOOGLE_APPLICATION_CREDENTIALS: str = "utils/service-account.json"
+    GOOGLE_APPLICATION_CREDENTIALS: str = "etc/secrets/service-account.json"
 
 settings = Settings()

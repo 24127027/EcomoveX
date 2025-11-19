@@ -7,7 +7,7 @@ USER_DATABASE_URL = (
     f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.USER_DB_NAME}"
 )
 
-user_engine = create_async_engine(
+engine = create_async_engine(
     USER_DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
@@ -16,13 +16,13 @@ user_engine = create_async_engine(
 )
 
 UserAsyncSessionLocal = sessionmaker(
-    bind=user_engine,
+    bind=engine,
     class_=AsyncSession,
     expire_on_commit=False
 )
 
 UserBase = declarative_base()
 
-async def get_user_db():
+async def get_db():
     async with UserAsyncSessionLocal() as session:
         yield session
