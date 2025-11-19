@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://ecomovex.onrender.com";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://ecomovex.onrender.com";
 
 interface LoginCredentials {
   email: string;
@@ -37,12 +38,17 @@ interface ValidationErrorResponse {
   detail?: string | ValidationError[];
 }
 
+export interface UserProfileUpdate {
+  username?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
 export interface UserProfile {
   id: number;
   username: string;
   email: string;
-  phone_number?: string | null;
-  avatar_url?: string | null;
+  avt_url?: string | null;
   role?: string;
 }
 // Map/Location Types
@@ -124,11 +130,15 @@ export interface SavedDestination {
   image_url?: string;
 }
 
+export interface UserCredentialUpdate {
+  old_password: string; // Bắt buộc
+  new_email?: string; // Optional
+  new_password?: string; // Optional
+}
+
 export interface UserProfileUpdate {
   username?: string;
-  email?: string;
-  phone_number?: string;
-  avatar_url?: string;
+  avt_url?: string | null; // TUYỆT ĐỐI KHÔNG ĐỂ EMAIL Ở ĐÂY
 }
 
 export interface PlanActivity {
@@ -268,25 +278,6 @@ class ApiClient {
       body: JSON.stringify({ email }),
     });
   }
-  //User endpoint
-  async getUserProfile(): Promise<UserProfile> {
-    return this.request<UserProfile>("/users/me", {
-      method: "GET",
-    });
-  }
-
-  async updateCredentials(data: UserCredentialUpdate): Promise<any> {
-    return this.request("/users/me/credentials", {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteUser(): Promise<void> {
-    return this.request("/users/me", {
-      method: "DELETE",
-    });
-  }
 
   //Saved Destinantions Endpoint
   async getSavedDestinations(): Promise<SavedDestination[]> {
@@ -301,10 +292,29 @@ class ApiClient {
     });
   }
 
+  // --- USER ENDPOINTS ---
+
+  async getUserProfile(): Promise<UserProfile> {
+    return this.request<UserProfile>("/users/me", { method: "GET" });
+  }
+
   async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
-    return this.request<UserProfile>("/users/me/credentials", {
+    return this.request<UserProfile>("/users/me/profile", {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+  }
+
+  async updateCredentials(data: UserCredentialUpdate): Promise<any> {
+    return this.request("/users/me/credentials", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(): Promise<void> {
+    return this.request("/users/me", {
+      method: "DELETE",
     });
   }
 

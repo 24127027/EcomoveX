@@ -93,7 +93,7 @@ export default function SignupPage() {
         localStorage.setItem("user_id", response.user_id.toString());
       }
 
-      router.replace("/allow_permission");
+      router.replace("/allow_permission/location_permission");
     } catch (err: any) {
       if (err instanceof ApiValidationError) {
         setValidationErrors({

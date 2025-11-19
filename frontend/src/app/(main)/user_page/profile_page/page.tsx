@@ -1,138 +1,242 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Home, MapPin, Bot, User, Loader2 } from "lucide-react";
-import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
+import {
+  ArrowLeft,
+  Home,
+  MapPin,
+  Bot,
+  User,
+  Loader2,
+  Plus,
+  Camera,
+} from "lucide-react";
+import { Jost, Abhaya_Libre } from "next/font/google";
 import { useRouter } from "next/navigation";
-import { api, UserProfile, UserProfileUpdate } from "@/lib/api";
+import { api, UserProfile } from "@/lib/api";
 
-// Khai báo font chữ
 const jost = Jost({ subsets: ["latin"] });
 const abhaya_libre = Abhaya_Libre({
   weight: ["400", "500", "600", "800"],
   subsets: ["latin"],
 });
-const knewave = Knewave({ weight: ["400"], subsets: ["latin"] });
 
 export default function ProfilePage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // State cho chức năng Edit
+  // UI States
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
 
-  // State lưu dữ liệu form (Đã bỏ phone_number)
-  const [formData, setFormData] = useState<UserProfileUpdate>({
-    username: "",
-    email: "",
-  });
+  // Data States
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
 
-  // State lưu lỗi validation
-  const [errors, setErrors] = useState<{ email?: string }>({});
+  // Avatar Data
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
 
+  // Password States
+  const [newPassword, setNewPassword] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
+
+  // --- HÀM MỚI: CHUYỂN FILE SANG BASE64 ---
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 1. Fetch Data
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const userData = await api.getUserProfile();
         setUser(userData);
-        // Khởi tạo formData ban đầu
-        setFormData({
-          username: userData.username,
-          email: userData.email,
-        });
+        setUsername(userData.username);
+        setEmail(userData.email);
+
+        // --- SỬA Ở ĐÂY: Dùng avt_url ---
+        // Backend trả về 'avt_url', nên ta phải đọc từ đó
+        setPreviewAvatar(userData.avt_url || "/images/default-avatar.png");
       } catch (error) {
-        console.error("Failed to fetch user profile:", error);
+        console.error(error);
         router.push("/login");
       } finally {
         setLoading(false);
       }
     };
-
     fetchUserData();
   }, [router]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Xóa lỗi khi user nhập lại
-    if (errors[name as keyof typeof errors]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
+  // 2. Handle Avatar Click (Check Permission)
+  const handleAvatarClick = () => {
+    if (!isEditing) return;
+
+    const hasPermission = localStorage.getItem("photoPermission");
+    if (hasPermission !== "granted") {
+      router.push("/permission/photo");
+    } else {
+      fileInputRef.current?.click();
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Giới hạn kích thước ảnh để tránh nổ Database (ví dụ < 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Please choose an image smaller than 2MB.");
+        return;
+      }
+      setAvatarFile(file);
+      setPreviewAvatar(URL.createObjectURL(file));
+    }
+  };
+
+  // 3. Validation (Giữ nguyên)
   const validateForm = () => {
     let isValid = true;
-    const newErrors: { email?: string } = {};
+    const newErrors: { email?: string; password?: string } = {};
 
-    // Validate Email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (formData.email && !emailRegex.test(formData.email)) {
+    if (!emailRegex.test(email)) {
       newErrors.email = "Invalid email format.";
       isValid = false;
     }
 
-    // Đã xóa phần validate Phone number
+    const isEmailChanged = email !== user?.email;
+    const isPasswordChanged = newPassword.length > 0;
+
+    if ((isEmailChanged || isPasswordChanged) && !oldPassword) {
+      newErrors.password =
+        "Current password is required to change Email or Password.";
+      isValid = false;
+    }
 
     setErrors(newErrors);
     return isValid;
   };
 
+  // 4. Handle Save
   const handleEditToggle = async () => {
-    // 1. Nếu đang ở chế độ Xem -> Chuyển sang Sửa
+    // A. Bật Edit Mode
     if (!isEditing) {
-      setFormData({
-        username: user?.username || "",
-        email: user?.email || "",
-      });
+      if (user) {
+        setUsername(user.username);
+        setEmail(user.email);
+        setPreviewAvatar(user.avt_url || "/images/default-avatar.png");
+        setAvatarFile(null);
+      }
+      setNewPassword("");
+      setOldPassword("");
+      setSuccessMsg("");
       setIsEditing(true);
       return;
     }
 
-    // 2. Validate trước khi lưu
-    if (!validateForm()) {
-      return;
-    }
+    // B. Lưu thay đổi
+    if (!validateForm()) return;
 
     try {
       setIsSaving(true);
+      setSuccessMsg("");
+      const promises = [];
 
-      // Gọi API cập nhật (chỉ gửi username và email)
-      const updatedUser = await api.updateUserProfile({
-        username: formData.username,
-        email: formData.email,
-      });
+      // Request 1: Profile
+      let base64ImageString = undefined;
+      if (avatarFile) {
+        base64ImageString = await convertFileToBase64(avatarFile);
+      }
 
-      // Cập nhật state hiển thị
-      setUser(updatedUser);
+      if (username !== user?.username || base64ImageString) {
+        promises.push(
+          api
+            .updateUserProfile({
+              username: username,
+              avt_url: base64ImageString,
+            })
+            .then((res) => {
+              setUser((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      username: res.username,
+                      avt_url: base64ImageString || res.avt_url,
+                    }
+                  : null
+              );
+            })
+        );
+      }
 
-      // Tắt chế độ Edit
+      // --- REQUEST 2: Credentials (Email + Password) ---
+      const isEmailChanged = email !== user?.email;
+      const isPasswordChanged = newPassword.length > 0;
+
+      if (isEmailChanged || isPasswordChanged) {
+        promises.push(
+          api
+            .updateCredentials({
+              old_password: oldPassword,
+              new_email: isEmailChanged ? email : undefined,
+              new_password: isPasswordChanged ? newPassword : undefined,
+            })
+            .then((res) => {
+              if (res.email)
+                setUser((prev) =>
+                  prev ? { ...prev, email: res.email } : null
+                );
+            })
+        );
+      }
+
+      await Promise.all(promises);
+
+      setSuccessMsg("Profile updated successfully!");
       setIsEditing(false);
+      setNewPassword("");
+      setOldPassword("");
+      setAvatarFile(null);
     } catch (error: any) {
       console.error("Update failed:", error);
-      // Thông báo lỗi (ví dụ: Email đã tồn tại)
-      alert(error.message || "Failed to update profile");
+      if (
+        error.message &&
+        error.message.toLowerCase().includes("old password")
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          password: "Incorrect current password.",
+        }));
+      } else {
+        alert(error.message || "Failed to update profile.");
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
-      <div className="min-h-screen w-full flex justify-center items-center bg-gray-200">
-        <div className="text-green-600 font-bold animate-pulse">
-          Loading Profile...
-        </div>
+      <div className="flex h-screen justify-center items-center text-green-600">
+        Loading...
       </div>
     );
-  }
+
+  const needsAuth = email !== user?.email || newPassword.length > 0;
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
@@ -140,9 +244,9 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="bg-[#E3F1E4] pt-12 pb-24 px-6 rounded-b-[40px] relative z-0">
           <div className="flex items-center gap-4">
-            <Link href="/homepage">
+            <Link href="/user_page/main_page">
               <ArrowLeft
-                className="text-gray-600 cursor-pointer hover:text-green-600 transition-colors"
+                className="text-gray-600 cursor-pointer hover:text-green-600"
                 size={28}
               />
             </Link>
@@ -154,46 +258,70 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Avatar & Name */}
+        {/* Avatar Section */}
         <div className="relative z-10 -mt-16 flex flex-col items-center">
-          <div className="p-1.5 bg-white rounded-full shadow-md">
+          <input
+            type="file"
+            hidden
+            ref={fileInputRef}
+            accept="image/*"
+            onChange={handleFileChange}
+          />
+
+          <div className="p-1.5 bg-white rounded-full shadow-md relative group">
             <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-inner bg-gray-100">
               <Image
-                src={user?.avatar_url || "/images/default-avatar.png"}
-                alt="Profile picture"
+                src={previewAvatar || "/images/default-avatar.png"}
+                alt="Avatar"
                 fill
                 className="object-cover"
               />
+              {/* Overlay khi đang Edit */}
+              {isEditing && (
+                <div
+                  onClick={handleAvatarClick}
+                  className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Camera className="text-white" size={32} />
+                </div>
+              )}
             </div>
+            {/* Nút dấu cộng (+) */}
+            {isEditing && (
+              <div
+                onClick={handleAvatarClick}
+                className="absolute bottom-1 right-1 bg-[#53B552] text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-green-600 transition-transform active:scale-90 z-20"
+              >
+                <Plus size={20} strokeWidth={3} />
+              </div>
+            )}
           </div>
+
           <h2
             className={`${abhaya_libre.className} mt-3 text-2xl font-bold text-[#53B552]`}
           >
-            {user?.username || "User Name"}
+            {user?.username}
           </h2>
         </div>
 
-        {/* Form Info */}
-        <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-6">
+        {/* Main Form (Giữ nguyên) */}
+        <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-5">
           {/* Username */}
           <div className="flex flex-col">
             <label
-              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold tracking-wide shadow-sm z-10 ml-1`}
+              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
             >
               Username
             </label>
             <div
               className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
-                isEditing
-                  ? "border-green-300 ring-2 ring-green-100"
-                  : "border-transparent"
+                isEditing ? "border-green-300" : "border-transparent"
               }`}
             >
               <input
                 type="text"
-                name="username"
-                value={isEditing ? formData.username : user?.username || ""}
-                onChange={handleChange}
+                value={isEditing ? username : user?.username || ""}
+                onChange={(e) => setUsername(e.target.value)}
                 readOnly={!isEditing}
                 className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
               />
@@ -203,22 +331,23 @@ export default function ProfilePage() {
           {/* Email */}
           <div className="flex flex-col">
             <label
-              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold tracking-wide shadow-sm z-10 ml-1`}
+              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
             >
               Email
             </label>
             <div
               className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
-                isEditing
-                  ? "border-green-300 ring-2 ring-green-100"
-                  : "border-transparent"
+                isEditing ? "border-green-300" : "border-transparent"
               } ${errors.email ? "border-red-500 bg-red-50" : ""}`}
             >
               <input
                 type="email"
-                name="email"
-                value={isEditing ? formData.email : user?.email || ""}
-                onChange={handleChange}
+                value={isEditing ? email : user?.email || ""}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email)
+                    setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
                 readOnly={!isEditing}
                 className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
               />
@@ -228,10 +357,71 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Đã xóa phần Phone Number ở đây */}
+          {/* Password */}
+          <div className="flex flex-col">
+            <label
+              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
+            >
+              New Password
+            </label>
+            <div
+              className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
+                isEditing ? "border-green-300" : "border-transparent"
+              }`}
+            >
+              <input
+                type="password"
+                value={isEditing ? newPassword : "dummy_password"}
+                onChange={(e) => setNewPassword(e.target.value)}
+                readOnly={!isEditing}
+                placeholder={isEditing ? "Leave blank to keep current" : ""}
+                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold tracking-widest`}
+              />
+            </div>
+          </div>
 
-          {/* Button */}
-          <div className="pt-4 flex justify-center">
+          {/* Old Password */}
+          {isEditing && needsAuth && (
+            <div className="flex flex-col animate-in fade-in slide-in-from-top-2 duration-300">
+              <label
+                className={`${abhaya_libre.className} bg-gray-500 text-white px-4 py-1 rounded-t-xl w-fit text-sm font-bold ml-1`}
+              >
+                Current Password (Required to save)
+              </label>
+              <div
+                className={`bg-white rounded-xl p-3 shadow-sm border border-gray-300 ${
+                  errors.password ? "border-red-500 bg-red-50" : ""
+                }`}
+              >
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => {
+                    setOldPassword(e.target.value);
+                    if (errors.password)
+                      setErrors((prev) => ({ ...prev, password: undefined }));
+                  }}
+                  placeholder="Enter current password"
+                  className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+                />
+              </div>
+              {errors.password && (
+                <p className="text-red-500 text-xs mt-1 ml-2">
+                  {errors.password}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="pt-4 flex flex-col items-center pb-8">
+            {successMsg && (
+              <p
+                className={`${jost.className} text-green-600 font-bold mb-3 animate-in fade-in slide-in-from-bottom-2`}
+              >
+                {successMsg}
+              </p>
+            )}
             <button
               onClick={handleEditToggle}
               disabled={isSaving}
@@ -239,10 +429,14 @@ export default function ProfilePage() {
                 isEditing
                   ? "bg-[#53B552] text-white hover:bg-green-700"
                   : "bg-[#E3F1E4] text-[#5BB95B] hover:bg-[#5BB95B] hover:text-white"
-              } font-bold py-3 rounded-full transition-all duration-300 shadow-sm text-lg flex justify-center items-center gap-2 cursor-pointer`}
+              } font-bold py-3 rounded-full transition-all duration-300 shadow-sm text-lg flex justify-center items-center gap-2`}
             >
               {isSaving && <Loader2 className="animate-spin" size={20} />}
-              {isEditing ? (isSaving ? "Saving..." : "Save") : "Edit Profile"}
+              {isEditing
+                ? isSaving
+                  ? "Saving..."
+                  : "Save Changes"
+                : "Edit Profile"}
             </button>
           </div>
         </main>
@@ -253,36 +447,28 @@ export default function ProfilePage() {
           <div className="flex justify-around items-center py-3">
             <Link
               href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
-              <Home size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Home
-              </span>
+              {" "}
+              <Home size={24} strokeWidth={2} />{" "}
             </Link>
             <Link
               href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
-              <MapPin size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Planning
-              </span>
+              {" "}
+              <MapPin size={24} strokeWidth={2} />{" "}
             </Link>
             <Link
               href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
-              <Bot size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Ecobot
-              </span>
+              {" "}
+              <Bot size={24} strokeWidth={2} />{" "}
             </Link>
             <div className="flex flex-col items-center text-[#53B552]">
-              <User size={24} strokeWidth={2.5} />
-              <span className={`${jost.className} text-xs font-bold mt-1`}>
-                User
-              </span>
+              {" "}
+              <User size={24} strokeWidth={2.5} />{" "}
             </div>
           </div>
         </nav>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react"; // Thêm useEffect
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { Knewave, Josefin_Sans, Abhaya_Libre, Jost } from "next/font/google";
@@ -27,9 +27,9 @@ export default function LocationPermissionPage() {
     const hasLocation = localStorage.getItem("userLocation");
     const hasSkipped = localStorage.getItem("locationSkipped");
 
-    // Nếu đã có vị trí HOẶC người dùng đã từng bấm bỏ qua -> Vào thẳng Homepage
+    // Nếu đã có vị trí HOẶC người dùng đã từng bấm bỏ qua -> Chuyển sang bước Photo Permission
     if (hasLocation || hasSkipped) {
-      router.push("/homepage");
+      router.push("/allow_permission/photo_permission");
     } else {
       // Nếu chưa có gì -> Hiển thị giao diện xin phép
       setIsChecking(false);
@@ -60,17 +60,13 @@ export default function LocationPermissionPage() {
         // Xóa cờ skip nếu có (để đảm bảo dữ liệu sạch)
         localStorage.removeItem("locationSkipped");
 
-        router.push("/homepage");
+        // Chuyển hướng sang trang Photo Permission thay vì Homepage
+        router.push("/allow_permission/photo_permission");
       },
       (error) => {
         console.error("Error getting location:", error);
         setErrorMsg("Location access denied. Please enable it in settings.");
         setLoading(false);
-
-        // Tùy chọn: Nếu lỗi/từ chối, bạn có muốn coi như là "đã hỏi xong" không?
-        // Nếu muốn lần sau không hỏi lại khi user đã Block, hãy uncomment dòng dưới:
-        // localStorage.setItem("locationSkipped", "true");
-        // router.push("/homepage");
       }
     );
   };
@@ -79,12 +75,13 @@ export default function LocationPermissionPage() {
   const handleSkip = () => {
     // Lưu cờ đánh dấu là người dùng đã từ chối cung cấp lần đầu
     localStorage.setItem("locationSkipped", "true");
-    router.push("/homepage");
+    // Chuyển hướng sang trang Photo Permission
+    router.push("/allow_permission/photo_permission");
   };
 
-  // Nếu đang kiểm tra localStorage thì không render gì cả (hoặc hiện loading spinner)
+  // Nếu đang kiểm tra localStorage thì không render gì cả
   if (isChecking) {
-    return null; // Hoặc return <div className="min-h-screen bg-white"></div>;
+    return null;
   }
 
   return (
