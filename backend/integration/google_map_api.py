@@ -1,7 +1,7 @@
 ﻿import math
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
-from models.route import TransportMode
+from schemas.route_schema import *
 from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params

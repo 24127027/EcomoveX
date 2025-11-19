@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
-from models.route import RouteType
 from schemas.route_schema import *
 from schemas.map_schema import DirectionsRequest
 from services.carbon_service import CarbonService
