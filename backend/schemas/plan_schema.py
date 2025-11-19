@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple
 from datetime import date
 from models.plan import DestinationType
 
-class PlanRequestCreate(BaseModel):
+class PlanCreate(BaseModel):
     place_name: str = Field(..., min_length=1, max_length=255)
     start_date: date
     end_date: date
@@ -23,7 +23,7 @@ class PlanRequestCreate(BaseModel):
             raise ValueError("End date must be after or equal to start date")
         return v
 
-class PlanRequestUpdate(BaseModel):
+class PlanUpdate(BaseModel):
     place_name: Optional[str] = Field(None, min_length=1, max_length=255)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -35,11 +35,24 @@ class PlanRequestUpdate(BaseModel):
         if v is not None and not v.strip():
             raise ValueError("Place name cannot be empty or whitespace")
         return v.strip() if v else None
-
-class DestinationInfo(BaseModel):
-    location: Tuple[float, float]
+    
+class PlanDestinationCreate(BaseModel):
+    destination_id: str
+    destination_type: DestinationType
     visit_date: date
+    note: Optional[str] = None
+    
+class PlanDestinationUpdate(BaseModel):
+    visit_date: Optional[date] = None
+    note: Optional[str] = None
+
+class PlanDestinationResponse(BaseModel):
+    destination_id: str
     type: DestinationType
+    visit_date: date
+    note: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class PlanResponse(BaseModel):
     id: int
@@ -48,6 +61,19 @@ class PlanResponse(BaseModel):
     start_date: date
     end_date: date
     budget_limit: Optional[float] = None
-    destinations: List[DestinationInfo]
+    destinations: List[PlanDestinationResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UserPlansCreate(BaseModel):
+    ids: List[int] = Field(..., min_length=1)
+    
+class UserPlanDelete(BaseModel):
+    ids: List[int] = Field(..., min_length=1)
+    
+class UserPlanResponse(BaseModel):
+    user_id: int
+    plan_id: int
+    ids: List[int] = Field(..., min_length=1)
 
     model_config = ConfigDict(from_attributes=True)
