@@ -188,8 +188,8 @@ class GoogleMapsAPI:
                         
                         steps.append(
                             Step(
-                                distance=step_data["distance"]["value"],
-                                duration=step_data["duration"]["value"],
+                                distance=step_data["distance"]["value"] / 1000,  # Convert meters to km
+                                duration=step_data["duration"]["value"] / 60,    # Convert seconds to minutes
                                 start_location=(step_data["start_location"]["lat"], step_data["start_location"]["lng"]),
                                 end_location=(step_data["end_location"]["lat"], step_data["end_location"]["lng"]),
                                 html_instructions=step_data.get("html_instructions", ""),
@@ -199,8 +199,8 @@ class GoogleMapsAPI:
                             )
                         )
                     leg = Leg(
-                        distance=leg_data["distance"]["value"],
-                        duration=leg_data["duration"]["value"],
+                        distance=leg_data["distance"]["value"] / 1000,  # Convert meters to km
+                        duration=leg_data["duration"]["value"] / 60,    # Convert seconds to minutes
                         start_location=(leg_data["start_address"], (leg_data["start_location"]["lat"], leg_data["start_location"]["lng"])),
                         end_location=(leg_data["end_address"], (leg_data["end_location"]["lat"], leg_data["end_location"]["lng"])),
                         steps=steps,

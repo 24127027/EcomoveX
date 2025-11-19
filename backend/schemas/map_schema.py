@@ -74,8 +74,8 @@ class TransitDetails(BaseModel):
     line: str
 
 class Step(BaseModel):
-    distance: float
-    duration: float
+    distance: float  # in kilometers
+    duration: float  # in minutes
     start_location: Tuple[float, float]
     end_location: Tuple[float, float]
     html_instructions: str
@@ -86,8 +86,8 @@ class Step(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class Leg(BaseModel):
-    distance: float
-    duration: float     
+    distance: float  # in kilometers
+    duration: float  # in minutes
     start_location: Tuple[str, Tuple[float, float]]
     end_location: Tuple[str, Tuple[float, float]]
     steps: List[Step]
@@ -100,8 +100,8 @@ class Route(BaseModel):
     legs: List[Leg]
     overview_polyline: str
     bounds: Bounds
-    distance: float
-    duration: float
+    distance: float  # in kilometers (sum of all legs)
+    duration: float  # in minutes (sum of all legs)
     duration_in_traffic: Optional[float] = None
 
 class DirectionsRequest(BaseModel):
