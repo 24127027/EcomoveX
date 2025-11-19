@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "super_secret_key"
     ALGORITHM: str = "HS256"
 
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000," 
+    CORS_ORIGINS: str = "http://localhost:3000,https://ecomovex.onrender.com," 
 
     HUGGINGFACE_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
