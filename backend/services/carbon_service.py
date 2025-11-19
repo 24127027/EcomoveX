@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from integration.climatiq_api import create_climatiq_client
 from typing import Optional
 from models.route import *
+from schemas.route_schema import TransportMode
 
 class CarbonService:
     @staticmethod
