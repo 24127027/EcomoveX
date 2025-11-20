@@ -330,11 +330,10 @@ class ApiClient {
 
   async uploadFile(
     file: File,
-    category: "PROFILE_AVATAR" | "PROFILE_COVER" | "TRAVEL_PHOTO"
+    category: "profile_avatar" | "PROFILE_COVER" | "TRAVEL_PHOTO"
   ): Promise<UploadResponse> {
     const formData = new FormData();
     formData.append("file", file);
-
     // Gọi endpoint POST /storage/files với query params category
     return this.request<UploadResponse>(`/storage/files?category=${category}`, {
       method: "POST",

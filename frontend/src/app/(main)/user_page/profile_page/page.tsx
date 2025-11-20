@@ -152,7 +152,7 @@ export default function ProfilePage() {
         // Category phải khớp với Enum trong backend (PROFILE_AVATAR)
         const uploadResponse = await api.uploadFile(
           avatarFile,
-          "PROFILE_AVATAR"
+          "profile_avatar"
         );
         newBlobName = uploadResponse.blob_name;
       }
