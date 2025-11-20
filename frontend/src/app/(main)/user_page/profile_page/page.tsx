@@ -50,16 +50,6 @@ export default function ProfilePage() {
     {}
   );
 
-  // --- HÀM MỚI: CHUYỂN FILE SANG BASE64 ---
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
   // 1. Fetch Data
   useEffect(() => {
     const fetchUserData = async () => {
@@ -133,7 +123,7 @@ export default function ProfilePage() {
 
   // 4. Handle Save
   const handleEditToggle = async () => {
-    // A. Bật Edit Mode
+    // A. Bật Edit Mode (Giữ nguyên)
     if (!isEditing) {
       if (user) {
         setUsername(user.username);
@@ -154,20 +144,28 @@ export default function ProfilePage() {
     try {
       setIsSaving(true);
       setSuccessMsg("");
-      const promises = [];
 
-      // Request 1: Profile
-      let base64ImageString = undefined;
+      // --- 1. Xử lý Upload Ảnh (nếu có chọn file mới) ---
+      let newBlobName = null;
       if (avatarFile) {
-        base64ImageString = await convertFileToBase64(avatarFile);
+        // Gọi API Upload file thay vì convert base64
+        // Category phải khớp với Enum trong backend (PROFILE_AVATAR)
+        const uploadResponse = await api.uploadFile(
+          avatarFile,
+          "PROFILE_AVATAR"
+        );
+        newBlobName = uploadResponse.blob_name;
       }
 
-      if (username !== user?.username || base64ImageString) {
+      const promises = [];
+
+      // --- 2. Request update Profile (Username & Avatar URL) ---
+      if (username !== user?.username || newBlobName) {
         promises.push(
           api
             .updateUserProfile({
               username: username,
-              avt_url: base64ImageString,
+              ...(newBlobName && { avt_url: newBlobName }),
             })
             .then((res) => {
               setUser((prev) =>
@@ -175,7 +173,8 @@ export default function ProfilePage() {
                   ? {
                       ...prev,
                       username: res.username,
-                      avt_url: base64ImageString || res.avt_url,
+                      // Cập nhật state user với avatar mới
+                      avt_url: res.avt_url,
                     }
                   : null
               );
@@ -183,7 +182,7 @@ export default function ProfilePage() {
         );
       }
 
-      // --- REQUEST 2: Credentials (Email + Password) ---
+      // --- 3. Request Credentials (Email + Password) --- (Giữ nguyên)
       const isEmailChanged = email !== user?.email;
       const isPasswordChanged = newPassword.length > 0;
 
@@ -222,6 +221,7 @@ export default function ProfilePage() {
           password: "Incorrect current password.",
         }));
       } else {
+        // Hiển thị lỗi chi tiết hơn nếu có
         alert(error.message || "Failed to update profile.");
       }
     } finally {

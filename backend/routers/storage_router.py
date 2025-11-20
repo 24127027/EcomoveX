@@ -68,7 +68,7 @@ async def upload_file(
     category: FileCategory,
     file: UploadFile = File(...),
     bucket_name: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     return await StorageService.upload_file(db, file, current_user["user_id"], category, bucket_name)
@@ -77,7 +77,7 @@ async def upload_file(
 async def delete_file(
     blob_name: str = Path(...),
     bucket_name: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_user_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete a file from cloud storage."""

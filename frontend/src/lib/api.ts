@@ -136,6 +136,12 @@ export interface UserCredentialUpdate {
   new_password?: string; // Optional
 }
 
+export interface UploadResponse {
+  url: string;
+  blob_name: string;
+  filename: string;
+}
+
 export interface UserProfileUpdate {
   username?: string;
   avt_url?: string | null; // TUYỆT ĐỐI KHÔNG ĐỂ EMAIL Ở ĐÂY
@@ -189,6 +195,10 @@ class ApiClient {
 
     // set default content type
     headers.set("Content-Type", "application/json");
+
+    if (!(options.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
+    }
 
     // merge any provided headers (Headers | string[][] | Record<string, string>)
     if (options.headers) {
@@ -315,6 +325,20 @@ class ApiClient {
   async deleteUser(): Promise<void> {
     return this.request("/users/me", {
       method: "DELETE",
+    });
+  }
+
+  async uploadFile(
+    file: File,
+    category: "PROFILE_AVATAR" | "PROFILE_COVER" | "TRAVEL_PHOTO"
+  ): Promise<UploadResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Gọi endpoint POST /storage/files với query params category
+    return this.request<UploadResponse>(`/storage/files?category=${category}`, {
+      method: "POST",
+      body: formData,
     });
   }
 
