@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any, Tuple
 from models.user import User, UserActivity, Activity
-from models.destination_embedding import DestinationEmbedding
+from models.destination_embedding import DestinationEmbedding       
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ except Exception as e:
 # FAISS Index Management
 # ----------------------------------------------------------------------
 try:
-    import faiss
+    import faiss #not install yet
     FAISS_AVAILABLE = True
     logger.info("✓ FAISS library loaded successfully")
 except ImportError:
