@@ -1,8 +1,8 @@
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, PrimaryKeyConstraint, SmallInteger, String, Text
 from sqlalchemy.orm import relationship
-from database.database import UserBase
+from database.db import Base
 
-class Review(UserBase):
+class Review(Base):
     __tablename__ = "reviews"
     
     __table_args__ = (

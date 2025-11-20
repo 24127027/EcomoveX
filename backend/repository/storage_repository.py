@@ -22,8 +22,6 @@ class StorageRepository:
             return new_metadata
         except Exception as e:
             await db.rollback()
-            import traceback
-            traceback.print_exc()
             raise
 
     @staticmethod
@@ -47,11 +45,9 @@ class StorageRepository:
     async def get_user_files_metadata(
         db: AsyncSession, 
         user_id: int, 
-        filters: FileMetadataFilter = None
+        filters: FileMetadataFilter
     ) -> list[Metadata]:
-        """Get file metadata for a user with optional filters"""
         try:
-            # Base query
             query = select(Metadata).where(Metadata.user_id == user_id)
             
             if filters:
@@ -71,28 +67,21 @@ class StorageRepository:
                 
                 # Apply sorting
                 sort_column = getattr(Metadata, filters.sort_by.value, Metadata.uploaded_at)
-                if filters.sort_order == SortOrder.ASC:
+                if filters.sort_order == SortOrder.ASCENDING:
                     query = query.order_by(sort_column.asc())
                 else:
                     query = query.order_by(sort_column.desc())
-                
-                # Apply pagination
-                query = query.limit(filters.limit).offset(filters.offset)
             else:
-                # Default sorting if no filters provided
                 query = query.order_by(Metadata.uploaded_at.desc())
             
             result = await db.execute(query)
             return result.scalars().all()
         except Exception as e:
             print(f"Error retrieving metadata for user {user_id}: {e}")
-            import traceback
-            traceback.print_exc()
             return []
 
     @staticmethod
     async def delete_metadata_by_blob_name(db: AsyncSession, blob_name: str):
-        """Delete metadata by blob name"""
         try:
             metadata = await db.execute(
                 select(Metadata).where(Metadata.blob_name == blob_name)
@@ -107,13 +96,10 @@ class StorageRepository:
         except Exception as e:
             await db.rollback()
             print(f"Error deleting metadata for blob {blob_name}: {e}")
-            import traceback
-            traceback.print_exc()
             return False
     
     @staticmethod
     async def get_user_files_count(db: AsyncSession, user_id: int, filters: FileMetadataFilter = None) -> int:
-        """Get total count of user's files (useful for pagination)"""
         try:
             from sqlalchemy import func
             

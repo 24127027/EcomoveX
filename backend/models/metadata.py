@@ -1,9 +1,9 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.database import UserBase
+from database.db import Base
 
-class Metadata(UserBase):
+class Metadata(Base):
     __tablename__ = "metadata"
 
     blob_name = Column(String(255), primary_key=True, index=True)

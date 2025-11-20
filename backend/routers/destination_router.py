@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
-from database.database import get_db
+from database.db import get_db
 from schemas.destination_schema import *
 from schemas.user_schema import *
 from services.destination_service import UserSavedDestinationService

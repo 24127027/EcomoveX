@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from schemas.route_schema import *
 from schemas.map_schema import DirectionsRequest
 from services.carbon_service import CarbonService
-from services.map_service import create_maps_client
+from integration.route_api import create_route_api_client
 from integration.text_generator_api import get_text_generator
 
 class RouteService:
@@ -123,21 +123,21 @@ class RouteService:
             routes_dict = {}
             
             try:
-                maps = await create_maps_client()
+                routes = await create_route_api_client()
                 
-                driving_alternatives = await maps.get_routes(
+                driving_alternatives = await routes.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination, alternatives=True),
                     mode=TransportMode.car,
                     language=language
                 )
 
-                transit_result = await maps.get_routes(
+                transit_result = await routes.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination, alternatives=True),
                     mode=TransportMode.bus,
                     language=language
                 )
                 
-                walking_result = await maps.get_routes(
+                walking_result = await routes.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination),
                     mode=TransportMode.walking,
                     language=language
@@ -156,7 +156,7 @@ class RouteService:
                         all_routes.append(route_data)
 
                 try:
-                    eco_result = await maps.get_eco_friendly_route(
+                    eco_result = await routes.get_eco_friendly_route(
                         data=DirectionsRequest(origin=origin, destination=destination, alternatives=True),
                         mode=TransportMode.car,
                         vehicle_type="GASOLINE",
@@ -235,8 +235,8 @@ class RouteService:
                 )
                 
             finally:
-                if maps:
-                    await maps.close()
+                if routes:
+                    await routes.close()
             
             return FindRoutesResponse(
                 origin={"lat": origin[0], "lng": origin[1]},

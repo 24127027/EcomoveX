@@ -1,5 +1,5 @@
 from sqlalchemy import text
-from database.database import UserBase, engine
+from database.db import Base, engine
 from models import *
 
 async def drop_specific_tables(table_names: list[str]):
@@ -27,5 +27,5 @@ async def init_db(drop_all: bool = False):
             await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
             await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
         print("Creating user tables...")
-        await conn.run_sync(UserBase.metadata.create_all)
+        await conn.run_sync(Base.metadata.create_all)
     print("User database initialized successfully")
