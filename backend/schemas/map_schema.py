@@ -129,20 +129,6 @@ class GeocodingResponse(BaseModel):
     results: List[GeocodingResult] = Field(default_factory=list)
     
     model_config = ConfigDict(from_attributes=True)
-
-class AirQualityIndex(BaseModel):
-    display_name: str
-    aqi: int
-    category: str
-
-class HealthRecommendation(BaseModel):
-    general_population: Optional[str] = None
-    sensitive_groups: Optional[str] = None
-
-class AirQualityResponse(BaseModel):
-    location: Tuple[float, float]
-    aqi_data: AirQualityIndex
-    recommendations: Optional[HealthRecommendation] = None
         
 class NearbyPlaceRequest(BaseModel):
     location: Tuple[float, float]
