@@ -13,6 +13,7 @@ class Room(Base):
     
     messages = relationship("Message", back_populates="room", cascade="all, delete-orphan")
     owner = relationship("User", back_populates="owned_rooms")
+    members = relationship("RoomMember", back_populates="room", cascade="all, delete-orphan")
     
 class RoomMember(Base):
     __tablename__ = "room_members"

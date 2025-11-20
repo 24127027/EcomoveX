@@ -149,7 +149,7 @@ export default function ProfilePage() {
       let newBlobName = null;
       if (avatarFile) {
         // Gọi API Upload file thay vì convert base64
-        // Category phải khớp với Enum trong backend (PROFILE_AVATAR)
+        // Category phải khớp với Enum trong backend (profile_avatar)
         const uploadResponse = await api.uploadFile(
           avatarFile,
           "profile_avatar"

@@ -76,7 +76,7 @@ export default function CreatePlanPage() {
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
         {/* --- HEADER --- */}
         <div className="bg-white px-4 pt-8 pb-4 shadow-sm z-10 flex items-center gap-4">
-          <Link href="/planning_page">
+          <Link href="/homepage">
             <ChevronLeft
               className="text-[#53B552] cursor-pointer"
               size={32}

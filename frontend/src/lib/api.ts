@@ -1,5 +1,4 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000.com";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface LoginCredentials {
   email: string;
@@ -190,12 +189,9 @@ class ApiClient {
         ? localStorage.getItem("access_token")
         : null;
 
-    // use a Headers instance so we can call typed .set() and merge any incoming headers
     const headers = new Headers();
 
-    // set default content type
-    headers.set("Content-Type", "application/json");
-
+    // Only set Content-Type if not FormData
     if (!(options.body instanceof FormData)) {
       headers.set("Content-Type", "application/json");
     }
@@ -219,10 +215,13 @@ class ApiClient {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
+    // If FormData, let browser set Content-Type (with boundary)
+    const fetchOptions: RequestInit = {
       ...options,
-      headers,
-    });
+      headers: options.body instanceof FormData ? headers : headers,
+    };
+
+    const response = await fetch(`${this.baseURL}${endpoint}`, fetchOptions);
 
     if (!response.ok) {
       try {
@@ -330,11 +329,11 @@ class ApiClient {
 
   async uploadFile(
     file: File,
-    category: "profile_avatar" | "PROFILE_COVER" | "TRAVEL_PHOTO"
+    category: "profile_avatar" | "profile_cover" | "travel_photo"
   ): Promise<UploadResponse> {
     const formData = new FormData();
     formData.append("file", file);
-    // Gọi endpoint POST /storage/files với query params category
+    // Gọi endpoint POST /storage/files với query params category (lowercase)
     return this.request<UploadResponse>(`/storage/files?category=${category}`, {
       method: "POST",
       body: formData,

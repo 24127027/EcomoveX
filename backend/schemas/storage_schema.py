@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 class FileCategory(str, Enum):
-    PROFILE_AVATAR = "profile_avatar"
+    profile_avatar = "profile_avatar"
     PROFILE_COVER = "profile_cover"
     TRAVEL_PHOTO = "travel_photo"
 
