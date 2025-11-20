@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, validator, field_validator, ConfigDict
-from typing import Optional, List, Dict, Any, Tuple, Union
-from route_schema import TransportMode
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List, Dict, Any, Tuple
 
 class Bounds(BaseModel):
     northeast: Tuple[float, float]
@@ -65,59 +64,6 @@ class PlaceDetailsResponse(BaseModel):
     utc_offset: Optional[int] = None
     sustainable_certified: bool = False
 
-class TransitDetails(BaseModel):
-    arrival_stop: Tuple[str, Tuple[float, float]]
-    departure_stop: Tuple[str, Tuple[float, float]]
-    arrival_time: Dict[str, Any]
-    departure_time: Dict[str, Any]
-    headway: Optional[int] = None
-    line: str
-
-class Step(BaseModel):
-    distance: float  # in kilometers
-    duration: float  # in minutes
-    start_location: Tuple[float, float]
-    end_location: Tuple[float, float]
-    html_instructions: str
-    travel_mode: TransportMode
-    polyline: Optional[str] = None
-    transit_details: Optional[TransitDetails] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-class Leg(BaseModel):
-    distance: float  # in kilometers
-    duration: float  # in minutes
-    start_location: Tuple[str, Tuple[float, float]]
-    end_location: Tuple[str, Tuple[float, float]]
-    steps: List[Step]
-    duration_in_traffic: Optional[float] = None
-    arrival_time: Optional[Dict[str, Any]] = None
-    departure_time: Optional[Dict[str, Any]] = None
-
-class Route(BaseModel):
-    summary: str
-    legs: List[Leg]
-    overview_polyline: str
-    bounds: Bounds
-    distance: float  # in kilometers (sum of all legs)
-    duration: float  # in minutes (sum of all legs)
-    duration_in_traffic: Optional[float] = None
-
-class DirectionsRequest(BaseModel):
-    origin: Tuple[float, float]
-    destination: Tuple[float, float]
-    waypoints: Optional[List[Tuple[float, float]]] = None
-    alternatives: bool = False
-    avoid: Optional[List[str]] = None
-    get_traffic: bool = False
-
-class DirectionsResponse(BaseModel):
-    routes: List[Route] = Field(default_factory=list)
-    travel_mode: Optional[TransportMode] = None
-    
-    model_config = ConfigDict(from_attributes=True)
-
 class GeocodingResult(BaseModel):
     place_id: str
     formatted_address: str
@@ -150,19 +96,6 @@ class NearbyPlacesResponse(BaseModel):
     next_page_token: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
-
-class RouteComparisonMode(BaseModel):
-    mode: TransportMode
-    distance: Optional[float] = None
-    duration: Optional[float] = None
-    carbon_kg: Optional[float] = None
-    polyline: Optional[str] = None
-    bounds: Optional[Bounds] = None
-
-class RouteComparisonResponse(BaseModel):
-    origin: Tuple[float, float]
-    destination: Tuple[float, float]
-    routes: Dict[str, RouteComparisonMode]
 
 class SearchAlongRouteResponse(BaseModel):
     route_polyline: str

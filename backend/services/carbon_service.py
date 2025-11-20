@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from integration.climatiq_api import create_climatiq_client
+from integration.carbon_api import create_carbonAPI_client
 from typing import Optional
 from schemas.route_schema import TransportMode
 
@@ -11,8 +11,8 @@ class CarbonService:
         passengers: int = 1,
     ):
         try:
-            climatiq = await create_climatiq_client()
-            estimation = await climatiq.estimate_transport(
+            carbonAPI = await create_carbonAPI_client()
+            estimation = await carbonAPI.estimate_transport(
                 mode=mode,
                 distance_km=distance_km,
                 passengers=passengers,
@@ -24,4 +24,4 @@ class CarbonService:
                 detail=f"Error estimating transport emission: {e}"
             )
         finally:
-            await climatiq.close()
+            await carbonAPI.close()

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     HUGGINGFACE_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
-    CLIMATIQ_API_KEY: str = ""
+    carbonAPI_API_KEY: str = ""
     
     SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
     SUSTAINABILITY_DATA_API_CLIENT_SECRET: str = ""

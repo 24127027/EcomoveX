@@ -12,9 +12,9 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.get_file_url(user.avt_blob_name)
+                url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.get_file_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -40,9 +40,9 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_email(db, email)
             if user.avt_blob_name:
-                url = await StorageService.get_file_url(user.avt_blob_name)
+                url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.get_file_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -68,9 +68,9 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_username(db, username)
             if user.avt_blob_name:
-                url = await StorageService.get_file_url(user.avt_blob_name)
+                url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.get_file_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -102,9 +102,9 @@ class UserService:
 
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.get_file_url(user.avt_blob_name)
+                url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.get_file_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -152,9 +152,9 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.get_file_url(user.avt_blob_name)
+                url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.get_file_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -194,9 +194,9 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.get_file_url(user.avt_blob_name)
+                url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.get_file_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,

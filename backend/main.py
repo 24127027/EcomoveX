@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"WARNING: User database initialization failed - {e}")
         
-    # Refresh emission factors from Climatiq API    
+    # Refresh emission factors from carbonAPI API    
     yield  # App is running
     
     # Shutdown: Cleanup

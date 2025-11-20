@@ -3,6 +3,7 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from models.message import *
 from schemas.message_schema import *
+from room_repository import RoomRepository
 
 class MessageRepository:
     @staticmethod
@@ -25,7 +26,6 @@ class MessageRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: fetching messages for user ID {user_id} in room ID {room_id} - {e}")
             return []
         
