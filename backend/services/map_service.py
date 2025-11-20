@@ -6,7 +6,7 @@ from models.route import TransportMode
 from schemas.destination_schema import DestinationCreate
 from schemas.map_schema import *
 from services.destination_service import DestinationService
-
+from schemas.air_schema import AirQualityResponse
 class MapService:
     @staticmethod
     async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
@@ -47,21 +47,6 @@ class MapService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get location details: {str(e)}"
-            )
-            
-    @staticmethod
-    async def get_air_quality(location: Tuple[float, float]) -> AirQualityResponse:
-        try:
-            try:
-                maps = await create_maps_client()
-                return await maps.get_air_quality(location=location)
-            finally:
-                if maps:
-                    await maps.close()
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get air quality data: {str(e)}"
             )
             
     @staticmethod
