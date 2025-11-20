@@ -3,7 +3,6 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from models.message import *
 from schemas.message_schema import *
-from room_repository import RoomRepository
 
 class MessageRepository:
     @staticmethod
@@ -12,12 +11,11 @@ class MessageRepository:
             result = await db.execute(select(Message).where(Message.id == message_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: fetching message ID {message_id} - {e}")
             return None
 
     @staticmethod
-    async def get_messages_by_user_id_and_room(db: AsyncSession, user_id: int, room_id: int):
+    async def get_messages_by_room(db: AsyncSession, room_id: int):
         try:
             result = await db.execute(
                 select(Message).where(
@@ -26,11 +24,11 @@ class MessageRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"ERROR: fetching messages for user ID {user_id} in room ID {room_id} - {e}")
+            print(f"ERROR: fetching messages for room ID {room_id} - {e}")
             return []
         
     @staticmethod
-    async def search_messages_by_keyword(db: AsyncSession, user_id: int, room_id: int, keyword: str):
+    async def search_messages_by_keyword(db: AsyncSession, room_id: int, keyword: str):
         try:
             result = await db.execute(
                 select(Message).where(
@@ -40,8 +38,7 @@ class MessageRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: searching messages for user ID {user_id} with keyword '{keyword}' - {e}")
+            print(f"ERROR: searching messages for room ID {room_id} with keyword '{keyword}' - {e}")
             return []
         
     @staticmethod
@@ -82,4 +79,3 @@ class MessageRepository:
             await db.rollback()
             print(f"ERROR: deleting message ID {message_id} by user ID {user_id} - {e}")
             return False
-        

@@ -6,9 +6,9 @@ from schemas.route_schema import *
 
 class CarbonAPI:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.carbonAPI_API_KEY
+        self.api_key = api_key or settings.CLIMATIQ_API_KEY
         if not self.api_key:
-            raise ValueError("carbonAPI_API_KEY not found in environment variables")
+            raise ValueError("CLIMATIQ_API_KEY not found in environment variables")
 
         self.travel_base_url = "https://preview.api.carbonAPI.io/travel/v1-preview3"
         self.basic_base_url = "https://api.carbonAPI.io/data/v1"

@@ -49,6 +49,7 @@ class User(Base):
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
     user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
+    owned_rooms = relationship("Room", back_populates="owner", cascade="all, delete-orphan")
 
 class UserActivity(Base):
     __tablename__ = "user_activities"

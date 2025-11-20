@@ -8,9 +8,11 @@ class Room(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     messages = relationship("Message", back_populates="room", cascade="all, delete-orphan")
+    owner = relationship("User", back_populates="owned_rooms")
     
 class RoomMember(Base):
     __tablename__ = "room_members"

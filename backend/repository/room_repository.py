@@ -6,18 +6,33 @@ from models.room import *
 
 class RoomRepository:
     @staticmethod
-    async def get_room_by_id(db: AsyncSession, user_id: int, room_id: int):
+    async def is_owner(db: AsyncSession, user_id: int, room_id: int) -> bool:
+        try:
+            result = await db.execute(
+                select(Room).where(
+                    Room.id == room_id,
+                    Room.user_id == user_id
+                )
+            )
+            room = result.scalar_one_or_none()
+            return room is not None
+        except SQLAlchemyError as e:
+            print(f"ERROR: checking ownership of user ID {user_id} for room ID {room_id} - {e}")
+            return False
+    
+    @staticmethod
+    async def get_room_by_id(db: AsyncSession, room_id: int):
         try:
             result = await db.execute(where(Room.id == room_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"ERROR: retrieving room ID {room_id} for user ID {user_id} - {e}")
+            print(f"ERROR: retrieving room ID {room_id} - {e}")
             return None
         
     @staticmethod
-    async def create_room(db: AsyncSession, name: str):
+    async def create_room(db: AsyncSession, user_id: int, name: str):
         try:
-            new_room = Room(name=name)
+            new_room = Room(user_id=user_id, name=name)
             db.add(new_room)
             await db.commit()
             await db.refresh(new_room)
