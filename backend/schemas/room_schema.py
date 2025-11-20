@@ -16,7 +16,7 @@ class RoomResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class AddMemberRequest(BaseModel):
-    ids: List[int] = Field(..., min_items=1)
+    ids: List[int] = Field(..., min_length=1)
 
 class RemoveMemberRequest(BaseModel):
-    ids: List[int] = Field(..., min_items=1)
+    ids: List[int] = Field(..., min_length=1)

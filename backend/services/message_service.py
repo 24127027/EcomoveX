@@ -60,6 +60,8 @@ class MessageService:
                     timestamp=msg.created_at
                 ) for msg in messages]
             return message_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -89,6 +91,8 @@ class MessageService:
                     timestamp=msg.created_at
                 ) for msg in messages]
             return message_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
