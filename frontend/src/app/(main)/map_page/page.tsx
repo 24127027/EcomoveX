@@ -1,101 +1,399 @@
 "use client";
 
-import React from "react";
-import Link from "next/link";
-import { Search, Home, MapPin, Bot, User, ChevronLeft } from "lucide-react";
-import { Poppins, Jost, Abhaya_Libre } from "next/font/google";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
 
-// --- Font Setup ---
-const poppins = Poppins({ subsets: ["latin"], weight: ["300"] });
-const jost = Jost({ subsets: ["latin"], weight: ["700"] });
-const abhaya_libre = Abhaya_Libre({ subsets: ["latin"], weight: ["700"] });
+// Type definitions
+interface EcoLocation {
+  id: number;
+  name: string;
+  address: string;
+  distance: string;
+  rating: number;
+  image: string;
+  lat: number;
+  lng: number;
+  type: string;
+}
+
+// Sample eco-friendly locations in Ho Chi Minh City
+const ecoLocations: EcoLocation[] = [
+  {
+    id: 1,
+    name: "The Hive Bean Coffee",
+    address: "123 Nguyen Hue, District 1",
+    distance: "1.2km",
+    rating: 4.5,
+    image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400&h=300&fit=crop",
+    lat: 10.7756,
+    lng: 106.7019,
+    type: "Cafe"
+  },
+  {
+    id: 2,
+    name: "Cafe Lokolo's",
+    address: "456 Le Loi, District 1",
+    distance: "1.5km",
+    rating: 4.3,
+    image: "https://images.unsplash.com/photo-1493857671505-72967e2e2760?w=400&h=300&fit=crop",
+    lat: 10.7722,
+    lng: 106.6989,
+    type: "Cafe"
+  },
+  {
+    id: 3,
+    name: "Green Space Shop",
+    address: "789 Dong Khoi, District 1",
+    distance: "0.8km",
+    rating: 4.7,
+    image: "https://images.unsplash.com/photo-1426122402199-be02db90eb90?w=400&h=300&fit=crop",
+    lat: 10.7769,
+    lng: 106.7041,
+    type: "Shop"
+  },
+  {
+    id: 4,
+    name: "La Vegetariana Restaurant",
+    address: "321 Pasteur, District 3",
+    distance: "2.1km",
+    rating: 4.6,
+    image: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400&h=300&fit=crop",
+    lat: 10.7724,
+    lng: 106.6910,
+    type: "Restaurant"
+  }
+];
 
 export default function MapPage() {
+  const [selectedLocation, setSelectedLocation] = useState<EcoLocation | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [sheetHeight, setSheetHeight] = useState(40); // Start at 40% for mobile
+  const [isDragging, setIsDragging] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [startHeight, setStartHeight] = useState(40);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const googleMapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Load Google Maps script
+    const loadGoogleMaps = () => {
+      if (window.google && window.google.maps) {
+        initMap();
+        return;
+      }
+
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        console.error('Google Maps API key is not set in environment variables');
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => initMap();
+      document.head.appendChild(script);
+    };
+
+    const initMap = () => {
+      if (!mapRef.current) return;
+
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 10.7756, lng: 106.7019 },
+        zoom: 14,
+        styles: [
+          {
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+          }
+        ],
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false
+      });
+
+      googleMapRef.current = map;
+
+      // Add markers for each location
+      ecoLocations.forEach(location => {
+        const marker = new window.google.maps.Marker({
+          position: { lat: location.lat, lng: location.lng },
+          map: map,
+          title: location.name,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: "#53B552",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 3
+          }
+        });
+
+        marker.addListener('click', () => {
+          handleLocationSelect(location);
+          map.panTo({ lat: location.lat, lng: location.lng });
+        });
+
+        markersRef.current.push(marker);
+      });
+
+      setMapLoaded(true);
+    };
+
+    loadGoogleMaps();
+  }, []);
+
+  const handleLocationSelect = (location: EcoLocation) => {
+    setSelectedLocation(location);
+  };
+
+  const handleCardClick = (location: EcoLocation) => {
+    setSelectedLocation(location);
+    if (googleMapRef.current) {
+      googleMapRef.current.panTo({ lat: location.lat, lng: location.lng });
+      googleMapRef.current.setZoom(16);
+    }
+  };
+
+  const handleNavigateToDetail = () => {
+    if (selectedLocation) {
+      // Navigate to detail page
+      alert(`Navigating to detail page for: ${selectedLocation.name}`);
+      // In real app: router.push(`/location/${selectedLocation.id}`);
+    }
+  };
+
+  const filteredLocations = ecoLocations.filter(loc =>
+    loc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    loc.address.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    setStartY(e.touches[0].clientY);
+    setStartHeight(sheetHeight);
+    document.body.style.overflow = 'hidden'; // Prevent body scroll
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!isDragging) return;
+    
+    const deltaY = startY - e.touches[0].clientY;
+    const windowHeight = window.innerHeight;
+    const deltaPercent = (deltaY / windowHeight) * 100;
+    
+    let newHeight = startHeight + deltaPercent;
+    newHeight = Math.max(15, Math.min(90, newHeight)); // Mobile-optimized range
+    
+    setSheetHeight(newHeight);
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    document.body.style.overflow = ''; // Restore body scroll
+    
+    // Snap to mobile-optimized positions
+    if (sheetHeight < 25) {
+      setSheetHeight(15); // Peek view
+    } else if (sheetHeight < 50) {
+      setSheetHeight(40); // Default view
+    } else if (sheetHeight < 70) {
+      setSheetHeight(65); // Mid expanded
+    } else {
+      setSheetHeight(90); // Full screen
+    }
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      
+      return () => {
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isDragging, startY, startHeight]);
+
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-gray-50 h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden group">
-          {/* Search Bar  */}
+        {/* Map Container */}
+        <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
+          {/* Search Bar */}
           <div className="absolute top-5 left-4 right-4 z-10">
-            <div className="bg-white rounded-full shadow-md flex items-center p-3 transition-transform active:scale-95">
-              <Link href="/homepage">
+            <div className="bg-white rounded-full shadow-lg flex items-center p-3 transition-transform active:scale-95">
+              <a href="/homepage">
                 <ChevronLeft className="text-gray-500 mr-2 cursor-pointer hover:text-green-600" />
-              </Link>
+              </a>
               <Search size={18} className="text-green-600 mr-2" />
               <input
                 type="text"
                 placeholder="Search for a location..."
-                className={`${abhaya_libre.className} flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
               />
             </div>
           </div>
+
+          {/* Current Location Button */}
+          <button className="absolute top-24 right-4 z-10 bg-white p-3 rounded-full shadow-lg hover:bg-gray-50 transition-colors">
+            <Navigation size={20} className="text-green-600" />
+          </button>
+
+          {/* Google Map */}
+          <div ref={mapRef} className="w-full h-full" />
+          
+          {!mapLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#E9F5EB]">
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
+                <p className="text-gray-600 font-semibold">Loading map...</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.1)] p-6 z-10 shrink-0 relative">
-          {/* Address Card */}
-          <div className="bg-[#F9FFF9] border border-green-100 rounded-xl p-4 mb-5 flex items-start gap-3 shadow-sm">
-            <div className="bg-green-100 p-2.5 rounded-full shrink-0 mt-0.5">
-              <MapPin size={20} className="text-green-600" />
-            </div>
-            <div>
-              <p
-                className={`${jost.className} text-green-700 text-sm font-bold mb-1 uppercase tracking-wide`}
-              >
-                Selected Location
-              </p>
-              <p
-                className={`${abhaya_libre.className} text-gray-700 text-lg leading-tight`}
-              >
-                123 Green Street, Eco District, Ho Chi Minh City
-              </p>
-            </div>
+        {/* Bottom Sheet with Recommendations */}
+        <div 
+          ref={sheetRef}
+          style={{ 
+            height: `${sheetHeight}vh`,
+            touchAction: 'none'
+          }}
+          className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+        >
+          {/* Drag Handle */}
+          <div 
+            className="w-full flex justify-center py-4 touch-none"
+            onTouchStart={handleTouchStart}
+          >
+            <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
           </div>
 
-          {/* Select Button */}
-          <button
-            className={`${jost.className} w-full bg-[#53B552] hover:bg-green-600 text-white text-xl font-bold py-3.5 rounded-full shadow-lg transition-all transform active:scale-[0.98]`}
+          <div 
+            className="px-6 pb-6 overflow-y-auto overscroll-contain scrollbar-hide" 
+            style={{ height: 'calc(100% - 56px)' }}
+            onTouchStart={(e) => {
+              // Allow scrolling only if sheet is expanded enough
+              if (sheetHeight < 60) {
+                e.stopPropagation();
+              }
+            }}
           >
-            Select Location
-          </button>
+            {/* Selected Location Card */}
+            {selectedLocation ? (
+              <div className="mb-4">
+                <div className="bg-[#F9FFF9] border border-green-100 rounded-xl p-4 mb-3 flex items-start gap-3 shadow-sm">
+                  <div className="bg-green-100 p-2.5 rounded-full shrink-0 mt-0.5">
+                    <MapPin size={20} className="text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-green-700 text-xs font-bold mb-1 uppercase tracking-wide">
+                      Selected Location
+                    </p>
+                    <p className="text-gray-900 text-base font-bold leading-tight mb-1 truncate">
+                      {selectedLocation.name}
+                    </p>
+                    <p className="text-gray-600 text-sm leading-tight line-clamp-2">
+                      {selectedLocation.address}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                        {selectedLocation.distance}
+                      </span>
+                      <span className="text-xs text-yellow-600 font-semibold">
+                        ★ {selectedLocation.rating}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleNavigateToDetail}
+                  className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
+                >
+                  View Details
+                </button>
+              </div>
+            ) : (
+              <div className="mb-4">
+                <h3 className="text-gray-900 text-lg font-bold mb-1">
+                  Nearby Eco Locations
+                </h3>
+                <p className="text-gray-500 text-sm mb-3">
+                  Select a location from the map or list below
+                </p>
+              </div>
+            )}
+
+            {/* Recommendations Grid */}
+            <div className="grid grid-cols-2 gap-3 pb-2">
+              {filteredLocations.map((location) => (
+                <div
+                  key={location.id}
+                  onClick={() => handleCardClick(location)}
+                  className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
+                    selectedLocation?.id === location.id ? 'ring-2 ring-green-500' : ''
+                  }`}
+                >
+                  <div className="relative h-28 bg-gray-200">
+                    <img
+                      src={location.image}
+                      alt={location.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-3">
+                    <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
+                      {location.name}
+                    </h4>
+                    <p className="text-xs text-gray-500 mb-2 line-clamp-1">{location.distance}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
+                        {location.type}
+                      </span>
+                      <span className="text-xs text-yellow-600 font-semibold">
+                        ★ {location.rating}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* --- FOOTER --- */}
-        <footer
-          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] ${poppins.className} shrink-0 z-20`}
-        >
-          <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
+        {/* Footer */}
+        <footer className="bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-20">
+          <div className="h-0.5 bg-gradient-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
           <div className="flex justify-around items-center px-2 pt-2 pb-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center justify-center w-1/4 text-green-600"
-            >
+            <a href="/homepage" className="flex flex-col items-center justify-center w-1/4 text-green-600">
               <Home className="size-6" strokeWidth={2.0} />
               <span className="text-xs font-medium mt-0.5">Home</span>
-            </Link>
-
-            <Link
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
+            </a>
+            <a href="#" className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors">
               <MapPin className="size-6" strokeWidth={2.0} />
               <span className="text-xs font-medium mt-0.5">Planning</span>
-            </Link>
-
-            <Link
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
+            </a>
+            <a href="#" className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors">
               <Bot className="size-6" strokeWidth={1.5} />
               <span className="text-xs font-medium mt-0.5">Ecobot</span>
-            </Link>
-
-            <Link
-              href="/user_page/profile_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
+            </a>
+            <a href="/user_page/profile_page" className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors">
               <User className="size-6" strokeWidth={1.5} />
               <span className="text-xs font-medium mt-0.5">User</span>
-            </Link>
+            </a>
           </div>
         </footer>
       </div>
