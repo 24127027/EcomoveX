@@ -21,6 +21,17 @@ class RoomRepository:
             return False
     
     @staticmethod
+    async def list_rooms_for_user(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(
+                select(Room).join(RoomMember).where(RoomMember.user_id == user_id)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: listing rooms for user ID {user_id} - {e}")
+            return []
+    
+    @staticmethod
     async def get_room_by_id(db: AsyncSession, room_id: int):
         try:
             result = await db.execute(where(Room.id == room_id))

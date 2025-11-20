@@ -6,7 +6,7 @@ from services.room_service import RoomService
 
 class MessageService:
     @staticmethod
-    async def get_message_by_id(db: AsyncSession, user_id: int, message_id: int):
+    async def get_message_by_id(db: AsyncSession, user_id: int, message_id: int) -> MessageResponse:
         try:
             message = await MessageRepository.get_message_by_id(db, message_id)
             if not message:
@@ -38,7 +38,7 @@ class MessageService:
             )
     
     @staticmethod
-    async def get_message_by_keyword(db: AsyncSession, user_id: int, room_id: int, keyword: str):
+    async def get_message_by_keyword(db: AsyncSession, user_id: int, room_id: int, keyword: str) -> list[MessageResponse]:
         try:
             is_member = await RoomService.is_user_in_room(db, user_id, room_id)
             if not is_member:
@@ -67,7 +67,7 @@ class MessageService:
             )
     
     @staticmethod
-    async def get_messages_by_room(db: AsyncSession, user_id: int, room_id: int):
+    async def get_messages_by_room(db: AsyncSession, user_id: int, room_id: int) -> list[MessageResponse]:
         try:
             is_member = await RoomService.is_user_in_room(db, user_id, room_id)
             if not is_member:
@@ -96,7 +96,7 @@ class MessageService:
             )
     
     @staticmethod
-    async def create_message(db: AsyncSession, sender_id: int, room_id: int, message_data: MessageCreate):
+    async def create_message(db: AsyncSession, sender_id: int, room_id: int, message_data: MessageCreate) -> MessageResponse:
         try:
             is_member = await RoomService.is_user_in_room(db, sender_id, room_id)
             if not is_member:

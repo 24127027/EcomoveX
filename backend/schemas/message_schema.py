@@ -17,7 +17,7 @@ class MessageCreate(BaseModel):
 class MessageResponse(BaseModel):
     id: int
     sender_id: int
-    receiver_id: int
+    room_id: int
     content: Optional[str]
     message_type: MessageType
     status: MessageStatus

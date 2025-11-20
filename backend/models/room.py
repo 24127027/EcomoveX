@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, PrimaryKeyConstraint, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
@@ -17,7 +17,10 @@ class Room(Base):
 class RoomMember(Base):
     __tablename__ = "room_members"
 
-    id = Column(Integer, primary_key=True, index=True)
+    __table_args__ = (
+        PrimaryKeyConstraint('room_id', 'user_id'),
+    )
+
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     joined_at = Column(DateTime(timezone=True), server_default=func.now())

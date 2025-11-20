@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends, Query, Body, status
+from fastapi import APIRouter, Depends, Path, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
 from database.db import get_db
@@ -22,7 +22,7 @@ async def search_location(
 
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
-    place_id: str,
+    place_id: str = Path(..., min_length=1),
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
