@@ -70,7 +70,6 @@ class DestinationRepository:
             print(f"ERROR: Failed to delete destination with ID {destination_id} - {e}")
             return False
         
-class UserSavedDestinationRepository:
     @staticmethod
     async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
         try:

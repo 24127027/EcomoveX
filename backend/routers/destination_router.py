@@ -4,7 +4,7 @@ from models.user import *
 from database.db import get_db
 from schemas.destination_schema import *
 from schemas.user_schema import *
-from services.destination_service import UserSavedDestinationService
+from services.destination_service import DestinationService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
 
@@ -16,7 +16,7 @@ async def save_destination_for_current_user(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    result = await UserSavedDestinationService.save_destination_for_user(
+    result = await DestinationService.save_destination_for_user(
         user_db, 
         current_user["user_id"], 
         destination_id
@@ -36,7 +36,7 @@ async def get_my_saved_destinations(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await UserSavedDestinationService.get_saved_destinations_for_user(
+    return await DestinationService.get_saved_destinations_for_user(
         user_db, 
         current_user["user_id"]
     )
@@ -47,7 +47,7 @@ async def unsave_destination_for_current_user(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    return await UserSavedDestinationService.delete_saved_destination(
+    return await DestinationService.delete_saved_destination(
         user_db, 
         current_user["user_id"], 
         destination_id
