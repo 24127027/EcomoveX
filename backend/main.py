@@ -8,6 +8,11 @@ from routers.review_router import router as review_router
 from routers.friend_router import router as friend_router
 from routers.destination_router import router as destination_router
 from routers.storage_router import router as storage_router
+from routers.air_router import router as air_router
+from routers.weather_router import router as weather_router
+from routers.map_router import router as map_router
+
+
 # from routers.route_router import router as route_router
 # from routers.map_router import router as map_search_router
 # from routers.chatbot_router import router as chatbot_router
@@ -31,7 +36,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"WARNING: User database initialization failed - {e}")
         
-    # Refresh emission factors from Climatiq API    
+    # Refresh emission factors from carbonAPI API    
     yield  # App is running
     
     # Shutdown: Cleanup
@@ -72,6 +77,9 @@ app.include_router(review_router)
 app.include_router(friend_router)
 app.include_router(destination_router)
 app.include_router(storage_router)
+app.include_router(map_router)
+app.include_router(air_router)
+app.include_router(weather_router)
 # app.include_router(route_router)
 # app.include_router(map_search_router)
 #app.include_router(chatbot_router)
@@ -105,4 +113,4 @@ async def health_check():
     }
 
 
-# Run with: uvicorn main:app --reload 
+# Run with: uvicorn main:app --reload

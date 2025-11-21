@@ -3,14 +3,15 @@ import httpx
 import requests
 from utils.config import settings
 from schemas.route_schema import *
-class climatiqAPI:
+
+class CarbonAPI:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.CLIMATIQ_API_KEY
         if not self.api_key:
             raise ValueError("CLIMATIQ_API_KEY not found in environment variables")
 
-        self.travel_base_url = "https://preview.api.climatiq.io/travel/v1-preview3"
-        self.basic_base_url = "https://api.climatiq.io/data/v1"
+        self.travel_base_url = "https://preview.api.carbonAPI.io/travel/v1-preview3"
+        self.basic_base_url = "https://api.carbonAPI.io/data/v1"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -113,5 +114,5 @@ class climatiqAPI:
         else:
             raise ValueError(f"Unsupported travel mode: {mode.value}")
 
-async def create_climatiq_client(api_key: Optional[str] = None):
-    return climatiqAPI(api_key=api_key)
+async def create_carbonAPI_client(api_key: Optional[str] = None):
+    return CarbonAPI(api_key=api_key)

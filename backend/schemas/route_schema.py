@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from enum import Enum
+from schemas.map_schema import Bounds
 
 class TransportMode(str, Enum):
     car = "car"
@@ -80,10 +81,63 @@ class FindRoutesResponse(BaseModel):
     routes: Dict[RouteType, RouteData]
     recommendation: str
     
-    model_config = ConfigDict(from_attributes=True,)
+    model_config = ConfigDict(from_attributes=True)
     
 class RecommendResponse(BaseModel):
     route: str
     recommendation: str
     
-    model_config = ConfigDict(from_attributes=True,)
+    model_config = ConfigDict(from_attributes=True)
+    
+class TransitDetails(BaseModel):
+    arrival_stop: Tuple[str, Tuple[float, float]]
+    departure_stop: Tuple[str, Tuple[float, float]]
+    arrival_time: Dict[str, Any]
+    departure_time: Dict[str, Any]
+    headway: Optional[int] = None
+    line: str
+
+class Step(BaseModel):
+    distance: float  # in kilometers
+    duration: float  # in minutes
+    start_location: Tuple[float, float]
+    end_location: Tuple[float, float]
+    html_instructions: str
+    travel_mode: TransportMode
+    polyline: Optional[str] = None
+    transit_details: Optional[TransitDetails] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class Leg(BaseModel):
+    distance: float  # in kilometers
+    duration: float  # in minutes
+    start_location: Tuple[str, Tuple[float, float]]
+    end_location: Tuple[str, Tuple[float, float]]
+    steps: List[Step]
+    duration_in_traffic: Optional[float] = None
+    arrival_time: Optional[Dict[str, Any]] = None
+    departure_time: Optional[Dict[str, Any]] = None
+
+class Route(BaseModel):
+    summary: str
+    legs: List[Leg]
+    overview_polyline: str
+    bounds: Bounds
+    distance: float  # in kilometers (sum of all legs)
+    duration: float  # in minutes (sum of all legs)
+    duration_in_traffic: Optional[float] = None
+
+class DirectionsRequest(BaseModel):
+    origin: Tuple[float, float]
+    destination: Tuple[float, float]
+    waypoints: Optional[List[Tuple[float, float]]] = None
+    alternatives: bool = False
+    avoid: Optional[List[str]] = None
+    get_traffic: bool = False
+
+class DirectionsResponse(BaseModel):
+    routes: List[Route] = Field(default_factory=list)
+    travel_mode: Optional[TransportMode] = None
+    
+    model_config = ConfigDict(from_attributes=True)

@@ -39,7 +39,8 @@ class User(Base):
     role = Column(SQLEnum(Role), nullable=True, default=Role.user)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    sent_messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+    sent_messages = relationship("Message", foreign_keys="[Message.sender_id]", back_populates="sender")
+    rooms = relationship("RoomMember", back_populates="user")
     plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
@@ -49,6 +50,7 @@ class User(Base):
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
     user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
+    owned_rooms = relationship("Room", back_populates="owner", cascade="all, delete-orphan")
 
 class UserActivity(Base):
     __tablename__ = "user_activities"
