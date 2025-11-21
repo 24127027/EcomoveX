@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.destination_repository import DestinationRepository, UserSavedDestinationRepository
+from repository.destination_repository import DestinationRepository
 from schemas.destination_schema import *
 
 class DestinationService:
@@ -76,17 +76,16 @@ class DestinationService:
                 detail=f"Unexpected error deleting destination ID {destination_id}: {e}"
             )
 
-class UserSavedDestinationService:  
     @staticmethod
     async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str) -> UserSavedDestinationResponse:
         try:
-            is_saved = await UserSavedDestinationRepository.is_saved_destination(db, user_id, destination_id)
+            is_saved = await DestinationRepository.is_saved_destination(db, user_id, destination_id)
             if is_saved:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Destination already saved for this user"
                 )
-            saved = await UserSavedDestinationRepository.save_destination_for_user(db, user_id, destination_id)
+            saved = await DestinationRepository.save_destination_for_user(db, user_id, destination_id)
             if not saved:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -104,7 +103,7 @@ class UserSavedDestinationService:
     @staticmethod
     async def get_saved_destinations_for_user(db: AsyncSession, user_id: int) -> list[UserSavedDestinationResponse]:
         try:
-            saved_destinations = await UserSavedDestinationRepository.get_saved_destinations_for_user(db, user_id)
+            saved_destinations = await DestinationRepository.get_saved_destinations_for_user(db, user_id)
             saved_list = []
             for saved in saved_destinations:
                 saved_list.append(UserSavedDestinationResponse(
@@ -124,7 +123,7 @@ class UserSavedDestinationService:
     @staticmethod
     async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
-            success = await UserSavedDestinationRepository.delete_saved_destination(db, user_id, destination_id)
+            success = await DestinationRepository.delete_saved_destination(db, user_id, destination_id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -142,7 +141,7 @@ class UserSavedDestinationService:
     @staticmethod
     async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
-            saved_destinations = await UserSavedDestinationRepository.get_saved_destinations_for_user(db, user_id)
+            saved_destinations = await DestinationRepository.get_saved_destinations_for_user(db, user_id)
             for saved in saved_destinations:
                 if saved.destination_id == destination_id:
                     return True
