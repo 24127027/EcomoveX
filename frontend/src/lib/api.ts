@@ -36,19 +36,25 @@ interface ValidationError {
 interface ValidationErrorResponse {
   detail?: string | ValidationError[];
 }
-
+// User Types
 export interface UserProfileUpdate {
   username?: string;
-  email?: string;
-  avatar_url?: string;
+  avt_blob_name?: string | null;
 }
-
 export interface UserProfile {
   id: number;
   username: string;
   email: string;
   avt_url?: string | null;
   role?: string;
+}
+
+//Friend Types
+export interface FriendResponse {
+  user_id: number;
+  friend_id: number;
+  status: string;
+  created_at: string;
 }
 // Map/Location Types
 export interface Position {
@@ -139,11 +145,6 @@ export interface UploadResponse {
   url: string;
   blob_name: string;
   filename: string;
-}
-
-export interface UserProfileUpdate {
-  username?: string;
-  avt_url?: string | null; // TUYỆT ĐỐI KHÔNG ĐỂ EMAIL Ở ĐÂY
 }
 
 export interface PlanActivity {
@@ -375,6 +376,42 @@ class ApiClient {
         activities: [],
       },
     ];
+  }
+
+  // Friend Endpoints
+  
+  async getFriends(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/", {
+      method: "GET",
+    });
+  }
+
+  async getPendingRequests(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/pending", {
+      method: "GET",
+    });
+  }
+
+  async sendFriendRequest(friendId: number): Promise<FriendResponse> {
+    return this.request<FriendResponse>(`/friends/${friendId}/request`, {
+      method: "POST",
+    });
+  }
+
+  async acceptFriendRequest(friendId: number): Promise<FriendResponse> {
+    return this.request<FriendResponse>(`/friends/${friendId}/accept`, {
+      method: "POST",
+    });
+  }
+
+  async rejectFriendRequest(friendId: number): Promise<any> {
+    return this.request<void>(`/friends/${friendId}/reject`, {
+      method: "DELETE",
+    });
+  }
+
+  async unfriend(friendId: number): Promise<any> {
+    return this.request(`/friends/${friendId}`, { method: "DELETE" });
   }
 }
 

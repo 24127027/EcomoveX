@@ -182,7 +182,7 @@ class FriendRepository:
             result = await db.execute(
                 select(Friend).where(
                     and_(
-                        Friend.friend_id == user_id,
+                        Friend.user_id == user_id,
                         Friend.status == FriendStatus.pending
                     )
                 )

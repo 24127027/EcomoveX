@@ -61,7 +61,7 @@ export default function MapPage() {
 
         {/* --- FOOTER --- */}
         <footer
-          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] ${poppins.className} shrink-0 z-20`}
+          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] ${poppins.className} shrink-0 z-10`}
         >
           <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
           <div className="flex justify-around items-center px-2 pt-2 pb-3">
@@ -69,31 +69,40 @@ export default function MapPage() {
               href="/homepage"
               className="flex flex-col items-center justify-center w-1/4 text-green-600"
             >
-              <Home className="size-6" strokeWidth={2.0} />
+              <Home className="size-6 select-none" strokeWidth={2.0} />
               <span className="text-xs font-medium mt-0.5">Home</span>
             </Link>
 
             <Link
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+              href="/planning_page/showing_plan_page"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400"
             >
-              <MapPin className="size-6" strokeWidth={2.0} />
+              <MapPin
+                className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
+                strokeWidth={1.5}
+              />
               <span className="text-xs font-medium mt-0.5">Planning</span>
             </Link>
 
             <Link
               href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400"
             >
-              <Bot className="size-6" strokeWidth={1.5} />
+              <Bot
+                className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
+                strokeWidth={1.5}
+              />
               <span className="text-xs font-medium mt-0.5">Ecobot</span>
             </Link>
 
             <Link
-              href="/user_page/profile_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+              href="user_page/main_page"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400"
             >
-              <User className="size-6" strokeWidth={1.5} />
+              <User
+                className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
+                strokeWidth={1.5}
+              />
               <span className="text-xs font-medium mt-0.5">User</span>
             </Link>
           </div>
