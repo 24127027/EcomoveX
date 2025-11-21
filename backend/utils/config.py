@@ -26,6 +26,6 @@ class Settings(BaseSettings):
     
     #For Google Cloud Storage
     GCS_BUCKET_NAME: str = "ecomovex"
-    GOOGLE_APPLICATION_CREDENTIALS: str = "etc/secrets/service-account.json"
+    GOOGLE_APPLICATION_CREDENTIALS: Path = Path("etc/secrets/service-account.json")
 
 settings = Settings()

@@ -71,25 +71,27 @@ async def remove_destination_from_plan(
 ):
     return await PlanService.remove_destination_from_plan(db, destination_id)
 
-@router.get("/{plan_id}/users", response_model=UserPlanResponse, status_code=status.HTTP_200_OK)
-async def get_plan_users(
+@router.get("/{plan_id}/members", response_model=PlanMemberResponse, status_code=status.HTTP_200_OK)
+async def get_plan_members(
     plan_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    return await PlanService.get_user_plans(db, plan_id)
+    return await PlanService.get_plan_members(db, plan_id)
 
-@router.post("/{plan_id}/users", response_model=UserPlanResponse, status_code=status.HTTP_201_CREATED)
-async def add_users_to_plan(
+@router.post("/{plan_id}/members", response_model=PlanMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_members_to_plan(
     plan_id: int,
-    data: UserPlansCreate,
+    data: MemberCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    return await PlanService.add_user_plan(db, plan_id, data)
+    return await PlanService.add_plan_member(db, current_user["user_id"], plan_id, data)
 
-@router.delete("/{plan_id}/users", status_code=status.HTTP_200_OK)
-async def remove_users_from_plan(
+@router.delete("/{plan_id}/members", status_code=status.HTTP_200_OK)
+async def remove_members_from_plan(
     plan_id: int,
-    data: UserPlanDelete,
+    data: MemberDelete,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    return await PlanService.remove_user_plan(db, plan_id, data)
+    return await PlanService.remove_plan_member(db, current_user["user_id"], plan_id, data)

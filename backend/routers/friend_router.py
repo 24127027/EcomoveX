@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.friend_schema import *
+from schemas.user_schema import *
 from services.friend_service import FriendService
 from utils.token.authentication_util import get_current_user
 
@@ -14,8 +15,7 @@ async def send_friend_request(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    friend_request = FriendRequest(friend_id=friend_id)
-    return await FriendService.send_friend_request(user_db, current_user["user_id"], friend_request)
+    return await FriendService.send_friend_request(user_db, current_user["user_id"], friend_id)
 
 @router.post("/{friend_id}/accept", response_model=FriendResponse, status_code=status.HTTP_200_OK)
 async def accept_friend_request(

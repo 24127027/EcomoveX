@@ -1,43 +1,46 @@
 from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from services.room_service import RoomService
+from services.user_service import UserService
 from repository.friend_repository import FriendRepository
 from repository.user_repository import UserRepository
 from schemas.friend_schema import *
+from schemas.user_schema import *
 
 class FriendService:
     @staticmethod
-    async def send_friend_request(db: AsyncSession, user_id: int, friend_request: FriendRequest) -> FriendResponse:
+    async def send_friend_request(db: AsyncSession, user_id: int, friend_id: int) -> FriendResponse:
         try:
-            if user_id == friend_request.friend_id:
+            if user_id == friend_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot send friend request to yourself"
                 )
             
-            friend_user = await UserRepository.get_user_by_id(db, friend_request.friend_id)
+            friend_user = await UserRepository.get_user_by_id(db, friend_id)
             if not friend_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"User with ID {friend_request.friend_id} not found"
+                    detail=f"User with ID {friend_id} not found"
                 )
             
-            existing = await FriendRepository.get_friendship(db, user_id, friend_request.friend_id)
+            existing = await FriendRepository.get_friendship(db, user_id, friend_id)
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Friendship already exists"
                 )
             
-            friendship = await FriendRepository.send_friend_request(db, user_id, friend_request.friend_id)
+            friendship = await FriendRepository.send_friend_request(db, user_id, friend_id)
             if not friendship:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to send friend request"
                 )
             return FriendResponse(
-                user_id=friendship.user_id,
-                friend_id=friendship.friend_id,
+                user_id=user_id,
+                friend_id=friend_id,
                 status=friendship.status,
                 created_at=friendship.created_at
             )
@@ -60,9 +63,11 @@ class FriendService:
                     detail="Friend request not found"
                 )
                 
+            await RoomService.create_direct_room(db, user_id, friend_id)
+                
             return FriendResponse(
-                user_id=friendship.user_id,
-                friend_id=friendship.friend_id,
+                user_id=user_id,
+                friend_id=friend_id,
                 status=friendship.status,
                 created_at=friendship.created_at
             )
@@ -117,13 +122,13 @@ class FriendService:
             friend_list = []
             
             for friendship in friends:
-                friend_user_id = friendship.friend_id if friendship.user_id == user_id else friendship.user_id
+                friend_user_id = friendship.user1_id if friendship.user2_id == user_id else friendship.user2_id
                 friend_user = await UserRepository.get_user_by_id(db, friend_user_id)
                 
                 if friend_user:
                     friend_list.append(FriendResponse(
-                        user_id=friendship.user_id,
-                        friend_id=friendship.friend_id,
+                        user_id=user_id,
+                        friend_id=friend_user_id,
                         status=friendship.status,
                         created_at=friendship.created_at
                     ))
@@ -144,15 +149,12 @@ class FriendService:
             request_list = []
             
             for request in requests:
-                requester = await UserRepository.get_user_by_id(db, request.user_id)
-                
-                if requester:
-                    request_list.append(FriendResponse(
-                        user_id=request.user_id,
-                        friend_id=request.friend_id,
-                        status=request.status,
-                        created_at=request.created_at
-                    ))
+                request_list.append(FriendResponse(
+                    user_id=user_id,
+                    friend_id=request.user1_id if request.user2_id == user_id else request.user2_id,
+                    status=request.status,
+                    created_at=request.created_at
+                ))
             
             return request_list
         except HTTPException:
@@ -171,15 +173,12 @@ class FriendService:
             request_list = []
             
             for request in requests:
-                recipient = await UserRepository.get_user_by_id(db, request.friend_id)
-                
-                if recipient:
                     request_list.append(FriendResponse(
-                        user_id=request.user_id,
-                        friend_id=request.friend_id,
-                        status=request.status,
-                        created_at=request.created_at
-                    ))
+                    user_id=user_id,
+                    friend_id=request.user1_id if request.user2_id == user_id else request.user2_id,
+                    status=request.status,
+                    created_at=request.created_at
+                ))
             
             return request_list
         except HTTPException:

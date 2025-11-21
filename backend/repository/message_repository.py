@@ -61,6 +61,40 @@ class MessageRepository:
             return None
         
     @staticmethod
+    async def update_message_status(db: AsyncSession, message_id: int, new_status: MessageStatus):
+        try:
+            message = await MessageRepository.get_message_by_id(db, message_id)
+            if not message:
+                print(f"WARNING: Message not found with ID {message_id}")
+                return None
+            message.status = new_status
+            db.add(message)
+            await db.commit()
+            await db.refresh(message)
+            return message
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating status for message ID {message_id} - {e}")
+            return None
+        
+    @staticmethod
+    async def update_message_content(db: AsyncSession, message_id: int, new_content: str):
+        try:
+            message = await MessageRepository.get_message_by_id(db, message_id)
+            if not message:
+                print(f"WARNING: Message not found with ID {message_id}")
+                return None
+            message.content = new_content
+            db.add(message)
+            await db.commit()
+            await db.refresh(message)
+            return message
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating content for message ID {message_id} - {e}")
+            return None
+        
+    @staticmethod
     async def delete_message(db: AsyncSession, user_id: int, message_id: int):
         try:
             result = await db.execute(
