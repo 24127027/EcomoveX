@@ -12,7 +12,7 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.generate_signed_url(user.avt_blob_name)
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
@@ -26,9 +26,11 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
-                avt_url=url if user.avt_blob_name else None,
+                avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -40,7 +42,7 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_email(db, email)
             if user.avt_blob_name:
-                url = await StorageService.generate_signed_url(user.avt_blob_name)
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
@@ -54,9 +56,11 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
-                avt_url=url if user.avt_blob_name else None,
+                avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -68,7 +72,7 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_username(db, username)
             if user.avt_blob_name:
-                url = await StorageService.generate_signed_url(user.avt_blob_name)
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
@@ -82,9 +86,11 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
-                avt_url=url if user.avt_blob_name else None,
+                avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -102,7 +108,7 @@ class UserService:
 
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.generate_signed_url(user.avt_blob_name)
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
@@ -138,9 +144,11 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
-                avt_url=url if user.avt_blob_name else None,
+                avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -152,7 +160,7 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.generate_signed_url(user.avt_blob_name)
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
@@ -180,9 +188,11 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
-                avt_url=url if user.avt_blob_name else None,
+                avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -194,7 +204,7 @@ class UserService:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if user.avt_blob_name:
-                url = await StorageService.generate_signed_url(user.avt_blob_name)
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
@@ -216,7 +226,7 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
-                avt_url=url if user.avt_blob_name else None,
+                avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
         except HTTPException:
@@ -237,6 +247,8 @@ class UserService:
                     detail=f"User with ID {user_id} not found"
                 )
             return {"detail": "User deleted successfully"}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -259,6 +271,8 @@ class UserActivityService:
                 activity=activity.activity,
                 timestamp=activity.timestamp.isoformat()
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -280,6 +294,8 @@ class UserActivityService:
                     )
                 )
             return activity_list
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
