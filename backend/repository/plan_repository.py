@@ -6,9 +6,40 @@ from schemas.plan_schema import *
 
 class PlanRepository:
     @staticmethod
+    async def is_plan_owner(db: AsyncSession, user_id: int, plan_id: int) -> bool:
+        try:
+            result = await db.execute(
+                select(PlanMember).where(
+                    PlanMember.plan_id == plan_id, 
+                    PlanMember.user_id == user_id, 
+                    PlanMember.role == PlanRole.owner
+                )
+            )
+            plan = result.scalar_one_or_none()
+            return plan is not None
+        except SQLAlchemyError as e:
+            print(f"ERROR: checking plan ownership for user ID {user_id} and plan ID {plan_id} - {e}")
+            return False
+        
+    @staticmethod
+    async def is_member(db: AsyncSession, user_id: int, plan_id: int) -> bool:
+        try:
+            result = await db.execute(
+                select(PlanMember).where(
+                    PlanMember.user_id == user_id,
+                    PlanMember.plan_id == plan_id,
+                )
+            )
+            membership = result.scalar_one_or_none()
+            return membership is not None
+        except SQLAlchemyError as e:
+            print(f"ERROR: checking membership for user ID {user_id} and plan ID {plan_id} - {e}")
+            return False
+    
+    @staticmethod
     async def get_plan_by_user_id(db: AsyncSession, user_id: int):
         try:
-            result = await db.execute(select(Plan).where(Plan.user_id == user_id))
+            result = await db.execute(select(Plan).join(PlanMember).where(PlanMember.user_id == user_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving plans for user ID {user_id} - {e}")
@@ -24,10 +55,9 @@ class PlanRepository:
             return None
 
     @staticmethod
-    async def create_plan(db: AsyncSession, user_id: int, plan_data: PlanCreate):
+    async def create_plan(db: AsyncSession, plan_data: PlanCreate):
         try:
             new_plan = Plan(
-                user_id=user_id,
                 place_name=plan_data.place_name,
                 start_date=plan_data.start_date,
                 end_date=plan_data.end_date,
@@ -88,7 +118,6 @@ class PlanRepository:
 
     @staticmethod
     async def get_plan_destinations(db: AsyncSession, plan_id: int):
-        """Get all destinations for a specific plan"""
         try:
             result = await db.execute(
                 select(PlanDestination).where(PlanDestination.plan_id == plan_id)
@@ -162,26 +191,27 @@ class PlanRepository:
             return False
     
     @staticmethod
-    async def add_user_plan(db: AsyncSession, user_id: int, plan_id: int):
+    async def add_plan_member(db: AsyncSession, plan_id: int, data: PlanMemberCreate):
         try:
-            new_user_plan = UserPlan(
-                user_id=user_id,
-                plan_id=plan_id
+            new_plan_member = PlanMember(
+                user_id=data.user_id,
+                plan_id=plan_id,
+                role=data.role
             )
-            db.add(new_user_plan)
+            db.add(new_plan_member)
             await db.commit()
-            await db.refresh(new_user_plan)
-            return new_user_plan
+            await db.refresh(new_plan_member)
+            return new_plan_member
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding user plan for user ID {user_id} and plan ID {plan_id} - {e}")
+            print(f"ERROR: adding plan member for user ID {data.user_id} and plan ID {plan_id} - {e}")
             return None
         
     @staticmethod
-    async def get_user_plans(db: AsyncSession, plan_id: int):
+    async def get_plan_members(db: AsyncSession, plan_id: int):
         try:
             result = await db.execute(
-                select(UserPlan).where(UserPlan.plan_id == plan_id)
+                select(PlanMember).where(PlanMember.plan_id == plan_id)
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
@@ -189,17 +219,17 @@ class PlanRepository:
             return []
     
     @staticmethod
-    async def remove_user_plan(db: AsyncSession, user_id:int, plan_id:int):
+    async def remove_plan_member(db: AsyncSession, plan_id: int, member_id: int):
         try:
             result = await db.execute(
-                select(UserPlan).where(
-                    UserPlan.user_id == user_id,
-                    UserPlan.plan_id == plan_id
+                select(PlanMember).where(
+                    PlanMember.user_id == member_id,
+                    PlanMember.plan_id == plan_id
                 )
             )
             user_plan = result.scalar_one_or_none()
             if not user_plan:
-                print(f"WARNING: WARNING: UserPlan for user ID {user_id} and plan ID {plan_id} not found")
+                print(f"WARNING: WARNING: UserPlan for user ID {member_id} and plan ID {plan_id} not found")
                 return False
 
             await db.delete(user_plan)
@@ -207,5 +237,5 @@ class PlanRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: removing user plan for user ID {user_id} and plan ID {plan_id} - {e}")
+            print(f"ERROR: removing user plan for user ID {member_id} and plan ID {plan_id} - {e}")
             return False

@@ -1,26 +1,30 @@
 from enum import Enum
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, PrimaryKeyConstraint
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum as SQLEnum
 from database.db import Base
 
 class FriendStatus(str, Enum):
-    requested = "Requested"
-    pending = "Pending"
-    friend = "Friend"
-    
+    pending = "pending"
+    friend = "friend"
+
 class Friend(Base):
     __tablename__ = "friends"
-    
+
     __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'friend_id'),
+        PrimaryKeyConstraint("user1_id", "user2_id"),
+        CheckConstraint("user1_id < user2_id", name="ck_user1_lt_user2"),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
-    friend_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
-    status = Column(SQLEnum(FriendStatus), default=FriendStatus.pending)
+    user1_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user2_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status = Column(SQLEnum(FriendStatus), nullable=False, default=FriendStatus.pending)
+
+    action_by = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user = relationship("User", foreign_keys=[user_id], back_populates="friends")
-    friend = relationship("User", foreign_keys=[friend_id])
+    user1 = relationship("User", foreign_keys=[user1_id])
+    user2 = relationship("User", foreign_keys=[user2_id])
+    action_user = relationship("User", foreign_keys=[action_by])
+    

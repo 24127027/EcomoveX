@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Index, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
@@ -29,38 +29,45 @@ class User(Base):
     password = Column(String(255), nullable=False)
     avt_blob_name = Column(String(255), nullable=True)
     cover_blob_name = Column(String(255), nullable=True)
+
+    # preferences / filters
     temp_min = Column(Float, nullable=True, default=0)
     temp_max = Column(Float, nullable=True, default=0)
     budget_min = Column(Float, nullable=True, default=0)
     budget_max = Column(Float, nullable=True, default=0)
+
+    # gamification
     eco_point = Column(Integer, nullable=True, default=0)
     rank = Column(SQLEnum(Rank), nullable=True, default=Rank.bronze)
     role = Column(SQLEnum(Role), nullable=True, default=Role.user)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    sent_messages = relationship("Message", foreign_keys="[Message.sender_id]", back_populates="sender")
-    rooms = relationship("RoomMember", back_populates="user")
-    plans = relationship("Plan", back_populates="user", cascade="all, delete-orphan")
+    # relationships
+    sent_messages = relationship("Message", foreign_keys="[Message.sender_id]", back_populates="sender", cascade="all, delete-orphan")
+    rooms = relationship("RoomMember", back_populates="user", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
-    friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
-    user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
-    owned_rooms = relationship("Room", back_populates="owner", cascade="all, delete-orphan")
-
+    plan_members = relationship("PlanMember", back_populates="user", cascade="all, delete-orphan")
+    friendships1 = relationship("Friend", foreign_keys="[Friend.user1_id]", back_populates="user1", cascade="all, delete-orphan")
+    friendships2 = relationship("Friend", foreign_keys="[Friend.user2_id]", back_populates="user2", cascade="all, delete-orphan")
+    friend_actions = relationship("Friend", foreign_keys="[Friend.action_by]", back_populates="action_user", cascade="all, delete-orphan")
+    
 class UserActivity(Base):
     __tablename__ = "user_activities"
-    
     __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'destination_id', 'timestamp'),
+        Index("ix_user_activity_user_timestamp", "user_id", "timestamp"),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
-    destination_id = Column(Integer, nullable=False, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    destination_id = Column(String(255),ForeignKey("destinations.google_place_id", ondelete="CASCADE"), nullable=False, index=True)
     activity = Column(SQLEnum(Activity), nullable=False)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), primary_key=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="activity_logs")
+    destination = relationship("Destination", back_populates="user_activities")

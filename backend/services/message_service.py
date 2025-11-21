@@ -40,7 +40,7 @@ class MessageService:
     @staticmethod
     async def get_message_by_keyword(db: AsyncSession, user_id: int, room_id: int, keyword: str) -> list[MessageResponse]:
         try:
-            is_member = await RoomService.is_user_in_room(db, user_id, room_id)
+            is_member = await RoomService.is_member(db, user_id, room_id)
             if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -71,7 +71,7 @@ class MessageService:
     @staticmethod
     async def get_messages_by_room(db: AsyncSession, user_id: int, room_id: int) -> list[MessageResponse]:
         try:
-            is_member = await RoomService.is_user_in_room(db, user_id, room_id)
+            is_member = await RoomService.is_member(db, user_id, room_id)
             if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -102,7 +102,7 @@ class MessageService:
     @staticmethod
     async def create_message(db: AsyncSession, sender_id: int, room_id: int, message_data: MessageCreate) -> MessageResponse:
         try:
-            is_member = await RoomService.is_user_in_room(db, sender_id, room_id)
+            is_member = await RoomService.is_member(db, sender_id, room_id)
             if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
