@@ -7,33 +7,35 @@ class DestinationType(str, Enum):
     restaurant = "restaurant"
     hotel = "hotel"
     attraction = "attraction"
+    
+class PlanRole(str, Enum):
+    owner = "owner"
+    member = "member"
 
 class Plan(Base):
     __tablename__ = "plans"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     place_name = Column(String(255), nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     budget_limit = Column(Float, nullable=True)
 
     destinations = relationship("PlanDestination", back_populates="plan", cascade="all, delete-orphan")
-    user = relationship("User", back_populates="plans")
-    user_plans = relationship("UserPlan", back_populates="plan", cascade="all, delete-orphan")
+    members = relationship("PlanMember", back_populates="plan", cascade="all, delete-orphan")
     
-class UserPlan(Base):
-    __tablename__ = "user_plans"
-    
+class PlanMember(Base):
+    __tablename__ = "plan_members"  
     __table_args__ = (
         PrimaryKeyConstraint('user_id', 'plan_id'),
     )
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    role = Column(SQLEnum(PlanRole), default=PlanRole.member, nullable=False)
 
-    user = relationship("User", back_populates="user_plans")
-    plan = relationship("Plan", back_populates="user_plans")
+    user = relationship("User", back_populates="plan_members")
+    plan = relationship("Plan", back_populates="members")
 
 class PlanDestination(Base):
     __tablename__ = "plan_destinations"
