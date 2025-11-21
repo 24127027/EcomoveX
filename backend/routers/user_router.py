@@ -16,6 +16,27 @@ async def get_my_profile(
 ):
     return await UserService.get_user_by_id(db, current_user["user_id"])
 
+@router.get("/id/{user_id}", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def get_user_profile(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    return await UserService.get_user_by_id(db, user_id)
+    
+@router.get("/username/{username}", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def get_user_by_username(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await UserService.get_user_by_username(db, username)
+
+@router.get("/email/{email}", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def get_user_by_email(
+    email: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await UserService.get_user_by_email(db, email)
+
 @router.put("/me/credentials", response_model=UserResponse, status_code=status.HTTP_200_OK)
 async def update_user_credentials(
     updated_data: UserCredentialUpdate,
