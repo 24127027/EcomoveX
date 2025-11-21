@@ -33,9 +33,9 @@ async def lifespan(app: FastAPI):
     
     try:
         await init_db(drop_all=False)
-        print("User database initialized")
+        print("Database initialized")
     except Exception as e:
-        print(f"WARNING: User database initialization failed - {e}")
+        print(f"WARNING: Database initialization failed - {e}")
         
     # Refresh emission factors from carbonAPI API    
     yield  # App is running
@@ -45,9 +45,9 @@ async def lifespan(app: FastAPI):
     
     try:
         await engine.dispose()
-        print("User database connections closed")
+        print("Database connections closed")
     except Exception as e:
-        print(f"ERROR: Failed to close user database - {e}")
+        print(f"ERROR: Failed to close database - {e}")
     
 
 # Create FastAPI application

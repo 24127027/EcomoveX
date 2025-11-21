@@ -8,10 +8,6 @@ class MessageType(str, Enum):
     text = "text"
     file = "file"
 
-class Sender(str, Enum):
-    user = "user"
-    bot = "bot" # bot have a unique user id (0)
-
 class MessageStatus(str, Enum):
     sent = "sent"
     seen = "seen"
