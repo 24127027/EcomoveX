@@ -11,7 +11,13 @@ interface PlaceDetailsWithDistance extends PlaceDetails {
 }
 
 const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
-  const distanceKm = await api.birdDistance(userPos, details.geometry.location);
+  const rawLoc = details.geometry.location;
+
+  const destination: Position = Array.isArray(rawLoc)
+    ? { lat: rawLoc[0], lng: rawLoc[1] }
+    : rawLoc;
+
+  const distanceKm = await api.birdDistance(userPos, destination);
   const distanceText = distanceKm < 1 
     ? `${Math.round(distanceKm * 1000)}m away`
     : `${distanceKm.toFixed(1)}km away`;
