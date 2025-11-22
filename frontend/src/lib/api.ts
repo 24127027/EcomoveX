@@ -349,7 +349,7 @@ class ApiClient {
       {
         id: 201,
         destination: "Ho Chi Minh City (Upcoming)",
-        date: "20/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        date: "30/11/2025", // Ngày tương lai (Sẽ là Current Plan)
         activities: [
           {
             id: 1,
@@ -364,7 +364,7 @@ class ApiClient {
       {
         id: 101,
         destination: "District 1 (Past)",
-        date: "04/01/2024", // Ngày quá khứ
+        date: "04/01/2026", // Ngày quá khứ
         activities: [
           // ... (Dữ liệu cũ)
         ],

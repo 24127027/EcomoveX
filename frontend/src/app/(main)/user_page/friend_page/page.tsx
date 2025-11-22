@@ -91,6 +91,34 @@ export default function FriendsPage() {
       setFeedback({ text: "User ID must be a number", type: "error" });
       return;
     }
+    if (currentUserId && idToSend === currentUserId) {
+      setFeedback({ text: "You cannot add yourself", type: "error" });
+      return;
+    }
+
+    const isAlreadySent = sentRequests.some(
+      (req) => req.friend_id === idToSend
+    );
+    if (isAlreadySent) {
+      setFeedback({
+        text: "Request already sent! (Check 'Sent' tab)",
+        type: "error",
+      });
+      return;
+    }
+
+    const isAlreadyFriend = friends.some((f) => {
+      const displayId = currentUserId === f.user_id ? f.friend_id : f.user_id;
+      return displayId === idToSend;
+    });
+
+    if (isAlreadyFriend) {
+      setFeedback({
+        text: "This user is already your friend",
+        type: "error",
+      });
+      return;
+    }
     try {
       setAddLoading(true);
       await api.sendFriendRequest(idToSend); //
@@ -99,9 +127,10 @@ export default function FriendsPage() {
         type: "success",
       });
       setInputFriendId("");
-      fetchData(); // Load lại data để cập nhật tab Sent
+      fetchData();
     } catch (error: any) {
       const msg = error.message?.toLowerCase() || "";
+      console.log("Error message from server:", msg);
       if (msg.includes("not found") || msg.includes("404")) {
         setFeedback({
           text: "ID doesn't exist. Please try again",

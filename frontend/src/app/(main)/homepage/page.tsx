@@ -7,40 +7,51 @@ import {
   Gotu,
   Jost,
 } from "next/font/google";
-import { Home, MapPin, Bot, User } from "lucide-react";
+import {
+  Home,
+  MapPin,
+  Bot,
+  User,
+  Search,
+  Heart,
+  Bookmark,
+  Map,
+  Calendar,
+  ArrowRight, // Import thêm icon
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Heart, Bookmark, Map } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, TravelPlan } from "@/lib/api"; // Import đúng Type
 
-export const gotu = Gotu({
-  subsets: ["latin"],
-  weight: ["400"],
-});
-export const jost = Jost({
-  subsets: ["latin"],
-  weight: ["700"],
-});
+export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
+export const jost = Jost({ subsets: ["latin"], weight: ["700"] });
 export const abhaya_libre = Abhaya_Libre({
   subsets: ["latin"],
   weight: ["700"],
 });
-
-export const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["300"],
-});
+export const poppins = Poppins({ subsets: ["latin"], weight: ["300"] });
 export const josefin_sans = Josefin_Sans({
   subsets: ["latin"],
   weight: ["700"],
 });
+export const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
 
-export const knewave = Knewave({
-  subsets: ["latin"],
-  weight: ["400"],
-});
+// Hàm helper để chuyển chuỗi "dd/mm/yyyy" thành đối tượng Date
+const parseDate = (dateStr: string) => {
+  if (!dateStr) return new Date(0); // Return epoch if null
+  const parts = dateStr.split("/");
+  if (parts.length === 3) {
+    // dd/mm/yyyy -> new Date(yyyy, mm-1, dd)
+    return new Date(
+      parseInt(parts[2]),
+      parseInt(parts[1]) - 1,
+      parseInt(parts[0])
+    );
+  }
+  return new Date(dateStr); // Fallback
+};
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,20 +60,55 @@ export default function HomePage() {
   const router = useRouter();
   const [requestCount, setRequestCount] = useState(0);
 
-  // 2. Gọi API lấy danh sách lời mời khi vào trang
+  // State cho Plan
+  const [upcomingPlan, setUpcomingPlan] = useState<TravelPlan | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
+
+  // 1. Lấy số lượng lời mời kết bạn
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        // DÙNG API CÓ SẴN (Không cần sửa Backend)
         const list = await api.getPendingRequests();
-        // Lấy độ dài mảng = số lượng lời mời
         setRequestCount(list.length);
       } catch (error) {
         console.error("Failed to fetch requests", error);
       }
     };
-
     fetchRequests();
+  }, []);
+
+  // 2. Lấy kế hoạch sắp tới
+  useEffect(() => {
+    const fetchUpcomingPlan = async () => {
+      try {
+        const plans = await api.getPlans();
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Lọc các plan có ngày >= hôm nay
+        // Lưu ý: api.ts của bạn đang dùng field 'date' string kiểu "20/11/2025"
+        const futurePlans = plans.filter((p) => {
+          const planDate = parseDate(p.date);
+          return planDate >= today;
+        });
+
+        // Sắp xếp: Plan nào gần nhất lên đầu
+        futurePlans.sort(
+          (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
+        );
+
+        if (futurePlans.length > 0) {
+          setUpcomingPlan(futurePlans[0]);
+        }
+      } catch (error) {
+        console.error("Failed to load plans", error);
+      } finally {
+        setLoadingPlan(false);
+      }
+    };
+
+    fetchUpcomingPlan();
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,15 +116,10 @@ export default function HomePage() {
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault(); // Chặn việc tải lại trang mặc định
-
-    // Nếu có từ khóa thì mới chuyển trang
+    e.preventDefault();
     if (searchQuery.trim()) {
-      // Chuyển sang trang map kèm theo từ khóa trên URL
-      // Ví dụ: /map_page?q=Green%20Coffee
       router.push(`/map_page?q=${encodeURIComponent(searchQuery.trim())}`);
     } else {
-      // Nếu rỗng thì cứ chuyển qua map mặc định
       router.push("/map_page");
     }
   };
@@ -87,9 +128,15 @@ export default function HomePage() {
     router.push("/map_page?nearby=true");
   };
 
+  // Helper xử lý click tag
+  const handleTagClick = (tag: string) => {
+    router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+  };
+
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-gray-50 h-screen flex flex-col overflow-hidden shadow-2xl relative">
+        {/* --- HEADER --- */}
         <header className="bg-[#53B552] px-4 pt-5 pb-6 shadow-md shrink-0 z-10">
           <form
             onSubmit={handleSearchSubmit}
@@ -99,19 +146,19 @@ export default function HomePage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
               <input
                 type="text"
-                className={`${abhaya_libre.className} w-full rounded-full py-2 pl-10 pr-12 text-sm
-              bg-white text-black focus:outline-none focus:ring-2 focus:ring-green-300 placeholder:text-green-700 placeholder:font-semibold`}
+                className={`${abhaya_libre.className} w-full rounded-full py-2 pl-10 pr-12 text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-green-300 placeholder:text-green-700 placeholder:font-semibold`}
                 placeholder="Search for an eco-friendly place"
                 value={searchQuery}
                 onChange={handleChange}
               />
-              <Link
-                href="/map_page" // Đường dẫn đến trang map của bạn
+              <button
+                type="button" // Đổi thành button để tránh submit form sai
+                onClick={() => router.push("/map_page")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 transition-colors"
                 title="View on Map"
               >
                 <Map className="size-5 text-green-600" />
-              </Link>
+              </button>
             </div>
             <div
               className={`${knewave.className} text-white font-bold text-2xl select-none`}
@@ -123,7 +170,8 @@ export default function HomePage() {
             {["Café", "Restaurant", "Park", "Hotel", "Shopping"].map((i) => (
               <button
                 key={i}
-                className={`${jost.className} cursor-pointer bg-white text-[#53B552] rounded-full px-4 py-1 text-sm font-medium hover:text-white hover:bg-green-500`}
+                onClick={() => handleTagClick(i)} // Thêm sự kiện click
+                className={`${jost.className} cursor-pointer bg-white text-[#53B552] rounded-full px-4 py-1 text-sm font-medium hover:text-white hover:bg-green-500 transition-colors`}
               >
                 {i}
               </button>
@@ -131,9 +179,11 @@ export default function HomePage() {
           </div>
         </header>
 
+        {/* --- MAIN CONTENT --- */}
         <main
           className={`p-4 flex-1 overflow-y-auto flex flex-col gap-5 pb-20`}
         >
+          {/* SECTION 1: Most Visited */}
           <section
             className={`bg-[#F9FFF9] rounded-xl shadow-sm p-4 border border-green-100`}
           >
@@ -142,12 +192,14 @@ export default function HomePage() {
             >
               Most Visited Green Places
             </h2>
-            <div className="relative w-full h-48 rounded-lg overflow-hidden">
+            <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-200">
+              {/* Fallback nếu ảnh lỗi */}
               <Image
                 src="/images/tao-dan-park.png"
                 alt="Tao Dan Park"
                 layout="fill"
                 objectFit="cover"
+                className="hover:scale-105 transition-transform duration-500"
               />
             </div>
             <div className="flex gap-2 justify-between items-center mt-3">
@@ -182,53 +234,95 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <div className="flex justify-center gap-2 mt-4">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-200"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-200"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-200"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-200"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-200"></div>
-            </div>
           </section>
 
+          {/* SECTION 2: Upcoming Plan + Nearby */}
           <section className={`grid grid-cols-2 gap-4`}>
-            <div className="bg-linear-to-b from-green-500 to-green-50 rounded-xl p-4 text-black flex flex-col shadow-lg min-h-[150px]">
-              {/* Nội dung Your last trip */}
+            {/* UPCOMING PLAN CARD (Đã sửa lỗi và điền nội dung) */}
+            <div className="bg-linear-to-b from-green-500 to-green-600 rounded-xl p-4 text-white flex flex-col justify-between shadow-lg min-h-[150px] relative overflow-hidden group">
+              {/* Decoration Circle */}
+              <div className="absolute -right-6 -top-6 w-20 h-20 bg-white/10 rounded-full"></div>
+
+              {loadingPlan ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 bg-white/20 rounded w-1/2"></div>
+                  <div className="h-6 bg-white/30 rounded w-3/4"></div>
+                </div>
+              ) : upcomingPlan ? (
+                <>
+                  <div>
+                    <div className="flex items-center gap-1 mb-1 opacity-90">
+                      <Calendar size={14} />
+                      <span
+                        className={`${jost.className} text-[10px] uppercase tracking-wider`}
+                      >
+                        Upcoming Trip
+                      </span>
+                    </div>
+                    <h3
+                      className={`${abhaya_libre.className} text-lg font-bold leading-tight line-clamp-2`}
+                    >
+                      {upcomingPlan.destination}
+                    </h3>
+                    <p className="text-xs text-green-100 mt-1 font-medium">
+                      {upcomingPlan.date}
+                    </p>
+                  </div>
+
+                  <Link href={`/planning_page/showing_plan_page`}>
+                    <button className="mt-3 w-full bg-white/20 hover:bg-white/30 transition-colors rounded-full py-1.5 px-3 text-xs font-bold flex items-center justify-center gap-1 backdrop-blur-sm">
+                      View Plan <ArrowRight size={12} />
+                    </button>
+                  </Link>
+                </>
+              ) : (
+                <div className="flex flex-col h-full justify-center items-start">
+                  <p
+                    className={`${abhaya_libre.className} text-lg font-bold mb-2`}
+                  >
+                    New Adventure?
+                  </p>
+                  <Link href="/planning_page/create_plan" className="w-full">
+                    <button className="w-full bg-white text-green-600 py-2 rounded-full text-xs font-bold shadow-md hover:bg-green-50 transition-colors">
+                      + Create Plan
+                    </button>
+                  </Link>
+                </div>
+              )}
             </div>
 
-            <div className="bg-linear-to-b from-green-50 to-green-400 rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+            {/* NEARBY CARD */}
+            <div className="bg-linear-to-b from-green-50 to-green-100 rounded-xl p-4 shadow-sm border border-green-100 flex flex-col items-center justify-center text-center">
               <h3
-                className={`${abhaya_libre.className} text-green-700 font-semibold text-xl uppercase leading-tight`}
+                className={`${abhaya_libre.className} text-green-700 font-semibold text-lg uppercase leading-tight`}
               >
-                Nearby Eco-Friendly Spots
+                Nearby Eco Spots
               </h3>
               <button
                 onClick={handleSearchNearby}
-                className={`${jost.className} bg-green-600 text-white rounded-full px-5 py-2 text-sm font-semibold mt-4 hover:text-green-500 hover:bg-white cursor-pointer`}
+                className={`${jost.className} bg-green-600 text-white rounded-full px-5 py-2 text-xs font-semibold mt-3 hover:bg-green-700 hover:shadow-lg transition-all`}
               >
                 Search Now
               </button>
             </div>
           </section>
 
-          <section className="bg-[#E9F5EB] rounded-2xl p-6 shadow-sm mt-4">
+          {/* SECTION 3: Explore Activities */}
+          <section className="bg-[#E9F5EB] rounded-2xl p-6 shadow-sm mt-0">
             <h3
-              className={`${josefin_sans.className} text-[#5BB95B] text-2xl font-bold leading-tight mb-3`}
+              className={`${josefin_sans.className} text-[#5BB95B] text-xl font-bold leading-tight mb-2`}
             >
               Explore Local Green Activities
             </h3>
-
             <p
-              className={`${abhaya_libre.className} text-gray-700 text-lg leading-relaxed`}
+              className={`${abhaya_libre.className} text-gray-600 text-sm leading-relaxed mb-4`}
             >
               Discover eco-friendly experiences near you and make every trip
               meaningful.
             </p>
-
-            <div className="flex justify-end mt-5">
+            <div className="flex justify-end">
               <button
-                className={`${jost.className} border-[3px] border-[#6BC86A] text-[#5BB95B] bg-transparent rounded-full px-10 py-1.5 text-lg font-bold hover:bg-[#5BB95B] hover:text-white hover:border-[#5BB95B] transition-all duration-300 shadow-sm`}
+                className={`${jost.className} border-2 border-[#6BC86A] text-[#5BB95B] bg-transparent rounded-full px-8 py-1.5 text-sm font-bold hover:bg-[#5BB95B] hover:text-white transition-all duration-300`}
               >
                 Explore
               </button>
@@ -236,63 +330,49 @@ export default function HomePage() {
           </section>
         </main>
 
+        {/* --- FOOTER --- */}
         <footer
-          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-10`} // Thêm ${poppins.className} nếu cần
+          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-10`}
         >
-          <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
+          <div className="h-0.5 bg-linear-to-r from-transparent via-green-200 to-transparent opacity-70"></div>
           <div className="flex justify-around items-center px-2 pt-2 pb-3">
-            {/* HOME (Active - Xanh) */}
             <Link
               href="/homepage"
               className="flex flex-col items-center justify-center w-1/4 text-green-600"
             >
-              <Home className="size-6 select-none" strokeWidth={2.0} />
-              <span className="text-xs font-medium mt-0.5">Home</span>
+              <Home className="size-6" strokeWidth={2.0} />
+              <span className="text-[10px] font-bold mt-1">Home</span>
             </Link>
 
-            {/* PLANNING (Gray) */}
             <Link
               href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
             >
-              <MapPin
-                className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
-                strokeWidth={1.5}
-              />
-              <span className="text-xs font-medium mt-0.5">Planning</span>
+              <MapPin className="size-6" strokeWidth={1.5} />
+              <span className="text-[10px] font-medium mt-1">Planning</span>
             </Link>
 
-            {/* ECOBOT (Gray) */}
             <Link
               href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
             >
-              <Bot
-                className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
-                strokeWidth={1.5}
-              />
-              <span className="text-xs font-medium mt-0.5">Ecobot</span>
+              <Bot className="size-6" strokeWidth={1.5} />
+              <span className="text-[10px] font-medium mt-1">Ecobot</span>
             </Link>
 
-            {/* USER (Gray + Notification Badge) */}
             <Link
               href="user_page/main_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400" // Vẫn giữ màu xám
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors relative"
             >
               <div className="relative">
-                <User
-                  className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
-                  strokeWidth={1.5}
-                />
-
-                {/* Logic hiển thị Badge đỏ */}
+                <User className="size-6" strokeWidth={1.5} />
                 {requestCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-xs animate-in zoom-in">
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-in zoom-in">
                     {requestCount > 9 ? "9+" : requestCount}
                   </span>
                 )}
               </div>
-              <span className="text-xs font-medium mt-0.5">User</span>
+              <span className="text-[10px] font-medium mt-1">User</span>
             </Link>
           </div>
         </footer>
