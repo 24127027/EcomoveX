@@ -62,7 +62,7 @@ class FriendService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Friend request not found"
                 )
-            is_direct_room = await RoomService.get_direct_rooms_between_users(db, user_id, friend_id)
+            is_direct_room = await RoomService.is_direct_room_between_users(db, user_id, friend_id)
             if not is_direct_room:
                 await RoomService.create_direct_room(db, user_id, friend_id)
                 
