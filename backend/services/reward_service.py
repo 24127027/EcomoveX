@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.mission_repository import MissionRepository, UserMissionRepository
+from repository.mission_repository import MissionRepository
 from schemas.reward_schema import *
 
 class RewardService:
@@ -119,7 +119,7 @@ class RewardService:
     @staticmethod
     async def all_completed_missions(db: AsyncSession, user_id: int) -> UserRewardResponse:
         try:
-            completed_missions = await UserMissionRepository.get_all_missions_by_user(db, user_id)
+            completed_missions = await MissionRepository.get_all_missions_by_user(db, user_id)
             mission_list = []
             value = 0
             for mission_id in completed_missions:
@@ -157,14 +157,14 @@ class RewardService:
                     detail=f"Mission with ID {mission_id} not found"
                 )
 
-            already_completed = await UserMissionRepository.completed_mission(db, user_id, mission_id)
+            already_completed = await MissionRepository.completed_mission(db, user_id, mission_id)
             if already_completed:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"User {user_id} has already completed mission {mission_id}"
                 )
 
-            new_user_mission = await UserMissionRepository.add_mission_to_user(
+            new_user_mission = await MissionRepository.add_mission_to_user(
                 db,
                 user_id=user_id,
                 mission_id=mission_id
@@ -186,7 +186,7 @@ class RewardService:
     @staticmethod
     async def remove_mission_from_user(db: AsyncSession, user_id: int, mission_id: int):
         try:
-            success = await UserMissionRepository.remove_user_mission(db, user_id, mission_id)
+            success = await MissionRepository.remove_user_mission(db, user_id, mission_id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,

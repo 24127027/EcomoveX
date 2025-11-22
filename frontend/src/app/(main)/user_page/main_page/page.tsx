@@ -63,15 +63,16 @@ export default function ProfilePage() {
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
         {/* --- HEADER --- */}
         <div className="bg-[#E3F1E4] h-[180px] rounded-b-[50px] relative w-full shrink-0">
-          <button className="absolute top-6 left-4 bg-white px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-green-50 transition-colors">
-            <Users size={18} className="text-green-600" />
-            <span
-              className={`${jost.className} text-green-700 text-xs font-bold`}
-            >
-              View Friends
-            </span>
-          </button>
-
+          <Link href="/user_page/friend_page">
+            <button className="absolute top-6 left-4 bg-white px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-green-50 transition-colors">
+              <Users size={18} className="text-green-600" />
+              <span
+                className={`${jost.className} text-green-700 text-xs font-bold`}
+              >
+                View Friends
+              </span>
+            </button>
+          </Link>
           <Link href="/user_page/setting_page">
             <button className="absolute top-6 right-4 bg-white px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-green-50 transition-colors">
               <Settings size={18} className="text-green-600" />
@@ -89,7 +90,7 @@ export default function ProfilePage() {
           <div className="p-1.5 bg-white rounded-full shadow-md z-10">
             <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white bg-gray-200">
               <Image
-                src={user?.avatar_url || "/images/default-avatar.png"}
+                src={user?.avt_url || "/images/default-avatar.png"}
                 alt="Avatar"
                 fill
                 className="object-cover"
@@ -182,7 +183,7 @@ export default function ProfilePage() {
               </span>
             </Link>
             <Link
-              href="#"
+              href="/planning_page/showing_plan_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
               <MapPin size={24} strokeWidth={2} />

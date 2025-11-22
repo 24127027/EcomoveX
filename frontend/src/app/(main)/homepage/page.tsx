@@ -10,9 +10,10 @@ import {
 import { Home, MapPin, Bot, User } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Heart, Bookmark } from "lucide-react"; // Đã xóa Star vì chưa dùng
+import { Search, Heart, Bookmark, Map } from "lucide-react";
+import { api } from "@/lib/api";
 
 export const gotu = Gotu({
   subsets: ["latin"],
@@ -46,6 +47,23 @@ export default function HomePage() {
   const [heart, setHeart] = useState(false);
   const [bookMark, setBookMark] = useState(false);
   const router = useRouter();
+  const [requestCount, setRequestCount] = useState(0);
+
+  // 2. Gọi API lấy danh sách lời mời khi vào trang
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        // DÙNG API CÓ SẴN (Không cần sửa Backend)
+        const list = await api.getPendingRequests();
+        // Lấy độ dài mảng = số lượng lời mời
+        setRequestCount(list.length);
+      } catch (error) {
+        console.error("Failed to fetch requests", error);
+      }
+    };
+
+    fetchRequests();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -70,9 +88,7 @@ export default function HomePage() {
   };
 
   return (
-    // 1. WRAPPER NGOÀI CÙNG (Màu xám, căn giữa)
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
-      {/* 2. KHUNG APP (Giới hạn chiều rộng max-w-md ~ 450px) */}
       <div className="w-full max-w-md bg-gray-50 h-screen flex flex-col overflow-hidden shadow-2xl relative">
         <header className="bg-[#53B552] px-4 pt-5 pb-6 shadow-md shrink-0 z-10">
           <form
@@ -83,12 +99,19 @@ export default function HomePage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
               <input
                 type="text"
-                className={`${abhaya_libre.className} w-full rounded-full py-2 pl-10 pr-3 text-sm
+                className={`${abhaya_libre.className} w-full rounded-full py-2 pl-10 pr-12 text-sm
               bg-white text-black focus:outline-none focus:ring-2 focus:ring-green-300 placeholder:text-green-700 placeholder:font-semibold`}
                 placeholder="Search for an eco-friendly place"
                 value={searchQuery}
                 onChange={handleChange}
               />
+              <Link
+                href="/map_page" // Đường dẫn đến trang map của bạn
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                title="View on Map"
+              >
+                <Map className="size-5 text-green-600" />
+              </Link>
             </div>
             <div
               className={`${knewave.className} text-white font-bold text-2xl select-none`}
@@ -214,10 +237,11 @@ export default function HomePage() {
         </main>
 
         <footer
-          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] ${poppins.className} shrink-0 z-10`}
+          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-10`} // Thêm ${poppins.className} nếu cần
         >
           <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
           <div className="flex justify-around items-center px-2 pt-2 pb-3">
+            {/* HOME (Active - Xanh) */}
             <Link
               href="/homepage"
               className="flex flex-col items-center justify-center w-1/4 text-green-600"
@@ -226,6 +250,7 @@ export default function HomePage() {
               <span className="text-xs font-medium mt-0.5">Home</span>
             </Link>
 
+            {/* PLANNING (Gray) */}
             <Link
               href="/planning_page/showing_plan_page"
               className="flex flex-col items-center justify-center w-1/4 text-gray-400"
@@ -237,6 +262,7 @@ export default function HomePage() {
               <span className="text-xs font-medium mt-0.5">Planning</span>
             </Link>
 
+            {/* ECOBOT (Gray) */}
             <Link
               href="#"
               className="flex flex-col items-center justify-center w-1/4 text-gray-400"
@@ -248,14 +274,24 @@ export default function HomePage() {
               <span className="text-xs font-medium mt-0.5">Ecobot</span>
             </Link>
 
+            {/* USER (Gray + Notification Badge) */}
             <Link
               href="user_page/main_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400" // Vẫn giữ màu xám
             >
-              <User
-                className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
-                strokeWidth={1.5}
-              />
+              <div className="relative">
+                <User
+                  className="size-6 text-gray-400 cursor-pointer transition-all duration-200 hover:text-green-600 hover:scale-110"
+                  strokeWidth={1.5}
+                />
+
+                {/* Logic hiển thị Badge đỏ */}
+                {requestCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-xs animate-in zoom-in">
+                    {requestCount > 9 ? "9+" : requestCount}
+                  </span>
+                )}
+              </div>
               <span className="text-xs font-medium mt-0.5">User</span>
             </Link>
           </div>

@@ -10,25 +10,17 @@ class FriendRepository:
         try:
             existing = await FriendRepository.get_friendship(db, user_id, friend_id)
             if existing:
-                return None
+                return None        
             
             friendship_user = Friend(
-                user_id=user_id,
-                friend_id=friend_id,
-                status=FriendStatus.requested
+                user1_id = user_id if user_id < friend_id else friend_id,
+                user2_id = friend_id if user_id < friend_id else user_id,
+                status = FriendStatus.pending,
+                action_by = user_id
             )
             db.add(friendship_user)
             await db.commit()
             await db.refresh(friendship_user)
-            
-            friendship_friend = Friend(
-                user_id=friend_id,
-                friend_id=user_id,
-                status=FriendStatus.pending
-            )
-            db.add(friendship_friend)
-            await db.commit()
-            await db.refresh(friendship_friend)
             return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()
@@ -38,13 +30,15 @@ class FriendRepository:
     @staticmethod
     async def accept_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
-            # Find the pending request for the current user (who is accepting)
+            user1_id = min(user_id, friend_id)
+            user2_id = max(user_id, friend_id)
             result_user = await db.execute(
                 select(Friend).where(
                     and_(
-                        Friend.user_id == user_id,
-                        Friend.friend_id == friend_id,
-                        Friend.status == FriendStatus.pending
+                        Friend.user1_id == user1_id,
+                        Friend.user2_id == user2_id,
+                        Friend.status == FriendStatus.pending,
+                        Friend.action_by == friend_id
                     )
                 )
             )
@@ -54,28 +48,9 @@ class FriendRepository:
                 return None
 
             friendship_user.status = FriendStatus.friend
+            friendship_user.action_by = user_id
             await db.commit()
             await db.refresh(friendship_user)
-            
-            # Find the requested status for the friend (who sent the request)
-            result_friend = await db.execute(
-                select(Friend).where(
-                    and_(
-                        Friend.user_id == friend_id,
-                        Friend.friend_id == user_id,
-                        Friend.status == FriendStatus.requested
-                    )
-                )
-            )
-            friendship_friend = result_friend.scalar_one_or_none()
-
-            if not friendship_friend:
-                return None
-
-            friendship_friend.status = FriendStatus.friend
-            await db.commit()
-            await db.refresh(friendship_friend)
-
             return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()
@@ -85,13 +60,15 @@ class FriendRepository:
     @staticmethod
     async def reject_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
-            # Find the pending request for the current user (who is rejecting)
+            user1_id = min(user_id, friend_id)
+            user2_id = max(user_id, friend_id)
             result_user = await db.execute(
                 select(Friend).where(
                     and_(
-                        Friend.user_id == user_id,
-                        Friend.friend_id == friend_id,
-                        Friend.status == FriendStatus.pending
+                        Friend.user1_id == user1_id,
+                        Friend.user2_id == user2_id,
+                        Friend.status == FriendStatus.pending,
+                        Friend.action_by == friend_id
                     )
                 )
             )
@@ -102,25 +79,6 @@ class FriendRepository:
 
             await db.delete(friendship_user)
             await db.commit()
-            
-            # Find the requested status for the friend (who sent the request)
-            result_friend = await db.execute(
-                select(Friend).where(
-                    and_(
-                        Friend.user_id == friend_id,
-                        Friend.friend_id == user_id,
-                        Friend.status == FriendStatus.requested
-                    )
-                )
-            )
-            friendship_friend = result_friend.scalar_one_or_none()
-
-            if not friendship_friend:
-                return False
-
-            await db.delete(friendship_friend)
-            await db.commit()
-            
             return True
         except SQLAlchemyError as e:
             await db.rollback()
@@ -130,19 +88,12 @@ class FriendRepository:
     @staticmethod
     async def unfriend(db: AsyncSession, user_id: int, friend_id: int):
         try:
-            result = await db.execute(
-                select(Friend).where(
-                    or_(
-                        and_(Friend.user_id == user_id, Friend.friend_id == friend_id),
-                        and_(Friend.user_id == friend_id, Friend.friend_id == user_id)
-                    )
-                )
-            )
-            friendships = result.scalars().all()
+            user1_id = min(user_id, friend_id)
+            user2_id = max(user_id, friend_id)
+            result = await db.execute(select(Friend).where(and_(Friend.user1_id == user1_id, Friend.user2_id == user2_id)))
+            friendship = result.scalar_one_or_none()
             
-            for friendship in friendships:
-                await db.delete(friendship)
-            
+            await db.delete(friendship)
             await db.commit()
             return True
         except SQLAlchemyError as e:
@@ -153,9 +104,11 @@ class FriendRepository:
     @staticmethod
     async def get_friendship(db: AsyncSession, user_id: int, friend_id: int):
         try:
+            user1_id = min(user_id, friend_id)
+            user2_id = max(user_id, friend_id)
             result = await db.execute(
                 select(Friend).where(
-                    and_(Friend.user_id == user_id, Friend.friend_id == friend_id),
+                    and_(Friend.user1_id == user1_id, Friend.user2_id == user2_id),
                 )
             )
             return result.scalar_one_or_none()
@@ -168,7 +121,10 @@ class FriendRepository:
         try:
             result = await db.execute(
                 select(Friend).where(
-                    and_(Friend.user_id == user_id, Friend.status == FriendStatus.friend),
+                    or_(
+                        and_(Friend.user1_id == user_id, Friend.status == FriendStatus.friend),
+                        and_(Friend.user2_id == user_id, Friend.status == FriendStatus.friend)
+                    )
                 )
             )
             return result.scalars().all()
@@ -181,9 +137,17 @@ class FriendRepository:
         try:
             result = await db.execute(
                 select(Friend).where(
-                    and_(
-                        Friend.friend_id == user_id,
-                        Friend.status == FriendStatus.pending
+                    or_(
+                        and_(
+                            Friend.user1_id == user_id,
+                            Friend.status == FriendStatus.pending,
+                            Friend.action_by != user_id
+                        ),
+                        and_(
+                            Friend.user2_id == user_id,
+                            Friend.status == FriendStatus.pending,
+                            Friend.action_by != user_id
+                        )
                     )
                 )
             )
@@ -197,9 +161,17 @@ class FriendRepository:
         try:
             result = await db.execute(
                 select(Friend).where(
-                    and_(
-                        Friend.user_id == user_id,
-                        Friend.status == FriendStatus.requested
+                    or_(
+                        and_(
+                            Friend.user1_id == user_id,
+                            Friend.status == FriendStatus.pending,
+                            Friend.action_by == user_id
+                        ),
+                        and_(
+                            Friend.user2_id == user_id,
+                            Friend.status == FriendStatus.pending,
+                            Friend.action_by == user_id
+                        )
                     )
                 )
             )

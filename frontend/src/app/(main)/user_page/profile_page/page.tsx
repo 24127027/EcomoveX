@@ -147,6 +147,7 @@ export default function ProfilePage() {
 
       // --- 1. Xử lý Upload Ảnh (nếu có chọn file mới) ---
       let newBlobName = null;
+      let newAvatarUrl = null;
       if (avatarFile) {
         // Gọi API Upload file thay vì convert base64
         // Category phải khớp với Enum trong backend (profile_avatar)
@@ -155,6 +156,7 @@ export default function ProfilePage() {
           "profile_avatar"
         );
         newBlobName = uploadResponse.blob_name;
+        newAvatarUrl = uploadResponse.url;
       }
 
       const promises = [];
@@ -165,7 +167,7 @@ export default function ProfilePage() {
           api
             .updateUserProfile({
               username: username,
-              ...(newBlobName && { avt_url: newBlobName }),
+              ...(newBlobName && { avt_blob_name: newBlobName }),
             })
             .then((res) => {
               setUser((prev) =>
@@ -174,15 +176,20 @@ export default function ProfilePage() {
                       ...prev,
                       username: res.username,
                       // Cập nhật state user với avatar mới
-                      avt_url: res.avt_url,
+                      avt_url: newAvatarUrl || res.avt_url,
                     }
                   : null
               );
+              if (newAvatarUrl) {
+                setPreviewAvatar(newAvatarUrl);
+              } else if (res.avt_url) {
+                setPreviewAvatar(res.avt_url);
+              }
             })
         );
       }
 
-      // --- 3. Request Credentials (Email + Password) --- (Giữ nguyên)
+      // --- 3. Request Credentials (Email + Password)
       const isEmailChanged = email !== user?.email;
       const isPasswordChanged = newPassword.length > 0;
 
@@ -442,36 +449,46 @@ export default function ProfilePage() {
         </main>
 
         {/* Footer */}
-        <nav className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
+        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
             <Link
               href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
-              {" "}
-              <Home size={24} strokeWidth={2} />{" "}
+              <Home size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Home
+              </span>
+            </Link>
+            <Link
+              href="/planning_page/showing_plan_page"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+            >
+              <MapPin size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Planning
+              </span>
             </Link>
             <Link
               href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
-              {" "}
-              <MapPin size={24} strokeWidth={2} />{" "}
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              {" "}
-              <Bot size={24} strokeWidth={2} />{" "}
+              <Bot size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Ecobot
+              </span>
             </Link>
             <div className="flex flex-col items-center text-[#53B552]">
-              {" "}
-              <User size={24} strokeWidth={2.5} />{" "}
+              <Link href="/user_page/main_page">
+                <User size={24} strokeWidth={2.5} />
+                <span className={`${jost.className} text-xs font-bold mt-1`}>
+                  User
+                </span>
+              </Link>
             </div>
           </div>
-        </nav>
+        </footer>
       </div>
     </div>
   );
