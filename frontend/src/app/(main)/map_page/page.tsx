@@ -2,117 +2,33 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
+import { api, AutocompletePrediction, PlaceDetails, Position } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { useGoogleMaps } from "@/lib/useGoogleMaps";
 
-// Type definitions
-interface EcoLocation {
-  id: number;
-  name: string;
-  address: string;
-  distance: string;
-  rating: number;
-  image: string;
-  lat: number;
-  lng: number;
-  type: string;
+interface PlaceDetailsWithDistance extends PlaceDetails {
+  distanceText: string;
 }
 
-// API Service Functions - Placeholder for API integration
-const locationService = {
-  // TODO: Replace with actual API endpoint
-  searchLocations: async (query: string, lat: number, lng: number): Promise<EcoLocation[]> => {
-    try {
-      const response = await fetch(
-        `/api/locations/search?q=${encodeURIComponent(query)}&lat=${lat}&lng=${lng}`
-      );
-      if (!response.ok) throw new Error('Search failed');
-      return await response.json();
-    } catch (error) {
-      console.error('Error searching locations:', error);
-      return [];
-    }
-  },
-
-  // TODO: Replace with actual API endpoint
-  getRecommendations: async (lat: number, lng: number, radius: number = 5000): Promise<EcoLocation[]> => {
-    try {
-      const response = await fetch(
-        `/api/locations/recommendations?lat=${lat}&lng=${lng}&radius=${radius}`
-      );
-      if (!response.ok) throw new Error('Failed to fetch recommendations');
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching recommendations:', error);
-      // Fallback to mock data for development
-      return mockLocations;
-    }
-  },
-
-  // TODO: Replace with actual API endpoint
-  getLocationById: async (id: number): Promise<EcoLocation | null> => {
-    try {
-      const response = await fetch(`/api/locations/${id}`);
-      if (!response.ok) throw new Error('Failed to fetch location');
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching location:', error);
-      return null;
-    }
-  }
+const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
+  const distanceKm = await api.birdDistance(userPos, details.geometry.location);
+  const distanceText = distanceKm < 1 
+    ? `${Math.round(distanceKm * 1000)}m away`
+    : `${distanceKm.toFixed(1)}km away`;
+  
+  return {
+    ...details,
+    distanceText
+  };
 };
 
-// Mock data for development - Remove when API is ready
-const mockLocations: EcoLocation[] = [
-  {
-    id: 1,
-    name: "The Hive Bean Coffee",
-    address: "123 Nguyen Hue, District 1",
-    distance: "1.2km",
-    rating: 4.5,
-    image: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400&h=300&fit=crop",
-    lat: 10.7756,
-    lng: 106.7019,
-    type: "Cafe"
-  },
-  {
-    id: 2,
-    name: "Cafe Lokolo's",
-    address: "456 Le Loi, District 1",
-    distance: "1.5km",
-    rating: 4.3,
-    image: "https://images.unsplash.com/photo-1493857671505-72967e2e2760?w=400&h=300&fit=crop",
-    lat: 10.7722,
-    lng: 106.6989,
-    type: "Cafe"
-  },
-  {
-    id: 3,
-    name: "Green Space Shop",
-    address: "789 Dong Khoi, District 1",
-    distance: "0.8km",
-    rating: 4.7,
-    image: "https://images.unsplash.com/photo-1426122402199-be02db90eb90?w=400&h=300&fit=crop",
-    lat: 10.7769,
-    lng: 106.7041,
-    type: "Shop"
-  },
-  {
-    id: 4,
-    name: "La Vegetariana Restaurant",
-    address: "321 Pasteur, District 3",
-    distance: "2.1km",
-    rating: 4.6,
-    image: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400&h=300&fit=crop",
-    lat: 10.7724,
-    lng: 106.6910,
-    type: "Restaurant"
-  }
-];
-
 export default function MapPage() {
-  const [selectedLocation, setSelectedLocation] = useState<EcoLocation | null>(null);
+  const router = useRouter();
+  const { isLoaded, loadError } = useGoogleMaps();
+  const [selectedLocation, setSelectedLocation] = useState<PlaceDetailsWithDistance | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [locations, setLocations] = useState<EcoLocation[]>([]);
-  const [searchResults, setSearchResults] = useState<EcoLocation[]>([]);
+  const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
+  const [searchResults, setSearchResults] = useState<PlaceDetailsWithDistance[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -120,7 +36,7 @@ export default function MapPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startHeight, setStartHeight] = useState(40);
-  const [userLocation, setUserLocation] = useState({ lat: 10.7756, lng: 106.7019 });
+  const [userLocation, setUserLocation] = useState<Position>({ lat: 10.7756, lng: 106.7019 });
   
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
@@ -147,14 +63,35 @@ export default function MapPage() {
 
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
-      const results = await locationService.searchLocations(
-        searchQuery,
-        userLocation.lat,
-        userLocation.lng
-      );
-      setSearchResults(results);
-      setIsSearching(false);
-    }, 500); // 500ms debounce
+      try {
+        // Search using api.searchPlaces
+        const response = await api.searchPlaces({
+          query: searchQuery,
+          user_location: [userLocation.lat, userLocation.lng],
+          radius: 5000, // 5km radius
+        });
+        
+        // Fetch details for each prediction to get complete info
+        const detailedResults = await Promise.all(
+          response.predictions.slice(0, 6).map(async (prediction) => {
+            try {
+              const details = await api.getPlaceDetails(prediction.place_id);
+              return await addDistanceText(details, userLocation);
+            } catch (error) {
+              console.error(`Failed to fetch details for ${prediction.place_id}:`, error);
+              return null;
+            }
+          })
+        );
+        
+        setSearchResults(detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null));
+      } catch (error) {
+        console.error('Search failed:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -166,14 +103,37 @@ export default function MapPage() {
   const fetchRecommendations = async () => {
     setIsLoadingRecommendations(true);
     try {
-      const recommendations = await locationService.getRecommendations(
-        userLocation.lat,
-        userLocation.lng
+      // Use searchPlaces with eco-friendly types for recommendations
+      const response = await api.searchPlaces({
+        query: "park",
+        user_location: [userLocation.lat, userLocation.lng],
+        radius: 5000, // 5km radius
+        place_types: "park|tourist_attraction|point_of_interest",
+      });
+      
+      if (!response || !response.predictions) {
+        console.error('Invalid response from searchPlaces');
+        setLocations([]);
+        return;
+      }
+      
+      // Fetch details for recommendations to get full info
+      const detailedRecommendations = await Promise.all(
+        response.predictions.slice(0, 8).map(async (prediction: AutocompletePrediction) => {
+          try {
+            const details = await api.getPlaceDetails(prediction.place_id);
+            return await addDistanceText(details, userLocation);
+          } catch (error) {
+            console.error(`Failed to fetch details for ${prediction.place_id}:`, error);
+            return null;
+          }
+        })
       );
-      setLocations(recommendations);
+      
+      setLocations(detailedRecommendations.filter((r): r is PlaceDetailsWithDistance => r !== null));
     } catch (error) {
       console.error('Failed to fetch recommendations:', error);
-      setLocations(mockLocations); // Fallback to mock data
+      setLocations([]);
     } finally {
       setIsLoadingRecommendations(false);
     }
@@ -182,83 +142,43 @@ export default function MapPage() {
   const displayedLocations = searchQuery.trim() !== '' ? searchResults : locations;
 
   useEffect(() => {
-    // Load Google Maps script
-    const loadGoogleMaps = () => {
-      if (window.google && window.google.maps) {
-        initMap();
-        return;
-      }
+    if (!isLoaded || !mapRef.current) return;
+    
+    // Initialize map directly
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: userLocation,
+      zoom: 14,
+      styles: [
+        {
+          featureType: "poi",
+          elementType: "labels",
+          stylers: [{ visibility: "off" }]
+        }
+      ],
+      disableDefaultUI: false,
+      zoomControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false
+    });
 
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-      if (!apiKey) {
-        console.error('Google Maps API key is not set in environment variables');
-        return;
-      }
+    googleMapRef.current = map;
+    setMapLoaded(true);
+  }, [isLoaded]);
 
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      script.onload = () => initMap();
-      document.head.appendChild(script);
-    };
+  if (loadError) {
+    return <div>Error loading map: {loadError.message}</div>;
+  }
 
-    const initMap = () => {
-      if (!mapRef.current) return;
-
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: userLocation,
-        zoom: 14,
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "off" }]
-          }
-        ],
-        disableDefaultUI: false,
-        zoomControl: true,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false
-      });
-
-      googleMapRef.current = map;
-      setMapLoaded(true);
-      
-      // Get user's current location
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const pos = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            };
-            setUserLocation(pos);
-            map.setCenter(pos);
-          },
-          () => {
-            console.log('Error: The Geolocation service failed.');
-          }
-        );
-      }
-    };
-
-    loadGoogleMaps();
-  }, []);
-
-  // Update markers when locations change
   useEffect(() => {
     if (!googleMapRef.current || !mapLoaded) return;
 
-    // Clear existing markers
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
 
-    // Add new markers
     displayedLocations.forEach(location => {
       const marker = new window.google.maps.Marker({
-        position: { lat: location.lat, lng: location.lng },
+        position: { lat: location.geometry.location.lat, lng: location.geometry.location.lng },
         map: googleMapRef.current,
         title: location.name,
         icon: {
@@ -273,30 +193,43 @@ export default function MapPage() {
 
       marker.addListener('click', () => {
         handleLocationSelect(location);
-        googleMapRef.current?.panTo({ lat: location.lat, lng: location.lng });
+        googleMapRef.current?.panTo({ lat: location.geometry.location.lat, lng: location.geometry.location.lng });
       });
 
       markersRef.current.push(marker);
     });
   }, [displayedLocations, mapLoaded]);
 
-  const handleLocationSelect = (location: EcoLocation) => {
+  const handleLocationSelect = (location: PlaceDetailsWithDistance) => {
     setSelectedLocation(location);
   };
 
-  const handleCardClick = (location: EcoLocation) => {
-    setSelectedLocation(location);
-    if (googleMapRef.current) {
-      googleMapRef.current.panTo({ lat: location.lat, lng: location.lng });
-      googleMapRef.current.setZoom(16);
+  const handleCardClick = async (location: PlaceDetailsWithDistance) => {
+    try {
+      // Fetch full details using api
+      const fullDetails = await api.getPlaceDetails(location.place_id);
+      const withDistance = await addDistanceText(fullDetails, userLocation);
+      
+      setSelectedLocation(withDistance);
+      if (googleMapRef.current) {
+        googleMapRef.current.panTo({ lat: withDistance.geometry.location.lat, lng: withDistance.geometry.location.lng });
+        googleMapRef.current.setZoom(16);
+      }
+    } catch (error) {
+      console.error('Failed to fetch place details:', error);
+      // Fallback to existing location data
+      setSelectedLocation(location);
+      if (googleMapRef.current) {
+        googleMapRef.current.panTo({ lat: location.geometry.location.lat, lng: location.geometry.location.lng });
+        googleMapRef.current.setZoom(16);
+      }
     }
   };
 
   const handleNavigateToDetail = () => {
     if (selectedLocation) {
-      // TODO: Navigate to detail page
-      alert(`Navigating to detail page for: ${selectedLocation.name}`);
-      // In real app: router.push(`/location/${selectedLocation.id}`);
+      // Navigate to location detail page with place_id
+      router.push(`/location/${selectedLocation.place_id}`);
     }
   };
 
@@ -313,6 +246,7 @@ export default function MapPage() {
             googleMapRef.current.setCenter(pos);
             googleMapRef.current.setZoom(15);
           }
+          fetchRecommendations();
         },
         (error) => {
           console.error('Error getting location:', error);
@@ -456,15 +390,17 @@ export default function MapPage() {
                       {selectedLocation.name}
                     </p>
                     <p className="text-gray-600 text-sm leading-tight line-clamp-2">
-                      {selectedLocation.address}
+                      {selectedLocation.formatted_address}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
-                        {selectedLocation.distance}
+                        {selectedLocation.distanceText}
                       </span>
-                      <span className="text-xs text-yellow-600 font-semibold">
-                        ★ {selectedLocation.rating}
-                      </span>
+                      {selectedLocation.rating && selectedLocation.rating > 0 && (
+                        <span className="text-xs text-yellow-600 font-semibold">
+                          ★ {selectedLocation.rating.toFixed(1)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -508,15 +444,15 @@ export default function MapPage() {
               <div className="grid grid-cols-2 gap-3 pb-2">
                 {displayedLocations.map((location) => (
                   <div
-                    key={location.id}
+                    key={location.place_id}
                     onClick={() => handleCardClick(location)}
                     className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
-                      selectedLocation?.id === location.id ? 'ring-2 ring-green-500' : ''
+                      selectedLocation?.place_id === location.place_id ? 'ring-2 ring-green-500' : ''
                     }`}
                   >
                     <div className="relative h-28 bg-gray-200">
                       <img
-                        src={location.image}
+                        src={location.photos?.[0]?.photo_reference || 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400'}
                         alt={location.name}
                         className="w-full h-full object-cover"
                       />
@@ -525,14 +461,16 @@ export default function MapPage() {
                       <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
                         {location.name}
                       </h4>
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">{location.distance}</p>
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">{location.distanceText}</p>
                       <div className="flex items-center justify-between">
                         <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
-                          {location.type}
+                          {location.types[0]?.replace(/_/g, ' ')}
                         </span>
-                        <span className="text-xs text-yellow-600 font-semibold">
-                          ★ {location.rating}
-                        </span>
+                        {location.rating && location.rating > 0 && (
+                          <span className="text-xs text-yellow-600 font-semibold">
+                            ★ {location.rating.toFixed(1)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

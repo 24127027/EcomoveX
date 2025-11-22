@@ -60,9 +60,9 @@ export interface Position {
 
 export interface SearchPlacesRequest {
   query: string;
-  location?: Position;
+  user_location?: [number, number]; // Tuple format for backend
   radius?: number; // in meters
-  types?: string[]; // e.g., ["restaurant", "park"]
+  place_types?: string; // Comma-separated string
   language?: string;
 }
 export interface AutocompletePrediction {
