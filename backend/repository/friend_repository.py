@@ -21,15 +21,6 @@ class FriendRepository:
             db.add(friendship_user)
             await db.commit()
             await db.refresh(friendship_user)
-            
-            friendship_friend = Friend(
-                user_id=friend_id,
-                friend_id=user_id,
-                status=FriendStatus.pending
-            )
-            db.add(friendship_friend)
-            await db.commit()
-            await db.refresh(friendship_friend)
             return friendship_user
         except SQLAlchemyError as e:
             await db.rollback()

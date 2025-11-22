@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "EcomoveX",
-  description: "Travel greener with EcomoveX",
+  description: "Sustainable Travel & Eco-Mobility Platform",
 };
 
 export default function RootLayout({
