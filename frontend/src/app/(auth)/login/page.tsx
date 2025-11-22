@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { api, ApiValidationError } from "@/lib/api";
+import { api, ApiHttpError, ApiValidationError } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import {
   validateLoginForm,
@@ -106,14 +106,28 @@ export default function SigninPage() {
 
       router.push("/allow_permission/location_permission");
     } catch (err: any) {
-      if (err instanceof ApiValidationError) {
+      console.error("Login error:", err);
+
+      if (err instanceof ApiHttpError) {
+        if (err.status === 401) {
+          setServerError("Incorrect email or password. Please check again.");
+        } else if (err.status === 404) {
+          setServerError("Account does not exist.");
+        } else {
+          setServerError(err.message);
+        }
+      }
+      // Kiểm tra lỗi Validation (giữ nguyên logic cũ)
+      else if (err instanceof ApiValidationError) {
         setValidationErrors({
           [err.field]: err.message,
         } as Pick<ValidationErrors, "email" | "password">);
-      } else {
-        setServerError(getFriendlyErrorMessage(err));
       }
-      console.error("Login error:", err);
+      // Lỗi không xác định (mất mạng, code lỗi...)
+      else {
+        const msg = getFriendlyErrorMessage(err);
+        setServerError(msg);
+      }
     } finally {
       setLoading(false);
     }

@@ -4,8 +4,11 @@ from datetime import datetime
 from models.destination import GreenVerifiedStatus
 
 class DestinationCreate(BaseModel):
-    place_id: str
+    google_place_id: str = Field(..., alias="place_id")
     green_verified_status: Optional[GreenVerifiedStatus] = None 
+    
+    class Config:
+        populate_by_name = True 
 
 class DestinationUpdate(BaseModel):
     green_verified_status: Optional[GreenVerifiedStatus] = None

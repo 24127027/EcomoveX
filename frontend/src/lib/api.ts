@@ -40,12 +40,14 @@ interface ValidationErrorResponse {
 export interface UserProfileUpdate {
   username?: string;
   avt_blob_name?: string | null;
+  cover_blob_name?: string | null;
 }
 export interface UserProfile {
   id: number;
   username: string;
   email: string;
   avt_url?: string | null;
+  cover_url?: string | null;
   role?: string;
 }
 
@@ -169,6 +171,15 @@ export class ApiValidationError extends Error {
   }
 }
 
+export class ApiHttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiHttpError";
+  }
+}
+
 const parseMockDate = (dateStr: string) => {
   const [day, month, year] = dateStr.split("/").map(Number);
   return new Date(year, month - 1, day);
@@ -238,11 +249,15 @@ class ApiClient {
 
         // Handle other error responses
         console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
-        throw new Error(
+        throw new ApiHttpError(
+          response.status,
           errorData.detail || `HTTP ${response.status}: An error occurred`
         );
       } catch (e) {
         if (e instanceof ApiValidationError) {
+          throw e;
+        }
+        if (e instanceof ApiHttpError) {
           throw e;
         }
         console.error(`API Error [${response.status}] ${endpoint}:`, e);
@@ -349,7 +364,7 @@ class ApiClient {
       {
         id: 201,
         destination: "Ho Chi Minh City (Upcoming)",
-        date: "20/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        date: "30/11/2025", // Ngày tương lai (Sẽ là Current Plan)
         activities: [
           {
             id: 1,
@@ -364,7 +379,7 @@ class ApiClient {
       {
         id: 101,
         destination: "District 1 (Past)",
-        date: "04/01/2024", // Ngày quá khứ
+        date: "04/01/2026", // Ngày quá khứ
         activities: [
           // ... (Dữ liệu cũ)
         ],
@@ -379,7 +394,7 @@ class ApiClient {
   }
 
   // Friend Endpoints
-  
+
   async getFriends(): Promise<FriendResponse[]> {
     return this.request<FriendResponse[]>("/friends/", {
       method: "GET",
@@ -391,6 +406,13 @@ class ApiClient {
       method: "GET",
     });
   }
+
+  async getSentRequests(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/sent", {
+      method: "GET",
+    });
+  }
+  // -----------------------
 
   async sendFriendRequest(friendId: number): Promise<FriendResponse> {
     return this.request<FriendResponse>(`/friends/${friendId}/request`, {

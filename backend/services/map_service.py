@@ -5,7 +5,7 @@ from integration.map_api import create_map_client
 from schemas.destination_schema import DestinationCreate
 from schemas.map_schema import *
 from services.destination_service import DestinationService
-class mapervice:
+class mapService:
     @staticmethod
     async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
         try:            
@@ -16,6 +16,7 @@ class mapervice:
                     await DestinationService.create_destination(
                         db, DestinationCreate(place_id=prediction.place_id)
                     )
+                return response
             finally:
                 if map:
                     await map.close()

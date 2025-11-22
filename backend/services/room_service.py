@@ -88,7 +88,38 @@ class RoomService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving direct rooms for user ID {user_id}: {e}"
             )
-            
+    
+    @staticmethod
+    async def is_direct_room_between_users(db: AsyncSession, user1_id: int, user2_id: int) -> bool:
+        try:
+            room = await RoomRepository.get_direct_room_between_users(db, user1_id, user2_id)
+            return room is not None
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error checking direct room between user ID {user1_id} and user ID {user2_id}: {e}"
+            )
+    
+    @staticmethod
+    async def get_direct_rooms_between_users(db: AsyncSession, user1_id: int, user2_id: int) -> DirectRoomResponse:
+        try:
+            user1_id = min(user1_id, user2_id)
+            user2_id = max(user1_id, user2_id)
+            room = await RoomRepository.get_direct_room_between_users(db, user1_id, user2_id)
+            if not room:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Direct room between user ID {user1_id} and user ID {user2_id} not found"
+                )
+            return DirectRoomResponse(id=room.id)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving direct room between user ID {user1_id} and user ID {user2_id}: {e}"
+            )
+    
     @staticmethod
     async def get_direct_room(db: AsyncSession, room_id: int) -> DirectRoomResponse:
         try:
@@ -141,9 +172,14 @@ class RoomService:
     @staticmethod
     async def create_direct_room(db: AsyncSession, user1_id: int, user2_id: int) -> DirectRoomResponse:
         try:
-            user1_id = min(user1_id, user2_id)
-            user2_id = max(user1_id, user2_id)
-            new_room = await RoomRepository.create_direct_room(db, user1_id, user2_id)
+            if user1_id == user2_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot create a direct room with the same user"
+                )
+            user1_normalized = min(user1_id, user2_id)
+            user2_normalized = max(user1_id, user2_id)
+            new_room = await RoomRepository.create_direct_room(db, user1_normalized, user2_normalized)
             if not new_room:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

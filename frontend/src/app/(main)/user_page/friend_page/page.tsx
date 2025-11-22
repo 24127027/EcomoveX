@@ -16,10 +16,11 @@ import {
   Bot,
   Home,
   MapPin,
-  AlertTriangle, // Thêm icon cảnh báo
+  AlertTriangle,
+  Send, // Import thêm icon Send
 } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
-import { api, FriendResponse } from "@/lib/api";
+import { api, FriendResponse } from "@/lib/api"; //
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "700"] });
 const abhaya_libre = Abhaya_Libre({
@@ -28,11 +29,16 @@ const abhaya_libre = Abhaya_Libre({
 });
 
 export default function FriendsPage() {
-  const [activeTab, setActiveTab] = useState<"friends" | "requests">("friends");
+  // 1. Thêm "sent" vào kiểu dữ liệu tab
+  const [activeTab, setActiveTab] = useState<"friends" | "requests" | "sent">(
+    "friends"
+  );
+
   const [friends, setFriends] = useState<FriendResponse[]>([]);
   const [requests, setRequests] = useState<FriendResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sentRequests, setSentRequests] = useState<FriendResponse[]>([]); // State cho danh sách đã gửi
 
+  const [loading, setLoading] = useState(true);
   const [inputFriendId, setInputFriendId] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -43,22 +49,25 @@ export default function FriendsPage() {
     type: "success" | "error";
   } | null>(null);
 
-  // --- STATE MỚI: QUẢN LÝ MODAL XÓA BẠN ---
-  // Lưu ID người muốn xóa. Nếu null nghĩa là không bật modal.
+  // State quản lý Modal xóa bạn
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const currentUser = await api.getUserProfile();
+      const currentUser = await api.getUserProfile(); //
       if (currentUser) setCurrentUserId(currentUser.id);
 
-      const [friendsData, requestsData] = await Promise.all([
-        api.getFriends(),
-        api.getPendingRequests(),
+      // 2. Gọi API lấy danh sách Sent
+      const [friendsData, requestsData, sentData] = await Promise.all([
+        api.getFriends(), //
+        api.getPendingRequests(), //
+        api.getSentRequests(), //
       ]);
+
       setFriends(friendsData);
       setRequests(requestsData);
+      setSentRequests(sentData);
     } catch (error) {
       console.error("Error loading friends:", error);
     } finally {
@@ -70,7 +79,7 @@ export default function FriendsPage() {
     fetchData();
   }, []);
 
-  // --- HÀM XỬ LÝ GỬI KẾT BẠN (GIỮ NGUYÊN) ---
+  // --- HÀM XỬ LÝ GỬI KẾT BẠN ---
   const handleSendRequest = async () => {
     setFeedback(null);
     if (!inputFriendId.trim()) {
@@ -82,16 +91,46 @@ export default function FriendsPage() {
       setFeedback({ text: "User ID must be a number", type: "error" });
       return;
     }
+    if (currentUserId && idToSend === currentUserId) {
+      setFeedback({ text: "You cannot add yourself", type: "error" });
+      return;
+    }
+
+    const isAlreadySent = sentRequests.some(
+      (req) => req.friend_id === idToSend
+    );
+    if (isAlreadySent) {
+      setFeedback({
+        text: "Request already sent! (Check 'Sent' tab)",
+        type: "error",
+      });
+      return;
+    }
+
+    const isAlreadyFriend = friends.some((f) => {
+      const displayId = currentUserId === f.user_id ? f.friend_id : f.user_id;
+      return displayId === idToSend;
+    });
+
+    if (isAlreadyFriend) {
+      setFeedback({
+        text: "This user is already your friend",
+        type: "error",
+      });
+      return;
+    }
     try {
       setAddLoading(true);
-      await api.sendFriendRequest(idToSend);
+      await api.sendFriendRequest(idToSend); //
       setFeedback({
         text: "Friend request sent successfully",
         type: "success",
       });
       setInputFriendId("");
+      fetchData();
     } catch (error: any) {
       const msg = error.message?.toLowerCase() || "";
+      console.log("Error message from server:", msg);
       if (msg.includes("not found") || msg.includes("404")) {
         setFeedback({
           text: "ID doesn't exist. Please try again",
@@ -115,40 +154,52 @@ export default function FriendsPage() {
   // --- CÁC HÀM XỬ LÝ KHÁC ---
   const handleAccept = async (friendId: number) => {
     try {
-      await api.acceptFriendRequest(friendId);
-      // Hiện thông báo thành công khi accept
+      await api.acceptFriendRequest(friendId); //
       setFeedback({ text: "Friend request accepted!", type: "success" });
       fetchData();
-    } catch (e) {}
+    } catch (e) {
+      setFeedback({ text: "Failed to accept request", type: "error" });
+    }
   };
 
   const handleReject = async (friendId: number) => {
     try {
-      await api.rejectFriendRequest(friendId);
-      setFeedback({ text: "Request declined", type: "success" }); // Thông báo nhẹ
+      await api.rejectFriendRequest(friendId); //
+      setFeedback({ text: "Request declined", type: "success" });
       fetchData();
-    } catch (e) {}
+    } catch (e) {
+      setFeedback({ text: "Failed to decline request", type: "error" });
+    }
   };
 
-  // --- SỬA HÀM NÀY: Thay vì confirm(), chỉ mở modal ---
+  // --- HÀM MỚI: HỦY LỜI MỜI ĐÃ GỬI ---
+  const handleCancelRequest = async (friendId: number) => {
+    try {
+      // Dùng chung endpoint unfriend để xóa record friendship
+      await api.unfriend(friendId); //
+      setFeedback({ text: "Request cancelled", type: "success" });
+      fetchData();
+    } catch (e) {
+      setFeedback({ text: "Failed to cancel request", type: "error" });
+    }
+  };
+
+  // --- LOGIC XÓA BẠN (MODAL) ---
   const handleUnfriendClick = (friendId: number) => {
-    setFeedback(null); // Reset thông báo cũ
-    setDeleteTargetId(friendId); // Mở modal với ID này
+    setFeedback(null);
+    setDeleteTargetId(friendId);
   };
 
-  // --- HÀM MỚI: THỰC HIỆN XÓA (KHI BẤM NÚT REMOVE TRONG MODAL) ---
   const confirmDeleteFriend = async () => {
     if (!deleteTargetId) return;
-
     try {
-      await api.unfriend(deleteTargetId);
-      // Hiện thông báo thành công
+      await api.unfriend(deleteTargetId); //
       setFeedback({ text: "Friend removed successfully", type: "success" });
       fetchData();
     } catch (e) {
       setFeedback({ text: "Failed to remove friend", type: "error" });
     } finally {
-      setDeleteTargetId(null); // Đóng modal
+      setDeleteTargetId(null);
     }
   };
 
@@ -160,7 +211,7 @@ export default function FriendsPage() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* --- CUSTOM MODAL (HIỆN LÊN KHI deleteTargetId CÓ GIÁ TRỊ) --- */}
+        {/* --- CUSTOM MODAL (Xác nhận xóa bạn) --- */}
         {deleteTargetId && (
           <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-6 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl transform transition-all scale-100 animate-in zoom-in-95">
@@ -202,7 +253,7 @@ export default function FriendsPage() {
         {/* --- HEADER --- */}
         <div className="bg-[#E3F1E4] px-6 pb-6 pt-8 rounded-b-[40px] shadow-sm shrink-0 z-10">
           <div className="flex items-center justify-between mb-4">
-            <Link href="/user_page/profile_page">
+            <Link href="/user_page/main_page">
               <button className="bg-white p-2 rounded-full shadow-sm hover:bg-green-50 transition">
                 <ArrowLeft size={20} className="text-green-700" />
               </button>
@@ -246,7 +297,7 @@ export default function FriendsPage() {
               </button>
             </div>
 
-            {/* --- FEEDBACK MESSAGE (Dùng chung cho cả Add và Delete) --- */}
+            {/* --- FEEDBACK MESSAGE --- */}
             <div className="h-5 pl-2">
               {feedback && (
                 <span
@@ -269,23 +320,26 @@ export default function FriendsPage() {
         </div>
 
         {/* --- TABS --- */}
-        <div className="px-6 mt-2 flex gap-4 border-b border-gray-200 shrink-0">
+        <div className="px-6 mt-2 flex gap-4 border-b border-gray-200 shrink-0 overflow-x-auto no-scrollbar">
+          {/* TAB: Friends */}
           <button
             onClick={() => setActiveTab("friends")}
-            className={`pb-2 text-sm font-bold transition-all ${
+            className={`pb-2 text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === "friends"
                 ? "text-[#53B552] border-b-2 border-[#53B552]"
                 : "text-gray-400 hover:text-gray-600"
             }`}
           >
             My Friends{" "}
-            <span className="ml-2 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">
+            <span className="ml-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">
               {friends.length}
             </span>
           </button>
+
+          {/* TAB: Requests */}
           <button
             onClick={() => setActiveTab("requests")}
-            className={`pb-2 text-sm font-bold transition-all ${
+            className={`pb-2 text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === "requests"
                 ? "text-[#53B552] border-b-2 border-[#53B552]"
                 : "text-gray-400 hover:text-gray-600"
@@ -293,8 +347,25 @@ export default function FriendsPage() {
           >
             Requests{" "}
             {requests.length > 0 && (
-              <span className="ml-2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs">
+              <span className="ml-1 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs">
                 {requests.length}
+              </span>
+            )}
+          </button>
+
+          {/* TAB: Sent (MỚI) */}
+          <button
+            onClick={() => setActiveTab("sent")}
+            className={`pb-2 text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === "sent"
+                ? "text-[#53B552] border-b-2 border-[#53B552]"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Sent{" "}
+            {sentRequests.length > 0 && (
+              <span className="ml-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                {sentRequests.length}
               </span>
             )}
           </button>
@@ -308,7 +379,7 @@ export default function FriendsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Tab Friends */}
+              {/* ---------------- TAB FRIENDS ---------------- */}
               {activeTab === "friends" &&
                 (friends.length === 0 ? (
                   <div className="text-center mt-10 opacity-50">
@@ -341,7 +412,6 @@ export default function FriendsPage() {
                             <p className="text-xs text-green-600">Connected</p>
                           </div>
                         </div>
-                        {/* SỬA NÚT DELETE: GỌI HANDLEUNFRIENDCLICK (KHÔNG PHẢI HANDLEUNFRIEND CŨ) */}
                         <button
                           onClick={() => handleUnfriendClick(displayId)}
                           className="p-2 text-red-400 hover:bg-red-50 rounded-full transition-colors"
@@ -353,7 +423,7 @@ export default function FriendsPage() {
                   })
                 ))}
 
-              {/* Tab Requests */}
+              {/* ---------------- TAB REQUESTS ---------------- */}
               {activeTab === "requests" &&
                 (requests.length === 0 ? (
                   <div className="text-center mt-10 opacity-50">
@@ -403,10 +473,55 @@ export default function FriendsPage() {
                     </div>
                   ))
                 ))}
+
+              {/* ---------------- TAB SENT (MỚI) ---------------- */}
+              {activeTab === "sent" &&
+                (sentRequests.length === 0 ? (
+                  <div className="text-center mt-10 opacity-50">
+                    <Send size={48} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-gray-500">No sent requests.</p>
+                  </div>
+                ) : (
+                  sentRequests.map((req) => (
+                    <div
+                      key={req.friend_id}
+                      className="bg-white p-3 rounded-2xl shadow-sm flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 relative overflow-hidden">
+                          <Image
+                            src="/images/default-avatar.png"
+                            alt="User"
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div>
+                          <h3
+                            className={`${jost.className} font-bold text-gray-800`}
+                          >
+                            User ID: {req.friend_id}
+                          </h3>
+                          <p className="text-xs text-orange-400">
+                            Waiting for response...
+                          </p>
+                        </div>
+                      </div>
+                      {/* Nút Hủy lời mời trực tiếp */}
+                      <button
+                        onClick={() => handleCancelRequest(req.friend_id)}
+                        className="px-4 py-2 bg-gray-100 text-gray-500 text-xs font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ))
+                ))}
             </div>
           )}
         </main>
 
+        {/* --- FOOTER --- */}
         <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
