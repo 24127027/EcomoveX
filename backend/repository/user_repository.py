@@ -151,7 +151,7 @@ class UserActivityRepository:
         try:
             new_activity = UserActivity(
                 user_id=user_id,
-                activity_type=data.activity,
+                activity=data.activity,
                 destination_id=data.destination_id,
                 timestamp=func.now()
             )
