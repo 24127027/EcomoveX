@@ -42,7 +42,7 @@ class PlanDestination(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
-    destination_id = Column(String(255), ForeignKey("destinations.google_place_id", ondelete="CASCADE"), nullable=False)
+    destination_id = Column(String(255), ForeignKey("destinations.place_id", ondelete="CASCADE"), nullable=False)
     type = Column(SQLEnum(DestinationType), nullable=False)
     visit_date = Column(Date, nullable=False)
     note = Column(Text, nullable=True)
