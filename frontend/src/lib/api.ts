@@ -379,7 +379,7 @@ class ApiClient {
   }
 
   // Friend Endpoints
-  
+
   async getFriends(): Promise<FriendResponse[]> {
     return this.request<FriendResponse[]>("/friends/", {
       method: "GET",
@@ -391,6 +391,13 @@ class ApiClient {
       method: "GET",
     });
   }
+
+  async getSentRequests(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/sent", {
+      method: "GET",
+    });
+  }
+  // -----------------------
 
   async sendFriendRequest(friendId: number): Promise<FriendResponse> {
     return this.request<FriendResponse>(`/friends/${friendId}/request`, {

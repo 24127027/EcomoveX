@@ -480,10 +480,12 @@ export default function ProfilePage() {
               </span>
             </Link>
             <div className="flex flex-col items-center text-[#53B552]">
-              <User size={24} strokeWidth={2.5} />
-              <span className={`${jost.className} text-xs font-bold mt-1`}>
-                User
-              </span>
+              <Link href="/user_page/main_page">
+                <User size={24} strokeWidth={2.5} />
+                <span className={`${jost.className} text-xs font-bold mt-1`}>
+                  User
+                </span>
+              </Link>
             </div>
           </div>
         </footer>
