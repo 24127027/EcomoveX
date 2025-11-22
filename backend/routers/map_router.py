@@ -31,7 +31,7 @@ async def get_place_details(
     )
     
     activity_data = UserActivityCreate(
-        activity_type=Activity.search_destination,
+        activity=Activity.search_destination,
         destination_id=place_id
     )
     await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
