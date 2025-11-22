@@ -1,11 +1,11 @@
 from schemas.air_schema import AirQualityResponse
 from fastapi import HTTPException, status
-from typing import Tuple
 from integration.air_api import create_air_quality_client 
+from schemas.destination_schema import Location
 
 class AirService:         
     @staticmethod
-    async def get_air_quality(location: Tuple[float, float]) -> AirQualityResponse:
+    async def get_air_quality(location: Location) -> AirQualityResponse:
         try:
             try:
                 air_client = await create_air_quality_client()

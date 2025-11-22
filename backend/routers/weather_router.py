@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, status
 from schemas.weather_schema import CurrentWeatherResponse, WeatherForecastResponse
+from schemas.destination_schema import Location
 from services.weather_service import WeatherService
 
 router = APIRouter(prefix="/weather", tags=["Weather"])
@@ -11,7 +12,7 @@ async def get_current_weather(
     unit_system: str = Query("METRIC", description="Unit system: METRIC or IMPERIAL")
 ):
     """Get current weather conditions for a specific location."""
-    location = (lat, lng)
+    location = Location(latitude=lat, longitude=lng)
     result = await WeatherService.get_current_weather(location=location, unit_system=unit_system)
     return result
 
@@ -23,6 +24,6 @@ async def get_hourly_forecast(
     unit_system: str = Query("METRIC", description="Unit system: METRIC or IMPERIAL")
 ):
     """Get hourly weather forecast for a specific location."""
-    location = (lat, lng)
+    location = Location(latitude=lat, longitude=lng)
     result = await WeatherService.get_hourly_forecast(location=location, hours=hours, unit_system=unit_system)
     return result

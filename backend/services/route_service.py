@@ -239,8 +239,8 @@ class RouteService:
                     await routes.close()
             
             return FindRoutesResponse(
-                origin={"lat": origin[0], "lng": origin[1]},
-                destination={"lat": destination[0], "lng": destination[1]},
+                origin={"lat": origin.latitude, "lng": origin.longitude},
+                destination={"lat": destination.latitude, "lng": destination.longitude},
                 routes=routes_dict,
                 recommendation=recommendation.recommendation
             )

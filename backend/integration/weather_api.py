@@ -21,8 +21,8 @@ class WeatherAPI:
                       ) -> CurrentWeatherResponse:
         
         params = {
-            "location.latitude": param.location[0],
-            "location.longitude": param.location[1],
+            "location.latitude": param.location.latitude,
+            "location.longitude": param.location.longitude,
             "key": self.api_key,
             "unitsSystem": param.unit_system
         }
@@ -63,8 +63,8 @@ class WeatherAPI:
                               param: ForecastRequest
                               ) -> WeatherForecastResponse:
         params = {
-            "location.latitude": param.location[0],
-            "location.longitude": param.location[1],
+            "location.latitude": param.location.latitude,
+            "location.longitude": param.location.longitude,
             "key": self.api_key,
             "unitsSystem": param.unit_system,
             "hours": param.hours
