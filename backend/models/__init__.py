@@ -8,6 +8,10 @@ from .review import Review
 from .user import User, UserActivity
 from .metadata import Metadata
 from .room import Room, RoomMember
+from .chatbot.chat_session import ChatSession
+from .chatbot.planning import ChatSessionContext
+from.chatbot.planning import TravelPlan
+from.chatbot.planning import PlanItem
 
 __all__ = [
     "User",
@@ -27,4 +31,8 @@ __all__ = [
     "Metadata",
     "Room",
     "RoomMember",
+    "ChatSession",
+    "ChatSessionContext",
+    "TravelPlan",
+    "PlanItem",
 ]

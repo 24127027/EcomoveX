@@ -7,7 +7,10 @@ from typing import Dict, List, Optional
 import logging
 from models.user import User, UserActivity, Activity
 from models.cluster import Cluster, UserClusterAssociation, ClusterDestination
-from services.embedding_service import embed_user, compute_top_destinations_for_cluster
+from services.embedding_service import embed_user
+from services.recommendation_service import (
+    recommend_for_cluster_hybrid,
+)
 
 # Configuration constants
 EMBEDDING_UPDATE_INTERVAL_DAYS = 7
@@ -168,7 +171,7 @@ def run_user_clustering(session: Session) -> bool:
                 
                 # Compute new top destinations
                 try:
-                    top_destinations = compute_top_destinations_for_cluster(
+                    top_destinations = recommend_for_cluster_hybrid(
                         cluster_db_id, session
                     )
                     

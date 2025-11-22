@@ -23,10 +23,12 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=True)
+    chat_session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=True)
     message_type = Column(SQLEnum(MessageType), default=MessageType.text)
     content = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(SQLEnum(MessageStatus), default=MessageStatus.sent)
     
+    chat_session = relationship("ChatSession", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
     room = relationship("Room", back_populates="messages")

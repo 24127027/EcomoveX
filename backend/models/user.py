@@ -1,5 +1,5 @@
 ﻿from enum import Enum
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
+from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
@@ -51,7 +51,10 @@ class User(Base):
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
     user_plans = relationship("UserPlan", back_populates="user", cascade="all, delete-orphan")
     owned_rooms = relationship("Room", back_populates="owner", cascade="all, delete-orphan")
+    is_bot = Column(Boolean, default=False)
+    chat_sessions = relationship("ChatSession", back_populates="user")
 
+    
 class UserActivity(Base):
     __tablename__ = "user_activities"
     
@@ -63,5 +66,4 @@ class UserActivity(Base):
     destination_id = Column(Integer, nullable=False, primary_key=True)
     activity = Column(SQLEnum(Activity), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), primary_key=True)
-
     user = relationship("User", back_populates="activity_logs")
