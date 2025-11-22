@@ -21,7 +21,7 @@ class MapAPI:
         if not self.api_key:
             raise ValueError("Google map API key is required")
         
-        self.base_url = "https://map.googleapis.com/map/api"
+        self.base_url = "https://map.googleapis.com/maps/api"
         self.client = httpx.AsyncClient(timeout=30.0)
     
     async def close(self):
