@@ -16,6 +16,7 @@ class mapervice:
                     await DestinationService.create_destination(
                         db, DestinationCreate(place_id=prediction.place_id)
                     )
+                return response
             finally:
                 if map:
                     await map.close()
