@@ -8,7 +8,7 @@ class DestinationRepository:
     @staticmethod
     async def get_destination_by_id(db: AsyncSession, destination_id: str):
         try:
-            result = await db.execute(select(Destination).where(Destination.google_place_id == destination_id))
+            result = await db.execute(select(Destination).where(Destination.place_id == destination_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to retrieve destination with ID {destination_id} - {e}")
@@ -17,11 +17,11 @@ class DestinationRepository:
     @staticmethod
     async def create_destination(db: AsyncSession, destination: DestinationCreate):
         try:
-            has_existing = await DestinationRepository.get_destination_by_id(db, destination.google_place_id)
+            has_existing = await DestinationRepository.get_destination_by_id(db, destination.place_id)
             if has_existing:
                 return has_existing
             new_destination = Destination(
-                google_place_id=destination.google_place_id,
+                place_id=destination.place_id,
             )
             if destination.green_verified_status is not None:
                 new_destination.green_verified = destination.green_verified_status
