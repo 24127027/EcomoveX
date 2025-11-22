@@ -40,12 +40,14 @@ interface ValidationErrorResponse {
 export interface UserProfileUpdate {
   username?: string;
   avt_blob_name?: string | null;
+  cover_blob_name?: string | null;
 }
 export interface UserProfile {
   id: number;
   username: string;
   email: string;
   avt_url?: string | null;
+  cover_url?: string | null;
   role?: string;
 }
 
@@ -169,6 +171,15 @@ export class ApiValidationError extends Error {
   }
 }
 
+export class ApiHttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiHttpError";
+  }
+}
+
 const parseMockDate = (dateStr: string) => {
   const [day, month, year] = dateStr.split("/").map(Number);
   return new Date(year, month - 1, day);
@@ -238,11 +249,15 @@ class ApiClient {
 
         // Handle other error responses
         console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
-        throw new Error(
+        throw new ApiHttpError(
+          response.status,
           errorData.detail || `HTTP ${response.status}: An error occurred`
         );
       } catch (e) {
         if (e instanceof ApiValidationError) {
+          throw e;
+        }
+        if (e instanceof ApiHttpError) {
           throw e;
         }
         console.error(`API Error [${response.status}] ${endpoint}:`, e);

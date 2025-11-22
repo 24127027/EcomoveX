@@ -61,10 +61,19 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* --- HEADER --- */}
-        <div className="bg-[#E3F1E4] h-[180px] rounded-b-[50px] relative w-full shrink-0">
+        <div className="bg-[#E3F1E4] h-[180px] rounded-b-[50px] relative w-full shrink-0 overflow-hidden">
+          {user?.cover_url && (
+            <Image
+              src={user.cover_url}
+              alt="Cover Photo"
+              fill
+              className="object-cover"
+              priority
+            />
+          )}
+
           <Link href="/user_page/friend_page">
-            <button className="absolute top-6 left-4 bg-white px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-green-50 transition-colors">
+            <button className="absolute top-6 left-4 z-10 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-white transition-colors">
               <Users size={18} className="text-green-600" />
               <span
                 className={`${jost.className} text-green-700 text-xs font-bold`}
@@ -73,8 +82,9 @@ export default function ProfilePage() {
               </span>
             </button>
           </Link>
+
           <Link href="/user_page/setting_page">
-            <button className="absolute top-6 right-4 bg-white px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-green-50 transition-colors">
+            <button className="absolute top-6 right-4 z-10 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-white transition-colors">
               <Settings size={18} className="text-green-600" />
               <span
                 className={`${jost.className} text-green-700 text-xs font-bold`}
