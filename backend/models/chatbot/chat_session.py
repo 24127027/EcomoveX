@@ -9,7 +9,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False)  
+    user_id = Column(Integer, ForeignKey("users.id"))
     session_token = Column(String(255), unique=True, nullable=False)
     status = Column(String(50), nullable=False, default="active")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
