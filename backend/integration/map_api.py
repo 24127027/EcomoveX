@@ -17,11 +17,11 @@ TRANSPORT_MODE_TO_ROUTES_API = {
 
 class MapAPI:   
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.GOOGLE_API_KEY
+        self.api_key = api_key if api_key else settings.GOOGLE_API_KEY
         if not self.api_key:
             raise ValueError("Google map API key is required")
         
-        self.base_url = "https://map.googleapis.com/map/api"
+        self.base_url = "https://maps.googleapis.com/maps/api"
         self.client = httpx.AsyncClient(timeout=30.0)
     
     async def close(self):

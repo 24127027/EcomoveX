@@ -64,6 +64,19 @@ class RoomRepository:
             return []
     
     @staticmethod
+    async def get_direct_room_between_users(db: AsyncSession, user1_id: int, user2_id: int):
+        try:
+            result = await db.execute(
+                select(Room).join(RoomDirect).where(
+                    (RoomDirect.user1_id == user1_id) & (RoomDirect.user2_id == user2_id)
+                )
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving direct room between user ID {user1_id} and user ID {user2_id} - {e}")
+            return None
+    
+    @staticmethod
     async def get_room_by_id(db: AsyncSession, room_id: int):
         try:
             result = await db.execute(select(Room).where(Room.id == room_id))
