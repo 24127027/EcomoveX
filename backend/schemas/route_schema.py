@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from enum import Enum
 from schemas.destination_schema import Location
-from schemas.map_schema import Bounds
+from schemas.destination_schema import Bounds
 
 class TransportMode(str, Enum):
     car = "car"

@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from schemas.route_schema import *
 from schemas.map_schema import *
+from schemas.destination_schema import Location, Bounds
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 

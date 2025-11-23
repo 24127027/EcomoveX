@@ -6,7 +6,7 @@ from schemas.route_schema import *
 from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
-from schemas.destination_schema import Location
+from schemas.destination_schema import Location, Bounds
 
 TRANSPORT_MODE_TO_ROUTES_API = {
     "car": "DRIVE",
