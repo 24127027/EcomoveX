@@ -25,6 +25,7 @@ class RoomRepository:
     @staticmethod
     async def is_member(db: AsyncSession, user_id: int, room_id: int) -> bool:
         try:
+            # 1. Kiểm tra trong bảng thành viên (RoomMember) - Dành cho Group Chat
             result = await db.execute(
                 select(RoomMember).where(
                     RoomMember.room_id == room_id,
@@ -32,7 +33,17 @@ class RoomRepository:
                 )
             )
             member = result.scalar_one_or_none()
-            return member is not None
+            if member:
+                return True
+            result_direct = await db.execute(
+                select(RoomDirect).where(
+                    (RoomDirect.room_id == room_id) & 
+                    ((RoomDirect.user1_id == user_id) | (RoomDirect.user2_id == user_id))
+                )
+            )
+            direct_entry = result_direct.scalar_one_or_none()
+            return direct_entry is not None
+
         except SQLAlchemyError as e:
             print(f"ERROR: checking membership of user ID {user_id} in room ID {room_id} - {e}")
             return False

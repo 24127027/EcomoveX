@@ -42,12 +42,14 @@ interface ValidationErrorResponse {
 export interface UserProfileUpdate {
   username?: string;
   avt_blob_name?: string | null;
+  cover_blob_name?: string | null;
 }
 export interface UserProfile {
   id: number;
   username: string;
   email: string;
   avt_url?: string | null;
+  cover_url?: string | null;
   role?: string;
 }
 
@@ -178,6 +180,60 @@ export class ApiValidationError extends Error {
   }
 }
 
+export class ApiHttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiHttpError";
+  }
+}
+
+// --- WEATHER & AIR TYPES ---
+
+export interface WeatherCondition {
+  description: string;
+  icon_base_uri: string;
+  type: string; // VD: "CLEAR", "CLOUDY", "RAINY"
+}
+
+export interface Temperature {
+  temperature: number;
+  feelslike_temperature: number;
+  max_temperature?: number;
+  min_temperature?: number;
+}
+
+export interface CurrentWeatherResponse {
+  temperature: Temperature;
+  weather_condition: WeatherCondition;
+  humidity: number;
+  cloud_cover: number;
+  is_daytime: boolean;
+}
+
+export interface AirQualityIndex {
+  display_name: string;
+  aqi: number;
+  category: string;
+}
+
+export interface AirQualityResponse {
+  location: [number, number];
+  aqi_data: AirQualityIndex;
+  // recommendations: ... (Có thể thêm nếu cần)
+}
+
+//Chat Types
+export interface ChatMessage {
+  id: number;
+  sender_id: number;
+  room_id: number;
+  content: string;
+  timestamp: string;
+  message_type: string;
+}
+
 const parseMockDate = (dateStr: string) => {
   const [day, month, year] = dateStr.split("/").map(Number);
   return new Date(year, month - 1, day);
@@ -247,11 +303,15 @@ class ApiClient {
 
         // Handle other error responses
         console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
-        throw new Error(
+        throw new ApiHttpError(
+          response.status,
           errorData.detail || `HTTP ${response.status}: An error occurred`
         );
       } catch (e) {
         if (e instanceof ApiValidationError) {
+          throw e;
+        }
+        if (e instanceof ApiHttpError) {
           throw e;
         }
         console.error(`API Error [${response.status}] ${endpoint}:`, e);
@@ -358,7 +418,7 @@ class ApiClient {
       {
         id: 201,
         destination: "Ho Chi Minh City (Upcoming)",
-        date: "20/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        date: "30/11/2025", // Ngày tương lai (Sẽ là Current Plan)
         activities: [
           {
             id: 1,
@@ -373,15 +433,13 @@ class ApiClient {
       {
         id: 101,
         destination: "District 1 (Past)",
-        date: "04/01/2024", // Ngày quá khứ
-        activities: [
-          // ... (Dữ liệu cũ)
-        ],
+        date: "04/01/2026",
+        activities: [],
       },
       {
         id: 102,
         destination: "District 5 (Past)",
-        date: "01/01/2023", // Ngày quá khứ xa hơn
+        date: "01/01/2023",
         activities: [],
       },
     ];
@@ -473,6 +531,52 @@ class ApiClient {
     return this.request<number>(`/map/bird-distance?${params.toString()}`, {
       method: "GET",
     });
+  }
+
+  async getDirectRoomId(partnerId: number): Promise<number> {
+    const res = await this.request<{ id: number }>("/rooms/direct", {
+      method: "POST",
+      body: JSON.stringify({ partner_id: partnerId }),
+    });
+    return res.id;
+  }
+
+  async getChatHistory(roomId: number): Promise<ChatMessage[]> {
+    return this.request<ChatMessage[]>(`/messages/room/${roomId}`, {
+      method: "GET",
+    });
+  }
+
+  getWebSocketUrl(roomId: number): string {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("access_token") : "";
+
+    let host = process.env.NEXT_PUBLIC_API_URL || "localhost:8000";
+    host = host.replace("http://", "").replace("https://", "");
+    if (host.endsWith("/")) {
+      host = host.slice(0, -1);
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${host}/messages/ws/${roomId}?token=${token}`;
+  }
+
+  async getCurrentWeather(
+    lat: number,
+    lng: number
+  ): Promise<CurrentWeatherResponse> {
+    return this.request<CurrentWeatherResponse>(
+      `/weather/current?lat=${lat}&lng=${lng}&unit_system=METRIC`,
+      { method: "GET" }
+    );
+  }
+
+  async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
+    // Gọi endpoint /air/air-quality
+    return this.request<AirQualityResponse>(
+      `/air/air-quality?lat=${lat}&lng=${lng}`,
+      { method: "GET" }
+    );
   }
 }
 

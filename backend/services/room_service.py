@@ -177,15 +177,28 @@ class RoomService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot create a direct room with the same user"
                 )
-            user1_normalized = min(user1_id, user2_id)
-            user2_normalized = max(user1_id, user2_id)
-            new_room = await RoomRepository.create_direct_room(db, user1_normalized, user2_normalized)
+            
+            # --- [FIX LOGIC] ---
+            # 1. Sắp xếp ID để luôn đảm bảo user1 < user2 (Khớp với cách lưu trong DB)
+            u1_norm = min(user1_id, user2_id)
+            u2_norm = max(user1_id, user2_id)
+
+            # 2. Kiểm tra xem phòng đã tồn tại chưa
+            existing_room = await RoomRepository.get_direct_room_between_users(db, u1_norm, u2_norm)
+            if existing_room:
+                # Nếu đã có, trả về ID phòng cũ luôn (Không tạo mới)
+                return DirectRoomResponse(id=existing_room.id)
+            
+            # 3. Nếu chưa có thì mới tạo
+            new_room = await RoomRepository.create_direct_room(db, u1_norm, u2_norm)
             if not new_room:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create direct room"
                 )
             return DirectRoomResponse(id=new_room.id)
+            # -------------------
+
         except HTTPException:
             raise
         except Exception as e:
