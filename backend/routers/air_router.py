@@ -7,9 +7,7 @@ router = APIRouter(prefix="/air", tags=["Air Quality"])
 
 @router.get("/air-quality", response_model=AirQualityResponse, status_code=status.HTTP_200_OK)
 async def get_air_quality(
-    lat: float = Query(..., ge=-90.0, le=90.0),
-    lng: float = Query(..., ge=-180.0, le=180.0)
+    place_id: str = Query(..., description="Place ID to get location details"),
 ):
-    location = Location(latitude=lat, longitude=lng)
-    result = await AirService.get_air_quality(location=location)
+    result = await AirService.get_air_quality(place_id=place_id)
     return result
