@@ -2,13 +2,14 @@ from schemas.destination_schema import Location
 from integration.weather_api import create_weather_client
 from schemas.weather_schema import CurrentWeatherResponse, WeatherForecastResponse, CurrentWeatherRequest, ForecastRequest
 from fastapi import HTTPException, status
-from typing import Tuple
-
+from services.map_service import mapService
 class WeatherService:
     @staticmethod
-    async def get_current_weather(location: Location, unit_system: str = "METRIC") -> CurrentWeatherResponse:
+    async def get_current_weather(place_id: str, unit_system: str = "METRIC") -> CurrentWeatherResponse:
         try:
             try:
+                detail = await mapService.get_location_details(place_id)
+                location = detail.geometry.location
                 weather_client = await create_weather_client()
                 param = CurrentWeatherRequest(location=location, unit_system=unit_system)
                 return await weather_client.get_current(param=param)

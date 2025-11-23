@@ -2,8 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from enum import Enum
-from schemas.destination_schema import Location
-from schemas.destination_schema import Bounds
+from schemas.destination_schema import Location, Bounds
 
 class TransportMode(str, Enum):
     car = "car"

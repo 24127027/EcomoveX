@@ -66,7 +66,7 @@ export interface Position {
 
 export interface SearchPlacesRequest {
   query: string;
-  user_location?: [number, number]; // Tuple format for backend
+  user_location?: Position; 
   radius?: number; // in meters
   place_types?: string; // Comma-separated string
   language?: string;

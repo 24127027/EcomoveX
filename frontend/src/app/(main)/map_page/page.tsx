@@ -11,12 +11,7 @@ interface PlaceDetailsWithDistance extends PlaceDetails {
 }
 
 const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
-  const rawLoc = details.geometry.location;
-
-  const destination: Position = Array.isArray(rawLoc)
-    ? { lat: rawLoc[0], lng: rawLoc[1] }
-    : rawLoc;
-
+  const destination: Position = details.geometry.location;
   const distanceKm = await api.birdDistance(userPos, destination);
   const distanceText = distanceKm < 1 
     ? `${Math.round(distanceKm * 1000)}m away`
@@ -73,7 +68,7 @@ export default function MapPage() {
         // Search using api.searchPlaces
         const response = await api.searchPlaces({
           query: searchQuery,
-          user_location: [userLocation.lat, userLocation.lng],
+          user_location: userLocation,
           radius: 5000, // 5km radius
         });
         
@@ -112,7 +107,7 @@ export default function MapPage() {
       // Use searchPlaces with eco-friendly types for recommendations
       const response = await api.searchPlaces({
         query: "park",
-        user_location: [userLocation.lat, userLocation.lng],
+        user_location: userLocation,
         radius: 5000, // 5km radius
         place_types: "park|tourist_attraction|point_of_interest",
       });
@@ -458,10 +453,7 @@ export default function MapPage() {
                   >
                     <div className="relative h-28 bg-gray-200">
                       <img
-                        src={location.photos?.[0]?.photo_reference 
-                          ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-                          : 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400'
-                        }
+                        src={location.photos?.[0]?.photo_reference}
                         alt={location.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {

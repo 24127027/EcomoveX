@@ -4,9 +4,18 @@ from datetime import datetime
 from models.destination import GreenVerifiedStatus
 
 class Location(BaseModel):
-    longitude: float
-    latitude: float
+    longitude: float = Field(alias="lng")
+    latitude: float = Field(alias="lat")
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        ser_json_tuples=False,
+        
+        #output aliases instead of field names
+        json_schema_extra={"serialization": {"by_alias": True}}
+    )
+    
 class Bounds(BaseModel):
     northeast: Location
     southwest: Location
