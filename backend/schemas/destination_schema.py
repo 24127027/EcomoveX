@@ -1,10 +1,31 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime
 from models.destination import GreenVerifiedStatus
 
+class Location(BaseModel):
+    longitude: float = Field(alias="lng")
+    latitude: float = Field(alias="lat")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        ser_json_tuples=False,
+        
+        #output aliases instead of field names
+        json_schema_extra={"serialization": {"by_alias": True}}
+    )
+    
+class Bounds(BaseModel):
+    northeast: Location
+    southwest: Location
+
+class Geometry(BaseModel):
+    location: Location
+    bounds: Optional[Bounds] = None
+
 class DestinationCreate(BaseModel):
-    google_place_id: str = Field(..., alias="place_id")
+    place_id: str = Field(..., alias="place_id")
     green_verified_status: Optional[GreenVerifiedStatus] = None 
     
     class Config:

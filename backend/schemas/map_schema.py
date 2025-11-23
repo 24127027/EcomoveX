@@ -1,13 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
-
-class Bounds(BaseModel):
-    northeast: Tuple[float, float]
-    southwest: Tuple[float, float]
-
-class Geometry(BaseModel):
-    location: Tuple[float, float]
-    bounds: Optional[Bounds] = None
+from schemas.destination_schema import Geometry, Location
 
 class PlaceSearchDisplay(BaseModel):
     description: str
@@ -24,13 +17,13 @@ class AutocompleteResponse(BaseModel):
 
 class SearchLocationRequest(BaseModel):
     query: str = Field(..., min_length=2)
-    user_location: Optional[Tuple[float, float]] = None
+    user_location: Optional[Location] = None
     radius: Optional[int] = Field(None, ge=100, le=50000)
     place_types: Optional[str] = None
     language: str = "vi"
 
 class PhotoInfo(BaseModel):
-    photo_reference: str
+    photo_url: str
     size: Tuple[int, int]
 
 class OpeningHours(BaseModel):
@@ -63,6 +56,8 @@ class PlaceDetailsResponse(BaseModel):
     reviews: Optional[List[Review]] = None
     utc_offset: Optional[int] = None
     sustainable_certified: bool = False
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class GeocodingResult(BaseModel):
     place_id: str
@@ -77,7 +72,7 @@ class GeocodingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
         
 class NearbyPlaceRequest(BaseModel):
-    location: Tuple[float, float]
+    location: Location
     radius: Optional[int]
     rank_by: str = "prominence"
     place_type: Optional[str] = None
@@ -86,18 +81,19 @@ class NearbyPlaceRequest(BaseModel):
 class NearbyPlaceSimple(BaseModel):
     place_id: str
     name: str
-    location: Tuple[float, float]
+    location: Location
     rating: Optional[float] = None
     types: List[str]
 
+
 class NearbyPlacesResponse(BaseModel):
-    center: Tuple[float, float]
+    center: Location
     places: List[NearbyPlaceSimple]
     next_page_token: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
 class SearchAlongRouteResponse(BaseModel):
-    route_polyline: str
     places_along_route: List[NearbyPlaceSimple]
-    search_type: str
+    
+    model_config = ConfigDict(from_attributes=True)

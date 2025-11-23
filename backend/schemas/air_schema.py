@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, Tuple
+from schemas.destination_schema import Location
 
 class AirQualityIndex(BaseModel):
     display_name: str
@@ -11,6 +12,6 @@ class HealthRecommendation(BaseModel):
     sensitive_groups: Optional[str] = None
 
 class AirQualityResponse(BaseModel):
-    location: Tuple[float, float]
+    location: Location
     aqi_data: AirQualityIndex
     recommendations: Optional[HealthRecommendation] = None

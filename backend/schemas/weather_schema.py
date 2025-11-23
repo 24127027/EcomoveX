@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional, List
+from schemas.destination_schema import Location
 
 class Temperature(BaseModel):
     temperature: float  # in Celsius
@@ -27,11 +28,11 @@ class DisplayDateTime(BaseModel):
     utc_offset: str = Field(..., alias="utcOffset", example="-28800s")
 
 class CurrentWeatherRequest(BaseModel):
-    location: tuple[float, float]  # (latitude, longitude)
+    location: Location  # Location object with latitude and longitude
     unit_system: Optional[str] = "METRIC"  # "METRIC" or "IMPERIAL"
     
 class ForecastRequest(BaseModel):
-    location: tuple[float, float]  # (latitude, longitude)
+    location: Location  # Location object with latitude and longitude
     hours: int  
     unit_system: Optional[str] = "METRIC"  # "METRIC" or "IMPERIAL"
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, status
 from schemas.air_schema import AirQualityResponse
+from schemas.destination_schema import Location
 from services.air_service import AirService
 
 router = APIRouter(prefix="/air", tags=["Air Quality"])
@@ -9,6 +10,6 @@ async def get_air_quality(
     lat: float = Query(..., ge=-90.0, le=90.0),
     lng: float = Query(..., ge=-180.0, le=180.0)
 ):
-    location = (lat, lng)
+    location = Location(latitude=lat, longitude=lng)
     result = await AirService.get_air_quality(location=location)
     return result

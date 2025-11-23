@@ -1,3 +1,5 @@
+import { types } from "util";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface LoginCredentials {
@@ -64,6 +66,13 @@ export interface Position {
   lng: number;
 }
 
+export interface SearchPlacesRequest {
+  query: string;
+  user_location?: Position; 
+  radius?: number; // in meters
+  place_types?: string; // Comma-separated string
+  language?: string;
+}
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
@@ -71,6 +80,9 @@ export interface AutocompletePrediction {
   types: string[];
   matched_substrings?: Array<Record<string, any>>;
   distance?: number;
+}
+export interface AutocompleteResponse {
+  predictions: AutocompletePrediction[];
 }
 
 export interface PlaceDetails {
@@ -81,36 +93,33 @@ export interface PlaceDetails {
     name: string;
     types: string[];
   }>;
-  location: Position;
-  geometry?: {
+  formatted_phone_number?: string;
+  geometry: {
     location: Position;
     bounds?: {
       northeast: Position;
       southwest: Position;
     };
   };
+  types: string[];
   rating?: number;
   user_ratings_total?: number;
-  photos?: Array<{
-    photo_reference: string;
-    width: number;
-    height: number;
-  }>;
-  formatted_phone_number?: string;
+  price_level?: number;
   opening_hours?: {
     open_now: boolean;
     periods?: Array<Record<string, any>>;
     weekday_text?: string[];
   };
   website?: string;
-  types: string[];
-  vicinity?: string;
+  photos?: Array<{
+    photo_reference: string;
+    width: number;
+    height: number;
+  }>;
+  reviews?: Array<Record<string, any>>;
+  utc_offset?: number;
+  sustainable_certified: boolean;
 }
-
-export interface SearchPlacesResponse {
-  predictions: AutocompletePrediction[];
-}
-
 export interface ReverseGeocodeResponse {
   results: Array<{
     formatted_address: string;
@@ -489,6 +498,18 @@ class ApiClient {
 
   async getChatHistory(roomId: number): Promise<ChatMessage[]> {
     return this.request<ChatMessage[]>(`/messages/room/${roomId}`, {
+  // Map Endpoints
+  async searchPlaces(request: SearchPlacesRequest): 
+    Promise<AutocompleteResponse> {
+      const response = await this.request<AutocompleteResponse>("/map/search", {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+      return response;
+    }
+
+  async getPlaceDetails(placeId: string): Promise<PlaceDetails> {
+    return this.request<PlaceDetails>(`/map/place/${placeId}`, {
       method: "GET",
     });
   }
@@ -523,6 +544,33 @@ class ApiClient {
       `/air/air-quality?lat=${lat}&lng=${lng}`,
       { method: "GET" }
     );
+  async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/geocode", {
+      method: "POST",
+      body: JSON.stringify({ address }),
+    });
+  }
+
+  async reverseGeocode(position: Position): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
+      method: "POST",
+      body: JSON.stringify(position),
+    });
+  }
+
+  async birdDistance(
+    origin: Position,
+    destination: Position
+  ): Promise<number> {
+    const params = new URLSearchParams({
+      origin_lat: origin.lat.toString(),
+      origin_lng: origin.lng.toString(),
+      destination_lat: destination.lat.toString(),
+      destination_lng: destination.lng.toString(),
+    });
+    return this.request<number>(`/map/bird-distance?${params.toString()}`, {
+      method: "GET",
+    });
   }
 }
 

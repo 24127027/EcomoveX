@@ -1,9 +1,11 @@
-from typing import List
+from typing import Tuple
 from fastapi import APIRouter, Depends, Path, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from schemas.route_schema import DirectionsResponse
 from models.user import *
 from database.db import get_db
 from schemas.map_schema import *
+from schemas.destination_schema import Location
 from schemas.user_schema import *
 from schemas.air_schema import *
 from services.map_service import mapService
@@ -31,7 +33,7 @@ async def get_place_details(
     )
     
     activity_data = UserActivityCreate(
-        activity_type=Activity.search_destination,
+        activity=Activity.search_destination,
         destination_id=place_id
     )
     await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
@@ -49,6 +51,29 @@ async def reverse_geocode(
     lat: float = Body(..., ge=-90.0, le=90.0),
     lng: float = Body(..., ge=-180.0, le=180.0)
 ):    
-    location = (lat, lng)
+    location = Location(latitude=lat, longitude=lng)
     result = await mapService.reverse_geocode(location=location)
     return result
+
+@router.post("/search-along-route", response_model=SearchAlongRouteResponse, status_code=status.HTTP_200_OK)
+async def search_along_route(
+    direction_data: DirectionsResponse = Body(...),
+    search_type: str = Body(..., min_length=2),
+):
+    result = await mapService.search_along_route(
+        directions=direction_data,
+        search_type=search_type,
+    )
+    return result
+
+@router.get("/bird-distance", response_model = float, status_code=status.HTTP_200_OK)
+async def calculate_bird_distance(
+    origin_lat: float = Query(..., ge=-90.0, le=90.0),
+    origin_lng: float = Query(..., ge=-180.0, le=180.0),
+    destination_lat: float = Query(..., ge=-90.0, le=90.0),
+    destination_lng: float = Query(..., ge=-180.0, le=180.0),
+):
+    origin = (origin_lat, origin_lng)
+    destination = (destination_lat, destination_lng)
+    distance = await mapService.calculate_bird_distance(origin=origin, destination=destination)
+    return distance

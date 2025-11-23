@@ -2,6 +2,7 @@ from schemas.air_schema import *
 from utils.config import settings
 from typing import Tuple, Optional, List
 import httpx
+from schemas.destination_schema import Location
 
 class AirQualityAPI:
     def __init__(self, api_key: Optional[str] = None):
@@ -14,15 +15,15 @@ class AirQualityAPI:
     
     async def get_air_quality(
         self,
-        location: Tuple[float, float],
+        location: Location,
         extra_computations: Optional[List[str]] = ["HEALTH_RECOMMENDATIONS"],
         language_code: str = "vi"
     ) -> AirQualityResponse:
         try:
             payload = {
                 "location": {
-                    "latitude": location[0],
-                    "longitude": location[1]
+                    "latitude": location.latitude,
+                    "longitude": location.longitude
                 },
                 "languageCode": language_code
             }
