@@ -38,8 +38,8 @@ class AirQualityAPI:
             )
             data = response.json()
             
-            if data.get("status") != "OK":
-                raise ValueError(f"Error fetching air quality data: {data.get('status')}")
+            if response.status_code != 200 or "error" in data:
+                raise ValueError(f"Error fetching air quality data: {data.get('error', 'Unknown error')}")
             
             indexes = data.get("indexes", [])
             if not indexes:
