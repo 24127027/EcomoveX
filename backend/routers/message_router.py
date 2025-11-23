@@ -1,12 +1,10 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Path, Query, status, WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.message_schema import MessageCreate, MessageResponse
 from services.message_service import MessageService
 from utils.token.authentication_util import get_current_user
-from utils.socket_manager import manager
-from utils.token.authentication_util import decode_access_token
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
@@ -56,43 +54,9 @@ async def delete_message(
 async def websocket_endpoint(
     websocket: WebSocket,
     room_id: int,
-    token: str = Query(...),  # Token gửi qua query param: ws://url?token=...
+    token: str = Query(...),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. Xác thực thủ công (vì Socket không dùng Depends như HTTP thường)
-    try:
-        user_data = decode_access_token(token)
-        user_id = user_data["user_id"]
-    except Exception:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    # 2. Kết nối
-    await manager.connect(websocket, room_id)
-    
-    try:
-        while True:
-            # 3. Nhận tin từ Frontend
-            data = await websocket.receive_json()
-            content = data.get("content")
-            
-            if content:
-                # 4. Lưu vào Database (Dùng Service có sẵn của bạn)
-                # Tạo object đúng chuẩn schema MessageCreate của bạn
-                msg_input = MessageCreate(content=content, message_type="text")
-                saved_msg = await MessageService.create_message(db, user_id, room_id, msg_input)
-                
-                # 5. Gửi lại cho Frontend để hiển thị ngay lập tức
-                if saved_msg:
-                    response = {
-                        "id": saved_msg.id,
-                        "content": saved_msg.content,
-                        "sender_id": saved_msg.sender_id,
-                        "room_id": room_id,
-                        "timestamp": saved_msg.timestamp.isoformat(), # convert datetime to string
-                        "message_type": "text"
-                    }
-                    await manager.broadcast(response, room_id)
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, room_id)
+    user_id = await MessageService.handle_websocket_connection(websocket, db, room_id, token)
+    if user_id:
+        await MessageService.handle_websocket_message_loop(websocket, db, user_id, room_id)

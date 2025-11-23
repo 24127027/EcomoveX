@@ -4,12 +4,8 @@ from database.db import get_db
 from schemas.room_schema import *
 from services.room_service import RoomService
 from utils.token.authentication_util import get_current_user
-from pydantic import BaseModel 
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
-#Define simple body models for specific requests
-class DirectRoomRequest(BaseModel):
-    partner_id: int
 
 @router.get("/rooms", response_model=list[RoomResponse], status_code=status.HTTP_200_OK)
 async def list_rooms(
@@ -80,16 +76,4 @@ async def remove_users_from_room(
         current_user["user_id"], 
         member_data.ids, 
         room_id
-    )
-
-@router.post("/direct", response_model=DirectRoomResponse, status_code=status.HTTP_200_OK)
-async def get_or_create_direct_room(
-    request: DirectRoomRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    return await RoomService.create_direct_room(
-        db, 
-        current_user["user_id"], 
-        request.partner_id
     )
