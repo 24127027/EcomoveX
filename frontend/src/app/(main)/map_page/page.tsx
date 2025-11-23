@@ -47,6 +47,14 @@ export default function MapPage() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
+
+  // This is for handling browser back/forward navigation
+  useEffect(() => {
+    if (urlQuery !== searchQuery) {
+      setSearchQuery(urlQuery);
+    }
+  }, [urlQuery]);
+
   // Fetch recommendations on component mount
   useEffect(() => {
     if (!urlQuery) {
@@ -56,6 +64,19 @@ export default function MapPage() {
 
   // Handle search with debounce
   useEffect(() => {
+    // --- Part 1: Update the URL using router.push ---
+    const handler = setTimeout(() => {
+      if (searchQuery.trim() !== '' && searchQuery !== urlQuery) {
+        // Use router.push to update the URL.
+        // `scroll: false` prevents the page from scrolling to the top.
+        router.push(`/map_page?q=${encodeURIComponent(searchQuery)}`, { scroll: false });
+      } else if (searchQuery.trim() === '' && urlQuery) {
+        // If the search bar is cleared, remove the query from the URL.
+        router.push('/map_page', { scroll: false });
+      }
+    }, 500); // 500ms delay after user stops typing
+
+    // --- Part 2: Your existing search logic ---
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -63,53 +84,56 @@ export default function MapPage() {
     if (searchQuery.trim() === '') {
       setSearchResults([]);
       setIsSearching(false);
-      
+      setSelectedLocation(null); // Also clear selection
+      setSheetHeight(40);
       if (locations.length === 0) {
         fetchRecommendations();
       }
-      
-      return;
+      return () => clearTimeout(handler); // Cleanup for the URL timeout
     }
 
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // Search using api.searchPlaces
         const response = await api.searchPlaces({
           query: searchQuery,
           user_location: userLocation,
-          radius: 5000, // 5km radius
+          radius: 5000,
         });
         
-        // Fetch details for each prediction to get complete info
         const detailedResults = await Promise.all(
           response.predictions.slice(0, 6).map(async (prediction) => {
             try {
               const details = await api.getPlaceDetails(prediction.place_id);
               return await addDistanceText(details, userLocation);
-            } catch (error) {
-              console.error(`Failed to fetch details for ${prediction.place_id}:`, error);
-              return null;
-            }
+            } catch (error) { return null; }
           })
         );
         
-        setSearchResults(detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null));
-        setSheetHeight(65);
+        const finalResults = detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null);
+        setSearchResults(finalResults);
+
+        if (finalResults.length > 0) {
+          setSheetHeight(70);
+        } else {
+          setSelectedLocation(null); // Clear selection if no results
+        }
       } catch (error) {
         console.error('Search failed:', error);
         setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
-    }, 500);
+    }, 500); // This debounce is for the API call
 
+    // --- Part 3: Cleanup ---
     return () => {
+      clearTimeout(handler); // Cleanup for the URL timeout
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, userLocation]);
+  }, [searchQuery, userLocation, router, urlQuery]); 
 
   const fetchRecommendations = async () => {
     setIsLoadingRecommendations(true);
