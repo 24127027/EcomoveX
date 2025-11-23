@@ -178,18 +178,13 @@ class RoomService:
                     detail="Cannot create a direct room with the same user"
                 )
             
-            # --- [FIX LOGIC] ---
-            # 1. Sắp xếp ID để luôn đảm bảo user1 < user2 (Khớp với cách lưu trong DB)
             u1_norm = min(user1_id, user2_id)
             u2_norm = max(user1_id, user2_id)
 
-            # 2. Kiểm tra xem phòng đã tồn tại chưa
             existing_room = await RoomRepository.get_direct_room_between_users(db, u1_norm, u2_norm)
             if existing_room:
-                # Nếu đã có, trả về ID phòng cũ luôn (Không tạo mới)
                 return DirectRoomResponse(id=existing_room.id)
             
-            # 3. Nếu chưa có thì mới tạo
             new_room = await RoomRepository.create_direct_room(db, u1_norm, u2_norm)
             if not new_room:
                 raise HTTPException(
@@ -197,8 +192,6 @@ class RoomService:
                     detail="Failed to create direct room"
                 )
             return DirectRoomResponse(id=new_room.id)
-            # -------------------
-
         except HTTPException:
             raise
         except Exception as e:
