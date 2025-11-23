@@ -412,20 +412,6 @@ export default function HomePage() {
                     {/* Icon thời tiết thật */}
                     {getWeatherIcon(weather?.weather_condition.type)}
                   </div>
-                  <div
-                    className="mt-auto bg-white/60 p-2 rounded-xl backdrop-blur-sm cursor-pointer hover:bg-white/80 transition-colors"
-                    onClick={() => handleSearchNearby()}
-                  >
-                    <p className="text-[9px] text-gray-500 uppercase font-bold">
-                      Nearest Green Spot
-                    </p>
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="text-xs font-bold text-gray-800 truncate w-20">
-                        Find Nearby
-                      </span>
-                      <ArrowRight size={12} className="text-green-600" />
-                    </div>
-                  </div>
                 </>
               )}
             </div>
