@@ -24,12 +24,21 @@ const addDistanceText = async (details: PlaceDetails, userPos: Position): Promis
   };
 };
 
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>(undefined);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
 export default function MapPage() {
   const router = useRouter();
   const { isLoaded, loadError } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] = useState<PlaceDetailsWithDistance | null>(null);
   const urlQuery = useSearchParams().get("q") || "";
   const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const prevSearchQuery = usePrevious(searchQuery);
   const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
   const [searchResults, setSearchResults] = useState<PlaceDetailsWithDistance[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -46,7 +55,7 @@ export default function MapPage() {
   const markersRef = useRef<google.maps.Marker[]>([]);
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-
+  const initialLoadRef = useRef(true);
 
   // This is for handling browser back/forward navigation
   useEffect(() => {
@@ -59,6 +68,7 @@ export default function MapPage() {
   useEffect(() => {
     if (!urlQuery) {
       fetchRecommendations();
+      initialLoadRef.current = false;
     }
   }, [userLocation]);
 
@@ -92,40 +102,43 @@ export default function MapPage() {
       return () => clearTimeout(handler); // Cleanup for the URL timeout
     }
 
-    setIsSearching(true);
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        const response = await api.searchPlaces({
-          query: searchQuery,
-          user_location: userLocation,
-          radius: 5000,
-        });
-        
-        const detailedResults = await Promise.all(
-          response.predictions.slice(0, 6).map(async (prediction) => {
-            try {
-              const details = await api.getPlaceDetails(prediction.place_id);
-              return await addDistanceText(details, userLocation);
-            } catch (error) { return null; }
-          })
-        );
-        
-        const finalResults = detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null);
-        setSearchResults(finalResults);
+    if (prevSearchQuery !== searchQuery)
+    {
+      setIsSearching(true);
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const response = await api.searchPlaces({
+            query: searchQuery,
+            user_location: userLocation,
+            radius: 5000,
+          });
+          
+          const detailedResults = await Promise.all(
+            response.predictions.slice(0, 6).map(async (prediction) => {
+              try {
+                const details = await api.getPlaceDetails(prediction.place_id);
+                return await addDistanceText(details, userLocation);
+              } catch (error) { return null; }
+            })
+          );
+          
+          const finalResults = detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null);
+          setSearchResults(finalResults);
 
-        if (finalResults.length > 0) {
-          setSheetHeight(70);
-        } else {
-          setSelectedLocation(null); // Clear selection if no results
+          if (finalResults.length > 0) {
+            setSheetHeight(70);
+          } else {
+            setSelectedLocation(null); // Clear selection if no results
+          }
+        } catch (error) {
+          console.error('Search failed:', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
         }
-      } catch (error) {
-        console.error('Search failed:', error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500); // This debounce is for the API call
-
+      }, 500); // This debounce is for the API call
+    }
+    
     // --- Part 3: Cleanup ---
     return () => {
       clearTimeout(handler); // Cleanup for the URL timeout
@@ -285,7 +298,6 @@ export default function MapPage() {
             googleMapRef.current.setCenter(pos);
             googleMapRef.current.setZoom(15);
           }
-          fetchRecommendations();
         },
         (error) => {
           console.error('Error getting location:', error);
