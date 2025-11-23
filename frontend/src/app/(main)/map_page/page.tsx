@@ -453,11 +453,10 @@ export default function MapPage() {
                   >
                     <div className="relative h-28 bg-gray-200">
                       <img
-                        src={location.photos?.[0]?.photo_reference}
+                        src={location.photos?.[0]?.photo_url || 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400'}
                         alt={location.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          // Fallback if image fails to load
                           e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400';
                         }}
                       />
