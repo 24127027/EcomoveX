@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
 import { api, AutocompletePrediction, PlaceDetails, Position } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
+import { url } from "inspector";
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
@@ -27,7 +28,8 @@ export default function MapPage() {
   const router = useRouter();
   const { isLoaded, loadError } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] = useState<PlaceDetailsWithDistance | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const urlQuery = useSearchParams().get("q") || "";
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
   const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
   const [searchResults, setSearchResults] = useState<PlaceDetailsWithDistance[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -47,7 +49,9 @@ export default function MapPage() {
 
   // Fetch recommendations on component mount
   useEffect(() => {
-    fetchRecommendations();
+    if (!urlQuery) {
+      fetchRecommendations();
+    }
   }, [userLocation]);
 
   // Handle search with debounce
@@ -59,6 +63,11 @@ export default function MapPage() {
     if (searchQuery.trim() === '') {
       setSearchResults([]);
       setIsSearching(false);
+      
+      if (locations.length === 0) {
+        fetchRecommendations();
+      }
+      
       return;
     }
 
@@ -86,6 +95,7 @@ export default function MapPage() {
         );
         
         setSearchResults(detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null));
+        setSheetHeight(65);
       } catch (error) {
         console.error('Search failed:', error);
         setSearchResults([]);
@@ -132,6 +142,7 @@ export default function MapPage() {
       );
       
       setLocations(detailedRecommendations.filter((r): r is PlaceDetailsWithDistance => r !== null));
+      setSheetHeight(65);
     } catch (error) {
       console.error('Failed to fetch recommendations:', error);
       setLocations([]);
@@ -156,11 +167,14 @@ export default function MapPage() {
           stylers: [{ visibility: "off" }]
         }
       ],
-      disableDefaultUI: false,
-      zoomControl: true,
+      disableDefaultUI: true,
       mapTypeControl: false,
       streetViewControl: false,
-      fullscreenControl: false
+      fullscreenControl: false,
+      panControl: false,
+      zoomControl: false,
+
+      gestureHandling: 'cooperative'
     });
 
     googleMapRef.current = map;
@@ -427,7 +441,7 @@ export default function MapPage() {
             )}
 
             {/* Loading State */}
-            {(isLoadingRecommendations || isSearching) && (
+            {(isLoadingRecommendations || isSearching) && displayedLocations.length === 0 && (
               <div className="flex justify-center items-center py-8">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent"></div>
               </div>
@@ -441,7 +455,7 @@ export default function MapPage() {
             )}
 
             {/* Recommendations Grid */}
-            {!isLoadingRecommendations && displayedLocations.length > 0 && (
+            {!isSearching && displayedLocations.length > 0 && (
               <div className="grid grid-cols-2 gap-3 pb-2">
                 {displayedLocations.map((location) => (
                   <div
