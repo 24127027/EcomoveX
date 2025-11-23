@@ -7,6 +7,7 @@ from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 from schemas.destination_schema import Location, Bounds
+import requests
 
 TRANSPORT_MODE_TO_ROUTES_API = {
     "car": "DRIVE",
@@ -385,17 +386,21 @@ class MapAPI:
     async def generate_place_photo_url(
         self,
         photo_reference: str,
+        maxwidth: int = 400,
     ) -> str:
         try:
             params = {
+                "maxwidth": maxwidth,
                 "photoreference": photo_reference,
                 "key": self.api_key
             }
-                    
+
             base_url = "https://maps.googleapis.com/maps/api/place/photo"
-            query_string = "&".join([f"{key}={value}" for key, value in params.items()])
-            photo_url = f"{base_url}?{query_string}"
-            return photo_url
+            response = requests.get(base_url, params=params, allow_redirects=False)
+            real_photo_url = response.headers.get("Location")
+
+            return real_photo_url
+
         except Exception as e:
             print(f"Error in generate_place_photo_url: {e}")
             raise e

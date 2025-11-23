@@ -5,8 +5,9 @@ from enum import Enum
 
 class FileCategory(str, Enum):
     profile_avatar = "profile_avatar"
-    PROFILE_COVER = "profile_cover"
-    TRAVEL_PHOTO = "travel_photo"
+    profile_cover = "profile_cover"
+    travel_photo = "travel_photo"
+    message_photo = "message_photo"
 
 class FileSortBy(str, Enum):
     FILENAME = "filename"
@@ -14,7 +15,6 @@ class FileSortBy(str, Enum):
     UPLOADED_AT = "uploaded_at"
 
 class SortOrder(str, Enum):
-    """Sort order direction."""
     ASCENDING = "ascending"
     DESCENDING = "descending"
 
@@ -44,4 +44,3 @@ class FileMetadataResponse(BaseModel):
     updated_at: Optional[datetime] = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
-
