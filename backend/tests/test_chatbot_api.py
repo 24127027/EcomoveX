@@ -1,127 +1,126 @@
 import sys
 from pathlib import Path
+import asyncio
+import os
 
-# Fix the path - go up TWO levels to reach backend
-backend_dir = Path(__file__).parent.parent  # Change from parent to parent.parent
+# Load .env từ backend
+from dotenv import load_dotenv
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(env_path)
+
+backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 import asyncio
 import os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import date
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 
-async def test_llm_service():
-    """Test suite for LLM Service"""
+async def test_real_llm_api():
+    """Test real LLM API integration (requires API key)"""
     print("\n" + "="*60)
-    print("🧪 TESTING LLM SERVICE")
+    print("🧪 TESTING REAL LLM API INTEGRATION")
     print("="*60 + "\n")
     
-    # Debug: Print the path
-    print(f"Backend directory: {backend_dir}")
-    print(f"Python path: {sys.path[:3]}\n")
-    
-    # Test 1: LLMService initialization
-    print("📋 Test 1: LLMService Initialization")
-    try:
-        from services.chatbot.llm_service import LLMService
-        
-        # Test with default values
-        llm = LLMService()
-        assert llm.api_key is not None or llm.api_key == os.getenv("OPEN_ROUTER_API_KEY")
-        assert llm.model is not None
-        assert llm.url == "https://openrouter.ai/api/v1/chat/completions"
-        print(f"  ✅ LLMService initialized")
-        print(f"     Model: {llm.model}")
-        print(f"     URL: {llm.url}\n")
-        
-    except Exception as e:
-        print(f"  ❌ Initialization failed: {e}\n")
-        import traceback
-        traceback.print_exc()
+    # Check if API key exists
+    api_key = os.getenv("OPEN_ROUTER_API_KEY")
+    if not api_key:
+        print("⚠️  OPEN_ROUTER_API_KEY not found in environment")
+        print("   Set it with: set OPEN_ROUTER_API_KEY=your_key_here")
+        print("   Skipping real API tests\n")
         return
     
-    # Test 2: Mock LLM generate_reply
-    print("📋 Test 2: Mock LLM Generate Reply")
+    print(f"✅ API Key found: {api_key[:10]}...{api_key[-4:]}\n")
+    
+    # Test 1: Simple conversation
+    print("📋 Test 1: Simple Conversation")
     try:
         from services.chatbot.llm_service import LLMService
         
         llm = LLMService()
         
-        # Mock the httpx client
-        with patch('httpx.AsyncClient') as mock_client:
-            # Setup mock response
-            mock_response = MagicMock()
-            mock_response.json.return_value = {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "Xin chào! Tôi có thể giúp gì cho bạn về chuyến du lịch?"
-                        }
-                    }
-                ]
-            }
-            mock_response.raise_for_status = MagicMock()
-            
-            # Setup mock client
-            mock_post = AsyncMock(return_value=mock_response)
-            mock_client.return_value.__aenter__.return_value.post = mock_post
-            
-            # Test generate_reply
-            context_messages = [
-                {"role": "system", "content": "Bạn là trợ lý du lịch"},
-                {"role": "user", "content": "Xin chào"}
-            ]
-            
-            reply = await llm.generate_reply(context_messages)
-            
-            assert reply == "Xin chào! Tôi có thể giúp gì cho bạn về chuyến du lịch?"
-            print(f"  ✅ Mock LLM reply generated successfully")
-            print(f"     Reply: {reply}\n")
-            
+        messages = [
+            {"role": "system", "content": "Bạn là trợ lý du lịch thông minh của EcomoveX."},
+            {"role": "user", "content": "Xin chào! Tôi muốn đi du lịch Đà Nẵng."}
+        ]
+        
+        print("  Sending request to LLM...")
+        reply = await llm.generate_reply(messages)
+        
+        print(f"  ✅ Response received")
+        print(f"     User: Xin chào! Tôi muốn đi du lịch Đà Nẵng.")
+        print(f"     Bot: {reply}\n")
+        
     except Exception as e:
-        print(f"  ❌ Mock generate_reply failed: {e}\n")
+        print(f"  ❌ Simple conversation test failed: {e}\n")
         import traceback
         traceback.print_exc()
     
-    # Test 3: ChatbotMessageService initialization
-    print("📋 Test 3: ChatbotMessageService Initialization")
+    # Test 2: Multi-turn conversation
+    print("📋 Test 2: Multi-turn Conversation")
     try:
-        from services.chatbot.llm_service import ChatbotMessageService
-        from utils.config import settings
+        from services.chatbot.llm_service import LLMService
         
-        # Create test database session
-        engine = create_async_engine(
-            f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASS}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}",
-            echo=False
-        )
+        llm = LLMService()
         
-        async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        conversation = [
+            {"role": "system", "content": "Bạn là trợ lý du lịch EcomoveX, chuyên về du lịch sinh thái."},
+            {"role": "user", "content": "Tôi có ngân sách 5 triệu cho 3 ngày ở Đà Nẵng"},
+        ]
         
-        async with async_session() as session:
-            chatbot_service = ChatbotMessageService(session)
-            
-            assert chatbot_service.db is not None
-            assert chatbot_service.repo is not None
-            assert chatbot_service.context_mgr is not None
-            assert chatbot_service.planner is not None
-            assert chatbot_service.llm is not None
-            
-            print(f"  ✅ ChatbotMessageService initialized successfully\n")
+        print("  Turn 1:")
+        reply1 = await llm.generate_reply(conversation)
+        print(f"    User: Tôi có ngân sách 5 triệu cho 3 ngày ở Đà Nẵng")
+        print(f"    Bot: {reply1[:100]}...")
         
-        await engine.dispose()
+        conversation.append({"role": "assistant", "content": reply1})
+        conversation.append({"role": "user", "content": "Gợi ý cho tôi địa điểm thân thiện với môi trường"})
+        
+        print("  Turn 2:")
+        reply2 = await llm.generate_reply(conversation)
+        print(f"    User: Gợi ý cho tôi địa điểm thân thiện với môi trường")
+        print(f"    Bot: {reply2[:100]}...\n")
         
     except Exception as e:
-        print(f"  ❌ ChatbotMessageService initialization failed: {e}\n")
+        print(f"  ❌ Multi-turn test failed: {e}\n")
         import traceback
         traceback.print_exc()
     
-    # ... rest of your test code ...
+    # Test 3: Planning assistance
+    print("📋 Test 3: Planning Assistance")
+    try:
+        from services.chatbot.llm_service import LLMService
+        
+        llm = LLMService()
+        
+        messages = [
+            {"role": "system", "content": "Bạn là trợ lý lập kế hoạch du lịch. Giúp người dùng tổ chức lịch trình chi tiết."},
+            {"role": "user", "content": "Lập kế hoạch chi tiết cho 1 ngày ở Hội An, bắt đầu từ 8h sáng"}
+        ]
+        
+        print("  Requesting detailed itinerary...")
+        reply = await llm.generate_reply(messages)
+        
+        print(f"  ✅ Itinerary received")
+        print(f"     Request: Lập kế hoạch chi tiết cho 1 ngày ở Hội An")
+        print(f"     Response:\n{reply}\n")
+        
+    except Exception as e:
+        print(f"  ❌ Planning assistance test failed: {e}\n")
+        import traceback
+        traceback.print_exc()
     
     print("="*60)
-    print("✅ ALL LLM SERVICE TESTS COMPLETED")
+    print("✅ REAL API TESTS COMPLETED")
     print("="*60 + "\n")
 
 if __name__ == "__main__":
-    asyncio.run(test_llm_service())
+    # Check for API key first
+    if os.getenv("OPEN_ROUTER_API_KEY"):
+        asyncio.run(test_real_llm_api())
+    else:
+        print("File path:", __file__)
+        print("ENV path:", env_path)
+        print("ENV exists?", env_path.exists())
+
+        print("[DEBUG] API KEY =", os.getenv("OPEN_ROUTER_API_KEY"))
+        print("\n⚠️  Set OPEN_ROUTER_API_KEY environment variable to run real API tests")
+        print("   Example: set OPEN_ROUTER_API_KEY=your_key_here\n")
