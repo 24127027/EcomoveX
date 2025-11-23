@@ -2,6 +2,7 @@ from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, PrimaryKeyC
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
+
 class Cluster(Base):
     __tablename__ = "clusters"
 

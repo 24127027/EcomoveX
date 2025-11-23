@@ -1,10 +1,13 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from schemas.route_schema import DirectionsResponse
 from integration.map_api import create_map_client
 from schemas.destination_schema import DestinationCreate
 from schemas.map_schema import *
 from services.destination_service import DestinationService
+from schemas.destination_schema import Location
+
 class mapService:
     @staticmethod
     async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
@@ -63,7 +66,7 @@ class mapService:
                 await map.close()
             
     @staticmethod
-    async def reverse_geocode(location: Tuple[float, float]) -> GeocodingResponse:
+    async def reverse_geocode(location: Location) -> GeocodingResponse:
         try:
             map = await create_map_client()
             return await map.reverse_geocode(location=location)
@@ -111,7 +114,27 @@ class mapService:
         finally:
             if map:
                 await map.close()
-
+                
+    @staticmethod
+    async def search_along_route(
+        dỉrection_data: DirectionsResponse,
+        search_type: str,
+    ) -> SearchAlongRouteResponse:
+        try:
+            map = await create_map_client()
+            return await map.search_along_route(
+                directions=dỉrection_data,
+                search_type=search_type,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to search along route: {str(e)}"
+            )
+        finally:
+            if map:
+                await map.close()
+    
     @staticmethod
     async def calculate_bird_distance(
         origin: Tuple[float, float],

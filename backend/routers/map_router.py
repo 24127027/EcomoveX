@@ -1,9 +1,11 @@
 from typing import Tuple
 from fastapi import APIRouter, Depends, Path, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from schemas.route_schema import DirectionsResponse
 from models.user import *
 from database.db import get_db
 from schemas.map_schema import *
+from schemas.destination_schema import Location
 from schemas.user_schema import *
 from schemas.air_schema import *
 from services.map_service import mapService
@@ -49,8 +51,19 @@ async def reverse_geocode(
     lat: float = Body(..., ge=-90.0, le=90.0),
     lng: float = Body(..., ge=-180.0, le=180.0)
 ):    
-    location = (lat, lng)
+    location = Location(latitude=lat, longitude=lng)
     result = await mapService.reverse_geocode(location=location)
+    return result
+
+@router.post("/search-along-route", response_model=SearchAlongRouteResponse, status_code=status.HTTP_200_OK)
+async def search_along_route(
+    direction_data: DirectionsResponse = Body(...),
+    search_type: str = Body(..., min_length=2),
+):
+    result = await mapService.search_along_route(
+        directions=direction_data,
+        search_type=search_type,
+    )
     return result
 
 @router.get("/bird-distance", response_model = float, status_code=status.HTTP_200_OK)

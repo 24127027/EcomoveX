@@ -1,7 +1,19 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime
 from models.destination import GreenVerifiedStatus
+
+class Location(BaseModel):
+    longitude: float
+    latitude: float
+
+class Bounds(BaseModel):
+    northeast: Location
+    southwest: Location
+
+class Geometry(BaseModel):
+    location: Location
+    bounds: Optional[Bounds] = None
 
 class DestinationCreate(BaseModel):
     place_id: str = Field(..., alias="place_id")
