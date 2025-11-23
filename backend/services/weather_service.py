@@ -23,9 +23,11 @@ class WeatherService:
             )
 
     @staticmethod
-    async def get_hourly_forecast(location: Location, hours: int = 24, unit_system: str = "METRIC") -> WeatherForecastResponse:
+    async def get_hourly_forecast(place_id: str, hours: int = 24, unit_system: str = "METRIC") -> WeatherForecastResponse:
         try:
             try:
+                detail = await mapService.get_location_details(place_id)
+                location = detail.geometry.location
                 weather_client = await create_weather_client()
                 param = ForecastRequest(location=location, hours=hours, unit_system=unit_system)
                 return await weather_client.get_forecast_hourly(param=param)
