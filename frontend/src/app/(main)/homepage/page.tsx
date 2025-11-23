@@ -127,6 +127,8 @@ export default function HomePage() {
     fetchUpcomingPlan();
   }, []);
 
+  // page.tsx
+
   useEffect(() => {
     if (!navigator.geolocation) {
       console.error("Geolocation not supported");
@@ -138,14 +140,30 @@ export default function HomePage() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          const [weatherRes, airRes] = await Promise.all([
-            api.getCurrentWeather(latitude, longitude),
-            api.getAirQuality(latitude, longitude),
-          ]);
-          setWeather(weatherRes);
-          setAirQuality(airRes);
+          // BƯỚC 1: Đổi tọa độ sang Place ID (Gọi hàm reverseGeocode bạn vừa hỏi)
+          const geoData = await api.reverseGeocode({
+            lat: latitude,
+            lng: longitude,
+          });
+
+          // Lấy place_id đầu tiên (chính xác nhất)
+          const placeId = geoData.results[0]?.place_id;
+
+          if (placeId) {
+            // BƯỚC 2: Dùng Place ID để lấy thời tiết (Backend phải hỗ trợ tham số place_id nhé)
+            // Lưu ý: api.getCurrentWeather phải được cập nhật để nhận (undefined, undefined, placeId) như mình hướng dẫn ở câu trước
+            const [weatherRes, airRes] = await Promise.all([
+              api.getCurrentWeather(undefined, undefined, placeId),
+              api.getAirQuality(latitude, longitude), // Air Quality thường vẫn cần lat/lng
+            ]);
+
+            setWeather(weatherRes);
+            setAirQuality(airRes);
+          } else {
+            console.error("No place_id found for this location");
+          }
         } catch (error) {
-          console.error("Error fetching weather/air:", error);
+          console.error("Error fetching weather via place_id:", error);
         } finally {
           setLoadingWeather(false);
         }

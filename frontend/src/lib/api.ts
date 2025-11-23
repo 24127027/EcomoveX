@@ -2,13 +2,17 @@ import { types } from "util";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// --- INTERFACES & TYPES ---
+
 interface LoginCredentials {
   email: string;
   password: string;
 }
 
 export interface UserCredentialUpdate {
-  password?: string;
+  old_password: string; // Bắt buộc
+  new_email?: string; // Optional
+  new_password?: string; // Optional
 }
 
 interface SignupData {
@@ -35,9 +39,6 @@ interface ValidationError {
   type: string;
 }
 
-interface ValidationErrorResponse {
-  detail?: string | ValidationError[];
-}
 // User Types
 export interface UserProfileUpdate {
   username?: string;
@@ -60,6 +61,7 @@ export interface FriendResponse {
   status: string;
   created_at: string;
 }
+
 // Map/Location Types
 export interface Position {
   lat: number;
@@ -68,11 +70,12 @@ export interface Position {
 
 export interface SearchPlacesRequest {
   query: string;
-  user_location?: Position; 
+  user_location?: Position;
   radius?: number; // in meters
   place_types?: string; // Comma-separated string
   language?: string;
 }
+
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
@@ -81,6 +84,7 @@ export interface AutocompletePrediction {
   matched_substrings?: Array<Record<string, any>>;
   distance?: number;
 }
+
 export interface AutocompleteResponse {
   predictions: AutocompletePrediction[];
 }
@@ -120,6 +124,7 @@ export interface PlaceDetails {
   utc_offset?: number;
   sustainable_certified: boolean;
 }
+
 export interface ReverseGeocodeResponse {
   results: Array<{
     formatted_address: string;
@@ -135,21 +140,11 @@ export interface ReverseGeocodeResponse {
   }>;
 }
 
-export interface PhotoUrlResponse {
-  photo_url: string;
-}
-
 export interface SavedDestination {
-  id: number; // ID in DB saved_destinations
-  destination_id: string; // ID Google Place
+  id: number;
+  destination_id: string;
   name?: string;
   image_url?: string;
-}
-
-export interface UserCredentialUpdate {
-  old_password: string; // Bắt buộc
-  new_email?: string; // Optional
-  new_password?: string; // Optional
 }
 
 export interface UploadResponse {
@@ -169,7 +164,7 @@ export interface PlanActivity {
 export interface TravelPlan {
   id: number;
   destination: string;
-  date: string; // e.g., "Day 1"
+  date: string;
   activities: PlanActivity[];
 }
 
@@ -194,7 +189,7 @@ export class ApiHttpError extends Error {
 export interface WeatherCondition {
   description: string;
   icon_base_uri: string;
-  type: string; // VD: "CLEAR", "CLOUDY", "RAINY"
+  type: string;
 }
 
 export interface Temperature {
@@ -221,7 +216,6 @@ export interface AirQualityIndex {
 export interface AirQualityResponse {
   location: [number, number];
   aqi_data: AirQualityIndex;
-  // recommendations: ... (Có thể thêm nếu cần)
 }
 
 //Chat Types
@@ -234,10 +228,7 @@ export interface ChatMessage {
   message_type: string;
 }
 
-const parseMockDate = (dateStr: string) => {
-  const [day, month, year] = dateStr.split("/").map(Number);
-  return new Date(year, month - 1, day);
-};
+// --- API CLIENT CLASS ---
 
 class ApiClient {
   private baseURL: string;
@@ -257,12 +248,10 @@ class ApiClient {
 
     const headers = new Headers();
 
-    // Only set Content-Type if not FormData
     if (!(options.body instanceof FormData)) {
       headers.set("Content-Type", "application/json");
     }
 
-    // merge any provided headers (Headers | string[][] | Record<string, string>)
     if (options.headers) {
       if (options.headers instanceof Headers) {
         options.headers.forEach((value, key) => headers.set(key, value));
@@ -281,7 +270,6 @@ class ApiClient {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    // If FormData, let browser set Content-Type (with boundary)
     const fetchOptions: RequestInit = {
       ...options,
       headers: options.body instanceof FormData ? headers : headers,
@@ -293,7 +281,6 @@ class ApiClient {
       try {
         const errorData = await response.json();
 
-        // Handle FastAPI validation errors (422)
         if (response.status === 422 && Array.isArray(errorData.detail)) {
           const validationErrors = errorData.detail as ValidationError[];
           const firstError = validationErrors[0];
@@ -301,19 +288,14 @@ class ApiClient {
           throw new ApiValidationError(fieldName, firstError.msg);
         }
 
-        // Handle other error responses
         console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
         throw new ApiHttpError(
           response.status,
           errorData.detail || `HTTP ${response.status}: An error occurred`
         );
       } catch (e) {
-        if (e instanceof ApiValidationError) {
-          throw e;
-        }
-        if (e instanceof ApiHttpError) {
-          throw e;
-        }
+        if (e instanceof ApiValidationError) throw e;
+        if (e instanceof ApiHttpError) throw e;
         console.error(`API Error [${response.status}] ${endpoint}:`, e);
         throw new Error(`HTTP ${response.status}: An error occurred`);
       }
@@ -322,7 +304,7 @@ class ApiClient {
     return response.json();
   }
 
-  // Auth endpoints
+  // --- AUTH ENDPOINTS ---
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     return this.request<AuthResponse>("/auth/login", {
       method: "POST",
@@ -345,12 +327,9 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<any> {
-    return this.request("/auth/me", {
-      method: "GET",
-    });
+    return this.request("/auth/me", { method: "GET" });
   }
 
-  // Add more endpoints as needed
   async resetPassword(email: string): Promise<void> {
     return this.request("/auth/reset-password", {
       method: "POST",
@@ -358,7 +337,7 @@ class ApiClient {
     });
   }
 
-  //Saved Destinantions Endpoint
+  // --- DESTINATION ENDPOINTS ---
   async getSavedDestinations(): Promise<SavedDestination[]> {
     return this.request<SavedDestination[]>("/destinations/saved/me/all", {
       method: "GET",
@@ -372,7 +351,6 @@ class ApiClient {
   }
 
   // --- USER ENDPOINTS ---
-
   async getUserProfile(): Promise<UserProfile> {
     return this.request<UserProfile>("/users/me", { method: "GET" });
   }
@@ -392,9 +370,7 @@ class ApiClient {
   }
 
   async deleteUser(): Promise<void> {
-    return this.request("/users/me", {
-      method: "DELETE",
-    });
+    return this.request("/users/me", { method: "DELETE" });
   }
 
   async uploadFile(
@@ -403,7 +379,6 @@ class ApiClient {
   ): Promise<UploadResponse> {
     const formData = new FormData();
     formData.append("file", file);
-    // Gọi endpoint POST /storage/files với query params category (lowercase)
     return this.request<UploadResponse>(`/storage/files?category=${category}`, {
       method: "POST",
       body: formData,
@@ -411,14 +386,12 @@ class ApiClient {
   }
 
   async getPlans(): Promise<TravelPlan[]> {
-    // Giả lập delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
+    // Mock data
     return [
       {
         id: 201,
         destination: "Ho Chi Minh City (Upcoming)",
-        date: "30/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        date: "30/11/2025",
         activities: [
           {
             id: 1,
@@ -445,12 +418,9 @@ class ApiClient {
     ];
   }
 
-  // Friend Endpoints
-
+  // --- FRIEND ENDPOINTS ---
   async getFriends(): Promise<FriendResponse[]> {
-    return this.request<FriendResponse[]>("/friends/", {
-      method: "GET",
-    });
+    return this.request<FriendResponse[]>("/friends/", { method: "GET" });
   }
 
   async getPendingRequests(): Promise<FriendResponse[]> {
@@ -460,11 +430,8 @@ class ApiClient {
   }
 
   async getSentRequests(): Promise<FriendResponse[]> {
-    return this.request<FriendResponse[]>("/friends/sent", {
-      method: "GET",
-    });
+    return this.request<FriendResponse[]>("/friends/sent", { method: "GET" });
   }
-  // -----------------------
 
   async sendFriendRequest(friendId: number): Promise<FriendResponse> {
     return this.request<FriendResponse>(`/friends/${friendId}/request`, {
@@ -488,6 +455,7 @@ class ApiClient {
     return this.request(`/friends/${friendId}`, { method: "DELETE" });
   }
 
+  // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
       method: "POST",
@@ -496,20 +464,9 @@ class ApiClient {
     return res.id;
   }
 
+  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc và dấu chấm phẩy
   async getChatHistory(roomId: number): Promise<ChatMessage[]> {
     return this.request<ChatMessage[]>(`/messages/room/${roomId}`, {
-  // Map Endpoints
-  async searchPlaces(request: SearchPlacesRequest): 
-    Promise<AutocompleteResponse> {
-      const response = await this.request<AutocompleteResponse>("/map/search", {
-        method: "POST",
-        body: JSON.stringify(request),
-      });
-      return response;
-    }
-
-  async getPlaceDetails(placeId: string): Promise<PlaceDetails> {
-    return this.request<PlaceDetails>(`/map/place/${placeId}`, {
       method: "GET",
     });
   }
@@ -528,22 +485,23 @@ class ApiClient {
     return `${protocol}//${host}/messages/ws/${roomId}?token=${token}`;
   }
 
-  async getCurrentWeather(
-    lat: number,
-    lng: number
-  ): Promise<CurrentWeatherResponse> {
-    return this.request<CurrentWeatherResponse>(
-      `/weather/current?lat=${lat}&lng=${lng}&unit_system=METRIC`,
-      { method: "GET" }
-    );
+  // --- MAP ENDPOINTS ---
+  async searchPlaces(
+    request: SearchPlacesRequest
+  ): Promise<AutocompleteResponse> {
+    const response = await this.request<AutocompleteResponse>("/map/search", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+    return response;
   }
 
-  async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
-    // Gọi endpoint /air/air-quality
-    return this.request<AirQualityResponse>(
-      `/air/air-quality?lat=${lat}&lng=${lng}`,
-      { method: "GET" }
-    );
+  async getPlaceDetails(placeId: string): Promise<PlaceDetails> {
+    return this.request<PlaceDetails>(`/map/place/${placeId}`, {
+      method: "GET",
+    });
+  }
+
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {
       method: "POST",
@@ -558,10 +516,7 @@ class ApiClient {
     });
   }
 
-  async birdDistance(
-    origin: Position,
-    destination: Position
-  ): Promise<number> {
+  async birdDistance(origin: Position, destination: Position): Promise<number> {
     const params = new URLSearchParams({
       origin_lat: origin.lat.toString(),
       origin_lng: origin.lng.toString(),
@@ -571,6 +526,27 @@ class ApiClient {
     return this.request<number>(`/map/bird-distance?${params.toString()}`, {
       method: "GET",
     });
+  }
+
+  // --- WEATHER & AIR ENDPOINTS ---
+
+  async getCurrentWeather(
+    lat: number,
+    lng: number
+  ): Promise<CurrentWeatherResponse> {
+    return this.request<CurrentWeatherResponse>(
+      `/weather/current?lat=${lat}&lng=${lng}&unit_system=METRIC`,
+      { method: "GET" }
+    );
+  }
+
+  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc cho hàm này
+  async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
+    // Gọi endpoint /air/air-quality
+    return this.request<AirQualityResponse>(
+      `/air/air-quality?lat=${lat}&lng=${lng}`,
+      { method: "GET" }
+    );
   }
 }
 
