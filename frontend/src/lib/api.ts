@@ -180,6 +180,51 @@ export class ApiHttpError extends Error {
   }
 }
 
+// --- WEATHER & AIR TYPES ---
+
+export interface WeatherCondition {
+  description: string;
+  icon_base_uri: string;
+  type: string; // VD: "CLEAR", "CLOUDY", "RAINY"
+}
+
+export interface Temperature {
+  temperature: number;
+  feelslike_temperature: number;
+  max_temperature?: number;
+  min_temperature?: number;
+}
+
+export interface CurrentWeatherResponse {
+  temperature: Temperature;
+  weather_condition: WeatherCondition;
+  humidity: number;
+  cloud_cover: number;
+  is_daytime: boolean;
+}
+
+export interface AirQualityIndex {
+  display_name: string;
+  aqi: number;
+  category: string;
+}
+
+export interface AirQualityResponse {
+  location: [number, number];
+  aqi_data: AirQualityIndex;
+  // recommendations: ... (Có thể thêm nếu cần)
+}
+
+//Chat Types
+export interface ChatMessage {
+  id: number;
+  sender_id: number;
+  room_id: number;
+  content: string;
+  timestamp: string;
+  message_type: string;
+}
+
 const parseMockDate = (dateStr: string) => {
   const [day, month, year] = dateStr.split("/").map(Number);
   return new Date(year, month - 1, day);
@@ -379,15 +424,13 @@ class ApiClient {
       {
         id: 101,
         destination: "District 1 (Past)",
-        date: "04/01/2026", // Ngày quá khứ
-        activities: [
-          // ... (Dữ liệu cũ)
-        ],
+        date: "04/01/2026",
+        activities: [],
       },
       {
         id: 102,
         destination: "District 5 (Past)",
-        date: "01/01/2023", // Ngày quá khứ xa hơn
+        date: "01/01/2023",
         activities: [],
       },
     ];
@@ -434,6 +477,52 @@ class ApiClient {
 
   async unfriend(friendId: number): Promise<any> {
     return this.request(`/friends/${friendId}`, { method: "DELETE" });
+  }
+
+  async getDirectRoomId(partnerId: number): Promise<number> {
+    const res = await this.request<{ id: number }>("/rooms/direct", {
+      method: "POST",
+      body: JSON.stringify({ partner_id: partnerId }),
+    });
+    return res.id;
+  }
+
+  async getChatHistory(roomId: number): Promise<ChatMessage[]> {
+    return this.request<ChatMessage[]>(`/messages/room/${roomId}`, {
+      method: "GET",
+    });
+  }
+
+  getWebSocketUrl(roomId: number): string {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("access_token") : "";
+
+    let host = process.env.NEXT_PUBLIC_API_URL || "localhost:8000";
+    host = host.replace("http://", "").replace("https://", "");
+    if (host.endsWith("/")) {
+      host = host.slice(0, -1);
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${host}/messages/ws/${roomId}?token=${token}`;
+  }
+
+  async getCurrentWeather(
+    lat: number,
+    lng: number
+  ): Promise<CurrentWeatherResponse> {
+    return this.request<CurrentWeatherResponse>(
+      `/weather/current?lat=${lat}&lng=${lng}&unit_system=METRIC`,
+      { method: "GET" }
+    );
+  }
+
+  async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
+    // Gọi endpoint /air/air-quality
+    return this.request<AirQualityResponse>(
+      `/air/air-quality?lat=${lat}&lng=${lng}`,
+      { method: "GET" }
+    );
   }
 }
 

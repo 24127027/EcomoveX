@@ -17,13 +17,26 @@ import {
   Bookmark,
   Map,
   Calendar,
-  ArrowRight, // Import thêm icon
+  ArrowRight,
+  Wind,
+  Sun,
+  CloudRain,
+  Cloud,
+  CloudLightning,
+  Snowflake,
+  Trophy,
+  Loader2,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { api, TravelPlan } from "@/lib/api"; // Import đúng Type
+import {
+  api,
+  TravelPlan,
+  CurrentWeatherResponse,
+  AirQualityResponse,
+} from "@/lib/api";
 
 export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
 export const jost = Jost({ subsets: ["latin"], weight: ["700"] });
@@ -38,12 +51,10 @@ export const josefin_sans = Josefin_Sans({
 });
 export const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
 
-// Hàm helper để chuyển chuỗi "dd/mm/yyyy" thành đối tượng Date
 const parseDate = (dateStr: string) => {
-  if (!dateStr) return new Date(0); // Return epoch if null
+  if (!dateStr) return new Date(0);
   const parts = dateStr.split("/");
   if (parts.length === 3) {
-    // dd/mm/yyyy -> new Date(yyyy, mm-1, dd)
     return new Date(
       parseInt(parts[2]),
       parseInt(parts[1]) - 1,
@@ -60,9 +71,14 @@ export default function HomePage() {
   const router = useRouter();
   const [requestCount, setRequestCount] = useState(0);
 
-  // State cho Plan
+  // State for Plan
   const [upcomingPlan, setUpcomingPlan] = useState<TravelPlan | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
+  // State for Weather & AQI
+  const [weather, setWeather] = useState<CurrentWeatherResponse | null>(null);
+  const [airQuality, setAirQuality] = useState<AirQualityResponse | null>(null);
+  const [loadingWeather, setLoadingWeather] = useState(true);
+  const [locationError, setLocationError] = useState(false);
 
   // 1. Lấy số lượng lời mời kết bạn
   useEffect(() => {
@@ -111,6 +127,65 @@ export default function HomePage() {
     fetchUpcomingPlan();
   }, []);
 
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      console.error("Geolocation not supported");
+      setLoadingWeather(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const [weatherRes, airRes] = await Promise.all([
+            api.getCurrentWeather(latitude, longitude),
+            api.getAirQuality(latitude, longitude),
+          ]);
+          setWeather(weatherRes);
+          setAirQuality(airRes);
+        } catch (error) {
+          console.error("Error fetching weather/air:", error);
+        } finally {
+          setLoadingWeather(false);
+        }
+      },
+      (error) => {
+        console.error("Location permission denied or error:", error);
+        setLocationError(true);
+        setLoadingWeather(false);
+      }
+    );
+  }, []);
+
+  const getWeatherIcon = (type?: string) => {
+    if (!type) return <Sun size={32} className="text-orange-400" />;
+    const t = type.toUpperCase();
+    if (t.includes("RAIN") || t.includes("DRIZZLE"))
+      return <CloudRain size={32} className="text-blue-500" />;
+    if (t.includes("CLOUD"))
+      return <Cloud size={32} className="text-gray-400" />;
+    if (t.includes("THUNDER"))
+      return <CloudLightning size={32} className="text-purple-500" />;
+    if (t.includes("SNOW"))
+      return <Snowflake size={32} className="text-blue-300" />;
+    return <Sun size={32} className="text-orange-400" />;
+  };
+
+  const getAQIColor = (aqi: number) => {
+    if (aqi <= 50) return "text-green-700";
+    if (aqi <= 100) return "text-yellow-600";
+    if (aqi <= 150) return "text-orange-600";
+    return "text-red-600";
+  };
+
+  const getAQIText = (aqi: number) => {
+    if (aqi <= 50) return "(Good)";
+    if (aqi <= 100) return "(Moderate)";
+    if (aqi <= 150) return "(Unhealthy)";
+    return "(Hazardous)";
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
@@ -128,7 +203,6 @@ export default function HomePage() {
     router.push("/map_page?nearby=true");
   };
 
-  // Helper xử lý click tag
   const handleTagClick = (tag: string) => {
     router.push(`/map_page?q=${encodeURIComponent(tag)}`);
   };
@@ -291,41 +365,109 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* NEARBY CARD */}
-            <div className="bg-linear-to-b from-green-50 to-green-100 rounded-xl p-4 shadow-sm border border-green-100 flex flex-col items-center justify-center text-center">
-              <h3
-                className={`${abhaya_libre.className} text-green-700 font-semibold text-lg uppercase leading-tight`}
-              >
-                Nearby Eco Spots
-              </h3>
-              <button
-                onClick={handleSearchNearby}
-                className={`${jost.className} bg-green-600 text-white rounded-full px-5 py-2 text-xs font-semibold mt-3 hover:bg-green-700 hover:shadow-lg transition-all`}
-              >
-                Search Now
-              </button>
+            {/* Weather CARD */}
+            <div className="bg-[#E3F1E4] p-4 rounded-2xl flex flex-col justify-between h-full shadow-sm border border-green-100">
+              {loadingWeather ? (
+                <div className="flex flex-col items-center justify-center h-full gap-2 text-green-600/50">
+                  <Loader2 className="animate-spin" size={24} />
+                  <span className="text-xs font-bold">Checking weather...</span>
+                </div>
+              ) : locationError ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <span className="text-xs text-gray-500">
+                    Location required for weather
+                  </span>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-2 text-[10px] bg-green-500 text-white px-2 py-1 rounded"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      {/* Nhiệt độ thật */}
+                      <span className="text-3xl font-bold text-gray-800">
+                        {Math.round(weather?.temperature.temperature || 0)}°C
+                      </span>
+                      {/* AQI thật */}
+                      <div className="flex items-center gap-1 mt-1">
+                        <Wind size={14} className="text-green-600" />
+                        <span
+                          className={`text-[10px] font-bold ${
+                            airQuality
+                              ? getAQIColor(airQuality.aqi_data.aqi)
+                              : "text-gray-500"
+                          }`}
+                        >
+                          AQI: {airQuality?.aqi_data.aqi || "--"}{" "}
+                          {airQuality
+                            ? getAQIText(airQuality.aqi_data.aqi)
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Icon thời tiết thật */}
+                    {getWeatherIcon(weather?.weather_condition.type)}
+                  </div>
+                  <div
+                    className="mt-auto bg-white/60 p-2 rounded-xl backdrop-blur-sm cursor-pointer hover:bg-white/80 transition-colors"
+                    onClick={() => handleSearchNearby()}
+                  >
+                    <p className="text-[9px] text-gray-500 uppercase font-bold">
+                      Nearest Green Spot
+                    </p>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-xs font-bold text-gray-800 truncate w-20">
+                        Find Nearby
+                      </span>
+                      <ArrowRight size={12} className="text-green-600" />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </section>
 
           {/* SECTION 3: Explore Activities */}
           <section className="bg-[#E9F5EB] rounded-2xl p-6 shadow-sm mt-0">
-            <h3
-              className={`${josefin_sans.className} text-[#5BB95B] text-xl font-bold leading-tight mb-2`}
-            >
-              Explore Local Green Activities
-            </h3>
-            <p
-              className={`${abhaya_libre.className} text-gray-600 text-sm leading-relaxed mb-4`}
-            >
-              Discover eco-friendly experiences near you and make every trip
-              meaningful.
-            </p>
-            <div className="flex justify-end">
-              <button
-                className={`${jost.className} border-2 border-[#6BC86A] text-[#5BB95B] bg-transparent rounded-full px-8 py-1.5 text-sm font-bold hover:bg-[#5BB95B] hover:text-white transition-all duration-300`}
-              >
-                Explore
-              </button>
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-lg text-gray-800">
+                  Your Eco Impact
+                </h3>
+                <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">
+                  Level 2
+                </span>
+              </div>
+
+              {/* Challenge Card */}
+              <div className="flex gap-4 items-center">
+                {/* Icon huy hiệu/cúp */}
+                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 shrink-0">
+                  <Trophy size={24} />
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-gray-700">
+                    Green Traveler Challenge
+                  </p>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Visit 3 parks this week to earn badge
+                  </p>
+
+                  {/* Progress Bar */}
+                  <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                    <div className="bg-[#53B552] h-full w-2/3 rounded-full"></div>
+                  </div>
+                  <div className="flex justify-between text-[10px] mt-1 text-gray-400">
+                    <span>2/3 visited</span>
+                    <span>+100 pts</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         </main>

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
-from models.message import MessageType, MessageStatus, Sender
+from models.message import MessageType, MessageStatus
 
 class MessageCreate(BaseModel):
     content: Optional[str] = Field(None, min_length=1)
