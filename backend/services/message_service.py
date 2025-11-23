@@ -1,8 +1,10 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, WebSocket, WebSocketDisconnect
 from repository.message_repository import MessageRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.message_schema import *
 from services.room_service import RoomService
+from services.socket_service import socket
+from utils.token.authentication_util import decode_access_token
 
 class MessageService:
     @staticmethod
@@ -148,3 +150,83 @@ class MessageService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting message ID {message_id}: {e}"
             )
+    
+    @staticmethod
+    async def handle_websocket_message(
+        db: AsyncSession,
+        user_id: int,
+        room_id: int,
+        msg_request: WebSocketMessageRequest
+    ) -> WebSocketMessageResponse:
+        try:
+            msg_input = MessageCreate(content=msg_request.content, message_type=msg_request.message_type)
+            saved_msg = await MessageService.create_message(db, user_id, room_id, msg_input)
+            
+            return WebSocketMessageResponse(
+                type="message",
+                id=saved_msg.id,
+                content=saved_msg.content,
+                sender_id=saved_msg.sender_id,
+                room_id=room_id,
+                timestamp=saved_msg.timestamp.isoformat(),
+                message_type=saved_msg.message_type,
+                status=saved_msg.status
+            )
+        except HTTPException as e:
+            raise HTTPException(
+                status_code=e.status_code,
+                detail=e.detail
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error processing message"
+            )
+            
+    @staticmethod
+    async def handle_websocket_connection(websocket: WebSocket, db: AsyncSession, room_id: int, token: str):
+        user_id = None
+        try:
+            try:
+                user_data = decode_access_token(token)
+                user_id = user_data["user_id"]
+            except Exception:
+                await websocket.close(code=1008)
+                return None
+            
+            is_member = await RoomService.is_member(db, user_id, room_id)
+            if not is_member:
+                await websocket.close(code=1008)
+                return None
+            
+            await socket.connect(websocket, room_id, user_id)
+            return user_id
+        except Exception:
+            if user_id:
+                socket.disconnect(websocket, room_id, user_id)
+            return None
+        
+    @staticmethod
+    async def handle_websocket_message_loop(websocket: WebSocket, db: AsyncSession, user_id: int, room_id: int):
+        try:
+            while True:
+                data = await websocket.receive_json()
+                request = WebSocketMessageRequest(
+                    content=data.get("content"),
+                    message_type=data.get("message_type", "text")
+                )
+                
+                response = await MessageService.handle_websocket_message(db, user_id, room_id, request)
+                
+                if response.type == "message":
+                    await socket.broadcast(response.model_dump(), room_id)
+                else:
+                    await socket.send_to_user(response.model_dump(), room_id, user_id)
+        except WebSocketDisconnect:
+            socket.disconnect(websocket, room_id, user_id)
+        except Exception:
+            socket.disconnect(websocket, room_id, user_id)
+            try:
+                await websocket.close(code=1011)
+            except Exception:
+                pass

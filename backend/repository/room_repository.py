@@ -1,5 +1,3 @@
-from typing import Optional
-from certifi import where
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -32,7 +30,17 @@ class RoomRepository:
                 )
             )
             member = result.scalar_one_or_none()
-            return member is not None
+            if member:
+                return True
+            result_direct = await db.execute(
+                select(RoomDirect).where(
+                    (RoomDirect.room_id == room_id) & 
+                    ((RoomDirect.user1_id == user_id) | (RoomDirect.user2_id == user_id))
+                )
+            )
+            direct_member = result_direct.scalar_one_or_none()
+            return direct_member is not None
+
         except SQLAlchemyError as e:
             print(f"ERROR: checking membership of user ID {user_id} in room ID {room_id} - {e}")
             return False

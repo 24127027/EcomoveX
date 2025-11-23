@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
-from models.message import MessageType, MessageStatus, Sender
+from models.message import MessageType, MessageStatus
 
 class MessageCreate(BaseModel):
     content: Optional[str] = Field(None, min_length=1)
@@ -23,4 +23,28 @@ class MessageResponse(BaseModel):
     status: MessageStatus
     timestamp: datetime
 
+    model_config = ConfigDict(from_attributes=True)
+    
+class WebSocketMessageRequest(BaseModel):
+    content: Optional[str] = Field(None, min_length=1)
+    message_type: MessageType = MessageType.text
+
+    @field_validator('content')
+    @classmethod
+    def validate_content(cls, v: Optional[str], values) -> Optional[str]:
+        if values.get("message_type") == MessageType.text and (v is None or not v.strip()):
+            raise ValueError("Content cannot be empty for text message")
+        return v
+
+class WebSocketMessageResponse(BaseModel):
+    type: str
+    id: Optional[int] = None
+    content: Optional[str] = None
+    sender_id: Optional[int] = None
+    room_id: Optional[int] = None
+    timestamp: Optional[str] = None
+    message_type: Optional[MessageType] = None
+    status: Optional[MessageStatus] = None
+    message: Optional[str] = None
+    
     model_config = ConfigDict(from_attributes=True)

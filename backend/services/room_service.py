@@ -177,9 +177,15 @@ class RoomService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot create a direct room with the same user"
                 )
-            user1_normalized = min(user1_id, user2_id)
-            user2_normalized = max(user1_id, user2_id)
-            new_room = await RoomRepository.create_direct_room(db, user1_normalized, user2_normalized)
+            
+            u1_norm = min(user1_id, user2_id)
+            u2_norm = max(user1_id, user2_id)
+
+            existing_room = await RoomRepository.get_direct_room_between_users(db, u1_norm, u2_norm)
+            if existing_room:
+                return DirectRoomResponse(id=existing_room.id)
+            
+            new_room = await RoomRepository.create_direct_room(db, u1_norm, u2_norm)
             if not new_room:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
