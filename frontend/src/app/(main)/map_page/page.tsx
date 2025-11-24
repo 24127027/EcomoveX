@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
 import { api, AutocompletePrediction, PlaceDetails, Position } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
+import { url } from "inspector";
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
@@ -23,11 +24,21 @@ const addDistanceText = async (details: PlaceDetails, userPos: Position): Promis
   };
 };
 
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>(undefined);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
 export default function MapPage() {
   const router = useRouter();
   const { isLoaded, loadError } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] = useState<PlaceDetailsWithDistance | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const urlQuery = useSearchParams().get("q") || "";
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const prevSearchQuery = usePrevious(searchQuery);
   const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
   const [searchResults, setSearchResults] = useState<PlaceDetailsWithDistance[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -44,14 +55,38 @@ export default function MapPage() {
   const markersRef = useRef<google.maps.Marker[]>([]);
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const initialLoadRef = useRef(true);
+
+  // This is for handling browser back/forward navigation
+  useEffect(() => {
+    if (urlQuery !== searchQuery) {
+      setSearchQuery(urlQuery);
+    }
+  }, [urlQuery]);
 
   // Fetch recommendations on component mount
   useEffect(() => {
-    fetchRecommendations();
+    if (!urlQuery) {
+      fetchRecommendations();
+      initialLoadRef.current = false;
+    }
   }, [userLocation]);
 
   // Handle search with debounce
   useEffect(() => {
+    // --- Part 1: Update the URL using router.push ---
+    const handler = setTimeout(() => {
+      if (searchQuery.trim() !== '' && searchQuery !== urlQuery) {
+        // Use router.push to update the URL.
+        // `scroll: false` prevents the page from scrolling to the top.
+        router.push(`/map_page?q=${encodeURIComponent(searchQuery)}`, { scroll: false });
+      } else if (searchQuery.trim() === '' && urlQuery) {
+        // If the search bar is cleared, remove the query from the URL.
+        router.push('/map_page', { scroll: false });
+      }
+    }, 500); // 500ms delay after user stops typing
+
+    // --- Part 2: Your existing search logic ---
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -59,47 +94,59 @@ export default function MapPage() {
     if (searchQuery.trim() === '') {
       setSearchResults([]);
       setIsSearching(false);
-      return;
+      setSelectedLocation(null); // Also clear selection
+      setSheetHeight(40);
+      if (locations.length === 0) {
+        fetchRecommendations();
+      }
+      return () => clearTimeout(handler); // Cleanup for the URL timeout
     }
 
-    setIsSearching(true);
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        // Search using api.searchPlaces
-        const response = await api.searchPlaces({
-          query: searchQuery,
-          user_location: userLocation,
-          radius: 5000, // 5km radius
-        });
-        
-        // Fetch details for each prediction to get complete info
-        const detailedResults = await Promise.all(
-          response.predictions.slice(0, 6).map(async (prediction) => {
-            try {
-              const details = await api.getPlaceDetails(prediction.place_id);
-              return await addDistanceText(details, userLocation);
-            } catch (error) {
-              console.error(`Failed to fetch details for ${prediction.place_id}:`, error);
-              return null;
-            }
-          })
-        );
-        
-        setSearchResults(detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null));
-      } catch (error) {
-        console.error('Search failed:', error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500);
+    if (prevSearchQuery !== searchQuery)
+    {
+      setIsSearching(true);
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const response = await api.searchPlaces({
+            query: searchQuery,
+            user_location: userLocation,
+            radius: 5000,
+          });
+          
+          const detailedResults = await Promise.all(
+            response.predictions.slice(0, 6).map(async (prediction) => {
+              try {
+                const details = await api.getPlaceDetails(prediction.place_id);
+                return await addDistanceText(details, userLocation);
+              } catch (error) { return null; }
+            })
+          );
+          
+          const finalResults = detailedResults.filter((r): r is PlaceDetailsWithDistance => r !== null);
+          setSearchResults(finalResults);
 
+          if (finalResults.length > 0) {
+            setSheetHeight(70);
+          } else {
+            setSelectedLocation(null); // Clear selection if no results
+          }
+        } catch (error) {
+          console.error('Search failed:', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 500); // This debounce is for the API call
+    }
+    
+    // --- Part 3: Cleanup ---
     return () => {
+      clearTimeout(handler); // Cleanup for the URL timeout
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, userLocation]);
+  }, [searchQuery, userLocation, router, urlQuery]); 
 
   const fetchRecommendations = async () => {
     setIsLoadingRecommendations(true);
@@ -132,6 +179,7 @@ export default function MapPage() {
       );
       
       setLocations(detailedRecommendations.filter((r): r is PlaceDetailsWithDistance => r !== null));
+      setSheetHeight(65);
     } catch (error) {
       console.error('Failed to fetch recommendations:', error);
       setLocations([]);
@@ -156,11 +204,14 @@ export default function MapPage() {
           stylers: [{ visibility: "off" }]
         }
       ],
-      disableDefaultUI: false,
-      zoomControl: true,
+      disableDefaultUI: true,
       mapTypeControl: false,
       streetViewControl: false,
-      fullscreenControl: false
+      fullscreenControl: false,
+      panControl: false,
+      zoomControl: false,
+
+      gestureHandling: 'cooperative'
     });
 
     googleMapRef.current = map;
@@ -247,7 +298,6 @@ export default function MapPage() {
             googleMapRef.current.setCenter(pos);
             googleMapRef.current.setZoom(15);
           }
-          fetchRecommendations();
         },
         (error) => {
           console.error('Error getting location:', error);
@@ -427,7 +477,7 @@ export default function MapPage() {
             )}
 
             {/* Loading State */}
-            {(isLoadingRecommendations || isSearching) && (
+            {(isLoadingRecommendations || isSearching) && displayedLocations.length === 0 && (
               <div className="flex justify-center items-center py-8">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent"></div>
               </div>
@@ -441,7 +491,7 @@ export default function MapPage() {
             )}
 
             {/* Recommendations Grid */}
-            {!isLoadingRecommendations && displayedLocations.length > 0 && (
+            {!isSearching && displayedLocations.length > 0 && (
               <div className="grid grid-cols-2 gap-3 pb-2">
                 {displayedLocations.map((location) => (
                   <div
