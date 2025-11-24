@@ -98,6 +98,23 @@ def load_cluster_info(cluster_id: int, session: Session) -> Optional[Dict[str, A
         logger.error(f"Error loading cluster info for {cluster_id}: {e}")
         return None
 
+def get_user_cluster_id(user_id: int, session: Session) -> Optional[int]:
+    """Get the cluster ID for a given user."""
+    try:
+        association = session.query(UserClusterAssociation).filter(
+            UserClusterAssociation.user_id == user_id
+        ).first()
+        
+        if association:
+            logger.info(f"User {user_id} is in cluster {association.cluster_id}")
+            return association.cluster_id
+        
+        logger.warning(f"User {user_id} is not assigned to any cluster")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error retrieving cluster for user {user_id}: {e}")
+        return None 
 # ----------------------------------------------------------------------
 # Cluster embedding
 # ----------------------------------------------------------------------
