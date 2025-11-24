@@ -12,7 +12,6 @@ class Location(BaseModel):
         populate_by_name=True,
         ser_json_tuples=False,
         
-        #output aliases instead of field names
         json_schema_extra={"serialization": {"by_alias": True}}
     )
     
@@ -28,8 +27,7 @@ class DestinationCreate(BaseModel):
     place_id: str = Field(..., alias="place_id")
     green_verified_status: Optional[GreenVerifiedStatus] = None 
     
-    class Config:
-        populate_by_name = True 
+    model_config = ConfigDict(populate_by_name=True)
 
 class DestinationUpdate(BaseModel):
     green_verified_status: Optional[GreenVerifiedStatus] = None
