@@ -72,6 +72,7 @@ export interface SearchPlacesRequest {
   radius?: number; // in meters
   place_types?: string; // Comma-separated string
   language?: string;
+  session_token?: string | null;
 }
 export interface AutocompletePrediction {
   place_id: string;
@@ -498,11 +499,19 @@ class ApiClient {
       return response;
     }
 
-  async getPlaceDetails(placeId: string): Promise<PlaceDetails> {
-    return this.request<PlaceDetails>(`/map/place/${placeId}`, {
-      method: "GET",
-    });
+  async getPlaceDetails(
+  placeId: string,
+  sessionToken?: string | null
+): Promise<PlaceDetails> {
+
+  let path = `/map/place/${placeId}`;
+
+  if (sessionToken) {
+    path += `?session_token=${encodeURIComponent(sessionToken)}`;
   }
+
+  return this.request<PlaceDetails>(path, { method: "GET" });
+}
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {

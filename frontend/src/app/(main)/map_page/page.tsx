@@ -53,7 +53,7 @@ export default function MapPage() {
   const [startHeight, setStartHeight] = useState(40);
   const [userLocation, setUserLocation] = useState<Position>({ lat: 10.7756, lng: 106.7019 });
   const [enableTransition, setEnableTransition] = useState(true);
-
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
@@ -91,6 +91,7 @@ export default function MapPage() {
         setSearchResults([]);
         setSelectedLocation(null);
         setSheetHeight(40);
+        setSessionToken(null);
         if (locations.length === 0) {
           fetchRecommendations();
         }
@@ -102,7 +103,7 @@ export default function MapPage() {
       return;
     }
 
-    if (searchQuery.trim().length < 2) {
+    if (searchQuery.trim().length < 4) {
       setAutocompletePredictions([]);
       return;
     }
@@ -111,11 +112,14 @@ export default function MapPage() {
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
+        
+        // 🔑 PASS TOKEN: Send the token with the autocomplete request
         const response = await api.searchPlaces({
-          query: searchQuery,
-          user_location: userLocation,
-          radius: 5000,
-        });
+        query: searchQuery,
+        user_location: userLocation,
+        radius: 5000,
+        session_token: sessionToken, 
+      });
         
         setAutocompletePredictions(response.predictions.slice(0, 8));
       } catch (error) {
@@ -207,7 +211,10 @@ useEffect(() => {
     
     try {
       // Fetch full details using api
-      const fullDetails = await api.getPlaceDetails(prediction.place_id);
+      const fullDetails = await api.getPlaceDetails(
+        prediction.place_id,
+        sessionToken
+      );
       const withDistance = await addDistanceText(fullDetails, userLocation);
       
       setSelectedLocation(withDistance);
@@ -221,7 +228,7 @@ useEffect(() => {
         });
         googleMapRef.current.setZoom(16);
       }
-      
+      setSessionToken(null);
       // Update URL with the selected search
       router.push(`/map_page?q=${encodeURIComponent(prediction.description)}`, { scroll: false });
     } catch (error) {
@@ -481,14 +488,18 @@ useEffect(() => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => {
-                  flushSync(() => {
-                    setEnableTransition(false);
-                    setSheetHeight(8);
-                  });
-                  
-                  setIsSearchFocused(true);
-                  
-                  setTimeout(() => setEnableTransition(true), 50);
+                 flushSync(() => {
+                 setEnableTransition(false);
+                 setSheetHeight(8);
+                 });
+                 
+                 if (window.google?.maps) {
+                  const token = new google.maps.places.AutocompleteSessionToken();
+                  setSessionToken(token.toString());
+                 }
+
+                 setIsSearchFocused(true);
+                 setTimeout(() => setEnableTransition(true), 50);
                 }}
                 className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
               />
