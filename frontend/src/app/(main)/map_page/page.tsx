@@ -53,6 +53,7 @@ export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const initialLoadRef = useRef(true);
@@ -114,7 +115,7 @@ export default function MapPage() {
           });
           
           const detailedResults = await Promise.all(
-            response.predictions.slice(0, 6).map(async (prediction) => {
+            response.predictions.slice(0, 8).map(async (prediction) => {
               try {
                 const details = await api.getPlaceDetails(prediction.place_id);
                 return await addDistanceText(details, userLocation);
@@ -251,6 +252,34 @@ export default function MapPage() {
       markersRef.current.push(marker);
     });
   }, [displayedLocations, mapLoaded]);
+
+  useEffect(() => {
+    if (!googleMapRef.current || !mapLoaded) return;
+
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = new window.google.maps.Marker({
+        map: googleMapRef.current,
+        icon: {
+          path: `
+            M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z
+          `,
+          fillColor: '#4285F4', // Google Blue
+          fillOpacity: 1,
+          strokeWeight: 0,
+          rotation: 0,
+          scale: 1.5,
+          anchor: new window.google.maps.Point(12, 24),
+        },
+      });
+    }
+
+    // Update the marker's position to the latest userLocation
+    userMarkerRef.current.setPosition({
+      lat: userLocation.lat,
+      lng: userLocation.lng
+    });
+
+  }, [userLocation, mapLoaded]);
 
   const handleLocationSelect = (location: PlaceDetailsWithDistance) => {
     setSelectedLocation(location);
