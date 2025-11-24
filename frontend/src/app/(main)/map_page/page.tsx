@@ -670,6 +670,8 @@ useEffect(() => {
                         onError={(e) => {
                           e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400';
                         }}
+                        loading="lazy"
+                        decoding="async"
                       />
                     </div>
                     <div className="p-3">
