@@ -147,6 +147,7 @@ class RoomService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create room"
                 )
+            await RoomRepository.add_member(db, user_id, new_room.id)
             for member_id in data.member_ids:
                 if member_id != user_id:
                     member = await RoomRepository.add_member(db, member_id, new_room.id)
