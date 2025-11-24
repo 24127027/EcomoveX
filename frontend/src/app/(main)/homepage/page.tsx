@@ -153,7 +153,7 @@ export default function HomePage() {
             // BƯỚC 2: Dùng Place ID để lấy thời tiết (Backend phải hỗ trợ tham số place_id nhé)
             // Lưu ý: api.getCurrentWeather phải được cập nhật để nhận (undefined, undefined, placeId) như mình hướng dẫn ở câu trước
             const [weatherRes, airRes] = await Promise.all([
-              api.getCurrentWeather(undefined, undefined, placeId),
+              api.getCurrentWeather(3, 3),
               api.getAirQuality(latitude, longitude), // Air Quality thường vẫn cần lat/lng
             ]);
 

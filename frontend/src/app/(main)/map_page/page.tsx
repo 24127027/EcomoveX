@@ -487,7 +487,7 @@ export default function MapPage() {
 
         {/* Footer */}
         <footer className="bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-20">
-          <div className="h-0.5 bg-gradient-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
+          <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
           <div className="flex justify-around items-center px-2 pt-2 pb-3">
             <a href="/homepage" className="flex flex-col items-center justify-center w-1/4 text-green-600">
               <Home className="size-6" strokeWidth={2.0} />

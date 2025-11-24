@@ -228,6 +228,13 @@ export interface ChatMessage {
   message_type: string;
 }
 
+export interface RoomResponse {
+  id: number;
+  name: string;
+  created_at: string;
+  member_ids: number[]; // Quan trọng: cần trường này để lọc
+}
+
 // --- API CLIENT CLASS ---
 
 class ApiClient {
@@ -463,8 +470,12 @@ class ApiClient {
     });
     return res.id;
   }
+  async getAllRooms(): Promise<RoomResponse[]> {
+    return this.request<RoomResponse[]>("/rooms/rooms", {
+      method: "GET",
+    });
+  }
 
-  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc và dấu chấm phẩy
   async getChatHistory(roomId: number): Promise<ChatMessage[]> {
     return this.request<ChatMessage[]>(`/messages/room/${roomId}`, {
       method: "GET",
@@ -483,6 +494,19 @@ class ApiClient {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${host}/messages/ws/${roomId}?token=${token}`;
+  }
+
+  async createGroupRoom(
+    name: string,
+    memberIds: number[]
+  ): Promise<RoomResponse> {
+    return this.request<RoomResponse>("/rooms/rooms", {
+      method: "POST",
+      body: JSON.stringify({
+        room_name: name,
+        member_ids: memberIds,
+      }),
+    });
   }
 
   // --- MAP ENDPOINTS ---

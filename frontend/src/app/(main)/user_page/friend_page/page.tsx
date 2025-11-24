@@ -91,26 +91,39 @@ export default function FriendsPage() {
   const openChat = async (friend: FriendResponse) => {
     if (!currentUserId) return;
     setActiveChatFriend(friend);
-    setMessages([]); // Xóa tin nhắn cũ tạm thời
+    setMessages([]);
 
-    // Xác định ID người bạn
     const friendId =
       currentUserId === friend.user_id ? friend.friend_id : friend.user_id;
 
     try {
-      // B1: Lấy hoặc tạo Room ID từ backend
-      const roomId = await api.getDirectRoomId(friendId);
-      console.log("Chat Room ID:", roomId);
+      let roomId: number;
 
-      // B2: Lấy lịch sử tin nhắn
+      // BƯỚC 1: Lấy tất cả phòng và tìm thủ công (Client-side filtering)
+      // Vì backend không có API "check room", ta phải lấy hết về rồi tự soi.
+      const allRooms = await api.getAllRooms();
+
+      // Tìm phòng nào có chứa friendId trong danh sách thành viên
+      const existingRoom = allRooms.find(
+        (room) => room.member_ids && room.member_ids.includes(friendId)
+      );
+
+      if (existingRoom) {
+        // -> Đã có phòng: Dùng luôn ID đó
+        console.log("Found existing room:", existingRoom.id);
+        roomId = existingRoom.id;
+      } else {
+        // -> Chưa có: Gọi API tạo phòng mới (Dùng hàm create_room có sẵn)
+        console.log("No room found. Creating new room...");
+        // Tạo phòng tên "Chat" với thành viên là friendId
+        const newRoom = await api.createGroupRoom("Private Chat", [friendId]);
+        roomId = newRoom.id;
+      }
+
+      // BƯỚC 2: Lấy lịch sử & Kết nối Socket (Giữ nguyên)
       const history = await api.getChatHistory(roomId);
-      // Backend trả về mảng, ta sắp xếp lại nếu cần (thường backend trả mới nhất trước/sau tùy query)
-      // Ở đây giả định backend trả về list theo thứ tự thời gian tăng dần hoặc cần đảo ngược
-      // Nếu backend trả: Mới nhất -> Cũ nhất. Ta cần đảo lại để hiển thị: Cũ nhất -> Mới nhất
-      // Tạm thời set thẳng, nếu thấy ngược thì thêm .reverse()
       setMessages(history.reverse());
 
-      // B3: Kết nối WebSocket
       connectWebSocket(roomId);
     } catch (error) {
       console.error("Failed to open chat:", error);
