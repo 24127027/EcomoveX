@@ -1,10 +1,13 @@
 ﻿import time
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
+from integration.route_api import create_route_api_client
 from schemas.route_schema import *
 from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
+from schemas.destination_schema import Location, Bounds
+import requests
 
 TRANSPORT_MODE_TO_ROUTES_API = {
     "car": "DRIVE",
@@ -21,7 +24,7 @@ class MapAPI:
         if not self.api_key:
             raise ValueError("Google map API key is required")
         
-        self.base_url = "https://map.googleapis.com/map/api"
+        self.base_url = "https://maps.googleapis.com/maps/api"
         self.client = httpx.AsyncClient(timeout=30.0)
     
     async def close(self):
@@ -36,7 +39,7 @@ class MapAPI:
             }
 
             if data.user_location:
-                params["location"] = f"{data.user_location[0]},{data.user_location[1]}"
+                params["location"] = f"{data.user_location.latitude},{data.user_location.longitude}"
             if data.radius:
                 params["radius"] = data.radius
             if data.place_types:
@@ -109,18 +112,18 @@ class MapAPI:
                 ) for comp in data.get("result", {}).get("address_components", [])],
                 formatted_phone_number=data.get("result", {}).get("formatted_phone_number"),
                 geometry=Geometry(
-                    location=(
-                        data.get("result", {}).get("geometry", {}).get("location", {}).get("lat"),
-                        data.get("result", {}).get("geometry", {}).get("location", {}).get("lng")
+                    location=Location(
+                        latitude=data.get("result", {}).get("geometry", {}).get("location", {}).get("lat"),
+                        longitude=data.get("result", {}).get("geometry", {}).get("location", {}).get("lng")
                     ),
                     bounds=Bounds(
-                        northeast=(
-                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
-                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                        northeast=Location(
+                            latitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                            longitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
                         ),
-                        southwest=(
-                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
-                            data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                        southwest=Location(
+                            latitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                            longitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
                         )
                     ),
                 ),
@@ -135,7 +138,7 @@ class MapAPI:
                 ) if data.get("result", {}).get("opening_hours") else None,
                 website=data.get("result", {}).get("website"),
                 photos=[PhotoInfo(
-                    photo_reference=photo.get("photo_reference"),  
+                    photo_url=await self.generate_place_photo_url(photo.get("photo_reference")),  
                     size=(photo.get("width"), photo.get("height"))
                 ) for photo in data.get("result", {}).get("photos", [])] if data.get("result", {}).get("photos") else None,
                 reviews=[Review(
@@ -150,12 +153,12 @@ class MapAPI:
             
     async def reverse_geocode(
         self,
-        location: Tuple[float, float],
+        location: Location,
         language: str = "vi"
     ) -> GeocodingResponse:
         try:
             params = {
-                "latlng": f"{location[0]},{location[1]}",
+                "latlng": f"{location.longitude},{location.latitude}",
                 "language": language,
                 "key": self.api_key
             }
@@ -176,18 +179,18 @@ class MapAPI:
                         types=comp.get("types", [])
                     ) for comp in result.get("address_components", [])],
                     geometry=Geometry(
-                        location=(
-                            result.get("geometry", {}).get("location", {}).get("lat"),
-                            result.get("geometry", {}).get("location", {}).get("lng")
+                        location=Location(
+                            latitude=result.get("geometry", {}).get("location", {}).get("lat"),
+                            longitude=result.get("geometry", {}).get("location", {}).get("lng")
                         ),
                         bounds=Bounds(
-                            northeast=(
-                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
-                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            northeast=Location(
+                                latitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                                longitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
                             ),
-                            southwest=(
-                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
-                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            southwest=Location(
+                                latitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                                longitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
                             )
                         )
                     ),
@@ -229,18 +232,18 @@ class MapAPI:
                         types=comp.get("types", [])
                     ) for comp in result.get("address_components", [])],
                     geometry=Geometry(
-                        location=(
-                            result.get("geometry", {}).get("location", {}).get("lat"),
-                            result.get("geometry", {}).get("location", {}).get("lng")
+                        location=Location(
+                            latitude=result.get("geometry", {}).get("location", {}).get("lat"),
+                            longitude=result.get("geometry", {}).get("location", {}).get("lng")
                         ),
                         bounds=Bounds(
-                            northeast=(
-                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
-                                result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            northeast=Location(
+                                latitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                                longitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
                             ),
-                            southwest=(
-                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
-                                result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            southwest=Location(
+                                latitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                                longitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
                             )
                         )
                     ),
@@ -259,7 +262,7 @@ class MapAPI:
     ) -> NearbyPlacesResponse:
         try:
             params = {
-                "location": f"{data.location[0]},{data.location[1]}",
+                "location": f"{data.location.latitude},{data.location.longitude}",
                 "radius": data.radius if data.radius else 3600,
                 "rankby": data.rank_by,
                 "language": language,
@@ -281,9 +284,9 @@ class MapAPI:
                 NearbyPlaceSimple(
                     place_id=result["place_id"],
                     name=result["name"],
-                    location=(
-                        result["geometry"]["location"]["lat"], 
-                        result["geometry"]["location"]["lng"]
+                    location=Location(
+                        latitude=result["geometry"]["location"]["lat"], 
+                        longitude=result["geometry"]["location"]["lng"]
                     ),
                     rating=result.get("rating"),
                     types=result.get("types", []),
@@ -318,9 +321,9 @@ class MapAPI:
                 NearbyPlaceSimple(
                     place_id=result["place_id"],
                     name=result["name"],
-                    location=(
-                        result["geometry"]["location"]["lat"],
-                        result["geometry"]["location"]["lng"]
+                    location=Location(
+                        latitude=result["geometry"]["location"]["lat"],
+                        longitude=result["geometry"]["location"]["lng"]
                     ),
                     rating=result.get("rating"),
                     types=result.get("types", []),
@@ -339,46 +342,68 @@ class MapAPI:
         
     async def search_along_route(
         self,
-        data: DirectionsRequest,
-        travel_mode: TransportMode,
+        directions: DirectionsResponse,
         search_type: str,
     ) -> SearchAlongRouteResponse:
-        directions = await self.get_routes(data=data, mode=travel_mode)        
-        route = directions.routes[0]
-        
-        sample_points = []
-        total_distance = 0
-        interpolate = await interpolate_search_params(distance=route.legs[0].distance)
-        sample_interval = interpolate[1]
-        
-        for leg in route.legs:
-            for step in leg.steps:
-                total_distance += step.distance
-                if total_distance >= sample_interval:
-                    sample_points.append(step.start_location)
-                    total_distance = 0
-        
-        all_places = []
-        seen_place_ids = set()
-        
-        for point in sample_points:
-            data = await self.get_nearby_places_for_map(
-                NearbyPlaceRequest(
-                    location=point,
-                    radius=interpolate[0],
-                    place_type=search_type
+        try:
+            route = directions.routes[0]
+            
+            sample_points = []
+            total_distance = 0
+            interpolate = await interpolate_search_params(distance=route.legs[0].distance)
+            sample_interval = interpolate[1]
+            
+            for leg in route.legs:
+                for step in leg.steps:
+                    total_distance += step.distance
+                    if total_distance >= sample_interval:
+                        sample_points.append(step.start_location)
+                        total_distance = 0
+            
+            all_places = []
+            seen_place_ids = set()
+            
+            for point in sample_points:
+                data = await self.get_nearby_places_for_map(
+                    NearbyPlaceRequest(
+                        location=point,
+                        radius=interpolate[0],
+                        place_type=search_type
+                    )
                 )
+                for place in data.places:
+                    if place.place_id not in seen_place_ids:
+                        seen_place_ids.add(place.place_id)
+                        all_places.append(place)
+            
+            return SearchAlongRouteResponse(
+                places_along_route=all_places,
             )
-            for place in data.places:  # Top 3 per point
-                if place.place_id not in seen_place_ids:
-                    seen_place_ids.add(place.place_id)
-                    all_places.append(place)
-        
-        return SearchAlongRouteResponse(
-            route_polyline=route.overview_polyline,
-            places_along_route=all_places,
-            search_type=search_type
-        )
+        except Exception as e:
+            print(f"Error in search_along_route: {e}")
+            raise e
+    
+    async def generate_place_photo_url(
+        self,
+        photo_reference: str,
+        maxwidth: int = 400,
+    ) -> str:
+        try:
+            params = {
+                "maxwidth": maxwidth,
+                "photoreference": photo_reference,
+                "key": self.api_key
+            }
+
+            base_url = "https://maps.googleapis.com/maps/api/place/photo"
+            response = requests.get(base_url, params=params, allow_redirects=False)
+            real_photo_url = response.headers.get("Location")
+
+            return real_photo_url
+
+        except Exception as e:
+            print(f"Error in generate_place_photo_url: {e}")
+            raise e
 
 async def create_map_client(api_key: Optional[str] = None) -> MapAPI:
     return MapAPI(api_key=api_key)

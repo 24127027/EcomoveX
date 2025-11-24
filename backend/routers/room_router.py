@@ -46,8 +46,7 @@ async def create_room(
     return await RoomService.create_room(
         db, 
         current_user["user_id"], 
-        room_data.room_name, 
-        room_data.member_ids
+        room_data
     )
 
 @router.post("/rooms/{room_id}/members", response_model=RoomResponse, status_code=status.HTTP_200_OK)

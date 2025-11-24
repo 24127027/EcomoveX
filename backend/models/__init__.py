@@ -3,7 +3,7 @@ from .destination import Destination, UserSavedDestination
 from .friend import Friend
 from .message import Message
 from .mission import Mission, UserMission
-from .plan import Plan, PlanDestination
+from .plan import Plan, PlanDestination, PlanMember
 from .review import Review
 from .user import User, UserActivity
 from .metadata import Metadata
@@ -16,6 +16,7 @@ __all__ = [
     "Destination",
     "Plan",
     "PlanDestination",
+    "PlanMember",
     "Mission",
     "UserMission",
     "Cluster",

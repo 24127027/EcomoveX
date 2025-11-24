@@ -1,11 +1,14 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from schemas.route_schema import DirectionsResponse
 from integration.map_api import create_map_client
 from schemas.destination_schema import DestinationCreate
 from schemas.map_schema import *
 from services.destination_service import DestinationService
-class mapervice:
+from schemas.destination_schema import Location
+
+class mapService:
     @staticmethod
     async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
         try:            
@@ -16,6 +19,7 @@ class mapervice:
                     await DestinationService.create_destination(
                         db, DestinationCreate(place_id=prediction.place_id)
                     )
+                return response
             finally:
                 if map:
                     await map.close()
@@ -62,7 +66,7 @@ class mapervice:
                 await map.close()
             
     @staticmethod
-    async def reverse_geocode(location: Tuple[float, float]) -> GeocodingResponse:
+    async def reverse_geocode(location: Location) -> GeocodingResponse:
         try:
             map = await create_map_client()
             return await map.reverse_geocode(location=location)
@@ -110,3 +114,46 @@ class mapervice:
         finally:
             if map:
                 await map.close()
+                
+    @staticmethod
+    async def search_along_route(
+        dỉrection_data: DirectionsResponse,
+        search_type: str,
+    ) -> SearchAlongRouteResponse:
+        try:
+            map = await create_map_client()
+            return await map.search_along_route(
+                directions=dỉrection_data,
+                search_type=search_type,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to search along route: {str(e)}"
+            )
+        finally:
+            if map:
+                await map.close()
+    
+    @staticmethod
+    async def calculate_bird_distance(
+        origin: Tuple[float, float],
+        destination: Tuple[float, float],
+    ) -> float:
+        try:
+            # Haversine formula to calculate the great-circle distance
+            from math import radians, sin, cos, sqrt, atan2
+            R = 6371.0  # Radius of the Earth in kilometers
+            lat1, lon1 = origin
+            lat2, lon2 = destination
+            dlat = radians(lat2 - lat1)
+            dlon = radians(lon2 - lon1)
+            a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+            c = 2 * atan2(sqrt(a), sqrt(1 - a))
+            distance = R * c  # in kilometers
+            return distance
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to calculate bird distance: {str(e)}"
+            )

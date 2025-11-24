@@ -2,11 +2,22 @@
 import { Knewave, Josefin_Sans, Abhaya_Libre, Poppins } from "next/font/google";
 import { useState } from "react";
 import Link from "next/link";
-import { gotu } from "../../page";
-import { api } from "@/lib/api";
+// Đảm bảo đường dẫn import này đúng
+import { Gotu } from "next/font/google";
+import { api, ApiValidationError } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import {
+  validateSignupForm,
+  ValidationErrors,
+  getFriendlyErrorMessage,
+} from "@/lib/validation";
 
 const knewave = Knewave({
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
+export const gotu = Gotu({
   subsets: ["latin"],
   weight: ["400"],
 });
@@ -32,9 +43,11 @@ export default function SignupPage() {
     authorize: "",
     email: "",
   });
-  const [passwordError, setPasswordError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+    {}
+  );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [serverError, setServerError] = useState("");
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,27 +57,25 @@ export default function SignupPage() {
       [name]: value,
     }));
 
-    if (name === "password") {
-      setPasswordError("");
-      if (form.authorize && value !== form.authorize) {
-        setPasswordError("Passwords do not match");
-      }
-    }
+    setValidationErrors((prev) => ({
+      ...prev,
+      [name]: undefined,
+    }));
 
-    // Check password match when authorize field changes
-    if (name === "authorize") {
-      if (value !== form.password) {
-        setPasswordError("Passwords do not match");
-      } else {
-        setPasswordError("");
-      }
-    }
+    setServerError("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setServerError("");
+
+    const errors = validateSignupForm(form);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await api.signup({
@@ -73,116 +84,177 @@ export default function SignupPage() {
         password: form.password,
       });
       if (!response?.access_token) {
-        throw new Error("Missing access token");
+        throw new Error("Missing access token in response");
       }
-      if (!response || !response.access_token) {
-        throw new Error("Signup succeeded but response is invalid");
-      }
-      // Store token
+
       localStorage.setItem("access_token", response.access_token);
 
       if (response.user_id != null) {
         localStorage.setItem("user_id", response.user_id.toString());
       }
-      // Redirect to dashboard
-      router.replace("/homepage");
+
+      router.replace("/allow_permission/location_permission");
     } catch (err: any) {
-      setError(err.message || "Registration failed. Please try again.");
+      if (err instanceof ApiValidationError) {
+        setValidationErrors({
+          [err.field]: err.message,
+        });
+      } else {
+        setServerError(getFriendlyErrorMessage(err));
+      }
+      console.error("Signup error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen items-center justify-center bg-white">
-      <main
-        className="flex min-h-screen w-full max-w-md flex-col items-center justify-center
-            py-8 px-4 bg-white dark:bg-black
-            sm:max-w-3xl sm:py-24 sm:px-16 sm:items-start sm:justify-center"
-      >
-        <h1
-          className={`${knewave.className} text-6xl text-green-600 mb-4 text-center translate-x-40 -translate-y-10`}
-        >
-          Ecomove<span className="text-green-500">X</span>
-        </h1>
+    // 1. WRAPPER NGOÀI CÙNG: Nền xám, căn giữa
+    <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      {/* 2. KHUNG APP: max-w-md, nền trắng, đổ bóng */}
+      <main className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col items-center justify-center px-6 py-8 overflow-y-auto">
+        {/* Header / Logo */}
+        <div className="text-center mb-6">
+          <h1 className={`${knewave.className} text-5xl text-green-600 mb-2`}>
+            Ecomove<span className="text-green-500">X</span>
+          </h1>
+          <p
+            className={`${josefin_sans.className} text-green-600 text-xl leading-relaxed`}
+          >
+            Your Trip. Your impact. Your choice.
+          </p>
+        </div>
 
-        <p
-          className={`${josefin_sans.className} text-green-600 mb-12 text-center text-xl leading-relaxed translate-x-42 -translate-y-10`}
-        >
-          Your Trip. Your impact. Your choice.
-        </p>
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-4 w-full max-w-sm -translate-y-10"
-        >
-          <input
-            type="text"
-            name="username"
-            value={form.username}
-            onChange={handleChange}
-            placeholder="Enter your username"
-            className={`${abhaya_libre.className} w-full border-2 bg-green-100 text-green-700 rounded-full px-5 py-3 text-lg font-medium translate-x-30`}
-            required
-          />
-          <input
-            type="text"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="Enter your email"
-            name="email"
-            className={`${abhaya_libre.className} w-full border-2 bg-green-100 text-green-700 rounded-full px-5 py-3 text-lg font-medium translate-x-30`}
-            required
-          />
-          <input
-            type="password"
-            value={form.password}
-            name="password"
-            onChange={handleChange}
-            placeholder="Enter your password"
-            className={`${abhaya_libre.className} w-full border-2 bg-green-100 text-green-700 rounded-full px-5 py-3 text-lg font-medium translate-x-30`}
-            required
-          />
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+          {/* Username Field */}
+          <div className="w-full">
+            <input
+              type="text"
+              name="username"
+              value={form.username}
+              onChange={handleChange}
+              placeholder="Enter your username"
+              className={`${abhaya_libre.className} w-full border-2 ${
+                validationErrors.username
+                  ? "border-red-500 bg-red-50"
+                  : "bg-green-100 border-transparent focus:border-green-500"
+              } text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60`}
+              required
+            />
+            {validationErrors.username && (
+              <p className="text-red-500 text-sm mt-1 ml-4">
+                {validationErrors.username}
+              </p>
+            )}
+          </div>
+
+          {/* Email Field */}
+          <div className="w-full">
+            <input
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="Enter your email"
+              name="email"
+              className={`${abhaya_libre.className} w-full border-2 ${
+                validationErrors.email
+                  ? "border-red-500 bg-red-50"
+                  : "bg-green-100 border-transparent focus:border-green-500"
+              } text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60`}
+              required
+            />
+            {validationErrors.email && (
+              <p className="text-red-500 text-sm mt-1 ml-4">
+                {validationErrors.email}
+              </p>
+            )}
+          </div>
+
+          {/* Password Field */}
+          <div className="w-full">
+            <input
+              type="password"
+              value={form.password}
+              name="password"
+              onChange={handleChange}
+              placeholder="Enter your password (min 6 chars)"
+              className={`${abhaya_libre.className} w-full border-2 ${
+                validationErrors.password
+                  ? "border-red-500 bg-red-50"
+                  : "bg-green-100 border-transparent focus:border-green-500"
+              } text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60`}
+              required
+            />
+            {validationErrors.password && (
+              <p className="text-red-500 text-sm mt-1 ml-4">
+                {validationErrors.password}
+              </p>
+            )}
+          </div>
+
+          {/* Confirm Password Field */}
           <div className="w-full">
             <input
               type="password"
               value={form.authorize}
               name="authorize"
               onChange={handleChange}
-              placeholder="Authorize your password"
+              placeholder="Confirm your password"
               className={`${abhaya_libre.className} w-full border-2 ${
-                passwordError ? "border-red-500 bg-red-50" : "bg-green-100"
-              } text-green-700 rounded-full px-5 py-3 text-lg font-medium translate-x-30`}
+                validationErrors.authorize
+                  ? "border-red-500 bg-red-50"
+                  : "bg-green-100 border-transparent focus:border-green-500"
+              } text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60`}
               required
               disabled={!form.password}
             />
-            {passwordError && (
-              <p className="text-red-500 text-sm translate-x-50 mt-1 ml-4">
-                {passwordError}
+            {validationErrors.authorize && (
+              <p className="text-red-500 text-sm mt-1 ml-4">
+                {validationErrors.authorize}
               </p>
             )}
           </div>
+
+          {/* Submit Button */}
           <button
-            disabled={!!passwordError || !form.password || !form.authorize}
+            disabled={
+              loading ||
+              !form.username ||
+              !form.email ||
+              !form.password ||
+              !form.authorize
+            }
             type="submit"
-            className={`${abhaya_libre.className} w-full bg-green-500 text-white rounded-full py-3 text-lg font-medium hover:bg-green-600 translate-x-30 transition`}
+            className={`${abhaya_libre.className} w-full ${
+              loading
+                ? "bg-gray-400"
+                : "bg-green-500 hover:bg-green-600 shadow-md"
+            } text-white rounded-full py-3 text-lg font-medium transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2`}
           >
             {loading ? "Signing up..." : "Sign up"}
           </button>
-          {error && (
-            <p className="text-red-500 text-sm mt-2 text-center">{error}</p>
+
+          {/* Server Error Message */}
+          {serverError && (
+            <p className="text-red-500 text-sm mt-2 text-center bg-red-50 p-3 rounded-lg border border-red-200">
+              {serverError}
+            </p>
           )}
         </form>
-        <p
-          className={`${gotu.className} text-green-500 mb-12 text-center text-xl leading-relaxed translate-x-42 -translate-y+30`}
-        >
-          Have an account?
-          <Link
-            href="../login"
-            className={`${josefin_sans.className} text-green-600 mb-12 text-center text-xl leading-relaxed translate-x-42 -translate-y-10 hover:text-green-700`}
-          >
-            Login
-          </Link>
-        </p>
+
+        {/* Login Link */}
+        <div className="mt-8 text-center">
+          <p className={`${gotu.className} text-green-500 text-lg`}>
+            Have an account?{" "}
+            <Link
+              href="../login"
+              className={`${josefin_sans.className} font-bold text-green-600 hover:text-green-800 underline`}
+            >
+              Login
+            </Link>
+          </p>
+        </div>
       </main>
     </div>
   );

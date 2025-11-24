@@ -1,0 +1,565 @@
+"use client";
+
+import React, { useEffect, useState, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Home,
+  MapPin,
+  Bot,
+  User,
+  Loader2,
+  Plus,
+  Camera,
+} from "lucide-react";
+import { Jost, Abhaya_Libre } from "next/font/google";
+import { useRouter } from "next/navigation";
+import { api, UserProfile } from "@/lib/api";
+
+const jost = Jost({ subsets: ["latin"] });
+const abhaya_libre = Abhaya_Libre({
+  weight: ["400", "500", "600", "800"],
+  subsets: ["latin"],
+});
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // UI States
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // Data States
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+
+  // Avatar Data
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+
+  //Cover Data
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [previewCover, setPreviewCover] = useState<string | null>(null);
+
+  // Password States
+  const [newPassword, setNewPassword] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
+
+  // 1. Fetch Data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userData = await api.getUserProfile();
+        setUser(userData);
+        setUsername(userData.username);
+        setEmail(userData.email);
+        setPreviewAvatar(userData.avt_url || "/images/default-avatar.png");
+        setPreviewCover(userData.cover_url || null);
+      } catch (error) {
+        console.error(error);
+        router.push("/login");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUserData();
+  }, [router]);
+
+  // 2. Handle Avatar Click (Check Permission)
+  const handleAvatarClick = () => {
+    if (!isEditing) return;
+
+    const hasPermission = localStorage.getItem("photoPermission");
+    if (hasPermission !== "granted") {
+      router.push("/permission/photo");
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleCoverClick = () => {
+    if (!isEditing) return;
+    const hasPermission = localStorage.getItem("photoPermission");
+    if (hasPermission !== "granted") {
+      router.push("/permission/photo");
+    } else {
+      coverInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Giới hạn kích thước ảnh để tránh nổ Database (ví dụ < 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Please choose an image smaller than 2MB.");
+        return;
+      }
+      setAvatarFile(file);
+      setPreviewAvatar(URL.createObjectURL(file));
+    }
+  };
+
+  const handleCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Please choose a cover image smaller than 5MB.");
+        return;
+      }
+      setCoverFile(file);
+      setPreviewCover(URL.createObjectURL(file));
+    }
+  };
+
+  // 3. Validation (Giữ nguyên)
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors: { email?: string; password?: string } = {};
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      newErrors.email = "Invalid email format.";
+      isValid = false;
+    }
+
+    const isEmailChanged = email !== user?.email;
+    const isPasswordChanged = newPassword.length > 0;
+
+    if ((isEmailChanged || isPasswordChanged) && !oldPassword) {
+      newErrors.password =
+        "Current password is required to change Email or Password.";
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  // 4. Handle Save
+  const handleEditToggle = async () => {
+    // A. Bật Edit Mode (Giữ nguyên)
+    if (!isEditing) {
+      if (user) {
+        setUsername(user.username);
+        setEmail(user.email);
+        setPreviewAvatar(user.avt_url || "/images/default-avatar.png");
+        setAvatarFile(null);
+        setPreviewCover(user.cover_url || null);
+        setCoverFile(null);
+      }
+      setNewPassword("");
+      setOldPassword("");
+      setSuccessMsg("");
+      setIsEditing(true);
+      return;
+    }
+
+    if (!validateForm()) return;
+
+    try {
+      setIsSaving(true);
+      setSuccessMsg("");
+
+      // --- 1. Xử lý Upload Ảnh (nếu có chọn file mới) ---
+      let newBlobName = null;
+      let newAvatarUrl = null;
+      if (avatarFile) {
+        const uploadResponse = await api.uploadFile(
+          avatarFile,
+          "profile_avatar"
+        );
+        newBlobName = uploadResponse.blob_name;
+        newAvatarUrl = uploadResponse.url;
+      }
+
+      let newCoverBlobName = null;
+      let newCoverUrl = null;
+      if (coverFile) {
+        const uploadResponse = await api.uploadFile(coverFile, "profile_cover");
+        newCoverBlobName = uploadResponse.blob_name;
+        newCoverUrl = uploadResponse.url;
+      }
+
+      const promises = [];
+
+      // --- 2. Request update Profile (Username & Avatar URL) ---
+      if (username !== user?.username || newBlobName) {
+        promises.push(
+          api
+            .updateUserProfile({
+              username: username,
+              ...(newBlobName && { avt_blob_name: newBlobName }),
+              ...(newCoverBlobName && { cover_blob_name: newCoverBlobName }),
+            })
+            .then((res) => {
+              setUser((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      username: res.username,
+                      avt_url: newAvatarUrl || res.avt_url,
+                      cover_url: newCoverUrl || res.cover_url,
+                    }
+                  : null
+              );
+              if (newAvatarUrl) {
+                setPreviewAvatar(newAvatarUrl);
+              } else if (res.avt_url) {
+                setPreviewAvatar(res.avt_url);
+              }
+              if (newCoverUrl) setPreviewCover(newCoverUrl);
+            })
+        );
+      }
+
+      // --- 3. Request Credentials (Email + Password)
+      const isEmailChanged = email !== user?.email;
+      const isPasswordChanged = newPassword.length > 0;
+
+      if (isEmailChanged || isPasswordChanged) {
+        promises.push(
+          api
+            .updateCredentials({
+              old_password: oldPassword,
+              new_email: isEmailChanged ? email : undefined,
+              new_password: isPasswordChanged ? newPassword : undefined,
+            })
+            .then((res) => {
+              if (res.email)
+                setUser((prev) =>
+                  prev ? { ...prev, email: res.email } : null
+                );
+            })
+        );
+      }
+
+      await Promise.all(promises);
+
+      setSuccessMsg("Profile updated successfully!");
+      setIsEditing(false);
+      setNewPassword("");
+      setOldPassword("");
+      setAvatarFile(null);
+    } catch (error: any) {
+      console.error("Update failed:", error);
+      if (
+        error.message &&
+        error.message.toLowerCase().includes("old password")
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          password: "Incorrect current password.",
+        }));
+      } else {
+        // Hiển thị lỗi chi tiết hơn nếu có
+        alert(error.message || "Failed to update profile.");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="flex h-screen justify-center items-center text-green-600">
+        Loading...
+      </div>
+    );
+
+  const needsAuth = email !== user?.email || newPassword.length > 0;
+
+  return (
+    <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="relative pt-12 pb-24 px-6 rounded-b-[40px] overflow-hidden z-0 bg-[#E3F1E4]">
+          {/* Input ẩn cho Cover */}
+          <input
+            type="file"
+            hidden
+            ref={coverInputRef}
+            accept="image/*"
+            onChange={handleCoverFileChange}
+          />
+
+          {/* Ảnh nền Cover */}
+          {previewCover && (
+            <Image
+              src={previewCover}
+              alt="Cover"
+              fill
+              className="object-cover opacity-90"
+              priority
+            />
+          )}
+
+          {/* Overlay chỉnh sửa Cover (Chỉ hiện khi Edit Mode) */}
+          {isEditing && (
+            <div
+              onClick={handleCoverClick}
+              className="absolute inset-0 bg-black/20 hover:bg-black/40 transition-colors cursor-pointer flex items-center justify-center z-10"
+            >
+              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full text-white border border-white/50">
+                <Camera size={24} />
+              </div>
+            </div>
+          )}
+
+          {/* Nội dung Header (Nút Back, Tiêu đề...) - Cần relative z-20 để nổi lên trên ảnh */}
+          <div className="relative z-20 flex items-center gap-4">
+            <Link href="/user_page/main_page">
+              <ArrowLeft
+                className={`cursor-pointer hover:text-green-600 ${
+                  previewCover ? "text-white drop-shadow-md" : "text-gray-600"
+                }`}
+                size={28}
+              />
+            </Link>
+            <h1
+              className={`${jost.className} text-2xl font-bold ${
+                previewCover ? "text-white drop-shadow-md" : "text-gray-600"
+              }`}
+            >
+              My Profile
+            </h1>
+          </div>
+        </div>
+        {/* Avatar Section */}
+        <div className="relative z-10 -mt-16 flex flex-col items-center">
+          <input
+            type="file"
+            hidden
+            ref={fileInputRef}
+            accept="image/*"
+            onChange={handleFileChange}
+          />
+
+          <div className="p-1.5 bg-white rounded-full shadow-md relative group">
+            <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-inner bg-gray-100">
+              <Image
+                src={previewAvatar || "/images/default-avatar.png"}
+                alt="Avatar"
+                fill
+                className="object-cover"
+              />
+              {/* Overlay khi đang Edit */}
+              {isEditing && (
+                <div
+                  onClick={handleAvatarClick}
+                  className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Camera className="text-white" size={32} />
+                </div>
+              )}
+            </div>
+            {/* Nút dấu cộng (+) */}
+            {isEditing && (
+              <div
+                onClick={handleAvatarClick}
+                className="absolute bottom-1 right-1 bg-[#53B552] text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-green-600 transition-transform active:scale-90 z-20"
+              >
+                <Plus size={20} strokeWidth={3} />
+              </div>
+            )}
+          </div>
+
+          <h2
+            className={`${abhaya_libre.className} mt-3 text-2xl font-bold text-[#53B552]`}
+          >
+            {user?.username}
+          </h2>
+        </div>
+
+        {/* Main Form (Giữ nguyên) */}
+        <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-5">
+          {/* Username */}
+          <div className="flex flex-col">
+            <label
+              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
+            >
+              Username
+            </label>
+            <div
+              className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
+                isEditing ? "border-green-300" : "border-transparent"
+              }`}
+            >
+              <input
+                type="text"
+                value={isEditing ? username : user?.username || ""}
+                onChange={(e) => setUsername(e.target.value)}
+                readOnly={!isEditing}
+                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+              />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div className="flex flex-col">
+            <label
+              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
+            >
+              Email
+            </label>
+            <div
+              className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
+                isEditing ? "border-green-300" : "border-transparent"
+              } ${errors.email ? "border-red-500 bg-red-50" : ""}`}
+            >
+              <input
+                type="email"
+                value={isEditing ? email : user?.email || ""}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email)
+                    setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                readOnly={!isEditing}
+                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+              />
+            </div>
+            {isEditing && errors.email && (
+              <p className="text-red-500 text-xs mt-1 ml-2">{errors.email}</p>
+            )}
+          </div>
+
+          {/* Password */}
+          <div className="flex flex-col">
+            <label
+              className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
+            >
+              New Password
+            </label>
+            <div
+              className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
+                isEditing ? "border-green-300" : "border-transparent"
+              }`}
+            >
+              <input
+                type="password"
+                value={isEditing ? newPassword : "dummy_password"}
+                onChange={(e) => setNewPassword(e.target.value)}
+                readOnly={!isEditing}
+                placeholder={isEditing ? "Leave blank to keep current" : ""}
+                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold tracking-widest`}
+              />
+            </div>
+          </div>
+
+          {/* Old Password */}
+          {isEditing && needsAuth && (
+            <div className="flex flex-col animate-in fade-in slide-in-from-top-2 duration-300">
+              <label
+                className={`${abhaya_libre.className} bg-gray-500 text-white px-4 py-1 rounded-t-xl w-fit text-sm font-bold ml-1`}
+              >
+                Current Password (Required to save)
+              </label>
+              <div
+                className={`bg-white rounded-xl p-3 shadow-sm border border-gray-300 ${
+                  errors.password ? "border-red-500 bg-red-50" : ""
+                }`}
+              >
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => {
+                    setOldPassword(e.target.value);
+                    if (errors.password)
+                      setErrors((prev) => ({ ...prev, password: undefined }));
+                  }}
+                  placeholder="Enter current password"
+                  className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+                />
+              </div>
+              {errors.password && (
+                <p className="text-red-500 text-xs mt-1 ml-2">
+                  {errors.password}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="pt-4 flex flex-col items-center pb-8">
+            {successMsg && (
+              <p
+                className={`${jost.className} text-green-600 font-bold mb-3 animate-in fade-in slide-in-from-bottom-2`}
+              >
+                {successMsg}
+              </p>
+            )}
+            <button
+              onClick={handleEditToggle}
+              disabled={isSaving}
+              className={`${jost.className} w-48 ${
+                isEditing
+                  ? "bg-[#53B552] text-white hover:bg-green-700"
+                  : "bg-[#E3F1E4] text-[#5BB95B] hover:bg-[#5BB95B] hover:text-white"
+              } font-bold py-3 rounded-full transition-all duration-300 shadow-sm text-lg flex justify-center items-center gap-2`}
+            >
+              {isSaving && <Loader2 className="animate-spin" size={20} />}
+              {isEditing
+                ? isSaving
+                  ? "Saving..."
+                  : "Save Changes"
+                : "Edit Profile"}
+            </button>
+          </div>
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
+          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
+          <div className="flex justify-around items-center py-3">
+            <Link
+              href="/homepage"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+            >
+              <Home size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Home
+              </span>
+            </Link>
+            <Link
+              href="/planning_page/showing_plan_page"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+            >
+              <MapPin size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Planning
+              </span>
+            </Link>
+            <Link
+              href="#"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+            >
+              <Bot size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Ecobot
+              </span>
+            </Link>
+            <div className="flex flex-col items-center text-[#53B552]">
+              <Link href="/user_page/main_page">
+                <User size={24} strokeWidth={2.5} />
+                <span className={`${jost.className} text-xs font-bold mt-1`}>
+                  User
+                </span>
+              </Link>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}

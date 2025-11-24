@@ -2,6 +2,7 @@ from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, PrimaryKeyC
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
+
 class Cluster(Base):
     __tablename__ = "clusters"
 
@@ -34,7 +35,7 @@ class ClusterDestination(Base):
     )
 
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False, primary_key=True)
-    destination_id = Column(String(255), ForeignKey("destinations.google_place_id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    destination_id = Column(String(255), ForeignKey("destinations.place_id", ondelete="CASCADE"), nullable=False, primary_key=True)
     popularity_score = Column(Float, nullable=True)
 
     cluster = relationship("Cluster", back_populates="destinations")

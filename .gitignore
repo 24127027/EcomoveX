@@ -80,3 +80,6 @@ Thumbs.db
 
 # Cloud storage
 service-account.json
+
+# AI models
+backend/utils/green_verification/models/

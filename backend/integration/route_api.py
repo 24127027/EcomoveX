@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from schemas.route_schema import *
 from schemas.map_schema import *
+from schemas.destination_schema import Location, Bounds
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 
@@ -38,16 +39,16 @@ class RouteAPI:
                 "origin": {
                     "location": {
                         "latLng": {
-                            "latitude": data.origin[0],
-                            "longitude": data.origin[1]
+                            "latitude": data.origin.latitude,
+                            "longitude": data.origin.longitude
                         }
                     }
                 },
                 "destination": {
                     "location": {
                         "latLng": {
-                            "latitude": data.destination[0],
-                            "longitude": data.destination[1]
+                            "latitude": data.destination.latitude,
+                            "longitude": data.destination.longitude
                         }
                     }
                 },
@@ -141,8 +142,8 @@ class RouteAPI:
                             Step(
                                 distance=step_data.get("distanceMeters", 0) / 1000,
                                 duration=duration_minutes,
-                                start_location=(start_loc.get("latitude", 0), start_loc.get("longitude", 0)),
-                                end_location=(end_loc.get("latitude", 0), end_loc.get("longitude", 0)),
+                                start_location=Location(latitude=start_loc.get("latitude", 0), longitude=start_loc.get("longitude", 0)),
+                                end_location=Location(latitude=end_loc.get("latitude", 0), longitude=end_loc.get("longitude", 0)),
                                 html_instructions=step_data.get("navigationInstruction", {}).get("instructions", ""),
                                 travel_mode=transport_mode,
                                 polyline=step_data.get("polyline", {}).get("encodedPolyline"),
@@ -150,7 +151,6 @@ class RouteAPI:
                             )
                         )
                     
-                    start_loc = leg_data.get("startLocation", {}).get("latLng", {})
                     end_loc = leg_data.get("endLocation", {}).get("latLng", {})
 
                     v_leg = leg_data.get("duration", "0s")
@@ -200,14 +200,8 @@ class RouteAPI:
                     leg = Leg(
                         distance=leg_data.get("distanceMeters", 0) / 1000,
                         duration=leg_minutes,
-                        start_location=(
-                            leg_data.get("startLocation", {}).get("address", ""),
-                            (start_loc.get("latitude", 0), start_loc.get("longitude", 0))
-                        ),
-                        end_location=(
-                            leg_data.get("endLocation", {}).get("address", ""),
-                            (end_loc.get("latitude", 0), end_loc.get("longitude", 0))
-                        ),
+                        start_location=(leg_data.get("startLocation", {}).get("address", ""), Location(latitude=start_loc.get("latitude", 0), longitude=start_loc.get("longitude", 0))),
+                        end_location=(leg_data.get("endLocation", {}).get("address", ""), Location(latitude=end_loc.get("latitude", 0), longitude=end_loc.get("longitude", 0))),
                         steps=steps,
                         duration_in_traffic=traffic_minutes if data.get_traffic else None,
                         arrival_time=leg_data.get("arrivalTime"),
@@ -246,8 +240,8 @@ class RouteAPI:
                     legs=legs,
                     overview_polyline=route_data.get("polyline", {}).get("encodedPolyline", ""),
                     bounds=Bounds(
-                        northeast=(ne.get("latitude", 0), ne.get("longitude", 0)),
-                        southwest=(sw.get("latitude", 0), sw.get("longitude", 0))
+                        northeast=Location(latitude=ne.get("latitude", 0), longitude=ne.get("longitude", 0)),
+                        southwest=Location(latitude=sw.get("latitude", 0), longitude=sw.get("longitude", 0))
                     ),
                     distance=sum(leg.distance for leg in legs),
                     duration=sum(leg.duration for leg in legs),
@@ -272,16 +266,16 @@ class RouteAPI:
                 "origin": {
                     "location": {
                         "latLng": {
-                            "latitude": data.origin[0],
-                            "longitude": data.origin[1]
+                            "latitude": data.origin.latitude,
+                            "longitude": data.origin.longitude
                         }
                     }
                 },
                 "destination": {
                     "location": {
                         "latLng": {
-                            "latitude": data.destination[0],
-                            "longitude": data.destination[1]
+                            "latitude": data.destination.latitude,
+                            "longitude": data.destination.longitude
                         }
                     }
                 },
@@ -384,8 +378,8 @@ class RouteAPI:
                             Step(
                                 distance=step_data.get("distanceMeters", 0) / 1000,
                                 duration=duration_minutes,
-                                start_location=(start_loc.get("latitude", 0), start_loc.get("longitude", 0)),
-                                end_location=(end_loc.get("latitude", 0), end_loc.get("longitude", 0)),
+                                start_location=Location(latitude=start_loc.get("latitude", 0), longitude=start_loc.get("longitude", 0)),
+                                end_location=Location(latitude=end_loc.get("latitude", 0), longitude=end_loc.get("longitude", 0)),
                                 html_instructions=step_data.get("navigationInstruction", {}).get("instructions", ""),
                                 travel_mode=transport_mode,
                                 polyline=step_data.get("polyline", {}).get("encodedPolyline"),
@@ -443,14 +437,8 @@ class RouteAPI:
                     leg = Leg(
                         distance=leg_data.get("distanceMeters", 0) / 1000,
                         duration=leg_minutes,
-                        start_location=(
-                            leg_data.get("startLocation", {}).get("address", ""),
-                            (start_loc.get("latitude", 0), start_loc.get("longitude", 0))
-                        ),
-                        end_location=(
-                            leg_data.get("endLocation", {}).get("address", ""),
-                            (end_loc.get("latitude", 0), end_loc.get("longitude", 0))
-                        ),
+                        start_location=(leg_data.get("startLocation", {}).get("address", ""), Location(latitude=start_loc.get("latitude", 0), longitude=start_loc.get("longitude", 0))),
+                        end_location=(leg_data.get("endLocation", {}).get("address", ""), Location(latitude=end_loc.get("latitude", 0), longitude=end_loc.get("longitude", 0))),
                         steps=steps,
                         duration_in_traffic=traffic_minutes if data.get_traffic else None,
                         arrival_time=leg_data.get("arrivalTime"),
@@ -492,8 +480,8 @@ class RouteAPI:
                     legs=legs,
                     overview_polyline=route_data.get("polyline", {}).get("encodedPolyline", ""),
                     bounds=Bounds(
-                        northeast=(ne.get("latitude", 0), ne.get("longitude", 0)),
-                        southwest=(sw.get("latitude", 0), sw.get("longitude", 0))
+                        northeast=Location(latitude=ne.get("latitude", 0), longitude=ne.get("longitude", 0)),
+                        southwest=Location(latitude=sw.get("latitude", 0), longitude=sw.get("longitude", 0))
                     ),
                     distance=sum(leg.distance for leg in legs),
                     duration=sum(leg.duration for leg in legs),
