@@ -234,7 +234,21 @@ export interface RoomResponse {
   created_at: string;
   member_ids: number[]; // Quan trọng: cần trường này để lọc
 }
+//REWARD & MISSION TYPES
+export interface Mission{
+  id: number;
+  name: string;
+  description: string;
+  reward_type: string;
+  action_trigger: string;
+  value: number;
+}
 
+export interface UserRewardResponse{
+  user_id: number;
+  mission: Mission[];
+  total_points: number;
+}
 // --- API CLIENT CLASS ---
 
 class ApiClient {
@@ -572,6 +586,15 @@ class ApiClient {
       { method: "GET" }
     );
   }
+
+  //REWARD & MISSION ENDPOINTS
+  async getAllMissions(): Promise<Mission[]>{
+    return this.request<Mission[]>("/rewards/missions", {method: "GET"});
+  }
+  
+  async getUserRewards(): Promise<UserRewardResponse>{
+    return this.request<UserRewardResponse>("/rewards/me/missions", {method: "GET"});
+}
 }
 
 export const api = new ApiClient(API_BASE_URL);

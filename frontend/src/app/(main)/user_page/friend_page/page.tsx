@@ -146,8 +146,14 @@ export default function FriendsPage() {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      // Backend broadcast tin nhắn vừa gửi
-      setMessages((prev) => [...prev, data]);
+
+      setMessages((prev) => {
+        const isDuplicate = prev.some((msg) => msg.id === data.id);
+        if (isDuplicate) {
+          return prev;
+        }
+        return [...prev, data];
+      });
     };
 
     ws.onclose = () => {

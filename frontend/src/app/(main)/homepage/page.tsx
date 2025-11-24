@@ -36,6 +36,8 @@ import {
   TravelPlan,
   CurrentWeatherResponse,
   AirQualityResponse,
+  UserRewardResponse,
+  Mission,
 } from "@/lib/api";
 
 export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
@@ -80,6 +82,10 @@ export default function HomePage() {
   const [loadingWeather, setLoadingWeather] = useState(true);
   const [locationError, setLocationError] = useState(false);
 
+  const [userReward, setUserReward] = useState<UserRewardResponse | null>(null);
+  const [nextLevelTarget, setNextLevelTarget] = useState(100);
+  const [loadingRewards, setLoadingRewards] = useState(true);
+
   // 1. Lấy số lượng lời mời kết bạn
   useEffect(() => {
     const fetchRequests = async () => {
@@ -109,7 +115,6 @@ export default function HomePage() {
           return planDate >= today;
         });
 
-        // Sắp xếp: Plan nào gần nhất lên đầu
         futurePlans.sort(
           (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
         );
@@ -127,81 +132,43 @@ export default function HomePage() {
     fetchUpcomingPlan();
   }, []);
 
-  // page.tsx
-
   useEffect(() => {
-    if (!navigator.geolocation) {
-      console.error("Geolocation not supported");
-      setLoadingWeather(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          // BƯỚC 1: Đổi tọa độ sang Place ID (Gọi hàm reverseGeocode bạn vừa hỏi)
-          const geoData = await api.reverseGeocode({
-            lat: latitude,
-            lng: longitude,
-          });
-
-          // Lấy place_id đầu tiên (chính xác nhất)
-          const placeId = geoData.results[0]?.place_id;
-
-          if (placeId) {
-            // BƯỚC 2: Dùng Place ID để lấy thời tiết (Backend phải hỗ trợ tham số place_id nhé)
-            // Lưu ý: api.getCurrentWeather phải được cập nhật để nhận (undefined, undefined, placeId) như mình hướng dẫn ở câu trước
-            const [weatherRes, airRes] = await Promise.all([
-              api.getCurrentWeather(3, 3),
-              api.getAirQuality(latitude, longitude), // Air Quality thường vẫn cần lat/lng
-            ]);
-
-            setWeather(weatherRes);
-            setAirQuality(airRes);
-          } else {
-            console.error("No place_id found for this location");
-          }
-        } catch (error) {
-          console.error("Error fetching weather via place_id:", error);
-        } finally {
-          setLoadingWeather(false);
-        }
-      },
-      (error) => {
-        console.error("Location permission denied or error:", error);
-        setLocationError(true);
-        setLoadingWeather(false);
+    const fetchRewardData = async () => {
+      try {
+        const data = await api.getUserRewards();
+        setUserReward(data);
+        const points = data.total_points || 0;
+        let target = 100;
+        if (points >= 600) target = 1000;
+        else if (points >= 300) target = 600;
+        else if (points >= 100) target = 300;
+        setNextLevelTarget(target);
+      } catch (error) {
+        console.error("Failed to fetch user rewards", error);
+      } finally {
+        setLoadingRewards(false);
       }
-    );
+    };
+    fetchRewardData();
   }, []);
 
-  const getWeatherIcon = (type?: string) => {
-    if (!type) return <Sun size={32} className="text-orange-400" />;
-    const t = type.toUpperCase();
-    if (t.includes("RAIN") || t.includes("DRIZZLE"))
-      return <CloudRain size={32} className="text-blue-500" />;
-    if (t.includes("CLOUD"))
-      return <Cloud size={32} className="text-gray-400" />;
-    if (t.includes("THUNDER"))
-      return <CloudLightning size={32} className="text-purple-500" />;
-    if (t.includes("SNOW"))
-      return <Snowflake size={32} className="text-blue-300" />;
-    return <Sun size={32} className="text-orange-400" />;
+  const getCurrentLevel = (points: number) => {
+    if (points >= 600) return 3;
+    if (points >= 300) return 2;
+    if (points >= 100) return 1;
+    return 1;
   };
 
-  const getAQIColor = (aqi: number) => {
-    if (aqi <= 50) return "text-green-700";
-    if (aqi <= 100) return "text-yellow-600";
-    if (aqi <= 150) return "text-orange-600";
-    return "text-red-600";
-  };
-
-  const getAQIText = (aqi: number) => {
-    if (aqi <= 50) return "(Good)";
-    if (aqi <= 100) return "(Moderate)";
-    if (aqi <= 150) return "(Unhealthy)";
-    return "(Hazardous)";
+  const getProgressPercent = () => {
+    if (!userReward) return 0;
+    const points = userReward.total_points || 0;
+    let prevTarget = 0;
+    if (nextLevelTarget === 300) prevTarget = 100;
+    else if (nextLevelTarget === 600) prevTarget = 300;
+    else if (nextLevelTarget === 1000) prevTarget = 600;
+    const progress =
+      ((points - prevTarget) / (nextLevelTarget - prevTarget)) * 100;
+    return Math.min(Math.max(progress, 0), 100);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -218,7 +185,25 @@ export default function HomePage() {
   };
 
   const handleSearchNearby = () => {
-    router.push("/map_page?nearby=true");
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        router.push(
+          `/map_page?q=eco-friendly&lat=${latitude}&lng=${longitude}`
+        );
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        alert(
+          "Unable to retrieve your location. Please check your permissions."
+        );
+        router.push("/map_page?q=eco-friendly");
+      },
+      { timeout: 10000 }
+    );
   };
 
   const handleTagClick = (tag: string) => {
@@ -383,95 +368,84 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Weather CARD */}
-            <div className="bg-[#E3F1E4] p-4 rounded-2xl flex flex-col justify-between h-full shadow-sm border border-green-100">
-              {loadingWeather ? (
-                <div className="flex flex-col items-center justify-center h-full gap-2 text-green-600/50">
-                  <Loader2 className="animate-spin" size={24} />
-                  <span className="text-xs font-bold">Checking weather...</span>
-                </div>
-              ) : locationError ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <span className="text-xs text-gray-500">
-                    Location required for weather
-                  </span>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="mt-2 text-[10px] bg-green-500 text-white px-2 py-1 rounded"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      {/* Nhiệt độ thật */}
-                      <span className="text-3xl font-bold text-gray-800">
-                        {Math.round(weather?.temperature.temperature || 0)}°C
-                      </span>
-                      {/* AQI thật */}
-                      <div className="flex items-center gap-1 mt-1">
-                        <Wind size={14} className="text-green-600" />
-                        <span
-                          className={`text-[10px] font-bold ${
-                            airQuality
-                              ? getAQIColor(airQuality.aqi_data.aqi)
-                              : "text-gray-500"
-                          }`}
-                        >
-                          AQI: {airQuality?.aqi_data.aqi || "--"}{" "}
-                          {airQuality
-                            ? getAQIText(airQuality.aqi_data.aqi)
-                            : ""}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Icon thời tiết thật */}
-                    {getWeatherIcon(weather?.weather_condition.type)}
-                  </div>
-                </>
-              )}
+            {/* Search Nearby */}
+            <div className="bg-[#F3FBF5] p-5 rounded-2xl flex flex-col justify-center items-center h-full shadow-sm border border-green-500 text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-green-100 rounded-bl-full opacity-50"></div>
+
+              <h3
+                className={`${abhaya_libre.className} text-green-700/80 uppercase tracking-widset text-sm mb-1`}
+              >
+                Nearby
+              </h3>
+              <h2
+                className={`${abhaya_libre.className} text-green-600 text-xl font-bold leading-tight mb-4`}
+              >
+                ECO-FRIENDLY <br />
+                SPOTS
+              </h2>
+              <button
+                onClick={handleSearchNearby}
+                className="bg-[#53B552] text-white px-6 py-2 rounded-full text-sm font-bold shadow-md hover:bg-green-600 hover:shadow-lg transition-all active:scale-95 flex items-center gap-2"
+              >
+                Search Now
+              </button>
             </div>
           </section>
 
-          {/* SECTION 3: Explore Activities */}
-          <section className="bg-[#E9F5EB] rounded-2xl p-6 shadow-sm mt-0">
-            <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-lg text-gray-800">
-                  Your Eco Impact
-                </h3>
-                <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">
-                  Level 2
-                </span>
-              </div>
-
-              {/* Challenge Card */}
-              <div className="flex gap-4 items-center">
-                {/* Icon huy hiệu/cúp */}
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 shrink-0">
-                  <Trophy size={24} />
+          {/* SECTION 3: Your Eco Impact */}
+          <section className="mt-0">
+            <div className="bg-white p-5 rouned-3xl shadow-sm border border-gray-100">
+              {loadingRewards ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="animate-spin text-green-600" />
                 </div>
-
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-700">
-                    Green Traveler Challenge
-                  </p>
-                  <p className="text-xs text-gray-400 mb-2">
-                    Visit 3 parks this week to earn badge
-                  </p>
-
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-[#53B552] h-full w-2/3 rounded-full"></div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3
+                      className={`${jost.className} font-bold text-lg text-gray-800`}
+                    >
+                      Your Eco Impact
+                    </h3>
+                    <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">
+                      Level{" "}
+                      {userReward
+                        ? getCurrentLevel(userReward.total_points || 0)
+                        : 1}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-[10px] mt-1 text-gray-400">
-                    <span>2/3 visited</span>
-                    <span>+100 pts</span>
+                  <div className="flex gap-4 items-center">
+                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 shrink-0">
+                      <Trophy size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <p
+                        className={`${jost.className} text-sm font-bold text-gray-700`}
+                      >
+                        Eco Warrior Journey
+                      </p>
+                      <p className="text-xs text-gray-400 mb-2">
+                        Earn points to reach Level{" "}
+                        {userReward
+                          ? getCurrentLevel(userReward.total_points || 0) + 1
+                          : 2}
+                      </p>
+                      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-green-500 h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${getProgressPercent()}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-[10px] mt-1 text-gray-400 font-medium">
+                        <span>
+                          {userReward?.total_points || 0}/{nextLevelTarget} pts
+                        </span>
+                        <span className="text-green-600">Keep going!</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </section>
         </main>
