@@ -1,8 +1,9 @@
 import logging
+import numpy as np
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
-from services.embedding_service import embed_user
-from services.cluster_service import compute_cluster_embedding, compute_cluster_popularity
+from services.embedding.embedding_service import embed_user
+from services.cluster.cluster_service import compute_cluster_embedding, compute_cluster_popularity
 from utils.faiss_utils import search_index, is_index_ready
 
 logger = logging.getLogger(__name__)
@@ -191,3 +192,50 @@ def recommend_for_cluster_popularity(cluster_id: int, session: Session, k: int =
     results = compute_cluster_popularity(cluster_id, session, limit=k)
     logger.info(f"Generated {len(results)} popularity-based recommendations for cluster {cluster_id}")
     return results
+
+
+def recommend_destination_based_on_user_cluster(
+    user_id: int,
+    cluster_id: int,
+    session: Session,
+    k: int = 10
+):
+    """
+    Return only destination_id list recommended based on user + cluster embedding.
+    """
+    try:
+        if not is_index_ready():
+            return []
+
+        # User embedding
+        user_vector = embed_user(user_id, session)
+        if user_vector is None:
+            return []
+
+        # Cluster embedding
+        cluster_vector = compute_cluster_embedding(cluster_id, session)
+        if cluster_vector is None:
+            return []
+
+        # Convert -> numpy float32
+        u_vec = np.array(user_vector, dtype=np.float32)
+        c_vec = np.array(cluster_vector, dtype=np.float32)
+
+        # Combine: mean
+        combined_vector = (u_vec + c_vec) / 2
+
+        # Normalize
+        norm = np.linalg.norm(combined_vector)
+        if norm > 0:
+            combined_vector = combined_vector / norm
+
+        # Search
+        results = search_index(combined_vector, k=k)
+
+        # Chỉ lấy destination_id
+        destination_ids = [item["destination_id"] for item in results]
+
+        return destination_ids
+
+    except Exception:
+        return []

@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import logging
 from models.user import User, UserActivity, Activity
 from models.cluster import Cluster, UserClusterAssociation, ClusterDestination
-from services.embedding_service import embed_user
+from services.embedding.embedding_service import embed_user
 from services.recommendation_service import (
     recommend_for_cluster_hybrid,
 )

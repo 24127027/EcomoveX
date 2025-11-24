@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 OPEN_ROUTER_API_KEY = os.getenv("OPEN_ROUTER_API_KEY")
 # Updated to use working free model
-OPEN_ROUTER_MODEL = os.getenv("OPEN_ROUTER_MODEL", "google/gemma-2-27b-it") #meta-llama/llama-3.3-70b-instruct or google/gemma-2-27b-it 
+OPEN_ROUTER_MODEL = os.getenv("OPEN_ROUTER_MODEL", "google/gemma-2-27b-it") 
 
 class LLMService:
     """Service to send messages to Open Router"""
     def __init__(self, api_key: str = OPEN_ROUTER_API_KEY, model: str = OPEN_ROUTER_MODEL):
         self.api_key = api_key
+        #meta-llama/llama-3.3-70b-instruct or google/gemma-2-27b-it 
         self.model = "meta-llama/llama-3.3-70b-instruct"
         self.url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -46,11 +47,11 @@ class LLMService:
                 )
                 
                 # Debug: Print response details
-                print(f"LLM Status Code: {resp.status_code}")
-                print("LLM RAW RESPONSE:", resp.text[:300])  # 👈 IMPORTANT
+                # print(f"LLM Status Code: {resp.status_code}")
+                # print("LLM RAW RESPONSE:", resp.text[:300])  # 👈 IMPORTANT
 
-                print(f"LLM Status Code: {resp.status_code}")
-                print("LLM RAW RESPONSE:", resp.text[:300])  # 👈 IMPORTANT
+                # print(f"LLM Status Code: {resp.status_code}")
+                # print("LLM RAW RESPONSE:", resp.text[:300])  # 👈 IMPORTANT
 
                 resp.raise_for_status()
 

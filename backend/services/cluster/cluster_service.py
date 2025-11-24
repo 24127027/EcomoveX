@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from models.user import User, UserActivity, Activity
 from models.cluster import Cluster, UserClusterAssociation
-from services.embedding_service import embed_user
+from services.embedding.embedding_service import embed_user
 
 logger = logging.getLogger(__name__)
 
