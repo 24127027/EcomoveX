@@ -65,15 +65,3 @@ async def search_along_route(
         search_type=search_type,
     )
     return result
-
-@router.get("/bird-distance", response_model = float, status_code=status.HTTP_200_OK)
-async def calculate_bird_distance(
-    origin_lat: float = Query(..., ge=-90.0, le=90.0),
-    origin_lng: float = Query(..., ge=-180.0, le=180.0),
-    destination_lat: float = Query(..., ge=-90.0, le=90.0),
-    destination_lng: float = Query(..., ge=-180.0, le=180.0),
-):
-    origin = (origin_lat, origin_lng)
-    destination = (destination_lat, destination_lng)
-    distance = await mapService.calculate_bird_distance(origin=origin, destination=destination)
-    return distance

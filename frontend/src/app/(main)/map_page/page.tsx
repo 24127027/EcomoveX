@@ -12,9 +12,22 @@ interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
 }
 
+const birdDistance = (pos1: Position, pos2: Position): number => {
+  // Haversine formula to calculate distance between two lat/lng points
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(pos2.lat - pos1.lat);
+  const dLon = toRad(pos2.lng - pos1.lng);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(pos1.lat)) * Math.cos(toRad(pos2.lat)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
   const destination: Position = details.geometry.location;
-  const distanceKm = await api.birdDistance(userPos, destination);
+  const distanceKm = birdDistance(userPos, destination);
   const distanceText = distanceKm < 1 
     ? `${Math.round(distanceKm * 1000)}m away`
     : `${distanceKm.toFixed(1)}km away`;
@@ -32,6 +45,8 @@ function usePrevious<T>(value: T): T | undefined {
   });
   return ref.current;
 }
+
+
 
 export default function MapPage() {
   const router = useRouter();
