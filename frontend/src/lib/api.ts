@@ -66,7 +66,42 @@ export interface Position {
   lng: number;
 }
 
+// --- NEW TEXT SEARCH TYPES START ---
+export interface LocalizedText {
+  text: string;
+  languageCode?: string;
+}
+
+export interface PhotoInfo {
+  photo_url: string;
+  size: [number, number]; // Tuple matching Python's Tuple[int, int]
+}
+
+export interface PlaceSearchResult {
+  place_id: string;
+  display_name: LocalizedText;
+  formatted_address?: string;
+  location?: Position; // Reusing your existing Position interface
+  types: string[];
+  // Single object (handled by backend logic), can be null
+  photos?: PhotoInfo | null; 
+}
+
+export interface TextSearchRequest {
+  query: string;
+  location?: Position;
+  radius?: number; // Integer 100-50000
+  place_types?: string; // e.g., "restaurant"
+  field_mask?: string[]; // Optional: ["places.id", "places.displayName"]
+}
+
+export interface TextSearchResponse {
+  results: PlaceSearchResult[];
+}
+// --- NEW TEXT SEARCH TYPES END ---
+
 export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
+
 export interface AutocompleteRequest {
   query: string;
   user_location?: Position; 
@@ -490,10 +525,20 @@ class ApiClient {
     return this.request(`/friends/${friendId}`, { method: "DELETE" });
   }
 
-  // Map Endpoints
+  // --- MAP ENDPOINTS ---
+
+  // Integrated Text Search Function
+  async textSearchPlace(request: TextSearchRequest): Promise<TextSearchResponse> {
+    const response = await this.request<TextSearchResponse>("/map/text-search", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+    return response;
+  }
+
   async autocomplete(request: AutocompleteRequest): 
     Promise<AutocompleteResponse> {
-      const response = await this.request<AutocompleteResponse>("/map/search", {
+      const response = await this.request<AutocompleteResponse>("/map/autocomplete", {
         method: "POST",
         body: JSON.stringify(request),
       });

@@ -108,3 +108,30 @@ class PlaceDetailsRequest(BaseModel):
     place_id: str = Field(..., min_length=1)
     session_token: Optional[str] = Field(None, min_length=1)
     categories: List[PlaceDataCategory] = Field(default = [PlaceDataCategory.BASIC])
+
+
+# For Text Search
+class LocalizedText(BaseModel):
+    text: str
+    language_code: Optional[str] = Field(None, alias="languageCode")
+class TextSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2)
+    location: Optional[Location] = None
+    radius: Optional[int] = Field(None, ge=100, le=50000)
+    place_types: Optional[str] = None
+    field_mask: Optional[List[str]] = None
+class PlaceSearchResult(BaseModel):
+    place_id: str = Field(alias="id")
+    display_name: Optional[LocalizedText] = Field(None, alias="displayName")
+    formatted_address: Optional[str] = Field(None, alias="formattedAddress")
+    location: Optional[Location] = None
+    types: List[str] = []
+    
+    photos: Optional[PhotoInfo] = None 
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class TextSearchResponse(BaseModel):
+    results: List[PlaceSearchResult] = Field(default_factory=list)
+    
+    model_config = ConfigDict(from_attributes=True)

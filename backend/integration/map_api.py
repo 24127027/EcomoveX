@@ -7,7 +7,6 @@ from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 from schemas.destination_schema import Location, Bounds
-import requests
 
 TRANSPORT_MODE_TO_ROUTES_API = {
     "car": "DRIVE",
@@ -28,6 +27,82 @@ class MapAPI:
         self.new_base_url = "https://places.googleapis.com/v1/places/"
         self.client = httpx.AsyncClient(timeout=30.0)
     
+    async def text_search_place(self, request: TextSearchRequest) -> TextSearchResponse:
+        url = f"{self.new_base_url}:searchText"
+        
+        default_mask = (
+            "places.id,"
+            "places.displayName, places.formattedAddress, places.photos, places.types, places.location"
+        )
+
+        selected_mask = request.field_mask if request.field_mask else default_mask
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": self.api_key,
+            "X-Goog-FieldMask": selected_mask
+        }
+
+        body = {
+            "textQuery": request.query
+        }
+        if request.location and request.radius:
+            body["locationBias"] = {
+                "circle": {
+                    "center": {
+                        "latitude": request.location.latitude,
+                        "longitude": request.location.longitude
+                    },
+                    "radius": request.radius
+                }
+            }
+
+        if request.place_types:
+            body["includedType"] = request.place_types
+
+        try:
+            response = await self.client.post(url, headers=headers, json=body)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # --- MANUALLY PROCESS PHOTOS ---
+            # We must iterate here to call the async generate_place_photo_url function
+            # because Pydantic validators cannot easily make async calls.
+            if "places" in data:
+                for place in data["places"]:
+                    raw_photos = place.get("photos", [])
+                    
+                    # If photos exist, pick the first one
+                    if raw_photos and isinstance(raw_photos, list) and len(raw_photos) > 0:
+                        first_photo = raw_photos[0]
+                        
+                        # New API returns 'name' (resource name) instead of 'photo_reference'
+                        ref = first_photo.get("name")
+                        
+                        # Call your function
+                        final_url = await self.generate_place_photo_url(ref)
+                        
+                        width = first_photo.get("widthPx", 0)
+                        height = first_photo.get("heightPx", 0)
+                        
+                        # Replace list with single PhotoInfo dict structure
+                        place["photos"] = {
+                            "photo_url": final_url,
+                            "size": (width, height)
+                        }
+                    else:
+                        # Ensure it's None so Pydantic doesn't complain
+                        place["photos"] = None
+
+            return TextSearchResponse(**data)
+        except httpx.HTTPStatusError as e:
+            print(f"Google Places API Error: {e.response.text}")
+            raise e
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+            raise e
+
     async def close(self):
         await self.client.aclose()
 
@@ -391,23 +466,45 @@ class MapAPI:
         photo_reference: str,
         maxwidth: int = 400,
     ) -> str:
+        """
+        Resolves the photo URL. 
+        Modified to support both Legacy (302 Redirect) and New API (Direct Media).
+        """
         try:
-            params = {
-                "maxwidth": maxwidth,
-                "photoreference": photo_reference,
-                "key": self.api_key
-            }
+            # Check if this is a New API resource name (e.g., "places/ChIJ.../photos/...")
+            if photo_reference.startswith("places/"):
+                # The New API Media endpoint
+                # Note: This endpoint returns the image directly (200 OK), not a redirect.
+                # We can simply construct the string, or make a request to validate it.
+                # To strictly follow the "generate" pattern via client request:
+                url = f"{self.base_url}/{photo_reference}/media"
+                params = {
+                    "maxHeightPx": maxwidth,
+                    "maxWidthPx": maxwidth,
+                    "key": self.api_key
+                }
+                # Construct the final URL (New API doesn't require a handshake, but we return the string)
+                # If you actually want to 'hit' the API, you can, but it downloads the image bytes.
+                # We will return the constructed URL.
+                request = self.client.build_request("GET", url, params=params)
+                return str(request.url)
 
-            base_url = "https://maps.googleapis.com/maps/api/place/photo"
-            request = self.client.build_request("GET", base_url, params=params)
-            response = await self.client.send(request, follow_redirects=False)
-            
-            if response.status_code in (301, 302, 303, 307):
-                real_photo_url = response.headers.get("Location")
-                return real_photo_url
             else:
-                # If google changes API and returns image directly (rare for this endpoint)
-                return str(response.url)
+                # Legacy API Logic (Legacy 'photo_reference' hash)
+                params = {
+                    "maxwidth": maxwidth,
+                    "photoreference": photo_reference,
+                    "key": self.api_key
+                }
+                url = f"{self.base_url}/place/photo"
+                request = self.client.build_request("GET", url, params=params)
+                response = await self.client.send(request, follow_redirects=False)
+                
+                if response.status_code in (301, 302, 303, 307):
+                    return response.headers.get("Location")
+                else:
+                    return str(response.url)
+
         except Exception as e:
             print(f"Error in generate_place_photo_url: {e}")
             raise e

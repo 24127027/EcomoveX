@@ -11,16 +11,23 @@ from schemas.air_schema import *
 from services.map_service import mapService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
-from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 
 router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 
-@router.post("/search", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
-async def search_location(
+@router.post("/text-search", response_model=TextSearchResponse, status_code=status.HTTP_200_OK)
+async def text_search_place(
+    request: TextSearchRequest,
+    user_db: AsyncSession = Depends(get_db)
+):
+    result = await mapService.text_search_place(user_db, request)
+    return result
+
+@router.post("/autocomplete", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
+async def autocomplete(
     request: AutocompleteRequest,
     user_db: AsyncSession = Depends(get_db)
 ):
-    result = await mapService.search_location(user_db, request)
+    result = await mapService.autocomplete(user_db, request)
     return result
 
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
