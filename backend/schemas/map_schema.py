@@ -1,3 +1,4 @@
+from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
 from schemas.destination_schema import Geometry, Location
@@ -21,6 +22,7 @@ class SearchLocationRequest(BaseModel):
     radius: Optional[int] = Field(None, ge=100, le=50000)
     place_types: Optional[str] = None
     language: str = "vi"
+    session_token: str = Field(..., min_length=1)
 
 class PhotoInfo(BaseModel):
     photo_url: str
@@ -97,3 +99,12 @@ class SearchAlongRouteResponse(BaseModel):
     places_along_route: List[NearbyPlaceSimple]
     
     model_config = ConfigDict(from_attributes=True)
+class PlaceDataCategory(str, Enum):
+    BASIC = "basic"
+    CONTACT = "contact"
+    ATMOSPHERE = "atmosphere"
+
+class PlaceDetailsRequest(BaseModel):
+    place_id: str = Field(..., min_length=1)
+    session_token: Optional[str] = Field(None, min_length=1)
+    categories: List[PlaceDataCategory] = Field(default = [PlaceDataCategory.BASIC])

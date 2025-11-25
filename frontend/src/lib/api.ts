@@ -66,6 +66,7 @@ export interface Position {
   lng: number;
 }
 
+export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
 export interface SearchPlacesRequest {
   query: string;
   user_location?: Position; 
@@ -499,19 +500,27 @@ class ApiClient {
       return response;
     }
 
-  async getPlaceDetails(
-  placeId: string,
-  sessionToken?: string | null
-): Promise<PlaceDetails> {
+async getPlaceDetails(
+    placeId: string,
+    sessionToken?: string | null,
+    categories?: PlaceDataCategory[] 
+  ): Promise<PlaceDetails> {
+    
+    const params = new URLSearchParams();
 
-  let path = `/map/place/${placeId}`;
+    if (sessionToken) {
+      params.append("session_token", sessionToken);
+    }
 
-  if (sessionToken) {
-    path += `?session_token=${encodeURIComponent(sessionToken)}`;
+    if (categories && categories.length > 0) {
+      categories.forEach((cat) => params.append("categories", cat));
+    }
+
+    const queryString = params.toString();
+    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PlaceDetails>(path, { method: "GET" });
   }
-
-  return this.request<PlaceDetails>(path, { method: "GET" });
-}
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {
@@ -524,21 +533,6 @@ class ApiClient {
     return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
       method: "POST",
       body: JSON.stringify(position),
-    });
-  }
-
-  async birdDistance(
-    origin: Position,
-    destination: Position
-  ): Promise<number> {
-    const params = new URLSearchParams({
-      origin_lat: origin.lat.toString(),
-      origin_lng: origin.lng.toString(),
-      destination_lat: destination.lat.toString(),
-      destination_lng: destination.lng.toString(),
-    });
-    return this.request<number>(`/map/bird-distance?${params.toString()}`, {
-      method: "GET",
     });
   }
 

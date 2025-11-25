@@ -11,6 +11,7 @@ from schemas.air_schema import *
 from services.map_service import mapService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
+from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 
 router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 
@@ -25,18 +26,27 @@ async def search_location(
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
     place_id: str = Path(..., min_length=1),
+    session_token: Optional[str] = Query(None),
+    categories: List[PlaceDataCategory] = Query(
+        default=[PlaceDataCategory.BASIC]
+    ),
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    result = await mapService.get_location_details(
+    request_data = PlaceDetailsRequest(
         place_id=place_id,
+        session_token=session_token,
+        categories=categories
     )
+
+    result = await mapService.get_location_details(request_data)
     
     activity_data = UserActivityCreate(
         activity=Activity.search_destination,
         destination_id=place_id
     )
     await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    
     return result
 
 @router.post("/geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)

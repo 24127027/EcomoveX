@@ -35,7 +35,9 @@ class MapAPI:
             params = {
                 "input": data.query.strip(),
                 "language": data.language,
-                "key": self.api_key
+                "key": self.api_key,
+                "limit": 5,
+                "sessiontoken": data.session_token
             }
 
             if data.user_location:
@@ -51,6 +53,8 @@ class MapAPI:
             response = await self.client.get(url, params=params)
             data = response.json()
             if data.get("status") != "OK":
+                if data.get("status") == "ZERO_RESULTS":
+                    return AutocompleteResponse(predictions=[])
                 raise ValueError(f"Error fetching autocomplete places: {data.get('status')}")
             list = data.get("predictions", [])
             list_places = []
@@ -69,86 +73,84 @@ class MapAPI:
             print(f"Error in autocomplete_place: {e}")
             raise e
 
-    async def get_place_details_from_autocomplete(self, place_id: str, language: str = "vi") -> PlaceDetailsResponse:
+    async def get_place_details(self, place_id: str, 
+                                fields: list[str], 
+                                session_token: Optional[str] = None, 
+                                language: str = "vi") -> PlaceDetailsResponse:
         try:
-            fields = [
-                "place_id",
-                "name", 
-                "formatted_address",
-                "address_components",
-                "formatted_phone_number",
-                "geometry/location",
-                "geometry/viewport",
-                "types",
-                "rating",
-                "user_ratings_total",
-                "price_level",
-                "opening_hours",
-                "website",
-                "photos",
-                "reviews",
-                "vicinity",
-                "utc_offset",
-            ]
             params = {
                 "place_id": place_id,
                 "fields": ",".join(fields),
                 "language": language,
-                "key": self.api_key
+                "key": self.api_key,
             }
+
+            if session_token:
+                params["sessiontoken"] = session_token
             
             url = f"{self.base_url}/place/details/json"
             response = await self.client.get(url, params=params)
             data = response.json()
             if data.get("status") != "OK":
                 raise ValueError(f"Error fetching place details: {data.get('status')}")
+            result = data.get("result", {})
+
             return PlaceDetailsResponse(
-                place_id=data.get("result", {}).get("place_id"),
-                name=data.get("result", {}).get("name"),
-                formatted_address=data.get("result", {}).get("formatted_address"),
+                place_id=result.get("place_id"),
+                name=result.get("name"),
+                formatted_address=result.get("formatted_address"),
                 address_components=[AddressComponent(
                     name=comp.get("long_name"),
                     types=comp.get("types", [])
-                ) for comp in data.get("result", {}).get("address_components", [])],
-                formatted_phone_number=data.get("result", {}).get("formatted_phone_number"),
+                ) for comp in result.get("address_components", [])],
+                # FIX: Actually map the phone number
+                formatted_phone_number=result.get("formatted_phone_number"), 
+                
                 geometry=Geometry(
                     location=Location(
-                        latitude=data.get("result", {}).get("geometry", {}).get("location", {}).get("lat"),
-                        longitude=data.get("result", {}).get("geometry", {}).get("location", {}).get("lng")
+                        latitude=result.get("geometry", {}).get("location", {}).get("lat"),
+                        longitude=result.get("geometry", {}).get("location", {}).get("lng")
                     ),
                     bounds=Bounds(
                         northeast=Location(
-                            latitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
-                            longitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            latitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                            longitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
                         ),
                         southwest=Location(
-                            latitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
-                            longitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            latitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                            longitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
                         )
-                    ),
+                    ) if result.get("geometry", {}).get("viewport") else None,
                 ),
-                types=data.get("result", {}).get("types", []),
-                rating=data.get("result", {}).get("rating"),
-                user_ratings_total=data.get("result", {}).get("user_ratings_total"),
-                price_level=data.get("result", {}).get("price_level"),
+                types=result.get("types", []),
+                rating=result.get("rating"),
+                user_ratings_total=result.get("user_ratings_total"),
+                price_level=result.get("price_level"),
+                
+                # Uncommented and guarded opening_hours
                 opening_hours=OpeningHours(
-                    open_now=data.get("result", {}).get("opening_hours", {}).get("open_now", False),
-                    periods=data.get("result", {}).get("opening_hours", {}).get("periods"),
-                    weekday_text=data.get("result", {}).get("opening_hours", {}).get("weekday_text")
-                ) if data.get("result", {}).get("opening_hours") else None,
-                website=data.get("result", {}).get("website"),
+                    open_now=result.get("opening_hours", {}).get("open_now", False),
+                    periods=result.get("opening_hours", {}).get("periods", []),
+                    weekday_text=result.get("opening_hours", {}).get("weekday_text", [])
+                ) if result.get("opening_hours") else None,
+                
+                # FIX: Actually map the website
+                website=result.get("website"),
+                
                 photos=[PhotoInfo(
                     photo_url=await self.generate_place_photo_url(photo.get("photo_reference")),  
                     size=(photo.get("width"), photo.get("height"))
-                ) for photo in data.get("result", {}).get("photos", [])] if data.get("result", {}).get("photos") else None,
+                ) for photo in result.get("photos", [])] if result.get("photos") else None,
+                
                 reviews=[Review(
                     rating=review.get("rating"),
                     text=review.get("text")
-                ) for review in data.get("result", {}).get("reviews", [])] if data.get("result", {}).get("reviews") else None,
-                utc_offset=data.get("result", {}).get("utc_offset"),
+                ) for review in result.get("reviews", [])] if result.get("reviews") else None,
+                
+                utc_offset=result.get("utc_offset"),
             )
         except Exception as e:
-            print(f"Error in get_place_details_from_autocomplete: {e}")
+            print(f"Error in get_place_details: {e}")
             raise e
             
     async def reverse_geocode(
@@ -396,11 +398,15 @@ class MapAPI:
             }
 
             base_url = "https://maps.googleapis.com/maps/api/place/photo"
-            response = requests.get(base_url, params=params, allow_redirects=False)
-            real_photo_url = response.headers.get("Location")
-
-            return real_photo_url
-
+            request = self.client.build_request("GET", base_url, params=params)
+            response = await self.client.send(request, follow_redirects=False)
+            
+            if response.status_code in (301, 302, 303, 307):
+                real_photo_url = response.headers.get("Location")
+                return real_photo_url
+            else:
+                # If google changes API and returns image directly (rare for this endpoint)
+                return str(response.url)
         except Exception as e:
             print(f"Error in generate_place_photo_url: {e}")
             raise e

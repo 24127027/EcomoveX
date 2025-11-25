@@ -6,7 +6,6 @@ import { api, AutocompletePrediction, PlaceDetails, Position } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
 import { flushSync } from 'react-dom';
-import { url } from "inspector";
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
@@ -46,7 +45,13 @@ function usePrevious<T>(value: T): T | undefined {
   return ref.current;
 }
 
-
+const generateSessionToken = () => {
+  if (window.google?.maps?.places) {
+    return new google.maps.places.AutocompleteSessionToken().toString();
+  }
+  // Fallback if Google Maps isn't loaded yet (Standard UUID works for Google APIs)
+  return crypto.randomUUID(); 
+};
 
 export default function MapPage() {
   const router = useRouter();
@@ -77,6 +82,13 @@ export default function MapPage() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const initialLoadRef = useRef(true);
+  const sessionTokenRef = useRef<string | null>(null);
+
+// Sync ref with state
+
+  useEffect(() => {
+  sessionTokenRef.current = sessionToken;
+  }, [sessionToken]);
 
   // This is for handling browser back/forward navigation
   useEffect(() => {
@@ -99,58 +111,58 @@ export default function MapPage() {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Clear predictions if search is empty or not focused
     if (searchQuery.trim() === '' || !isSearchFocused) {
       setAutocompletePredictions([]);
       if (searchQuery.trim() === '') {
         setSearchResults([]);
         setSelectedLocation(null);
         setSheetHeight(40);
-        setSessionToken(null);
-        if (locations.length === 0) {
-          fetchRecommendations();
-        }
-        // Clear URL query if search is empty
-        if (urlQuery) {
-          router.push('/map_page', { scroll: false });
-        }
+        
+        // OPTIONAL: You can keep this null, provided you check it below
+        // setSessionToken(null); 
       }
       return;
     }
 
-    if (searchQuery.trim().length < 4) {
+    if (searchQuery.trim().length < 2) { // Changed 4 to 2 for better UX
       setAutocompletePredictions([]);
       return;
     }
 
-    // Fetch autocomplete predictions with debounce
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
         
-        // 🔑 PASS TOKEN: Send the token with the autocomplete request
-        const response = await api.searchPlaces({
+        let activeToken = sessionTokenRef.current;
+      
+      if (!activeToken) {
+        activeToken = generateSessionToken();
+        setSessionToken(activeToken); // Update state for next render
+        sessionTokenRef.current = activeToken; // Update ref immediately
+      }
+
+      const response = await api.searchPlaces({
         query: searchQuery,
         user_location: userLocation,
         radius: 5000,
-        session_token: sessionToken, 
+        session_token: activeToken, 
       });
-        
-        setAutocompletePredictions(response.predictions.slice(0, 8));
+      
+      setAutocompletePredictions(response.predictions.slice(0, 8));
       } catch (error) {
         console.error('Autocomplete failed:', error);
         setAutocompletePredictions([]);
       } finally {
         setIsSearching(false);
       }
-    }, 300); // Faster debounce for autocomplete
+    }, 300);
 
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, userLocation, isSearchFocused, urlQuery, router]);
+  }, [searchQuery, userLocation, isSearchFocused]); 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -190,12 +202,14 @@ useEffect(() => {
           query: urlQuery,
           user_location: userLocation,
           radius: 5000,
+          session_token: sessionToken,
         });
         
         const detailedResults = await Promise.all(
           response.predictions.slice(0, 8).map(async (prediction) => {
             try {
-              const details = await api.getPlaceDetails(prediction.place_id);
+              // Fetch basic details for each prediction
+              const details = await api.getPlaceDetails(prediction.place_id, sessionToken, ["basic"]);
               return await addDistanceText(details, userLocation);
             } catch (error) { return null; }
           })
@@ -225,10 +239,11 @@ useEffect(() => {
     setEnableTransition(true); // Enable transition for smooth expansion
     
     try {
-      // Fetch full details using api
+      // Fetch basic details using api
       const fullDetails = await api.getPlaceDetails(
         prediction.place_id,
-        sessionToken
+        sessionToken,
+        ["basic"]
       );
       const withDistance = await addDistanceText(fullDetails, userLocation);
       
@@ -255,11 +270,14 @@ useEffect(() => {
     setIsLoadingRecommendations(true);
     try {
       // Use searchPlaces with eco-friendly types for recommendations
+      const recToken = generateSessionToken();
+
       const response = await api.searchPlaces({
         query: "park",
         user_location: userLocation,
         radius: 5000, // 5km radius
         place_types: "park|tourist_attraction|point_of_interest",
+        session_token: recToken,
       });
       
       if (!response || !response.predictions) {
@@ -272,7 +290,7 @@ useEffect(() => {
       const detailedRecommendations = await Promise.all(
         response.predictions.slice(0, 8).map(async (prediction: AutocompletePrediction) => {
           try {
-            const details = await api.getPlaceDetails(prediction.place_id);
+            const details = await api.getPlaceDetails(prediction.place_id, recToken, ["basic"]);
             return await addDistanceText(details, userLocation);
           } catch (error) {
             console.error(`Failed to fetch details for ${prediction.place_id}:`, error);
@@ -390,7 +408,7 @@ useEffect(() => {
   const handleCardClick = async (location: PlaceDetailsWithDistance) => {
     try {
       // Fetch full details using api
-      const fullDetails = await api.getPlaceDetails(location.place_id);
+      const fullDetails = await api.getPlaceDetails(location.place_id, null, ["basic"]);
       const withDistance = await addDistanceText(fullDetails, userLocation);
       
       setSelectedLocation(withDistance);
