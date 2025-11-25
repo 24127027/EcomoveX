@@ -12,7 +12,6 @@ class MissionRepository:
             result = await db.execute(select(Mission))
             return result.scalars().all()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: fetching all missions - {e}")
             return []
 
@@ -22,7 +21,6 @@ class MissionRepository:
             result = await db.execute(select(Mission).where(Mission.id == mission_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: fetching mission with id {mission_id} - {e}")
             return None
         
@@ -32,7 +30,6 @@ class MissionRepository:
             result = await db.execute(select(Mission).where(func.lower(Mission.name) == name.lower()))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            await db.rollback()
             print(f"ERROR: fetching mission with name {name} - {e}")
             return None
 
@@ -100,7 +97,6 @@ class MissionRepository:
             print(f"ERROR: deleting mission with id {mission_id} - {e}")
             return False
 
-class UserMissionRepository:
     @staticmethod
     async def add_mission_to_user(db: AsyncSession, user_id: int, mission_id: int):
         try:
@@ -110,7 +106,7 @@ class UserMissionRepository:
                 print(f"WARNING: User or Mission not found (user={user_id}, mission={mission_id})")
                 return None
 
-            existing = await UserMissionRepository.completed_mission(db, user_id, mission_id)
+            existing = await MissionRepository.completed_mission(db, user_id, mission_id)
             if existing:
                 print("WARNING: User already completed this mission")
                 return existing
@@ -124,7 +120,6 @@ class UserMissionRepository:
             await db.commit()
             await db.refresh(new_user_mission)
             return new_user_mission
-
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: while adding mission to user - {e}")

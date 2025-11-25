@@ -8,7 +8,7 @@ class DestinationRepository:
     @staticmethod
     async def get_destination_by_id(db: AsyncSession, destination_id: str):
         try:
-            result = await db.execute(select(Destination).where(Destination.google_place_id == destination_id))
+            result = await db.execute(select(Destination).where(Destination.place_id == destination_id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to retrieve destination with ID {destination_id} - {e}")
@@ -70,7 +70,6 @@ class DestinationRepository:
             print(f"ERROR: Failed to delete destination with ID {destination_id} - {e}")
             return False
         
-class UserSavedDestinationRepository:
     @staticmethod
     async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
         try:

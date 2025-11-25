@@ -3,8 +3,6 @@ from datetime import datetime
 from enum import Enum
 from models.friend import FriendStatus
 
-class FriendRequest(BaseModel):
-    friend_id: int = Field(..., gt=0)
 
 class FriendResponse(BaseModel):
     user_id: int

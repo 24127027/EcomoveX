@@ -24,4 +24,5 @@ class CarbonService:
                 detail=f"Error estimating transport emission: {e}"
             )
         finally:
-            await carbonAPI.close()
+            if carbonAPI:
+                await carbonAPI.close()

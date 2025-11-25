@@ -26,7 +26,7 @@ class Mission(Base):
     action_trigger = Column(SQLEnum(MissionAction), nullable=False)
     value = Column(Integer, nullable=True, default=0)
 
-    users = relationship("UserMission", back_populates="mission")
+    users = relationship("UserMission", back_populates="mission", cascade="all, delete-orphan")
     
 class UserMission(Base):
     __tablename__ = "mission_users"

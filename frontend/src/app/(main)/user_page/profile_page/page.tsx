@@ -26,6 +26,7 @@ const abhaya_libre = Abhaya_Libre({
 export default function ProfilePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,10 @@ export default function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
 
+  //Cover Data
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [previewCover, setPreviewCover] = useState<string | null>(null);
+
   // Password States
   const [newPassword, setNewPassword] = useState("");
   const [oldPassword, setOldPassword] = useState("");
@@ -58,10 +63,8 @@ export default function ProfilePage() {
         setUser(userData);
         setUsername(userData.username);
         setEmail(userData.email);
-
-        // --- SỬA Ở ĐÂY: Dùng avt_url ---
-        // Backend trả về 'avt_url', nên ta phải đọc từ đó
         setPreviewAvatar(userData.avt_url || "/images/default-avatar.png");
+        setPreviewCover(userData.cover_url || null);
       } catch (error) {
         console.error(error);
         router.push("/login");
@@ -84,6 +87,16 @@ export default function ProfilePage() {
     }
   };
 
+  const handleCoverClick = () => {
+    if (!isEditing) return;
+    const hasPermission = localStorage.getItem("photoPermission");
+    if (hasPermission !== "granted") {
+      router.push("/permission/photo");
+    } else {
+      coverInputRef.current?.click();
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -94,6 +107,18 @@ export default function ProfilePage() {
       }
       setAvatarFile(file);
       setPreviewAvatar(URL.createObjectURL(file));
+    }
+  };
+
+  const handleCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Please choose a cover image smaller than 5MB.");
+        return;
+      }
+      setCoverFile(file);
+      setPreviewCover(URL.createObjectURL(file));
     }
   };
 
@@ -130,6 +155,8 @@ export default function ProfilePage() {
         setEmail(user.email);
         setPreviewAvatar(user.avt_url || "/images/default-avatar.png");
         setAvatarFile(null);
+        setPreviewCover(user.cover_url || null);
+        setCoverFile(null);
       }
       setNewPassword("");
       setOldPassword("");
@@ -138,7 +165,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // B. Lưu thay đổi
     if (!validateForm()) return;
 
     try {
@@ -147,14 +173,22 @@ export default function ProfilePage() {
 
       // --- 1. Xử lý Upload Ảnh (nếu có chọn file mới) ---
       let newBlobName = null;
+      let newAvatarUrl = null;
       if (avatarFile) {
-        // Gọi API Upload file thay vì convert base64
-        // Category phải khớp với Enum trong backend (profile_avatar)
         const uploadResponse = await api.uploadFile(
           avatarFile,
           "profile_avatar"
         );
         newBlobName = uploadResponse.blob_name;
+        newAvatarUrl = uploadResponse.url;
+      }
+
+      let newCoverBlobName = null;
+      let newCoverUrl = null;
+      if (coverFile) {
+        const uploadResponse = await api.uploadFile(coverFile, "profile_cover");
+        newCoverBlobName = uploadResponse.blob_name;
+        newCoverUrl = uploadResponse.url;
       }
 
       const promises = [];
@@ -165,7 +199,8 @@ export default function ProfilePage() {
           api
             .updateUserProfile({
               username: username,
-              ...(newBlobName && { avt_url: newBlobName }),
+              ...(newBlobName && { avt_blob_name: newBlobName }),
+              ...(newCoverBlobName && { cover_blob_name: newCoverBlobName }),
             })
             .then((res) => {
               setUser((prev) =>
@@ -173,16 +208,22 @@ export default function ProfilePage() {
                   ? {
                       ...prev,
                       username: res.username,
-                      // Cập nhật state user với avatar mới
-                      avt_url: res.avt_url,
+                      avt_url: newAvatarUrl || res.avt_url,
+                      cover_url: newCoverUrl || res.cover_url,
                     }
                   : null
               );
+              if (newAvatarUrl) {
+                setPreviewAvatar(newAvatarUrl);
+              } else if (res.avt_url) {
+                setPreviewAvatar(res.avt_url);
+              }
+              if (newCoverUrl) setPreviewCover(newCoverUrl);
             })
         );
       }
 
-      // --- 3. Request Credentials (Email + Password) --- (Giữ nguyên)
+      // --- 3. Request Credentials (Email + Password)
       const isEmailChanged = email !== user?.email;
       const isPasswordChanged = newPassword.length > 0;
 
@@ -242,22 +283,58 @@ export default function ProfilePage() {
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-[#E3F1E4] pt-12 pb-24 px-6 rounded-b-[40px] relative z-0">
-          <div className="flex items-center gap-4">
+        <div className="relative pt-12 pb-24 px-6 rounded-b-[40px] overflow-hidden z-0 bg-[#E3F1E4]">
+          {/* Input ẩn cho Cover */}
+          <input
+            type="file"
+            hidden
+            ref={coverInputRef}
+            accept="image/*"
+            onChange={handleCoverFileChange}
+          />
+
+          {/* Ảnh nền Cover */}
+          {previewCover && (
+            <Image
+              src={previewCover}
+              alt="Cover"
+              fill
+              className="object-cover opacity-90"
+              priority
+            />
+          )}
+
+          {/* Overlay chỉnh sửa Cover (Chỉ hiện khi Edit Mode) */}
+          {isEditing && (
+            <div
+              onClick={handleCoverClick}
+              className="absolute inset-0 bg-black/20 hover:bg-black/40 transition-colors cursor-pointer flex items-center justify-center z-10"
+            >
+              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full text-white border border-white/50">
+                <Camera size={24} />
+              </div>
+            </div>
+          )}
+
+          {/* Nội dung Header (Nút Back, Tiêu đề...) - Cần relative z-20 để nổi lên trên ảnh */}
+          <div className="relative z-20 flex items-center gap-4">
             <Link href="/user_page/main_page">
               <ArrowLeft
-                className="text-gray-600 cursor-pointer hover:text-green-600"
+                className={`cursor-pointer hover:text-green-600 ${
+                  previewCover ? "text-white drop-shadow-md" : "text-gray-600"
+                }`}
                 size={28}
               />
             </Link>
             <h1
-              className={`${jost.className} text-2xl font-bold text-gray-600`}
+              className={`${jost.className} text-2xl font-bold ${
+                previewCover ? "text-white drop-shadow-md" : "text-gray-600"
+              }`}
             >
               My Profile
             </h1>
           </div>
         </div>
-
         {/* Avatar Section */}
         <div className="relative z-10 -mt-16 flex flex-col items-center">
           <input
@@ -442,36 +519,46 @@ export default function ProfilePage() {
         </main>
 
         {/* Footer */}
-        <nav className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
+        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
             <Link
               href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
-              {" "}
-              <Home size={24} strokeWidth={2} />{" "}
+              <Home size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Home
+              </span>
+            </Link>
+            <Link
+              href="/planning_page/showing_plan_page"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
+            >
+              <MapPin size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Planning
+              </span>
             </Link>
             <Link
               href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
-              {" "}
-              <MapPin size={24} strokeWidth={2} />{" "}
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              {" "}
-              <Bot size={24} strokeWidth={2} />{" "}
+              <Bot size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Ecobot
+              </span>
             </Link>
             <div className="flex flex-col items-center text-[#53B552]">
-              {" "}
-              <User size={24} strokeWidth={2.5} />{" "}
+              <Link href="/user_page/main_page">
+                <User size={24} strokeWidth={2.5} />
+                <span className={`${jost.className} text-xs font-bold mt-1`}>
+                  User
+                </span>
+              </Link>
             </div>
           </div>
-        </nav>
+        </footer>
       </div>
     </div>
   );

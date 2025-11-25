@@ -1,3 +1,5 @@
+import { types } from "util";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface LoginCredentials {
@@ -36,19 +38,27 @@ interface ValidationError {
 interface ValidationErrorResponse {
   detail?: string | ValidationError[];
 }
-
+// User Types
 export interface UserProfileUpdate {
   username?: string;
-  email?: string;
-  avatar_url?: string;
+  avt_blob_name?: string | null;
+  cover_blob_name?: string | null;
 }
-
 export interface UserProfile {
   id: number;
   username: string;
   email: string;
   avt_url?: string | null;
+  cover_url?: string | null;
   role?: string;
+}
+
+//Friend Types
+export interface FriendResponse {
+  user_id: number;
+  friend_id: number;
+  status: string;
+  created_at: string;
 }
 // Map/Location Types
 export interface Position {
@@ -56,6 +66,14 @@ export interface Position {
   lng: number;
 }
 
+export interface SearchPlacesRequest {
+  query: string;
+  user_location?: Position; 
+  radius?: number; // in meters
+  place_types?: string; // Comma-separated string
+  language?: string;
+  session_token?: string | null;
+}
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
@@ -63,6 +81,9 @@ export interface AutocompletePrediction {
   types: string[];
   matched_substrings?: Array<Record<string, any>>;
   distance?: number;
+}
+export interface AutocompleteResponse {
+  predictions: AutocompletePrediction[];
 }
 
 export interface PlaceDetails {
@@ -73,36 +94,33 @@ export interface PlaceDetails {
     name: string;
     types: string[];
   }>;
-  location: Position;
-  geometry?: {
+  formatted_phone_number?: string;
+  geometry: {
     location: Position;
     bounds?: {
       northeast: Position;
       southwest: Position;
     };
   };
+  types: string[];
   rating?: number;
   user_ratings_total?: number;
-  photos?: Array<{
-    photo_reference: string;
-    width: number;
-    height: number;
-  }>;
-  formatted_phone_number?: string;
+  price_level?: number;
   opening_hours?: {
     open_now: boolean;
     periods?: Array<Record<string, any>>;
     weekday_text?: string[];
   };
   website?: string;
-  types: string[];
-  vicinity?: string;
+  photos?: Array<{
+    photo_url: string;
+    width: number;
+    height: number;
+  }>;
+  reviews?: Array<Record<string, any>>;
+  utc_offset?: number;
+  sustainable_certified: boolean;
 }
-
-export interface SearchPlacesResponse {
-  predictions: AutocompletePrediction[];
-}
-
 export interface ReverseGeocodeResponse {
   results: Array<{
     formatted_address: string;
@@ -141,11 +159,6 @@ export interface UploadResponse {
   filename: string;
 }
 
-export interface UserProfileUpdate {
-  username?: string;
-  avt_url?: string | null; // TUYỆT ĐỐI KHÔNG ĐỂ EMAIL Ở ĐÂY
-}
-
 export interface PlanActivity {
   id: number;
   title: string;
@@ -166,6 +179,60 @@ export class ApiValidationError extends Error {
     super(message);
     this.name = "ApiValidationError";
   }
+}
+
+export class ApiHttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiHttpError";
+  }
+}
+
+// --- WEATHER & AIR TYPES ---
+
+export interface WeatherCondition {
+  description: string;
+  icon_base_uri: string;
+  type: string; // VD: "CLEAR", "CLOUDY", "RAINY"
+}
+
+export interface Temperature {
+  temperature: number;
+  feelslike_temperature: number;
+  max_temperature?: number;
+  min_temperature?: number;
+}
+
+export interface CurrentWeatherResponse {
+  temperature: Temperature;
+  weather_condition: WeatherCondition;
+  humidity: number;
+  cloud_cover: number;
+  is_daytime: boolean;
+}
+
+export interface AirQualityIndex {
+  display_name: string;
+  aqi: number;
+  category: string;
+}
+
+export interface AirQualityResponse {
+  location: [number, number];
+  aqi_data: AirQualityIndex;
+  // recommendations: ... (Có thể thêm nếu cần)
+}
+
+//Chat Types
+export interface ChatMessage {
+  id: number;
+  sender_id: number;
+  room_id: number;
+  content: string;
+  timestamp: string;
+  message_type: string;
 }
 
 const parseMockDate = (dateStr: string) => {
@@ -237,11 +304,15 @@ class ApiClient {
 
         // Handle other error responses
         console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
-        throw new Error(
+        throw new ApiHttpError(
+          response.status,
           errorData.detail || `HTTP ${response.status}: An error occurred`
         );
       } catch (e) {
         if (e instanceof ApiValidationError) {
+          throw e;
+        }
+        if (e instanceof ApiHttpError) {
           throw e;
         }
         console.error(`API Error [${response.status}] ${endpoint}:`, e);
@@ -348,7 +419,7 @@ class ApiClient {
       {
         id: 201,
         destination: "Ho Chi Minh City (Upcoming)",
-        date: "20/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        date: "30/11/2025", // Ngày tương lai (Sẽ là Current Plan)
         activities: [
           {
             id: 1,
@@ -363,18 +434,158 @@ class ApiClient {
       {
         id: 101,
         destination: "District 1 (Past)",
-        date: "04/01/2024", // Ngày quá khứ
-        activities: [
-          // ... (Dữ liệu cũ)
-        ],
+        date: "04/01/2026",
+        activities: [],
       },
       {
         id: 102,
         destination: "District 5 (Past)",
-        date: "01/01/2023", // Ngày quá khứ xa hơn
+        date: "01/01/2023",
         activities: [],
       },
     ];
+  }
+
+  // Friend Endpoints
+
+  async getFriends(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/", {
+      method: "GET",
+    });
+  }
+
+  async getPendingRequests(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/pending", {
+      method: "GET",
+    });
+  }
+
+  async getSentRequests(): Promise<FriendResponse[]> {
+    return this.request<FriendResponse[]>("/friends/sent", {
+      method: "GET",
+    });
+  }
+  // -----------------------
+
+  async sendFriendRequest(friendId: number): Promise<FriendResponse> {
+    return this.request<FriendResponse>(`/friends/${friendId}/request`, {
+      method: "POST",
+    });
+  }
+
+  async acceptFriendRequest(friendId: number): Promise<FriendResponse> {
+    return this.request<FriendResponse>(`/friends/${friendId}/accept`, {
+      method: "POST",
+    });
+  }
+
+  async rejectFriendRequest(friendId: number): Promise<any> {
+    return this.request<void>(`/friends/${friendId}/reject`, {
+      method: "DELETE",
+    });
+  }
+
+  async unfriend(friendId: number): Promise<any> {
+    return this.request(`/friends/${friendId}`, { method: "DELETE" });
+  }
+
+  // Map Endpoints
+  async searchPlaces(request: SearchPlacesRequest): 
+    Promise<AutocompleteResponse> {
+      const response = await this.request<AutocompleteResponse>("/map/search", {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+      return response;
+    }
+
+  async getPlaceDetails(
+  placeId: string,
+  sessionToken?: string | null
+): Promise<PlaceDetails> {
+
+  let path = `/map/place/${placeId}`;
+
+  if (sessionToken) {
+    path += `?session_token=${encodeURIComponent(sessionToken)}`;
+  }
+
+  return this.request<PlaceDetails>(path, { method: "GET" });
+}
+
+  async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/geocode", {
+      method: "POST",
+      body: JSON.stringify({ address }),
+    });
+  }
+
+  async reverseGeocode(position: Position): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
+      method: "POST",
+      body: JSON.stringify(position),
+    });
+  }
+
+  async birdDistance(
+    origin: Position,
+    destination: Position
+  ): Promise<number> {
+    const params = new URLSearchParams({
+      origin_lat: origin.lat.toString(),
+      origin_lng: origin.lng.toString(),
+      destination_lat: destination.lat.toString(),
+      destination_lng: destination.lng.toString(),
+    });
+    return this.request<number>(`/map/bird-distance?${params.toString()}`, {
+      method: "GET",
+    });
+  }
+
+  async getDirectRoomId(partnerId: number): Promise<number> {
+    const res = await this.request<{ id: number }>("/rooms/direct", {
+      method: "POST",
+      body: JSON.stringify({ partner_id: partnerId }),
+    });
+    return res.id;
+  }
+
+  async getChatHistory(roomId: number): Promise<ChatMessage[]> {
+    return this.request<ChatMessage[]>(`/messages/room/${roomId}`, {
+      method: "GET",
+    });
+  }
+
+  getWebSocketUrl(roomId: number): string {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("access_token") : "";
+
+    let host = process.env.NEXT_PUBLIC_API_URL || "localhost:8000";
+    host = host.replace("http://", "").replace("https://", "");
+    if (host.endsWith("/")) {
+      host = host.slice(0, -1);
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${host}/messages/ws/${roomId}?token=${token}`;
+  }
+
+  async getCurrentWeather(
+    lat: number,
+    lng: number
+  ): Promise<CurrentWeatherResponse> {
+    return this.request<CurrentWeatherResponse>(
+      `/weather/current?lat=${lat}&lng=${lng}&unit_system=METRIC`,
+      { method: "GET" }
+    );
+  }
+
+  async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
+    // Gọi endpoint /air/air-quality
+    return this.request<AirQualityResponse>(
+      `/air/air-quality?lat=${lat}&lng=${lng}`,
+      { method: "GET" }
+    );
   }
 }
 

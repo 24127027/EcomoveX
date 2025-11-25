@@ -20,6 +20,7 @@ __all__ = [
     "Destination",
     "Plan",
     "PlanDestination",
+    "PlanMember",
     "Mission",
     "UserMission",
     "Cluster",

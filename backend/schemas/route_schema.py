@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from enum import Enum
-from schemas.map_schema import Bounds
+from schemas.destination_schema import Location, Bounds
 
 class TransportMode(str, Enum):
     car = "car"
@@ -70,8 +70,8 @@ class RouteData(BaseModel):
     transit_info: Optional[TransitDetails] = None
 
 class FindRoutesRequest(BaseModel):
-    origin: Tuple[float, float]
-    destination: Tuple[float, float]
+    origin: Location
+    destination: Location
     max_time_ratio: float = Field(1.3, ge=1.0, le=3.0)
     language: str = "vi"
 
@@ -90,8 +90,8 @@ class RecommendResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
 class TransitDetails(BaseModel):
-    arrival_stop: Tuple[str, Tuple[float, float]]
-    departure_stop: Tuple[str, Tuple[float, float]]
+    arrival_stop: Tuple[str, Location]
+    departure_stop: Tuple[str, Location]
     arrival_time: Dict[str, Any]
     departure_time: Dict[str, Any]
     headway: Optional[int] = None
@@ -100,8 +100,8 @@ class TransitDetails(BaseModel):
 class Step(BaseModel):
     distance: float  # in kilometers
     duration: float  # in minutes
-    start_location: Tuple[float, float]
-    end_location: Tuple[float, float]
+    start_location: Location
+    end_location: Location
     html_instructions: str
     travel_mode: TransportMode
     polyline: Optional[str] = None
@@ -112,8 +112,8 @@ class Step(BaseModel):
 class Leg(BaseModel):
     distance: float  # in kilometers
     duration: float  # in minutes
-    start_location: Tuple[str, Tuple[float, float]]
-    end_location: Tuple[str, Tuple[float, float]]
+    start_location: Tuple[str, Location]
+    end_location: Tuple[str, Location]
     steps: List[Step]
     duration_in_traffic: Optional[float] = None
     arrival_time: Optional[Dict[str, Any]] = None
@@ -129,9 +129,9 @@ class Route(BaseModel):
     duration_in_traffic: Optional[float] = None
 
 class DirectionsRequest(BaseModel):
-    origin: Tuple[float, float]
-    destination: Tuple[float, float]
-    waypoints: Optional[List[Tuple[float, float]]] = None
+    origin: Location
+    destination: Location
+    waypoints: Optional[List[Location]] = None
     alternatives: bool = False
     avoid: Optional[List[str]] = None
     get_traffic: bool = False

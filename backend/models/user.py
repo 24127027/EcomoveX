@@ -1,4 +1,4 @@
-﻿from enum import Enum
+from enum import Enum
 from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, PrimaryKeyConstraint, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,13 +30,18 @@ class User(Base):
     password = Column(String(255), nullable=False)
     avt_blob_name = Column(String(255), nullable=True)
     cover_blob_name = Column(String(255), nullable=True)
+
+    # preferences / filters
     temp_min = Column(Float, nullable=True, default=0)
     temp_max = Column(Float, nullable=True, default=0)
     budget_min = Column(Float, nullable=True, default=0)
     budget_max = Column(Float, nullable=True, default=0)
+
+    # gamification
     eco_point = Column(Integer, nullable=True, default=0)
     rank = Column(SQLEnum(Rank), nullable=True, default=Rank.bronze)
     role = Column(SQLEnum(Role), nullable=True, default=Role.user)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_bot = Column(Boolean, default=False)
 
@@ -47,7 +52,6 @@ class User(Base):
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship("UserClusterAssociation", back_populates="user", cascade="all, delete-orphan")
-    friends = relationship("Friend", foreign_keys="[Friend.user_id]", cascade="all, delete-orphan")
     saved_destinations = relationship("UserSavedDestination", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
     files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
@@ -59,13 +63,13 @@ class User(Base):
     
 class UserActivity(Base):
     __tablename__ = "user_activities"
-    
     __table_args__ = (
-        PrimaryKeyConstraint('user_id', 'destination_id', 'timestamp'),
+        Index("ix_user_activity_user_timestamp", "user_id", "timestamp"),
     )
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
-    destination_id = Column(Integer, nullable=False, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    destination_id = Column(String(255),ForeignKey("destinations.place_id", ondelete="CASCADE"), nullable=False, index=True)
     activity = Column(SQLEnum(Activity), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), primary_key=True)
     user = relationship("User", back_populates="activity_logs")

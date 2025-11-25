@@ -20,7 +20,7 @@ async def get_user_files_metadata(
 
 @router.get("/files/{blob_name:path}", response_model=FileMetadataResponse, status_code=status.HTTP_200_OK)
 async def get_file_metadata(
-    blob_name: str = Path(..., description="The blob name/path of the file"),
+    blob_name: str = Path(...),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):

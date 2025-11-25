@@ -173,35 +173,46 @@ export default function SettingPage() {
         </main>
 
         {/* --- FOOTER --- */}
-        <nav className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-10">
+        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
             <Link
               href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
               <Home size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Home
+              </span>
             </Link>
             <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              href="/planning_page/showing_plan_page"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
               <MapPin size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Planning
+              </span>
             </Link>
             <Link
               href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
               <Bot size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Ecobot
+              </span>
             </Link>
-            <Link
-              href="/user_page/profile_page"
-              className="flex flex-col items-center text-[#53B552]"
-            >
-              <User size={24} strokeWidth={2.5} />
-            </Link>
+            <div className="flex flex-col items-center text-[#53B552]">
+              <Link href="/user_page/main_page">
+                <User size={24} strokeWidth={2.5} />
+                <span className={`${jost.className} text-xs font-bold mt-1`}>
+                  User
+                </span>
+              </Link>
+            </div>
           </div>
-        </nav>
+        </footer>
 
         {/* --- MODAL: DELETE ACCOUNT --- */}
         {showDeleteModal && (

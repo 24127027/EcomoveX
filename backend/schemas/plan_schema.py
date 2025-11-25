@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Tuple
 from datetime import date
-from models.plan import DestinationType
+from models.plan import DestinationType, PlanRole
 
 class PlanCreate(BaseModel):
     place_name: str = Field(..., min_length=1, max_length=255)
@@ -46,6 +46,10 @@ class PlanDestinationUpdate(BaseModel):
     visit_date: Optional[date] = None
     note: Optional[str] = None
 
+class PlanMemberCreate(BaseModel):
+    user_id: int
+    role: PlanRole = PlanRole.member
+
 class PlanDestinationResponse(BaseModel):
     destination_id: str
     type: DestinationType
@@ -64,15 +68,14 @@ class PlanResponse(BaseModel):
     destinations: List[PlanDestinationResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+    
+class MemberCreate(BaseModel):
+    ids: List[int] = Field(..., min_length=1)
 
-class UserPlansCreate(BaseModel):
+class MemberDelete(BaseModel):
     ids: List[int] = Field(..., min_length=1)
     
-class UserPlanDelete(BaseModel):
-    ids: List[int] = Field(..., min_length=1)
-    
-class UserPlanResponse(BaseModel):
-    user_id: int
+class PlanMemberResponse(BaseModel):
     plan_id: int
     ids: List[int] = Field(..., min_length=1)
 

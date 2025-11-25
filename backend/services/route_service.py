@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from schemas.route_schema import *
-from schemas.map_schema import DirectionsRequest
+from schemas.map_schema import *
 from services.carbon_service import CarbonService
 from integration.route_api import create_route_api_client
 from integration.text_generator_api import get_text_generator
@@ -239,8 +239,8 @@ class RouteService:
                     await routes.close()
             
             return FindRoutesResponse(
-                origin={"lat": origin[0], "lng": origin[1]},
-                destination={"lat": destination[0], "lng": destination[1]},
+                origin={"lat": origin.latitude, "lng": origin.longitude},
+                destination={"lat": destination.latitude, "lng": destination.longitude},
                 routes=routes_dict,
                 recommendation=recommendation.recommendation
             )
