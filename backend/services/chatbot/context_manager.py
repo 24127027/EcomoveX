@@ -1,7 +1,7 @@
 from repository.chatbot_message_repository import ChatbotMessageRepository
-from services.embedding_service import embed_user
+from services.embedding.embedding_service import embed_user
 from services.recommendation_service import recommend_for_cluster_hybrid
-from services.cluster_service import compute_cluster_embedding
+from services.cluster.cluster_service import compute_cluster_embedding
 
 class ContextManager:
     def __init__(self, db):
