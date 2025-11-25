@@ -25,12 +25,13 @@ class MapAPI:
             raise ValueError("Google map API key is required")
         
         self.base_url = "https://maps.googleapis.com/maps/api"
+        self.new_base_url = "https://places.googleapis.com/v1/places/"
         self.client = httpx.AsyncClient(timeout=30.0)
     
     async def close(self):
         await self.client.aclose()
 
-    async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> AutocompleteResponse:
+    async def autocomplete_place(self, data: AutocompleteRequest, components: str = "country:vn") -> AutocompleteResponse:
         try:
             params = {
                 "input": data.query.strip(),

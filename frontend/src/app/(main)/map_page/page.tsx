@@ -141,7 +141,7 @@ export default function MapPage() {
         sessionTokenRef.current = activeToken; // Update ref immediately
       }
 
-      const response = await api.searchPlaces({
+      const response = await api.autocomplete({
         query: searchQuery,
         user_location: userLocation,
         radius: 5000,
@@ -198,7 +198,7 @@ useEffect(() => {
     // Optionally trigger a search for the URL query
     const performSearch = async () => {
       try {
-        const response = await api.searchPlaces({
+        const response = await api.autocomplete({
           query: urlQuery,
           user_location: userLocation,
           radius: 5000,
@@ -269,10 +269,10 @@ useEffect(() => {
   const fetchRecommendations = async () => {
     setIsLoadingRecommendations(true);
     try {
-      // Use searchPlaces with eco-friendly types for recommendations
+      // Use autocomplete with eco-friendly types for recommendations
       const recToken = generateSessionToken();
 
-      const response = await api.searchPlaces({
+      const response = await api.autocomplete({
         query: "park",
         user_location: userLocation,
         radius: 5000, // 5km radius
@@ -281,7 +281,7 @@ useEffect(() => {
       });
       
       if (!response || !response.predictions) {
-        console.error('Invalid response from searchPlaces');
+        console.error('Invalid response from autocomplete');
         setLocations([]);
         return;
       }

@@ -67,7 +67,7 @@ export interface Position {
 }
 
 export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
-export interface SearchPlacesRequest {
+export interface AutocompleteRequest {
   query: string;
   user_location?: Position; 
   radius?: number; // in meters
@@ -491,7 +491,7 @@ class ApiClient {
   }
 
   // Map Endpoints
-  async searchPlaces(request: SearchPlacesRequest): 
+  async autocomplete(request: AutocompleteRequest): 
     Promise<AutocompleteResponse> {
       const response = await this.request<AutocompleteResponse>("/map/search", {
         method: "POST",
@@ -500,27 +500,27 @@ class ApiClient {
       return response;
     }
 
-async getPlaceDetails(
-    placeId: string,
-    sessionToken?: string | null,
-    categories?: PlaceDataCategory[] 
-  ): Promise<PlaceDetails> {
-    
-    const params = new URLSearchParams();
+  async getPlaceDetails(
+      placeId: string,
+      sessionToken?: string | null,
+      categories?: PlaceDataCategory[] 
+    ): Promise<PlaceDetails> {
+      
+      const params = new URLSearchParams();
 
-    if (sessionToken) {
-      params.append("session_token", sessionToken);
+      if (sessionToken) {
+        params.append("session_token", sessionToken);
+      }
+
+      if (categories && categories.length > 0) {
+        categories.forEach((cat) => params.append("categories", cat));
+      }
+
+      const queryString = params.toString();
+      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+      return this.request<PlaceDetails>(path, { method: "GET" });
     }
-
-    if (categories && categories.length > 0) {
-      categories.forEach((cat) => params.append("categories", cat));
-    }
-
-    const queryString = params.toString();
-    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
-
-    return this.request<PlaceDetails>(path, { method: "GET" });
-  }
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {

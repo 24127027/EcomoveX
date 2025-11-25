@@ -23,7 +23,7 @@ FIELD_GROUPS = {
 
 class mapService:
     @staticmethod
-    async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
+    async def search_location(db: AsyncSession, data: AutocompleteRequest) -> AutocompleteResponse:
         try:            
             try:
                 map = await create_map_client()

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 
 @router.post("/search", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
 async def search_location(
-    request: SearchLocationRequest,
+    request: AutocompleteRequest,
     user_db: AsyncSession = Depends(get_db)
 ):
     result = await mapService.search_location(user_db, request)

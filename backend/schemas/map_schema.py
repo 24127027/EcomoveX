@@ -16,7 +16,7 @@ class AutocompleteResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-class SearchLocationRequest(BaseModel):
+class AutocompleteRequest(BaseModel):
     query: str = Field(..., min_length=2)
     user_location: Optional[Location] = None
     radius: Optional[int] = Field(None, ge=100, le=50000)
