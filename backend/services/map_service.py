@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -8,9 +9,56 @@ from schemas.map_schema import *
 from services.destination_service import DestinationService
 from schemas.destination_schema import Location
 
+FIELD_GROUPS = {
+    PlaceDataCategory.BASIC: [
+        "place_id", "name", "formatted_address", "geometry/location", 
+        "geometry/viewport","photos", "types", "address_components", "utc_offset"
+    ],
+    PlaceDataCategory.CONTACT: [
+        "formatted_phone_number", "website", "opening_hours"
+    ],
+    PlaceDataCategory.ATMOSPHERE: [
+        "rating", "user_ratings_total", "reviews", "price_level"
+    ]
+}
+
 class mapService:
     @staticmethod
-    async def search_location(db: AsyncSession, data: SearchLocationRequest) -> AutocompleteResponse:
+    async def text_search_place(db: AsyncSession, data: TextSearchRequest) -> TextSearchResponse:
+        map_client = await create_map_client()
+        
+        try:
+            # 1. Call Google API
+            response = await map_client.text_search_place(data)
+
+            # 2. Save to Database Sequentially
+            # FIX: We cannot use asyncio.gather with a single DB session.
+            # We must await them one by one.
+            for result in response.results:
+                try:
+                    await DestinationService.create_destination(
+                        db, 
+                        DestinationCreate(place_id=result.place_id)
+                    )
+                except Exception:
+                    # FIX: If creating fails (e.g. Duplicate Key), strictly ignore it.
+                    # We do not want to stop the loop or crash the request.
+                    pass
+
+            return response
+
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to search location: {str(e)}"
+            )
+        finally:
+            await map_client.close()
+
+    @staticmethod
+    async def autocomplete(db: AsyncSession, data: AutocompleteRequest) -> AutocompleteResponse:
         try:            
             try:
                 map = await create_map_client()
@@ -30,26 +78,46 @@ class mapService:
             )
     
     @staticmethod
-    async def get_location_details(
-        place_id: str,
-    ) -> PlaceDetailsResponse:
+    async def get_location_details(data: PlaceDetailsRequest) -> PlaceDetailsResponse:
+        # 1. Validation
+        if not data.place_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="place_id is required"
+            )
+
+        map_client = None
         try:
-            if not place_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="place_id is required"
-                )
-            try:
-                map = await create_map_client()
-                return await map.get_place_details_from_autocomplete(place_id=place_id)
-            finally:
-                if map:
-                    await map.close()
+            final_fields = set()
+            for cat in data.categories:
+                # cat.value gets the string "basic" from the Enum
+                group = FIELD_GROUPS.get(cat.value, [])
+                final_fields.update(group)
+
+            # Fallback: if list is empty, fetch basic info
+            if not final_fields:
+                final_fields.update(FIELD_GROUPS[PlaceDataCategory.BASIC])
+
+            # 3. Call API
+            map_client = await create_map_client()
+            return await map_client.get_place_details(
+                place_id=data.place_id, 
+                fields=list(final_fields), # Convert set back to list
+                session_token=data.session_token
+            )
+
+        except HTTPException:
+            # Re-raise HTTP exceptions so 400 stays 400
+            raise 
         except Exception as e:
+            # Handle unexpected errors
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get location details: {str(e)}"
             )
+        finally:
+            if map_client:
+                await map_client.close()
             
     @staticmethod
     async def geocode_address(address: str) -> GeocodingResponse:
@@ -134,26 +202,3 @@ class mapService:
         finally:
             if map:
                 await map.close()
-    
-    @staticmethod
-    async def calculate_bird_distance(
-        origin: Tuple[float, float],
-        destination: Tuple[float, float],
-    ) -> float:
-        try:
-            # Haversine formula to calculate the great-circle distance
-            from math import radians, sin, cos, sqrt, atan2
-            R = 6371.0  # Radius of the Earth in kilometers
-            lat1, lon1 = origin
-            lat2, lon2 = destination
-            dlat = radians(lat2 - lat1)
-            dlon = radians(lon2 - lon1)
-            a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
-            c = 2 * atan2(sqrt(a), sqrt(1 - a))
-            distance = R * c  # in kilometers
-            return distance
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to calculate bird distance: {str(e)}"
-            )

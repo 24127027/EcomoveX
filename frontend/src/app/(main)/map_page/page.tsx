@@ -1,37 +1,70 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Search,
-  Home,
-  MapPin,
-  Bot,
-  User,
-  ChevronLeft,
-  Navigation,
-} from "lucide-react";
-import { api, AutocompletePrediction, PlaceDetails, Position } from "@/lib/api";
+import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
+import { api, AutocompletePrediction, PlaceDetails, Position, PlaceSearchResult } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
+import { flushSync } from 'react-dom';
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
 }
 
-const addDistanceText = async (
-  details: PlaceDetails,
-  userPos: Position
-): Promise<PlaceDetailsWithDistance> => {
-  const destination: Position = details.geometry.location;
-  const distanceKm = await api.birdDistance(userPos, destination);
-  const distanceText =
-    distanceKm < 1
-      ? `${Math.round(distanceKm * 1000)}m away`
-      : `${distanceKm.toFixed(1)}km away`;
+const birdDistance = (pos1: Position, pos2: Position): number => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(pos2.lat - pos1.lat);
+  const dLon = toRad(pos2.lng - pos1.lng);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(pos1.lat)) * Math.cos(toRad(pos2.lat)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
+const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
+  const destination: Position = details.geometry.location;
+  const distanceKm = birdDistance(userPos, destination);
+  const distanceText = distanceKm < 1 
+    ? `${Math.round(distanceKm * 1000)}m away`
+    : `${distanceKm.toFixed(1)}km away`;
+  
   return {
     ...details,
-    distanceText,
+    distanceText
+  };
+};
+
+const convertSearchResultToDetails = (result: PlaceSearchResult, userPos: Position): PlaceDetailsWithDistance => {
+  const distanceKm = result.location ? birdDistance(userPos, result.location) : 0;
+  const distanceText = distanceKm < 1 
+    ? `${Math.round(distanceKm * 1000)}m away`
+    : `${distanceKm.toFixed(1)}km away`;
+
+  return {
+    // Map JSON "id" -> UI "place_id"
+    place_id: result.id, 
+    
+    // Map JSON "displayName.text" -> UI "name"
+    // Safe navigation (?.) prevents crash if displayName is null
+    name: result.displayName?.text || "Unknown Place", 
+    
+    // Map JSON "formattedAddress" -> UI "formatted_address"
+    formatted_address: result.formattedAddress || "",
+    
+    geometry: {
+      location: result.location || { lat: 0, lng: 0 }
+    },
+    types: result.types || [],
+    photos: result.photos ? [{
+      photo_url: result.photos.photo_url,
+      width: result.photos.size[0],
+      height: result.photos.size[1]
+    }] : [],
+    sustainable_certified: false,
+    distanceText: distanceText,
+    rating: 0 
   };
 };
 
@@ -42,6 +75,13 @@ function usePrevious<T>(value: T): T | undefined {
   });
   return ref.current;
 }
+
+const generateSessionToken = () => {
+  if (window.google?.maps?.places) {
+    return new google.maps.places.AutocompleteSessionToken().toString();
+  }
+  return crypto.randomUUID(); 
+};
 
 export default function MapPage() {
   const router = useRouter();
@@ -74,8 +114,9 @@ export default function MapPage() {
     PlaceDetailsWithDistance[]
   >([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] =
-    useState(true);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [autocompletePredictions, setAutocompletePredictions] = useState<AutocompletePrediction[]>([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(40);
 
@@ -83,33 +124,23 @@ export default function MapPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startHeight, setStartHeight] = useState(40);
+  const [userLocation, setUserLocation] = useState<Position>({ lat: 10.7756, lng: 106.7019 });
+  const [enableTransition, setEnableTransition] = useState(true);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const initialLoadRef = useRef(true);
-
+  const sessionTokenRef = useRef<string | null>(null);
+  const sheetHeightRef = useRef(sheetHeight);
+  
   useEffect(() => {
-    if (latParam && lngParam) {
-      const newLat = parseFloat(latParam);
-      const newLng = parseFloat(lngParam);
-      if (!isNaN(newLat) && !isNaN(newLng)) {
-        const newPos = { lat: newLat, lng: newLng };
-        if (
-          newPos.lat !== userLocation.lat ||
-          newPos.lng !== userLocation.lng
-        ) {
-          setUserLocation(newPos);
-          if (googleMapRef.current) {
-            googleMapRef.current.setCenter(newPos);
-            googleMapRef.current.setZoom(14);
-          }
-        }
-      }
-    }
-  }, [latParam, lngParam, mapLoaded]);
+    sessionTokenRef.current = sessionToken;
+  }, [sessionToken]);
 
   useEffect(() => {
     if (urlQuery !== searchQuery) {
@@ -117,7 +148,6 @@ export default function MapPage() {
     }
   }, [urlQuery]);
 
-  // Fetch recommendations khi mới vào (nếu không có search query)
   useEffect(() => {
     if (!urlQuery && !searchQuery) {
       fetchRecommendations();
@@ -125,108 +155,200 @@ export default function MapPage() {
     }
   }, [userLocation]); // Chạy lại khi location thay đổi để lấy gợi ý quanh đó
 
-  // --- MAIN SEARCH EFFECT ---
+  // Fetch autocomplete predictions as user types
   useEffect(() => {
-    // --- Part 1: Update URL (Debounce) ---
-    const handler = setTimeout(() => {
-      // Chỉ push URL nếu query thay đổi và khác URL hiện tại
-      if (searchQuery !== urlQuery) {
-        const params = new URLSearchParams();
-        if (searchQuery.trim()) params.set("q", searchQuery);
-
-        // [QUAN TRỌNG] Giữ lại lat/lng trên URL nếu có
-        if (latParam) params.set("lat", latParam);
-        if (lngParam) params.set("lng", lngParam);
-
-        router.push(`/map_page?${params.toString()}`, { scroll: false });
-      }
-    }, 500);
-
-    // --- Part 2: Call API Search ---
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (searchQuery.trim() === "") {
-      setSearchResults([]);
-      setIsSearching(false);
-      setSelectedLocation(null);
-      setSheetHeight(40);
-      // Nếu xóa hết text search thì load lại recommend
-      if (locations.length === 0) fetchRecommendations();
-      return () => clearTimeout(handler);
+    // Only run autocomplete if we are focused and strictly typing
+    if (searchQuery.trim() === '' || !isSearchFocused) {
+      if (searchQuery.trim() === '') {
+        setAutocompletePredictions([]);
+      }
+      return;
     }
 
-    // Logic gọi API (chạy khi query đổi hoặc location đổi)
-    if (prevSearchQuery !== searchQuery || initialLoadRef.current) {
-      setIsSearching(true);
-      searchTimeoutRef.current = setTimeout(async () => {
-        try {
-          // console.log("Searching for:", searchQuery, "at", userLocation);
-          const response = await api.searchPlaces({
-            query: searchQuery,
-            user_location: userLocation,
-            radius: 5000,
-          });
+    if (searchQuery.trim().length < 2) { 
+      setAutocompletePredictions([]);
+      return;
+    }
 
-          const detailedResults = await Promise.all(
-            response.predictions.slice(0, 6).map(async (prediction) => {
-              try {
-                const details = await api.getPlaceDetails(prediction.place_id);
-                return await addDistanceText(details, userLocation);
-              } catch (error) {
-                return null;
-              }
-            })
-          );
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Only run autocomplete if user hasn't hit enter yet (checked via focus)
+        if (!isSearchFocused) return;
 
-          const finalResults = detailedResults.filter(
-            (r): r is PlaceDetailsWithDistance => r !== null
-          );
-          setSearchResults(finalResults);
-
-          if (finalResults.length > 0) {
-            setSheetHeight(70);
-          } else {
-            setSelectedLocation(null);
-          }
-        } catch (error) {
-          console.error("Search failed:", error);
-          setSearchResults([]);
-        } finally {
-          setIsSearching(false);
-          initialLoadRef.current = false; // Đánh dấu đã load xong lần đầu
+        let activeToken = sessionTokenRef.current;
+        if (!activeToken) {
+          activeToken = generateSessionToken();
+          setSessionToken(activeToken); 
+          sessionTokenRef.current = activeToken; 
         }
-      }, 500);
-    }
+
+        const response = await api.autocomplete({
+          query: searchQuery,
+          user_location: userLocation,
+          radius: 5000,
+          session_token: activeToken, 
+        });
+        
+        setAutocompletePredictions(response.predictions.slice(0, 8));
+      } catch (error) {
+        console.error('Autocomplete failed:', error);
+      }
+    }, 300);
 
     return () => {
-      clearTimeout(handler);
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, userLocation, router, urlQuery, latParam, lngParam]); // Thêm dependencies
+  }, [searchQuery, userLocation, isSearchFocused]); 
+
+  // --- NEW: Handle Text Search Submit (Enter Key) ---
+  const handleTextSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // 1. Dismiss Keyboard & Focus
+      e.currentTarget.blur();
+      setIsSearchFocused(false);
+      setAutocompletePredictions([]); 
+      setIsSearching(true);
+      
+      try {
+        // Use 'any' cast temporarily if Typescript complains about strict interface matching
+        // or ensure your API request method generic matches the new interface.
+        const response = await api.textSearchPlace({
+          query: searchQuery,
+          location: userLocation,
+          radius: 5000,
+        });
+
+        // 3. Convert results to UI format
+        const list = response.places || []; 
+        const adaptedResults = list.map(res => 
+          convertSearchResultToDetails(res, userLocation)
+        );
+
+        setSearchResults(adaptedResults);
+        
+        // 4. Update UI: Show results on bottom sheet
+        if (adaptedResults.length > 0) {
+          setSheetHeight(65); // Expand sheet
+          
+          // 5. Fit Map Bounds to show all results
+          if (googleMapRef.current && window.google) {
+            const bounds = new window.google.maps.LatLngBounds();
+            adaptedResults.forEach(p => {
+              if (p.geometry.location) {
+                bounds.extend(p.geometry.location);
+              }
+            });
+            // Don't zoom in too close if only 1 result
+            if (adaptedResults.length === 1) {
+              googleMapRef.current.setCenter(adaptedResults[0].geometry.location);
+              googleMapRef.current.setZoom(16);
+            } else {
+              googleMapRef.current.fitBounds(bounds);
+              // Optional: Add padding
+              // googleMapRef.current.panBy(0, 100); 
+            }
+          }
+        } else {
+            setSheetHeight(40);
+        }
+
+      } catch (error) {
+        console.error("Text search failed:", error);
+      } finally {
+        setIsSearching(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isSearchFocused && !target.closest('.search-container')) {
+        setIsSearchFocused(false);
+        setEnableTransition(true);
+        if (searchResults.length > 0 || locations.length > 0) {
+          setSheetHeight(65);
+        } else {
+          setSheetHeight(40);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside as any);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside as any);
+    };
+  }, [isSearchFocused, searchResults, locations]);
+
+  // Handle URL query parameter changes
+  useEffect(() => {
+    if (urlQuery && urlQuery !== searchQuery) {
+      setSearchQuery(urlQuery);
+      // NOTE: Logic here could be replaced by handleTextSearch if we extracted logic
+    }
+  }, [urlQuery]);
+
+  const handleSelectPrediction = async (prediction: AutocompletePrediction) => {
+    setSearchQuery(prediction.description);
+    setIsSearchFocused(false);
+    setAutocompletePredictions([]);
+    setEnableTransition(true);
+    
+    try {
+      const fullDetails = await api.getPlaceDetails(
+        prediction.place_id,
+        sessionToken,
+        ["basic"]
+      );
+      const withDistance = await addDistanceText(fullDetails, userLocation);
+      
+      setSelectedLocation(withDistance);
+      setSearchResults([withDistance]);
+      setSheetHeight(65);
+      
+      if (googleMapRef.current) {
+        googleMapRef.current.panTo({ 
+          lat: withDistance.geometry.location.lat, 
+          lng: withDistance.geometry.location.lng 
+        });
+        googleMapRef.current.setZoom(16);
+      }
+      setSessionToken(null);
+    } catch (error) {
+      console.error('Failed to fetch place details:', error);
+    }
+  };
 
   const fetchRecommendations = async () => {
     setIsLoadingRecommendations(true);
     try {
-      const response = await api.searchPlaces({
+      const recToken = generateSessionToken();
+      const response = await api.autocomplete({
         query: "park",
         user_location: userLocation,
-        radius: 5000,
+        radius: 5000, 
         place_types: "park|tourist_attraction|point_of_interest",
+        session_token: recToken,
       });
 
       if (!response || !response.predictions) {
         setLocations([]);
         return;
       }
-
+      
       const detailedRecommendations = await Promise.all(
         response.predictions.slice(0, 8).map(async (prediction) => {
           try {
-            const details = await api.getPlaceDetails(prediction.place_id);
+            const details = await api.getPlaceDetails(prediction.place_id, recToken, ["basic"]);
             return await addDistanceText(details, userLocation);
           } catch (error) {
             return null;
@@ -248,32 +370,27 @@ export default function MapPage() {
     }
   };
 
-  const displayedLocations =
-    searchQuery.trim() !== "" ? searchResults : locations;
+  const displayedLocations = searchResults.length > 0 ? searchResults : (!isSearchFocused ? locations : []);
 
   // --- MAP INITIALIZATION ---
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
-
+    
     const map = new window.google.maps.Map(mapRef.current, {
       center: userLocation,
       zoom: 14,
       styles: [
-        {
-          featureType: "poi",
-          elementType: "labels",
-          stylers: [{ visibility: "off" }],
-        },
+        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
       ],
       disableDefaultUI: true,
-      gestureHandling: "cooperative",
+      gestureHandling: 'cooperative'
     });
 
     googleMapRef.current = map;
     setMapLoaded(true);
   }, [isLoaded]);
 
-  // --- MARKERS MANAGEMENT ---
+  // Marker Management
   useEffect(() => {
     if (!googleMapRef.current || !mapLoaded) return;
 
@@ -281,8 +398,10 @@ export default function MapPage() {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
-    // Add new markers
-    displayedLocations.forEach((location) => {
+    displayedLocations.forEach(location => {
+      // Safety check for geometry
+      if (!location.geometry || !location.geometry.location) return;
+
       const marker = new window.google.maps.Marker({
         position: {
           lat: location.geometry.location.lat,
@@ -312,25 +431,43 @@ export default function MapPage() {
     });
   }, [displayedLocations, mapLoaded]);
 
+  // User Location Marker
+  useEffect(() => {
+    if (!googleMapRef.current || !mapLoaded) return;
+
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = new window.google.maps.Marker({
+        map: googleMapRef.current,
+        icon: {
+          path: `M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z`,
+          fillColor: '#4285F4',
+          fillOpacity: 1,
+          strokeWeight: 0,
+          rotation: 0,
+          scale: 1.5,
+          anchor: new window.google.maps.Point(12, 24),
+        },
+      });
+    }
+
+    userMarkerRef.current.setPosition({
+      lat: userLocation.lat,
+      lng: userLocation.lng
+    });
+
+  }, [userLocation, mapLoaded]);
+
   const handleLocationSelect = (location: PlaceDetailsWithDistance) => {
     setSelectedLocation(location);
+    setSheetHeight(65); // Ensure sheet is visible when clicking marker
   };
 
   const handleCardClick = async (location: PlaceDetailsWithDistance) => {
-    try {
-      const fullDetails = await api.getPlaceDetails(location.place_id);
-      const withDistance = await addDistanceText(fullDetails, userLocation);
-      setSelectedLocation(withDistance);
-      if (googleMapRef.current) {
-        googleMapRef.current.panTo(withDistance.geometry.location);
+    // If it's a TextSearchResult, it might have incomplete info, but for now we just center it
+    setSelectedLocation(location);
+    if (googleMapRef.current) {
+        googleMapRef.current.panTo({ lat: location.geometry.location.lat, lng: location.geometry.location.lng });
         googleMapRef.current.setZoom(16);
-      }
-    } catch (error) {
-      setSelectedLocation(location); // Fallback
-      if (googleMapRef.current) {
-        googleMapRef.current.panTo(location.geometry.location);
-        googleMapRef.current.setZoom(16);
-      }
     }
   };
 
@@ -369,55 +506,103 @@ export default function MapPage() {
     }
   };
 
-  // --- BOTTOM SHEET GESTURES ---
-  const handleTouchStart = (e: React.TouchEvent) => {
+  useEffect(() => {
+    sheetHeightRef.current = sheetHeight;
+  }, [sheetHeight]);
+
+  // Unified Handler for MouseDown and TouchStart
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     setIsDragging(true);
-    setStartY(e.touches[0].clientY);
-    setStartHeight(sheetHeight);
-    document.body.style.overflow = "hidden";
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setStartY(clientY);
+    setStartHeight(sheetHeight); // State is fine here for the "Snapshot" start point
+    
+    document.body.style.overflow = 'hidden';
+    document.body.style.userSelect = 'none';
   };
 
-  const handleTouchMove = (e: TouchEvent) => {
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
-    const deltaY = startY - e.touches[0].clientY;
+    
+    const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
+    
+    const deltaY = startY - clientY;
     const windowHeight = window.innerHeight;
     const deltaPercent = (deltaY / windowHeight) * 100;
     let newHeight = startHeight + deltaPercent;
     newHeight = Math.max(15, Math.min(90, newHeight));
+    
+    // Update State (for rendering) AND Ref (for logic)
     setSheetHeight(newHeight);
+    sheetHeightRef.current = newHeight; 
   };
 
-  const handleTouchEnd = () => {
+  const handleDragEnd = () => {
     setIsDragging(false);
-    document.body.style.overflow = "";
-    if (sheetHeight < 25) setSheetHeight(15);
-    else if (sheetHeight < 50) setSheetHeight(40);
-    else if (sheetHeight < 70) setSheetHeight(65);
-    else setSheetHeight(90);
+    
+    document.body.style.overflow = '';
+    document.body.style.userSelect = '';
+
+    // FIX: Read from REF, not State, to get the live value inside the event listener
+    const currentHeight = sheetHeightRef.current;
+    const dragDistance = currentHeight - startHeight;
+
+    const SNAP_MIN = 15;
+    const SNAP_LOW = 40;
+    const SNAP_MID = 65;
+    const SNAP_HIGH = 90;
+
+    const findNearest = (current: number) => {
+      const points = [SNAP_MIN, SNAP_LOW, SNAP_MID, SNAP_HIGH];
+      return points.reduce((prev, curr) => 
+        Math.abs(curr - current) < Math.abs(prev - current) ? curr : prev
+      );
+    };
+
+    // Logic: If dragged significantly (> 5vh), force snap to next level
+    // Otherwise, snap to nearest
+    if (dragDistance < -5) {
+      // Dragged Down
+      if (startHeight >= SNAP_HIGH - 5) setSheetHeight(SNAP_MID);
+      else if (startHeight >= SNAP_MID - 5) setSheetHeight(SNAP_LOW);
+      else setSheetHeight(SNAP_MIN);
+    } 
+    else if (dragDistance > 5) {
+      // Dragged Up
+      if (startHeight <= SNAP_MIN + 5) setSheetHeight(SNAP_LOW);
+      else if (startHeight <= SNAP_LOW + 5) setSheetHeight(SNAP_MID);
+      else setSheetHeight(SNAP_HIGH);
+    } 
+    else {
+      // Small drag, just snap to nearest
+      setSheetHeight(findNearest(currentHeight));
+    }
   };
 
+  // Effect to attach global listeners
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener("touchmove", handleTouchMove, {
-        passive: false,
-      });
-      document.addEventListener("touchend", handleTouchEnd);
+      window.addEventListener('touchmove', handleDragMove, { passive: false });
+      window.addEventListener('touchend', handleDragEnd);
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      
       return () => {
-        document.removeEventListener("touchmove", handleTouchMove);
-        document.removeEventListener("touchend", handleTouchEnd);
+        window.removeEventListener('touchmove', handleDragMove);
+        window.removeEventListener('touchend', handleDragEnd);
+        window.removeEventListener('mousemove', handleDragMove);
+        window.removeEventListener('mouseup', handleDragEnd);
       };
     }
-  }, [isDragging, startY, startHeight]);
-
-  if (loadError) return <div>Error loading map: {loadError.message}</div>;
+  }, [isDragging]);
 
   return (
-    <div className="min-h-screen w-full flex justify-center bg-gray-200">
-      <div className="w-full max-w-md bg-gray-50 h-screen shadow-2xl relative flex flex-col overflow-hidden">
+    <div className="min-h-screen w-full bg-white sm:bg-gray-200 sm:flex sm:justify-center">
+      <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-2xl">
         {/* Map Container */}
         <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
           {/* Search Bar */}
-          <div className="absolute top-5 left-4 right-4 z-10">
+          <div className="absolute top-5 left-4 right-4 z-10 search-container">
             <div className="bg-white rounded-full shadow-lg flex items-center p-3 transition-transform active:scale-95">
               <a href="/homepage">
                 <ChevronLeft className="text-gray-500 mr-2 cursor-pointer hover:text-green-600" />
@@ -428,12 +613,51 @@ export default function MapPage() {
                 placeholder="Search for a location..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                // ADDED: onKeyDown handler
+                onKeyDown={handleTextSearch}
+                onFocus={() => {
+                 flushSync(() => {
+                    setEnableTransition(false);
+                    setSheetHeight(8);
+                 });
+                 if (window.google?.maps) {
+                  const token = new google.maps.places.AutocompleteSessionToken();
+                  setSessionToken(token.toString());
+                 }
+                 setIsSearchFocused(true);
+                 setTimeout(() => setEnableTransition(true), 50);
+                }}
                 className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
               />
               {isSearching && (
                 <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
               )}
             </div>
+
+            {/* Autocomplete Dropdown */}
+            {isSearchFocused && autocompletePredictions.length > 0 && (
+              <div className="mt-2 bg-white rounded-2xl shadow-xl overflow-hidden max-h-96 overflow-y-auto">
+                {autocompletePredictions.map((prediction) => (
+                  <div
+                    key={prediction.place_id}
+                    onClick={() => handleSelectPrediction(prediction)}
+                    className="p-4 hover:bg-gray-50 active:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <MapPin size={18} className="text-green-600 mt-1 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 font-semibold text-sm truncate">
+                          {prediction.structured_formatting?.main_text}
+                        </p>
+                        <p className="text-gray-500 text-xs mt-0.5 line-clamp-1">
+                          {prediction.structured_formatting?.secondary_text}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Current Location Button */}
@@ -457,28 +681,40 @@ export default function MapPage() {
         </div>
 
         {/* Bottom Sheet */}
-        <div
-          ref={sheetRef}
-          style={{ height: `${sheetHeight}vh`, touchAction: "none" }}
-          className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${
-            isDragging ? "" : "transition-all duration-300 ease-out"
-          }`}
-        >
-          {/* Drag Handle */}
-          <div
-            className="w-full flex justify-center py-4 touch-none"
-            onTouchStart={handleTouchStart}
-          >
-            <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
-          </div>
-
-          <div
-            className="px-6 pb-6 overflow-y-auto overscroll-contain scrollbar-hide"
-            style={{ height: "calc(100% - 56px)" }}
-            onTouchStart={(e) => {
-              if (sheetHeight < 60) e.stopPropagation();
+          <div 
+            ref={sheetRef}
+            style={{ 
+              height: `${sheetHeight}vh`,
+              touchAction: 'none' 
             }}
+            className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${isDragging || !enableTransition ? '' : 'transition-all duration-300 ease-out'}`}
           >
+            {/* Drag Handle Area */}
+            <div 
+              className="w-full flex justify-center py-4 touch-none cursor-grab active:cursor-grabbing"
+              onTouchStart={handleDragStart} // Mobile
+              onMouseDown={handleDragStart}  // Desktop
+            >
+              <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
+            </div>
+
+            {/* Content Area */}
+            <div 
+              className="px-6 pb-6 overflow-y-auto overscroll-contain scrollbar-hide" 
+              style={{ height: 'calc(100% - 56px)' }}
+              // Prevent drag from starting when scrolling content (Mobile logic)
+              onTouchStart={(e) => {
+                if (sheetHeight < 60) {
+                  e.stopPropagation();
+                }
+              }}
+              // Prevent drag from starting when scrolling content (Desktop logic)
+              onMouseDown={(e) => {
+                 if (sheetHeight < 60) {
+                   e.stopPropagation();
+                 }
+              }}
+            >
             {/* Selected Location Card */}
             {selectedLocation ? (
               <div className="mb-4">
@@ -517,30 +753,49 @@ export default function MapPage() {
                 </button>
               </div>
             ) : (
-              <div className="mb-4">
-                <h3 className="text-gray-900 text-lg font-bold mb-1">
-                  {searchQuery.trim() !== ""
-                    ? "Search Results"
-                    : "Nearby Eco Locations"}
-                </h3>
-                <p className="text-gray-500 text-sm mb-3">
-                  {searchQuery.trim() !== ""
-                    ? `Found ${displayedLocations.length} results`
-                    : "Select a location from the map"}
-                </p>
+              <>
+                {/* Title Section */}
+                {!isSearchFocused && (
+                  <div className="mb-4">
+                    <h3 className="text-gray-900 text-lg font-bold mb-1">
+                      {searchResults.length > 0 ? 'Search Results' : 'Nearby Eco Locations'}
+                    </h3>
+                    <p className="text-gray-500 text-sm mb-3">
+                      {searchResults.length > 0
+                        ? `Found ${searchResults.length} results`
+                        : 'Select a location from the map or list below'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Search Hint when focused but no typing */}
+                {isSearchFocused && autocompletePredictions.length === 0 && sheetHeight > 15 && (
+                  <div className="text-center py-12">
+                    <Search size={48} className="text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">
+                      Press <span className="font-bold">Enter</span> to search for "{searchQuery}"
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Loading State */}
+            {(isLoadingRecommendations || isSearching) && displayedLocations.length === 0 && !isSearchFocused && (
+              <div className="flex justify-center items-center py-8">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent"></div>
               </div>
             )}
 
-            {/* Loading */}
-            {(isLoadingRecommendations || isSearching) &&
-              displayedLocations.length === 0 && (
-                <div className="flex justify-center items-center py-8">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent"></div>
-                </div>
-              )}
+            {/* Empty State */}
+            {!isLoadingRecommendations && !isSearching && !isSearchFocused && displayedLocations.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No locations found</p>
+              </div>
+            )}
 
-            {/* Results Grid */}
-            {!isSearching && displayedLocations.length > 0 && (
+            {/* Recommendations/Results Grid */}
+            {!isSearching && !isSearchFocused && displayedLocations.length > 0 && (
               <div className="grid grid-cols-2 gap-3 pb-2">
                 {displayedLocations.map((location) => (
                   <div
@@ -562,9 +817,10 @@ export default function MapPage() {
                         alt={location.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          e.currentTarget.src =
-                            "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400";
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400';
                         }}
+                        loading="lazy"
+                        decoding="async"
                       />
                     </div>
                     <div className="p-3">
@@ -576,8 +832,9 @@ export default function MapPage() {
                       </p>
                       <div className="flex items-center justify-between">
                         <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
-                          {location.types?.[0]?.replace(/_/g, " ") || "Spot"}
+                          {location.types[0]?.replace(/_/g, ' ') || 'Place'}
                         </span>
+                        {/* Only show rating if it exists */}
                         {location.rating && location.rating > 0 && (
                           <span className="text-xs text-yellow-600 font-semibold">
                             ★ {location.rating.toFixed(1)}

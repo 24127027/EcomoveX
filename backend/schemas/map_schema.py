@@ -1,3 +1,4 @@
+from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Tuple
 from schemas.destination_schema import Geometry, Location
@@ -15,12 +16,13 @@ class AutocompleteResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-class SearchLocationRequest(BaseModel):
+class AutocompleteRequest(BaseModel):
     query: str = Field(..., min_length=2)
     user_location: Optional[Location] = None
     radius: Optional[int] = Field(None, ge=100, le=50000)
     place_types: Optional[str] = None
     language: str = "vi"
+    session_token: str = Field(..., min_length=1)
 
 class PhotoInfo(BaseModel):
     photo_url: str
@@ -95,5 +97,41 @@ class NearbyPlacesResponse(BaseModel):
 
 class SearchAlongRouteResponse(BaseModel):
     places_along_route: List[NearbyPlaceSimple]
+    
+    model_config = ConfigDict(from_attributes=True)
+class PlaceDataCategory(str, Enum):
+    BASIC = "basic"
+    CONTACT = "contact"
+    ATMOSPHERE = "atmosphere"
+
+class PlaceDetailsRequest(BaseModel):
+    place_id: str = Field(..., min_length=1)
+    session_token: Optional[str] = Field(None, min_length=1)
+    categories: List[PlaceDataCategory] = Field(default = [PlaceDataCategory.BASIC])
+
+
+# For Text Search
+class LocalizedText(BaseModel):
+    text: str
+    language_code: Optional[str] = Field(None, alias="languageCode")
+class TextSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2)
+    location: Optional[Location] = None
+    radius: Optional[int] = Field(None, ge=100, le=50000)
+    place_types: Optional[str] = None
+    field_mask: Optional[List[str]] = None
+class PlaceSearchResult(BaseModel):
+    place_id: str = Field(alias="id")
+    display_name: Optional[LocalizedText] = Field(None, alias="displayName")
+    formatted_address: Optional[str] = Field(None, alias="formattedAddress")
+    location: Optional[Location] = None
+    types: List[str] = []
+    
+    photos: Optional[PhotoInfo] = None 
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class TextSearchResponse(BaseModel):
+    results: List[PlaceSearchResult] = Field(default_factory=list, alias="places")
     
     model_config = ConfigDict(from_attributes=True)

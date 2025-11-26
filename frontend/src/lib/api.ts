@@ -66,12 +66,48 @@ export interface Position {
   lng: number;
 }
 
-export interface SearchPlacesRequest {
+// --- NEW TEXT SEARCH TYPES START ---
+export interface LocalizedText {
+  text: string;
+  languageCode?: string;
+}
+
+export interface PhotoInfo {
+  photo_url: string;
+  size: [number, number]; // Tuple matching Python's Tuple[int, int]
+}
+
+export interface PlaceSearchResult {
+  id: string; // Backend sends "id"
+  displayName: LocalizedText; // Backend sends "displayName"
+  formattedAddress?: string; // Backend sends "formattedAddress"
+  location?: Position;
+  types: string[];
+  photos?: PhotoInfo | null;
+}
+
+export interface TextSearchRequest {
+  query: string;
+  location?: Position;
+  radius?: number; // Integer 100-50000
+  place_types?: string; // e.g., "restaurant"
+  field_mask?: string[]; // Optional: ["places.id", "places.displayName"]
+}
+
+export interface TextSearchResponse {
+  places: PlaceSearchResult[]; // Backend sends "places"
+}
+// --- NEW TEXT SEARCH TYPES END ---
+
+export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
+
+export interface AutocompleteRequest {
   query: string;
   user_location?: Position;
   radius?: number; // in meters
   place_types?: string; // Comma-separated string
   language?: string;
+  session_token?: string | null;
 }
 
 export interface AutocompletePrediction {
@@ -480,6 +516,25 @@ class ApiClient {
     return this.request(`/friends/${friendId}`, { method: "DELETE" });
   }
 
+  // --- MAP ENDPOINTS ---
+
+  // Integrated Text Search Function
+  async textSearchPlace(request: TextSearchRequest): Promise<TextSearchResponse> {
+    const response = await this.request<TextSearchResponse>("/map/text-search", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+    return response;
+  }
+
+  async autocomplete(request: AutocompleteRequest): 
+    Promise<AutocompleteResponse> {
+      const response = await this.request<AutocompleteResponse>("/map/autocomplete", {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+      return response;
+    }
   // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
@@ -527,22 +582,27 @@ class ApiClient {
     });
   }
 
-  // --- MAP ENDPOINTS ---
-  async searchPlaces(
-    request: SearchPlacesRequest
-  ): Promise<AutocompleteResponse> {
-    const response = await this.request<AutocompleteResponse>("/map/search", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
-    return response;
-  }
+  async getPlaceDetails(
+      placeId: string,
+      sessionToken?: string | null,
+      categories?: PlaceDataCategory[] 
+    ): Promise<PlaceDetails> {
+      
+      const params = new URLSearchParams();
 
-  async getPlaceDetails(placeId: string): Promise<PlaceDetails> {
-    return this.request<PlaceDetails>(`/map/place/${placeId}`, {
-      method: "GET",
-    });
-  }
+      if (sessionToken) {
+        params.append("session_token", sessionToken);
+      }
+
+      if (categories && categories.length > 0) {
+        categories.forEach((cat) => params.append("categories", cat));
+      }
+
+      const queryString = params.toString();
+      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+      return this.request<PlaceDetails>(path, { method: "GET" });
+    }
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {
@@ -555,18 +615,6 @@ class ApiClient {
     return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
       method: "POST",
       body: JSON.stringify(position),
-    });
-  }
-
-  async birdDistance(origin: Position, destination: Position): Promise<number> {
-    const params = new URLSearchParams({
-      origin_lat: origin.lat.toString(),
-      origin_lng: origin.lng.toString(),
-      destination_lat: destination.lat.toString(),
-      destination_lng: destination.lng.toString(),
-    });
-    return this.request<number>(`/map/bird-distance?${params.toString()}`, {
-      method: "GET",
     });
   }
 
