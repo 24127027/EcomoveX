@@ -519,44 +519,52 @@ class ApiClient {
   // --- MAP ENDPOINTS ---
 
   // Integrated Text Search Function
-  async textSearchPlace(request: TextSearchRequest): Promise<TextSearchResponse> {
-    const response = await this.request<TextSearchResponse>("/map/text-search", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+  async textSearchPlace(
+    request: TextSearchRequest
+  ): Promise<TextSearchResponse> {
+    const response = await this.request<TextSearchResponse>(
+      "/map/text-search",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
     return response;
   }
 
-  async autocomplete(request: AutocompleteRequest): 
-    Promise<AutocompleteResponse> {
-      const response = await this.request<AutocompleteResponse>("/map/autocomplete", {
+  async autocomplete(
+    request: AutocompleteRequest
+  ): Promise<AutocompleteResponse> {
+    const response = await this.request<AutocompleteResponse>(
+      "/map/autocomplete",
+      {
         method: "POST",
         body: JSON.stringify(request),
-      });
-      return response;
-    }
+      }
+    );
+    return response;
+  }
 
   async getPlaceDetails(
-      placeId: string,
-      sessionToken?: string | null,
-      categories?: PlaceDataCategory[] 
-    ): Promise<PlaceDetails> {
-      
-      const params = new URLSearchParams();
+    placeId: string,
+    sessionToken?: string | null,
+    categories?: PlaceDataCategory[]
+  ): Promise<PlaceDetails> {
+    const params = new URLSearchParams();
 
-      if (sessionToken) {
-        params.append("session_token", sessionToken);
-      }
-
-      if (categories && categories.length > 0) {
-        categories.forEach((cat) => params.append("categories", cat));
-      }
-
-      const queryString = params.toString();
-      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
-
-      return this.request<PlaceDetails>(path, { method: "GET" });
+    if (sessionToken) {
+      params.append("session_token", sessionToken);
     }
+
+    if (categories && categories.length > 0) {
+      categories.forEach((cat) => params.append("categories", cat));
+    }
+
+    const queryString = params.toString();
+    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PlaceDetails>(path, { method: "GET" });
+  }
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {
@@ -572,6 +580,7 @@ class ApiClient {
     });
   }
 
+  // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
       method: "POST",
@@ -617,8 +626,6 @@ class ApiClient {
       }),
     });
   }
-
- 
 
   // --- WEATHER & AIR ENDPOINTS ---
 
