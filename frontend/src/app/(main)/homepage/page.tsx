@@ -67,26 +67,38 @@ const parseDate = (dateStr: string) => {
 };
 
 export default function HomePage() {
+  const TAO_DAN_PLACE_ID = "ChIJq46ErLopCzER10OzGact5ew";
+
   const [searchQuery, setSearchQuery] = useState("");
   const [heart, setHeart] = useState(false);
-  const [bookMark, setBookMark] = useState(false);
+  const [loadingHeart, setLoadingHeart] = useState(false);
   const router = useRouter();
   const [requestCount, setRequestCount] = useState(0);
 
   // State for Plan
   const [upcomingPlan, setUpcomingPlan] = useState<TravelPlan | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
-  // State for Weather & AQI
-  const [weather, setWeather] = useState<CurrentWeatherResponse | null>(null);
-  const [airQuality, setAirQuality] = useState<AirQualityResponse | null>(null);
-  const [loadingWeather, setLoadingWeather] = useState(true);
-  const [locationError, setLocationError] = useState(false);
 
+  // State for Rewards
   const [userReward, setUserReward] = useState<UserRewardResponse | null>(null);
   const [nextLevelTarget, setNextLevelTarget] = useState(100);
   const [loadingRewards, setLoadingRewards] = useState(true);
 
-  // 1. Lấy số lượng lời mời kết bạn
+  useEffect(() => {
+    const checkSavedStatus = async () => {
+      try {
+        const savedList = await api.getSavedDestinations();
+        const isSaved = savedList.some(
+          (item) => item.destination_id === TAO_DAN_PLACE_ID
+        );
+        setHeart(isSaved);
+      } catch (error) {
+        console.error("Failed to check saved status", error);
+      }
+    };
+    checkSavedStatus();
+  }, []);
+
   useEffect(() => {
     const fetchRequests = async () => {
       try {
@@ -99,7 +111,6 @@ export default function HomePage() {
     fetchRequests();
   }, []);
 
-  // 2. Lấy kế hoạch sắp tới
   useEffect(() => {
     const fetchUpcomingPlan = async () => {
       try {
@@ -175,6 +186,27 @@ export default function HomePage() {
     setSearchQuery(e.target.value);
   };
 
+  const handleHeartClick = async () => {
+    if (loadingHeart) return; // Prevent multiple clicks
+    setLoadingHeart(true);
+    const previousState = heart;
+    setHeart(!heart);
+    try {
+      if (!previousState) {
+        await api.saveDestination(TAO_DAN_PLACE_ID);
+        console.log("Destination saved");
+      } else {
+        await api.unsaveDestination(TAO_DAN_PLACE_ID);
+        console.log("Destination unsaved");
+      }
+    } catch (error) {
+      console.error("Error toggling save: ", error);
+      setHeart(previousState); // Revert state on error
+    } finally {
+      setLoadingHeart(false);
+    }
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -185,6 +217,10 @@ export default function HomePage() {
   };
 
   const handleSearchNearby = () => {
+    const fallbackToMap = () => {
+      console.log("Redirecting to map without location");
+      router.push("/map_page?q=eco-friendly");
+    };
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser.");
     }
@@ -196,18 +232,33 @@ export default function HomePage() {
         );
       },
       (error) => {
-        console.error("Error getting location:", error);
-        alert(
-          "Unable to retrieve your location. Please check your permissions."
-        );
-        router.push("/map_page?q=eco-friendly");
+        console.warn("Geolocation error:", error);
+        fallbackToMap();
       },
-      { timeout: 10000 }
+      { timeout: 10000, maximumAge: Infinity, enableHighAccuracy: false }
     );
   };
 
   const handleTagClick = (tag: string) => {
-    router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+    if (!navigator.geolocation) {
+      router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        router.push(
+          `/map_page?q=${encodeURIComponent(
+            tag
+          )}&lat=${latitude}&lng=${longitude}`
+        );
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+      },
+      { timeout: 15000, maximumAge: Infinity, enableHighAccuracy: false }
+    );
   };
 
   return (
@@ -247,7 +298,7 @@ export default function HomePage() {
             {["Café", "Restaurant", "Park", "Hotel", "Shopping"].map((i) => (
               <button
                 key={i}
-                onClick={() => handleTagClick(i)} // Thêm sự kiện click
+                onClick={() => handleTagClick(i)}
                 className={`${jost.className} cursor-pointer bg-white text-[#53B552] rounded-full px-4 py-1 text-sm font-medium hover:text-white hover:bg-green-500 transition-colors`}
               >
                 {i}
@@ -281,22 +332,20 @@ export default function HomePage() {
             </div>
             <div className="flex gap-2 justify-between items-center mt-3">
               <div className="flex gap-3">
-                <Heart
-                  className={`${
-                    heart
-                      ? "fill-green-600 stroke-green-600 scale-110"
-                      : "stroke-green-600"
-                  } cursor-pointer transition-all size-6 text-green-600 strokeWidth={1.5} hover:fill-green-600 `}
-                  onClick={() => setHeart(!heart)}
-                />
-                <Bookmark
-                  onClick={() => setBookMark(!bookMark)}
-                  className={`${
-                    bookMark
-                      ? "fill-green-600 stroke-green-600 scale-110"
-                      : "stroke-green-600"
-                  } cursor-pointer transition-all size-6 text-green-600 strokeWidth={1.5} hover:fill-green-600 `}
-                />
+                <button
+                  onClick={handleHeartClick}
+                  disabled={loadingHeart}
+                  className="focus:outline-none"
+                >
+                  <Heart
+                    className={`${
+                      heart
+                        ? "fill-green-600 stroke-green-600 scale-110"
+                        : "stroke-green-600"
+                    } cursor-pointer transition-all size-6 text-green-600 strokeWidth={1.5} hover:fill-green-600 `}
+                    onClick={() => setHeart(!heart)}
+                  />
+                </button>
               </div>
               <div className="text-right">
                 <p

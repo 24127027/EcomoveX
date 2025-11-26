@@ -79,13 +79,9 @@ export default function FriendsPage() {
     fetchData();
   }, []);
 
-  // --- 2. LOGIC SCROLL CHAT ---
-  // Mỗi khi messages thay đổi, tự cuộn xuống dưới cùng
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // --- 3. LOGIC WEBSOCKET & CHAT ---
 
   // Hàm mở Chat
   const openChat = async (friend: FriendResponse) => {
@@ -167,18 +163,24 @@ export default function FriendsPage() {
     socketRef.current = ws;
   };
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim() || !socketRef.current) return;
+  const isSendingRef = useRef(false);
 
-    // Gửi tin nhắn qua Socket
-    const payload = { content: inputMessage.trim() };
+  const handleSendMessage = () => {
+    if (!inputMessage.trim() || !socketRef.current || isSendingRef.current)
+      return;
+    isSendingRef.current = true;
+    const contentToSend = inputMessage.trim();
+    setInputMessage("");
+    console.log("Sending message", inputMessage);
+
+    const payload = { content: contentToSend };
     socketRef.current.send(JSON.stringify(payload));
 
-    setInputMessage("");
-    // Lưu ý: Không cần setMessages thủ công ở đây,
-    // vì Server sẽ broadcast lại tin nhắn đó và ws.onmessage sẽ hứng nó.
+    setTimeout(() => {
+      isSendingRef.current = false;
+    }, 100);
+    document.querySelector("input")?.focus();
   };
-
   const closeChat = () => {
     setActiveChatFriend(null);
     if (socketRef.current) {
@@ -393,7 +395,14 @@ export default function FriendsPage() {
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return;
+
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
                 placeholder="Type a message..."
                 className="flex-1 bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-green-400 text-gray-700"
               />

@@ -60,7 +60,7 @@ export default function MapPage() {
         return { lat, lng };
       }
     }
-    return { lat: 10.7756, lng: 106.7019 }; 
+    return { lat: 10.7756, lng: 106.7019 };
   });
 
   const [selectedLocation, setSelectedLocation] =
@@ -419,7 +419,7 @@ export default function MapPage() {
           {/* Search Bar */}
           <div className="absolute top-5 left-4 right-4 z-10">
             <div className="bg-white rounded-full shadow-lg flex items-center p-3 transition-transform active:scale-95">
-              <a href="/user_page/main_page">
+              <a href="/homepage">
                 <ChevronLeft className="text-gray-500 mr-2 cursor-pointer hover:text-green-600" />
               </a>
               <Search size={18} className="text-green-600 mr-2" />
