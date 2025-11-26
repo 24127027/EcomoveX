@@ -36,7 +36,7 @@ async def upload_file(
 ):
     return await StorageService.upload_file(db, file, current_user["user_id"], category, bucket_name)
 
-@router.delete("/files/{blob_name:path}", status_code=status.HTTP_200_OK)  # Changed from /delete/
+@router.delete("/files/{blob_name:path}", status_code=status.HTTP_200_OK) 
 async def delete_file(
     blob_name: str = Path(...),
     bucket_name: Optional[str] = Query(None),
