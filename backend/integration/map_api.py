@@ -7,7 +7,6 @@ from schemas.map_schema import *
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 from schemas.destination_schema import Location, Bounds
-import requests
 
 TRANSPORT_MODE_TO_ROUTES_API = {
     "car": "DRIVE",
@@ -25,17 +24,96 @@ class MapAPI:
             raise ValueError("Google map API key is required")
         
         self.base_url = "https://maps.googleapis.com/maps/api"
+        self.new_base_url = "https://places.googleapis.com/v1/places/"
         self.client = httpx.AsyncClient(timeout=30.0)
     
+    async def text_search_place(self, request: TextSearchRequest) -> TextSearchResponse:
+        url = f"{self.new_base_url}:searchText"
+        
+        default_mask = (
+            "places.id,"
+            "places.displayName,places.formattedAddress,places.photos,places.types,places.location"
+        )
+
+        selected_mask = request.field_mask if request.field_mask else default_mask
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": self.api_key,
+            "X-Goog-FieldMask": selected_mask
+        }
+
+        body = {
+            "textQuery": request.query
+        }
+        if request.location and request.radius:
+            body["locationBias"] = {
+                "circle": {
+                    "center": {
+                        "latitude": request.location.latitude,
+                        "longitude": request.location.longitude
+                    },
+                    "radius": request.radius
+                }
+            }
+
+        if request.place_types:
+            body["includedType"] = request.place_types
+
+        try:
+            response = await self.client.post(url, headers=headers, json=body)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # --- MANUALLY PROCESS PHOTOS ---
+            # We must iterate here to call the async generate_place_photo_url function
+            # because Pydantic validators cannot easily make async calls.
+            if "places" in data:
+                for place in data["places"]:
+                    raw_photos = place.get("photos", [])
+                    
+                    # If photos exist, pick the first one
+                    if raw_photos and isinstance(raw_photos, list) and len(raw_photos) > 0:
+                        first_photo = raw_photos[0]
+                        
+                        # New API returns 'name' (resource name) instead of 'photo_reference'
+                        ref = first_photo.get("name")
+                        
+                        # Call your function
+                        final_url = await self.generate_place_photo_url(ref)
+                        
+                        width = first_photo.get("widthPx", 0)
+                        height = first_photo.get("heightPx", 0)
+                        
+                        # Replace list with single PhotoInfo dict structure
+                        place["photos"] = {
+                            "photo_url": final_url,
+                            "size": (width, height)
+                        }
+                    else:
+                        # Ensure it's None so Pydantic doesn't complain
+                        place["photos"] = None
+
+            return TextSearchResponse(**data)
+        except httpx.HTTPStatusError as e:
+            print(f"Google Places API Error: {e.response.text}")
+            raise e
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+            raise e
+
     async def close(self):
         await self.client.aclose()
 
-    async def autocomplete_place(self, data: SearchLocationRequest, components: str = "country:vn") -> AutocompleteResponse:
+    async def autocomplete_place(self, data: AutocompleteRequest, components: str = "country:vn") -> AutocompleteResponse:
         try:
             params = {
                 "input": data.query.strip(),
                 "language": data.language,
-                "key": self.api_key
+                "key": self.api_key,
+                "limit": 5,
+                "sessiontoken": data.session_token
             }
 
             if data.user_location:
@@ -51,6 +129,8 @@ class MapAPI:
             response = await self.client.get(url, params=params)
             data = response.json()
             if data.get("status") != "OK":
+                if data.get("status") == "ZERO_RESULTS":
+                    return AutocompleteResponse(predictions=[])
                 raise ValueError(f"Error fetching autocomplete places: {data.get('status')}")
             list = data.get("predictions", [])
             list_places = []
@@ -69,86 +149,84 @@ class MapAPI:
             print(f"Error in autocomplete_place: {e}")
             raise e
 
-    async def get_place_details_from_autocomplete(self, place_id: str, language: str = "vi") -> PlaceDetailsResponse:
+    async def get_place_details(self, place_id: str, 
+                                fields: list[str], 
+                                session_token: Optional[str] = None, 
+                                language: str = "vi") -> PlaceDetailsResponse:
         try:
-            fields = [
-                "place_id",
-                "name", 
-                "formatted_address",
-                "address_components",
-                "formatted_phone_number",
-                "geometry/location",
-                "geometry/viewport",
-                "types",
-                "rating",
-                "user_ratings_total",
-                "price_level",
-                "opening_hours",
-                "website",
-                "photos",
-                "reviews",
-                "vicinity",
-                "utc_offset",
-            ]
             params = {
                 "place_id": place_id,
                 "fields": ",".join(fields),
                 "language": language,
-                "key": self.api_key
+                "key": self.api_key,
             }
+
+            if session_token:
+                params["sessiontoken"] = session_token
             
             url = f"{self.base_url}/place/details/json"
             response = await self.client.get(url, params=params)
             data = response.json()
             if data.get("status") != "OK":
                 raise ValueError(f"Error fetching place details: {data.get('status')}")
+            result = data.get("result", {})
+
             return PlaceDetailsResponse(
-                place_id=data.get("result", {}).get("place_id"),
-                name=data.get("result", {}).get("name"),
-                formatted_address=data.get("result", {}).get("formatted_address"),
+                place_id=result.get("place_id"),
+                name=result.get("name"),
+                formatted_address=result.get("formatted_address"),
                 address_components=[AddressComponent(
                     name=comp.get("long_name"),
                     types=comp.get("types", [])
-                ) for comp in data.get("result", {}).get("address_components", [])],
-                formatted_phone_number=data.get("result", {}).get("formatted_phone_number"),
+                ) for comp in result.get("address_components", [])],
+                # FIX: Actually map the phone number
+                formatted_phone_number=result.get("formatted_phone_number"), 
+                
                 geometry=Geometry(
                     location=Location(
-                        latitude=data.get("result", {}).get("geometry", {}).get("location", {}).get("lat"),
-                        longitude=data.get("result", {}).get("geometry", {}).get("location", {}).get("lng")
+                        latitude=result.get("geometry", {}).get("location", {}).get("lat"),
+                        longitude=result.get("geometry", {}).get("location", {}).get("lng")
                     ),
                     bounds=Bounds(
                         northeast=Location(
-                            latitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
-                            longitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
+                            latitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lat"),
+                            longitude=result.get("geometry", {}).get("viewport", {}).get("northeast", {}).get("lng")
                         ),
                         southwest=Location(
-                            latitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
-                            longitude=data.get("result", {}).get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
+                            latitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lat"),
+                            longitude=result.get("geometry", {}).get("viewport", {}).get("southwest", {}).get("lng")
                         )
-                    ),
+                    ) if result.get("geometry", {}).get("viewport") else None,
                 ),
-                types=data.get("result", {}).get("types", []),
-                rating=data.get("result", {}).get("rating"),
-                user_ratings_total=data.get("result", {}).get("user_ratings_total"),
-                price_level=data.get("result", {}).get("price_level"),
+                types=result.get("types", []),
+                rating=result.get("rating"),
+                user_ratings_total=result.get("user_ratings_total"),
+                price_level=result.get("price_level"),
+                
+                # Uncommented and guarded opening_hours
                 opening_hours=OpeningHours(
-                    open_now=data.get("result", {}).get("opening_hours", {}).get("open_now", False),
-                    periods=data.get("result", {}).get("opening_hours", {}).get("periods"),
-                    weekday_text=data.get("result", {}).get("opening_hours", {}).get("weekday_text")
-                ) if data.get("result", {}).get("opening_hours") else None,
-                website=data.get("result", {}).get("website"),
+                    open_now=result.get("opening_hours", {}).get("open_now", False),
+                    periods=result.get("opening_hours", {}).get("periods", []),
+                    weekday_text=result.get("opening_hours", {}).get("weekday_text", [])
+                ) if result.get("opening_hours") else None,
+                
+                # FIX: Actually map the website
+                website=result.get("website"),
+                
                 photos=[PhotoInfo(
                     photo_url=await self.generate_place_photo_url(photo.get("photo_reference")),  
                     size=(photo.get("width"), photo.get("height"))
-                ) for photo in data.get("result", {}).get("photos", [])] if data.get("result", {}).get("photos") else None,
+                ) for photo in result.get("photos", [])] if result.get("photos") else None,
+                
                 reviews=[Review(
                     rating=review.get("rating"),
                     text=review.get("text")
-                ) for review in data.get("result", {}).get("reviews", [])] if data.get("result", {}).get("reviews") else None,
-                utc_offset=data.get("result", {}).get("utc_offset"),
+                ) for review in result.get("reviews", [])] if result.get("reviews") else None,
+                
+                utc_offset=result.get("utc_offset"),
             )
         except Exception as e:
-            print(f"Error in get_place_details_from_autocomplete: {e}")
+            print(f"Error in get_place_details: {e}")
             raise e
             
     async def reverse_geocode(
@@ -389,17 +467,38 @@ class MapAPI:
         maxwidth: int = 400,
     ) -> str:
         try:
-            params = {
-                "maxwidth": maxwidth,
-                "photoreference": photo_reference,
-                "key": self.api_key
-            }
+            # Check if this is a New API resource name (starts with "places/")
+            if photo_reference.startswith("places/"):
+                
+                # FIX: Do NOT use self.base_url here. Hardcode the V1 URL.
+                # The photo_reference already contains "places/PLACE_ID/photos/PHOTO_ID"
+                base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
+                
+                params = {
+                    "maxHeightPx": maxwidth,
+                    "maxWidthPx": maxwidth,
+                    "key": self.api_key
+                }
+                
+                # Build the URL string
+                request = self.client.build_request("GET", base_url, params=params)
+                return str(request.url)
 
-            base_url = "https://maps.googleapis.com/maps/api/place/photo"
-            response = requests.get(base_url, params=params, allow_redirects=False)
-            real_photo_url = response.headers.get("Location")
-
-            return real_photo_url
+            else:
+                # Legacy API Logic (Keep this as is)
+                params = {
+                    "maxwidth": maxwidth,
+                    "photoreference": photo_reference,
+                    "key": self.api_key
+                }
+                url = f"{self.base_url}/place/photo"
+                request = self.client.build_request("GET", url, params=params)
+                response = await self.client.send(request, follow_redirects=False)
+                
+                if response.status_code in (301, 302, 303, 307):
+                    return response.headers.get("Location")
+                else:
+                    return str(response.url)
 
         except Exception as e:
             print(f"Error in generate_place_photo_url: {e}")

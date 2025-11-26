@@ -14,29 +14,46 @@ from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 
-@router.post("/search", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
-async def search_location(
-    request: SearchLocationRequest,
+@router.post("/text-search", response_model=TextSearchResponse, status_code=status.HTTP_200_OK)
+async def text_search_place(
+    request: TextSearchRequest,
     user_db: AsyncSession = Depends(get_db)
 ):
-    result = await mapService.search_location(user_db, request)
+    result = await mapService.text_search_place(user_db, request)
+    return result
+
+@router.post("/autocomplete", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
+async def autocomplete(
+    request: AutocompleteRequest,
+    user_db: AsyncSession = Depends(get_db)
+):
+    result = await mapService.autocomplete(user_db, request)
     return result
 
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
     place_id: str = Path(..., min_length=1),
+    session_token: Optional[str] = Query(None),
+    categories: List[PlaceDataCategory] = Query(
+        default=[PlaceDataCategory.BASIC]
+    ),
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    result = await mapService.get_location_details(
+    request_data = PlaceDetailsRequest(
         place_id=place_id,
+        session_token=session_token,
+        categories=categories
     )
+
+    result = await mapService.get_location_details(request_data)
     
     activity_data = UserActivityCreate(
         activity=Activity.search_destination,
         destination_id=place_id
     )
     await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    
     return result
 
 @router.post("/geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)
@@ -65,15 +82,3 @@ async def search_along_route(
         search_type=search_type,
     )
     return result
-
-@router.get("/bird-distance", response_model = float, status_code=status.HTTP_200_OK)
-async def calculate_bird_distance(
-    origin_lat: float = Query(..., ge=-90.0, le=90.0),
-    origin_lng: float = Query(..., ge=-180.0, le=180.0),
-    destination_lat: float = Query(..., ge=-90.0, le=90.0),
-    destination_lng: float = Query(..., ge=-180.0, le=180.0),
-):
-    origin = (origin_lat, origin_lng)
-    destination = (destination_lat, destination_lng)
-    distance = await mapService.calculate_bird_distance(origin=origin, destination=destination)
-    return distance
