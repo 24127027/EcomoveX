@@ -32,7 +32,7 @@ class MapAPI:
         
         default_mask = (
             "places.id,"
-            "places.displayName, places.formattedAddress, places.photos, places.types, places.location"
+            "places.displayName,places.formattedAddress,places.photos,places.types,places.location"
         )
 
         selected_mask = request.field_mask if request.field_mask else default_mask
