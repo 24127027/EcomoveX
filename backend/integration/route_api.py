@@ -92,10 +92,13 @@ class RouteAPI:
             }
             
             response = await self.client.post(self.base_url, json=payload, headers=headers)
-            response_data = response.json()
             
             if response.status_code != 200:
-                raise ValueError(f"Error fetching routes: {response_data}")
+                raise ValueError(f"Error fetching routes: HTTP {response.status_code}")
+            
+            response_data = response.json()
+            if not response_data.get("routes"):
+                raise ValueError("No routes found in response")
             
             routes = []
             for route_data in response_data.get("routes", []):
@@ -325,10 +328,13 @@ class RouteAPI:
             }
             
             response = await self.client.post(self.base_url, json=payload, headers=headers)
-            response_data = response.json()
             
             if response.status_code != 200:
-                raise ValueError(f"Error fetching eco-friendly routes: {response_data}")
+                raise ValueError(f"Error fetching eco-friendly routes: HTTP {response.status_code}")
+            
+            response_data = response.json()
+            if not response_data.get("routes"):
+                raise ValueError("No routes found in response")
             
             routes = []
             for route_data in response_data.get("routes", []):
