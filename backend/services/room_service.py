@@ -147,7 +147,8 @@ class RoomService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create room"
                 )
-            await RoomRepository.add_member(db, user_id, new_room.id)
+            room_owner = AddMemberCreate(id=user_id, role=MemberRole.admin)
+            await RoomRepository.add_member(db, new_room.id, room_owner)
             for member_id in data.member_ids:
                 if member_id != user_id:
                     member = await RoomRepository.add_member(db, member_id, new_room.id)
@@ -216,18 +217,18 @@ class RoomService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Current user ID {current_user_id} is not a member of room ID {room_id}"
                 )
-            for user_id in data.ids:
-                is_member = await RoomRepository.is_member(db, user_id, room_id)
+            for user_data in data.data:
+                is_member = await RoomRepository.is_member(db, user_data.id, room_id)
                 if is_member:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"User ID {user_id} is already a member of room ID {room_id}"
+                        detail=f"User ID {user_data.id} is already a member of room ID {room_id}"
                     )
-                success = await RoomRepository.add_member(db, user_id, room_id)
+                success = await RoomRepository.add_member(db, room_id, user_data)
                 if not success:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to add user ID {user_id} to room ID {room_id}"
+                        detail=f"Failed to add user ID {user_data.id} to room ID {room_id}"
                     )
             room = await RoomRepository.get_room_by_id(db, room_id)
             members = await RoomRepository.list_members(db, room_id)

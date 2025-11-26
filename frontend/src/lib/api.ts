@@ -1,5 +1,3 @@
-import { types } from "util";
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // --- INTERFACES & TYPES ---
@@ -10,9 +8,9 @@ interface LoginCredentials {
 }
 
 export interface UserCredentialUpdate {
-  old_password: string; // Bắt buộc
-  new_email?: string; // Optional
-  new_password?: string; // Optional
+  old_password: string;
+  new_email?: string;
+  new_password?: string;
 }
 
 interface SignupData {
@@ -234,7 +232,21 @@ export interface RoomResponse {
   created_at: string;
   member_ids: number[]; // Quan trọng: cần trường này để lọc
 }
+//REWARD & MISSION TYPES
+export interface Mission {
+  id: number;
+  name: string;
+  description: string;
+  reward_type: string;
+  action_trigger: string;
+  value: number;
+}
 
+export interface UserRewardResponse {
+  user_id: number;
+  mission: Mission[];
+  total_points: number;
+}
 // --- API CLIENT CLASS ---
 
 class ApiClient {
@@ -351,7 +363,13 @@ class ApiClient {
     });
   }
 
-  async unsaveDestination(destinationId: number): Promise<void> {
+  async saveDestination(destinationId: string): Promise<any> {
+    return this.request(`/destinations/saved/${destinationId}`, {
+      method: "POST",
+    });
+  }
+
+  async unsaveDestination(destinationId: string): Promise<void> {
     return this.request(`/destinations/saved/${destinationId}`, {
       method: "DELETE",
     });
@@ -571,6 +589,17 @@ class ApiClient {
       `/air/air-quality?lat=${lat}&lng=${lng}`,
       { method: "GET" }
     );
+  }
+
+  //REWARD & MISSION ENDPOINTS
+  async getAllMissions(): Promise<Mission[]> {
+    return this.request<Mission[]>("/rewards/missions", { method: "GET" });
+  }
+
+  async getUserRewards(): Promise<UserRewardResponse> {
+    return this.request<UserRewardResponse>("/rewards/me/missions", {
+      method: "GET",
+    });
   }
 }
 

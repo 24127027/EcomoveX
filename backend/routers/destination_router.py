@@ -12,7 +12,7 @@ router = APIRouter(prefix="/destinations", tags=["Destinations"])
 
 @router.post("/saved/{destination_id}", response_model=UserSavedDestinationResponse, status_code=status.HTTP_201_CREATED)
 async def save_destination_for_current_user(
-    destination_id: str = Path(..., gt=0),
+    destination_id: str = Path(..., min_length=1),
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
