@@ -36,7 +36,6 @@ const addDistanceText = async (details: PlaceDetails, userPos: Position): Promis
   };
 };
 
-// --- NEW: Adapter to convert Text Search Result to UI Format ---
 const convertSearchResultToDetails = (result: PlaceSearchResult, userPos: Position): PlaceDetailsWithDistance => {
   const distanceKm = result.location ? birdDistance(userPos, result.location) : 0;
   const distanceText = distanceKm < 1 
@@ -44,23 +43,28 @@ const convertSearchResultToDetails = (result: PlaceSearchResult, userPos: Positi
     : `${distanceKm.toFixed(1)}km away`;
 
   return {
-    place_id: result.place_id,
-    name: result.display_name.text,
-    formatted_address: result.formatted_address || "",
-    // Map flat location to Google Maps geometry structure
+    // Map JSON "id" -> UI "place_id"
+    place_id: result.id, 
+    
+    // Map JSON "displayName.text" -> UI "name"
+    // Safe navigation (?.) prevents crash if displayName is null
+    name: result.displayName?.text || "Unknown Place", 
+    
+    // Map JSON "formattedAddress" -> UI "formatted_address"
+    formatted_address: result.formattedAddress || "",
+    
     geometry: {
       location: result.location || { lat: 0, lng: 0 }
     },
-    types: result.types,
-    // Wrap single photo object into array to match PlaceDetails interface
+    types: result.types || [],
     photos: result.photos ? [{
       photo_url: result.photos.photo_url,
       width: result.photos.size[0],
       height: result.photos.size[1]
     }] : [],
-    sustainable_certified: false, // Default
+    sustainable_certified: false,
     distanceText: distanceText,
-    rating: 0 // Text Search API v1 usually requires specific field mask for rating, defaults to 0 if not present
+    rating: 0 
   };
 };
 
@@ -189,16 +193,17 @@ export default function MapPage() {
       setIsSearching(true);
       
       try {
-        // 2. Call Text Search API
+        // Use 'any' cast temporarily if Typescript complains about strict interface matching
+        // or ensure your API request method generic matches the new interface.
         const response = await api.textSearchPlace({
           query: searchQuery,
           location: userLocation,
-          radius: 5000, // Search near user
-          // Optional: Add place_types if you want to restrict
+          radius: 5000,
         });
 
         // 3. Convert results to UI format
-        const adaptedResults = response.results.map(res => 
+        const list = response.places || []; 
+        const adaptedResults = list.map(res => 
           convertSearchResultToDetails(res, userLocation)
         );
 

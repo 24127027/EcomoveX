@@ -78,13 +78,12 @@ export interface PhotoInfo {
 }
 
 export interface PlaceSearchResult {
-  place_id: string;
-  display_name: LocalizedText;
-  formatted_address?: string;
-  location?: Position; // Reusing your existing Position interface
+  id: string; // Backend sends "id"
+  displayName: LocalizedText; // Backend sends "displayName"
+  formattedAddress?: string; // Backend sends "formattedAddress"
+  location?: Position;
   types: string[];
-  // Single object (handled by backend logic), can be null
-  photos?: PhotoInfo | null; 
+  photos?: PhotoInfo | null;
 }
 
 export interface TextSearchRequest {
@@ -96,7 +95,7 @@ export interface TextSearchRequest {
 }
 
 export interface TextSearchResponse {
-  results: PlaceSearchResult[];
+  places: PlaceSearchResult[]; // Backend sends "places"
 }
 // --- NEW TEXT SEARCH TYPES END ---
 

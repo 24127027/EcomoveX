@@ -466,31 +466,26 @@ class MapAPI:
         photo_reference: str,
         maxwidth: int = 400,
     ) -> str:
-        """
-        Resolves the photo URL. 
-        Modified to support both Legacy (302 Redirect) and New API (Direct Media).
-        """
         try:
-            # Check if this is a New API resource name (e.g., "places/ChIJ.../photos/...")
+            # Check if this is a New API resource name (starts with "places/")
             if photo_reference.startswith("places/"):
-                # The New API Media endpoint
-                # Note: This endpoint returns the image directly (200 OK), not a redirect.
-                # We can simply construct the string, or make a request to validate it.
-                # To strictly follow the "generate" pattern via client request:
-                url = f"{self.base_url}/{photo_reference}/media"
+                
+                # FIX: Do NOT use self.base_url here. Hardcode the V1 URL.
+                # The photo_reference already contains "places/PLACE_ID/photos/PHOTO_ID"
+                base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
+                
                 params = {
                     "maxHeightPx": maxwidth,
                     "maxWidthPx": maxwidth,
                     "key": self.api_key
                 }
-                # Construct the final URL (New API doesn't require a handshake, but we return the string)
-                # If you actually want to 'hit' the API, you can, but it downloads the image bytes.
-                # We will return the constructed URL.
-                request = self.client.build_request("GET", url, params=params)
+                
+                # Build the URL string
+                request = self.client.build_request("GET", base_url, params=params)
                 return str(request.url)
 
             else:
-                # Legacy API Logic (Legacy 'photo_reference' hash)
+                # Legacy API Logic (Keep this as is)
                 params = {
                     "maxwidth": maxwidth,
                     "photoreference": photo_reference,

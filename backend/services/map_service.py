@@ -25,44 +25,36 @@ FIELD_GROUPS = {
 class mapService:
     @staticmethod
     async def text_search_place(db: AsyncSession, data: TextSearchRequest) -> TextSearchResponse:
-        # Initialize map client (Assuming MapAPI init is synchronous, remove await if so)
-        # If you use a factory function, keep the await.
         map_client = await create_map_client()
         
         try:
-            # 1. Call the correct method name (text_search_place)
+            # 1. Call Google API
             response = await map_client.text_search_place(data)
 
-            # 2. Optimized Database Saving (Parallel)
-            # We create a list of coroutines to run them all at once
-            db_tasks = []
+            # 2. Save to Database Sequentially
+            # FIX: We cannot use asyncio.gather with a single DB session.
+            # We must await them one by one.
             for result in response.results:
-                # Prepare the task but don't await it yet
-                task = DestinationService.create_destination(
-                    db, 
-                    DestinationCreate(place_id=result.place_id)
-                )
-                db_tasks.append(task)
-            
-            # Run all DB saves in parallel. 
-            # return_exceptions=True ensures that if one DB save fails (e.g. duplicate), 
-            # it doesn't crash the search response.
-            if db_tasks:
-                await asyncio.gather(*db_tasks, return_exceptions=True)
+                try:
+                    await DestinationService.create_destination(
+                        db, 
+                        DestinationCreate(place_id=result.place_id)
+                    )
+                except Exception:
+                    # FIX: If creating fails (e.g. Duplicate Key), strictly ignore it.
+                    # We do not want to stop the loop or crash the request.
+                    pass
 
             return response
 
         except HTTPException as he:
-            # Re-raise HTTP exceptions (from the map client)
             raise he
         except Exception as e:
-            # Catch unexpected errors
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to search location: {str(e)}"
             )
         finally:
-            # Always close the client connection
             await map_client.close()
 
     @staticmethod

@@ -132,6 +132,6 @@ class PlaceSearchResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 class TextSearchResponse(BaseModel):
-    results: List[PlaceSearchResult] = Field(default_factory=list)
+    results: List[PlaceSearchResult] = Field(default_factory=list, alias="places")
     
     model_config = ConfigDict(from_attributes=True)
