@@ -49,7 +49,6 @@ class FAISSIndex:
             return False
     
     def search(self, query_vector: np.ndarray, k: int = 10) -> List[Tuple[str, float]]:
-        """Search for k nearest neighbors."""
         if self.index is None:
             print("Index not built")
             return []
@@ -58,7 +57,6 @@ class FAISSIndex:
             if query_vector.ndim == 1:
                 query_vector = query_vector.reshape(1, -1)
             
-            # Search
             distances, indices = self.index.search(query_vector, k)
             
             results = []
@@ -99,7 +97,6 @@ def load_destination_vectors(session: Session) -> Tuple[np.ndarray, List[str]]:
     return np.array([]), ids
 
 def build_index(session: Session, normalize: bool = False) -> bool:
-    """Build FAISS index from all destination embeddings."""
     try:
         vectors, ids = load_destination_vectors(session)
         if len(vectors) == 0:

@@ -16,8 +16,7 @@ from routers.route_router import router as route_router
 from routers.reward_router import router as reward_router
 from routers.room_router import router as room_router
 from routers.message_router import router as message_router
-# from routers.chatbot_router import router as chatbot_router
-# from routers.recommendation_router import router as recommendation_router
+from routers.chatbot_router import router as chatbot_router
 
 # Import database setup
 from database.db import engine
@@ -84,8 +83,7 @@ app.include_router(route_router)
 app.include_router(reward_router)
 app.include_router(room_router)
 app.include_router(message_router)
-#app.include_router(chatbot_router)
-#app.include_router(recommendation_router)
+app.include_router(chatbot_router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -100,26 +98,32 @@ async def root():
     return {
         "message": "Welcome to EcomoveX API",
         "version": "1.0.0",
-        "docs": "/docs",
         "status": "running"
     }
 
-
 # Health check endpoint
-@app.get("/health", tags=["Health"])
+@app.get("/health", tags=["Root"])
 async def health_check():
     return {
         "status": "healthy",
-        "database": "connected"
+        "version": "1.0.0"
     }
 
-
+# Global exception handler
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     print(f"HTTPException: {exc.status_code} - {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail},
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    print(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
     )
 
 # Run with: uvicorn main:app --reload
