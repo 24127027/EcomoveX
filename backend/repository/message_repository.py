@@ -179,15 +179,13 @@ class MessageRepository:
     @staticmethod
     async def create_session(
         db: AsyncSession,
-        user_id: int,
-        session_token: str,
-        status: str = "active"
+        session_data: ChatSessionCreate
     ) -> Optional[ChatSession]:
         try:
             session = ChatSession(
-                user_id=user_id,
-                session_token=session_token,
-                status=status
+                user_id=session_data.user_id,
+                session_token=session_data.session_token,
+                status=session_data.status
             )
             db.add(session)
             await db.commit()
@@ -263,13 +261,18 @@ class MessageRepository:
     async def update_session_status(
         db: AsyncSession,
         session_id: int,
-        status: str
+        updated_data: ChatSessionUpdate
     ) -> bool:
         try:
+            update_dict = {}
+            if updated_data.status is not None:
+                update_dict['status'] = updated_data.status
+            update_dict['last_active_at'] = func.now()
+            
             stmt = (
                 update(ChatSession)
                 .where(ChatSession.id == session_id)
-                .values(status=status, last_active_at=func.now())
+                .values(**update_dict)
             )
             result = await db.execute(stmt)
             await db.commit()
@@ -332,28 +335,26 @@ class MessageRepository:
     @staticmethod
     async def save_session_context(
         db: AsyncSession,
-        session_id: int,
-        key: str,
-        value: Any
+        context_data: ChatSessionContextCreate
     ) -> Optional[ChatSessionContext]:
         try:
             query = select(ChatSessionContext).where(
                 and_(
-                    ChatSessionContext.session_id == session_id,
-                    ChatSessionContext.key == key
+                    ChatSessionContext.session_id == context_data.session_id,
+                    ChatSessionContext.key == context_data.key
                 )
             )
             result = await db.execute(query)
             context = result.scalars().first()
             
             if context:
-                context.value = value
+                context.value = context_data.value
                 context.updated_at = func.now()
             else:
                 context = ChatSessionContext(
-                    session_id=session_id,
-                    key=key,
-                    value=value
+                    session_id=context_data.session_id,
+                    key=context_data.key,
+                    value=context_data.value
                 )
                 db.add(context)
             
@@ -362,7 +363,7 @@ class MessageRepository:
             return context
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Saving session context for session {session_id}, key {key} - {e}")
+            print(f"ERROR: Saving session context for session {context_data.session_id}, key {context_data.key} - {e}")
             return None
 
     @staticmethod
@@ -473,3 +474,28 @@ class MessageRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: Searching sessions - {e}")
             return []
+    
+    @staticmethod
+    async def get_message_count_by_room(db: AsyncSession, room_id: int):
+        try:
+            result = await db.execute(
+                select(func.count(Message.id)).where(Message.room_id == room_id)
+            )
+            return result.scalar() or 0
+        except SQLAlchemyError as e:
+            print(f"ERROR: counting messages for room {room_id} - {e}")
+            return 0
+    
+    @staticmethod
+    async def get_latest_message_by_room(db: AsyncSession, room_id: int):
+        try:
+            result = await db.execute(
+                select(Message)
+                .where(Message.room_id == room_id)
+                .order_by(Message.created_at.desc())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: getting latest message for room {room_id} - {e}")
+            return None
