@@ -1,13 +1,13 @@
 import numpy as np
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sklearn.cluster import KMeans
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
-from backend.schemas.cluster_schema import ClusterCreate
-from models.user import Activity
-from services.embedding_service import embed_user
-from services.recommendation_service import recommend_for_cluster_hybrid
+from schemas.cluster_schema import *
+from models.user import Activity, User, UserActivity
+from utils.embedded.embedding_utils import encode_text
 from repository.cluster_repository import ClusterRepository
 from repository.user_repository import UserRepository
 
@@ -48,6 +48,102 @@ class ClusterService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error computing cluster embedding: {e}"
             )
+    
+    @staticmethod
+    async def embed_preference(
+        db: AsyncSession,
+        user_id: int
+    ) -> Optional[List[float]]:
+        try:
+            user_result = await db.execute(select(User).where(User.id == user_id))
+            user = user_result.scalar_one_or_none()
+            if not user:
+                return None
+
+            text_parts = []
+
+            preference = await ClusterRepository.get_preference_by_user_id(db, user_id)
+            if preference:
+                if preference.weather_pref:
+                    weather = preference.weather_pref
+                    if 'min_temp' in weather and 'max_temp' in weather:
+                        text_parts.append(f"prefers temperature between {weather['min_temp']} and {weather['max_temp']} degrees")
+                
+                if preference.budget_range:
+                    budget = preference.budget_range
+                    if 'min' in budget and 'max' in budget:
+                        text_parts.append(f"budget range {budget['min']} to {budget['max']}")
+                
+                if preference.attraction_types:
+                    text_parts.append(f"interested in {', '.join(preference.attraction_types)}")
+                
+                if preference.kids_friendly:
+                    text_parts.append("prefers kid-friendly destinations")
+
+            activities_result = await db.execute(
+                select(UserActivity).where(UserActivity.user_id == user_id)
+            )
+            activities = activities_result.scalars().all()
+            
+            activity_counts = {}
+            for activity in activities:
+                activity_type = activity.activity.value
+                activity_counts[activity_type] = activity_counts.get(activity_type, 0) + 1
+            for act, count in activity_counts.items():
+                text_parts.append(f"{act} {count} times")
+
+            if user.eco_point and user.eco_point > 0:
+                text_parts.append(f"eco-conscious with {user.eco_point} eco points")
+            if user.rank:
+                text_parts.append(f"travel experience level {user.rank.value}")
+
+            if not text_parts:
+                text_parts.append(f"user {user.username}")
+
+            user_text = " ".join(text_parts)
+            embedding = encode_text(user_text)
+            return embedding
+
+        except Exception as e:
+            return None
+    
+    @staticmethod
+    async def save_preference_embedding(
+        db: AsyncSession,
+        user_id: int,
+        embedding: List[float]
+    ) -> bool:
+        try:
+            return await ClusterRepository.update_user_embedding(db, user_id, embedding)
+        except Exception as e:
+            return False
+    
+    @staticmethod
+    async def get_preference(
+        db: AsyncSession,
+        user_id: int
+    ):
+        try:
+            return await ClusterRepository.get_preference_by_user_id(db, user_id)
+        except Exception as e:
+            return None
+    
+    @staticmethod
+    async def get_users_with_embeddings(db: AsyncSession):
+        try:
+            return await ClusterRepository.get_users_with_embeddings(db)
+        except Exception as e:
+            return []
+    
+    @staticmethod
+    async def get_users_needing_embedding_update(
+        db: AsyncSession,
+        cutoff_date: int
+    ):
+        try:
+            return await ClusterRepository.get_users_needing_embedding_update(db, cutoff_date)
+        except Exception as e:
+            return []
     
     @staticmethod
     async def compute_cluster_popularity(
@@ -146,13 +242,12 @@ class ClusterService:
             users_needing_update = await ClusterRepository.get_users_needing_embedding_update(db, cutoff_date)
             
             for user in users_needing_update:
-                embedding = embed_user(user.id, db)
+                embedding = await ClusterService.embed_preference(db, user.id)
                 if embedding:
-                    success = await ClusterRepository.update_user_embedding(
+                    success = await ClusterService.save_preference_embedding(
                         db, 
                         user.id,
-                        embedding, 
-                        datetime.now(timezone.utc) 
+                        embedding
                     )
                     if not success:
                         raise HTTPException(
@@ -186,21 +281,21 @@ class ClusterService:
             )
         
     @staticmethod
-    async def run_user_clustering(db: AsyncSession) -> Dict[str, Any]:
+    async def run_user_clustering(db: AsyncSession) -> ClusteringResultResponse:
         try:
             embeddings_updated = await ClusterService.update_user_embeddings(db)            
             users_with_embeddings = await ClusterRepository.get_users_with_embeddings(db)            
             if not users_with_embeddings:
-                return {
-                    "success": False,
-                    "message": "No users with preference embeddings found",
-                    "stats": {
-                        "embeddings_updated": embeddings_updated,
-                        "users_clustered": 0,
-                        "associations_created": 0,
-                        "clusters_updated": 0
-                    }
-                }
+                return ClusteringResultResponse(
+                    success=False,
+                    message="No users with preference embeddings found",
+                    stats=ClusteringStats(
+                        embeddings_updated=embeddings_updated,
+                        users_clustered=0,
+                        associations_created=0,
+                        clusters_updated=0
+                    )
+                )
             
             user_embeddings_data = []
             for user in users_with_embeddings:
@@ -212,16 +307,16 @@ class ClusterService:
             )
             
             if not user_cluster_mapping:
-                return {
-                    "success": False,
-                    "message": "KMeans clustering failed",
-                    "stats": {
-                        "embeddings_updated": embeddings_updated,
-                        "users_clustered": 0,
-                        "associations_created": 0,
-                        "clusters_updated": 0
-                    }
-                }
+                return ClusteringResultResponse(
+                    success=False,
+                    message="KMeans clustering failed",
+                    stats=ClusteringStats(
+                        embeddings_updated=embeddings_updated,
+                        users_clustered=0,
+                        associations_created=0,
+                        clusters_updated=0
+                    )
+                )
             
             cluster_counts = {}
             for cluster_id in user_cluster_mapping.values():
@@ -236,16 +331,16 @@ class ClusterService:
             for cluster_id in user_cluster_mapping.values():
                 await ClusterService.compute_cluster_popularity(db, cluster_id)
             
-            return {
-                "success": True,
-                "message": "Clustering completed successfully",
-                "stats": {
-                    "embeddings_updated": embeddings_updated,
-                    "users_clustered": len(user_cluster_mapping),
-                    "associations_created": associations_created,
-                    "cluster_distribution": cluster_counts
-                }
-            }
+            return ClusteringResultResponse(
+                success=True,
+                message="Clustering completed successfully",
+                stats=ClusteringStats(
+                    embeddings_updated=embeddings_updated,
+                    users_clustered=len(user_cluster_mapping),
+                    associations_created=associations_created,
+                    clusters_updated=len(cluster_counts)
+                )
+            )
             
         except Exception as e:
             raise  HTTPException(
