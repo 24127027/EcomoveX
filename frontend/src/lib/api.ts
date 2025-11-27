@@ -604,46 +604,9 @@ class ApiClient {
       {
         method: "POST",
         body: JSON.stringify(request),
-      }
-    );
-    return response;
-  }
-
-  async getPlaceDetails(
-    placeId: string,
-    sessionToken?: string | null,
-    categories?: PlaceDataCategory[]
-  ): Promise<PlaceDetails> {
-    const params = new URLSearchParams();
-
-    if (sessionToken) {
-      params.append("session_token", sessionToken);
+      });
+      return response;
     }
-
-    if (categories && categories.length > 0) {
-      categories.forEach((cat) => params.append("categories", cat));
-    }
-
-    const queryString = params.toString();
-    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
-
-    return this.request<PlaceDetails>(path, { method: "GET" });
-  }
-
-  async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
-    return this.request<ReverseGeocodeResponse>("/map/geocode", {
-      method: "POST",
-      body: JSON.stringify({ address }),
-    });
-  }
-
-  async reverseGeocode(position: Position): Promise<ReverseGeocodeResponse> {
-    return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
-      method: "POST",
-      body: JSON.stringify(position),
-    });
-  }
-
   // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
@@ -688,6 +651,42 @@ class ApiClient {
         room_name: name,
         member_ids: memberIds,
       }),
+    });
+  }
+
+  async getPlaceDetails(
+      placeId: string,
+      sessionToken?: string | null,
+      categories?: PlaceDataCategory[] 
+    ): Promise<PlaceDetails> {
+      
+      const params = new URLSearchParams();
+
+      if (sessionToken) {
+        params.append("session_token", sessionToken);
+      }
+
+      if (categories && categories.length > 0) {
+        categories.forEach((cat) => params.append("categories", cat));
+      }
+
+      const queryString = params.toString();
+      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+      return this.request<PlaceDetails>(path, { method: "GET" });
+    }
+
+  async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/geocode", {
+      method: "POST",
+      body: JSON.stringify({ address }),
+    });
+  }
+
+  async reverseGeocode(position: Position): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
+      method: "POST",
+      body: JSON.stringify(position),
     });
   }
 

@@ -25,17 +25,13 @@ class StorageRepository:
             raise
 
     @staticmethod
-    async def get_metadata_by_blob_name(db: AsyncSession, user_id: int, blob_name: str):
-        """Get metadata for a specific file by blob name and user ID"""
+    async def get_metadata_by_blob_name(db: AsyncSession, blob_name: str):
         try:
             result = await db.execute(
                 select(Metadata).where(
-                    and_(
-                        Metadata.blob_name == blob_name,
-                        Metadata.user_id == user_id
+                    Metadata.blob_name == blob_name
                     )
                 )
-            )
             return result.scalar_one_or_none()
         except Exception as e:
             print(f"Error retrieving metadata: {e}")
@@ -51,21 +47,17 @@ class StorageRepository:
             query = select(Metadata).where(Metadata.user_id == user_id)
             
             if filters:
-                # Apply category filter
                 if filters.category:
                     query = query.where(Metadata.category == filters.category.value)
                 
-                # Apply content type filter
                 if filters.content_type:
                     query = query.where(Metadata.content_type == filters.content_type)
                 
-                # Apply date filters
                 if filters.uploaded_after:
                     query = query.where(Metadata.uploaded_at >= filters.uploaded_after)
                 if filters.uploaded_before:
                     query = query.where(Metadata.uploaded_at <= filters.uploaded_before)
                 
-                # Apply sorting
                 sort_column = getattr(Metadata, filters.sort_by.value, Metadata.uploaded_at)
                 if filters.sort_order == SortOrder.ASCENDING:
                     query = query.order_by(sort_column.asc())
@@ -97,26 +89,3 @@ class StorageRepository:
             await db.rollback()
             print(f"Error deleting metadata for blob {blob_name}: {e}")
             return False
-    
-    @staticmethod
-    async def get_user_files_count(db: AsyncSession, user_id: int, filters: FileMetadataFilter = None) -> int:
-        try:
-            from sqlalchemy import func
-            
-            query = select(func.count(Metadata.id)).where(Metadata.user_id == user_id)
-            
-            if filters:
-                if filters.category:
-                    query = query.where(Metadata.category == filters.category.value)
-                if filters.content_type:
-                    query = query.where(Metadata.content_type == filters.content_type)
-                if filters.uploaded_after:
-                    query = query.where(Metadata.uploaded_at >= filters.uploaded_after)
-                if filters.uploaded_before:
-                    query = query.where(Metadata.uploaded_at <= filters.uploaded_before)
-            
-            result = await db.execute(query)
-            return result.scalar_one()
-        except Exception as e:
-            print(f"Error counting files for user {user_id}: {e}")
-            return 0

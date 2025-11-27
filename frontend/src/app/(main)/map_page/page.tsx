@@ -1,25 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Search,
-  Home,
-  MapPin,
-  Bot,
-  User,
-  ChevronLeft,
-  Navigation,
-} from "lucide-react";
-import {
-  api,
-  AutocompletePrediction,
-  PlaceDetails,
-  Position,
-  PlaceSearchResult,
-} from "@/lib/api";
+import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
+import { api, AutocompletePrediction, PlaceDetails, Position, PlaceSearchResult } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
-import { flushSync } from "react-dom";
+import { flushSync } from 'react-dom';
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
@@ -38,22 +24,18 @@ const birdDistance = (pos1: Position, pos2: Position): number => {
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-};
+}
 
-const addDistanceText = async (
-  details: PlaceDetails,
-  userPos: Position
-): Promise<PlaceDetailsWithDistance> => {
+const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
   const destination: Position = details.geometry.location;
   const distanceKm = birdDistance(userPos, destination);
-  const distanceText =
-    distanceKm < 1
-      ? `${Math.round(distanceKm * 1000)}m away`
-      : `${distanceKm.toFixed(1)}km away`;
-
+  const distanceText = distanceKm < 1 
+    ? `${Math.round(distanceKm * 1000)}m away`
+    : `${distanceKm.toFixed(1)}km away`;
+  
   return {
     ...details,
-    distanceText,
+    distanceText
   };
 };
 
@@ -128,20 +110,14 @@ export default function MapPage() {
   >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [autocompletePredictions, setAutocompletePredictions] = useState<
-    AutocompletePrediction[]
-  >([]);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] =
-    useState(true);
+  const [autocompletePredictions, setAutocompletePredictions] = useState<AutocompletePrediction[]>([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(40);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startHeight, setStartHeight] = useState(40);
-  const [userLocation, setUserLocation] = useState<Position>({
-    lat: 10.7756,
-    lng: 106.7019,
-  });
+  const [userLocation, setUserLocation] = useState<Position>({ lat: 10.7756, lng: 106.7019 });
   const [enableTransition, setEnableTransition] = useState(true);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
@@ -221,7 +197,7 @@ export default function MapPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, userLocation, isSearchFocused]);
+  }, [searchQuery, userLocation, isSearchFocused]); 
 
   // --- NEW: Handle Text Search Submit (Enter Key) ---
   const handleTextSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -353,7 +329,7 @@ export default function MapPage() {
       const response = await api.autocomplete({
         query: "park",
         user_location: userLocation,
-        radius: 5000,
+        radius: 5000, 
         place_types: "park|tourist_attraction|point_of_interest",
         session_token: recToken,
       });
@@ -362,7 +338,7 @@ export default function MapPage() {
         setLocations([]);
         return;
       }
-
+      
       const detailedRecommendations = await Promise.all(
         response.predictions
           .slice(0, 8)
@@ -394,28 +370,20 @@ export default function MapPage() {
     }
   };
 
-  const displayedLocations =
-    searchResults.length > 0
-      ? searchResults
-      : !isSearchFocused
-      ? locations
-      : [];
+  const displayedLocations = searchResults.length > 0 ? searchResults : (!isSearchFocused ? locations : []);
 
+  // --- MAP INITIALIZATION ---
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
-
+    
     const map = new window.google.maps.Map(mapRef.current, {
       center: userLocation,
       zoom: 14,
       styles: [
-        {
-          featureType: "poi",
-          elementType: "labels",
-          stylers: [{ visibility: "off" }],
-        },
+        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
       ],
       disableDefaultUI: true,
-      gestureHandling: "cooperative",
+      gestureHandling: 'cooperative'
     });
 
     googleMapRef.current = map;
@@ -429,7 +397,7 @@ export default function MapPage() {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
-    displayedLocations.forEach((location) => {
+    displayedLocations.forEach(location => {
       // Safety check for geometry
       if (!location.geometry || !location.geometry.location) return;
 
@@ -496,11 +464,8 @@ export default function MapPage() {
     // If it's a TextSearchResult, it might have incomplete info, but for now we just center it
     setSelectedLocation(location);
     if (googleMapRef.current) {
-      googleMapRef.current.panTo({
-        lat: location.geometry.location.lat,
-        lng: location.geometry.location.lng,
-      });
-      googleMapRef.current.setZoom(16);
+        googleMapRef.current.panTo({ lat: location.geometry.location.lat, lng: location.geometry.location.lng });
+        googleMapRef.current.setZoom(16);
     }
   };
 
@@ -542,26 +507,23 @@ export default function MapPage() {
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
     setStartY(clientY);
     setStartHeight(sheetHeight); // State is fine here for the "Snapshot" start point
-
-    document.body.style.overflow = "hidden";
-    document.body.style.userSelect = "none";
+    
+    document.body.style.overflow = 'hidden';
+    document.body.style.userSelect = 'none';
   };
 
   const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
-
-    const clientY =
-      "touches" in e
-        ? (e as TouchEvent).touches[0].clientY
-        : (e as MouseEvent).clientY;
-
+    
+    const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
+    
     const deltaY = startY - clientY;
     const windowHeight = window.innerHeight;
     const deltaPercent = (deltaY / windowHeight) * 100;
 
     let newHeight = startHeight + deltaPercent;
     newHeight = Math.max(15, Math.min(90, newHeight));
-
+    
     // Update State (for rendering) AND Ref (for logic)
     setSheetHeight(newHeight);
     sheetHeightRef.current = newHeight;
@@ -569,9 +531,9 @@ export default function MapPage() {
 
   const handleDragEnd = () => {
     setIsDragging(false);
-
-    document.body.style.overflow = "";
-    document.body.style.userSelect = "";
+    
+    document.body.style.overflow = '';
+    document.body.style.userSelect = '';
 
     // FIX: Read from REF, not State, to get the live value inside the event listener
     const currentHeight = sheetHeightRef.current;
@@ -610,16 +572,16 @@ export default function MapPage() {
   // Effect to attach global listeners
   useEffect(() => {
     if (isDragging) {
-      window.addEventListener("touchmove", handleDragMove, { passive: false });
-      window.addEventListener("touchend", handleDragEnd);
-      window.addEventListener("mousemove", handleDragMove);
-      window.addEventListener("mouseup", handleDragEnd);
-
+      window.addEventListener('touchmove', handleDragMove, { passive: false });
+      window.addEventListener('touchend', handleDragEnd);
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      
       return () => {
-        window.removeEventListener("touchmove", handleDragMove);
-        window.removeEventListener("touchend", handleDragEnd);
-        window.removeEventListener("mousemove", handleDragMove);
-        window.removeEventListener("mouseup", handleDragEnd);
+        window.removeEventListener('touchmove', handleDragMove);
+        window.removeEventListener('touchend', handleDragEnd);
+        window.removeEventListener('mousemove', handleDragMove);
+        window.removeEventListener('mouseup', handleDragEnd);
       };
     }
   }, [isDragging]);
@@ -714,26 +676,22 @@ export default function MapPage() {
         </div>
 
         {/* Bottom Sheet */}
-        <div
-          ref={sheetRef}
-          style={{
-            height: `${sheetHeight}vh`,
-            touchAction: "none",
-          }}
-          className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${
-            isDragging || !enableTransition
-              ? ""
-              : "transition-all duration-300 ease-out"
-          }`}
-        >
-          {/* Drag Handle Area */}
-          <div
-            className="w-full flex justify-center py-4 touch-none cursor-grab active:cursor-grabbing"
-            onTouchStart={handleDragStart} // Mobile
-            onMouseDown={handleDragStart} // Desktop
+          <div 
+            ref={sheetRef}
+            style={{ 
+              height: `${sheetHeight}vh`,
+              touchAction: 'none' 
+            }}
+            className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${isDragging || !enableTransition ? '' : 'transition-all duration-300 ease-out'}`}
           >
-            <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
-          </div>
+            {/* Drag Handle Area */}
+            <div 
+              className="w-full flex justify-center py-4 touch-none cursor-grab active:cursor-grabbing"
+              onTouchStart={handleDragStart} // Mobile
+              onMouseDown={handleDragStart}  // Desktop
+            >
+              <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
+            </div>
 
           {/* Content Area */}
           <div
@@ -846,59 +804,57 @@ export default function MapPage() {
               )}
 
             {/* Recommendations/Results Grid */}
-            {!isSearching &&
-              !isSearchFocused &&
-              displayedLocations.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 pb-2">
-                  {displayedLocations.map((location) => (
-                    <div
-                      key={location.place_id}
-                      onClick={() => handleCardClick(location)}
-                      className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
-                        selectedLocation?.place_id === location.place_id
-                          ? "ring-2 ring-green-500"
-                          : ""
-                      }`}
-                    >
-                      <div className="relative h-28 bg-gray-200">
-                        <img
-                          src={
-                            location.photos?.[0]?.photo_reference ||
-                            "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
-                          }
-                          alt={location.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src =
-                              "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400";
-                          }}
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      </div>
-                      <div className="p-3">
-                        <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
-                          {location.name}
-                        </h4>
-                        <p className="text-xs text-gray-500 mb-2 line-clamp-1">
-                          {location.distanceText}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
-                            {location.types[0]?.replace(/_/g, " ") || "Place"}
+            {!isSearching && !isSearchFocused && displayedLocations.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 pb-2">
+                {displayedLocations.map((location) => (
+                  <div
+                    key={location.place_id}
+                    onClick={() => handleCardClick(location)}
+                    className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
+                      selectedLocation?.place_id === location.place_id
+                        ? "ring-2 ring-green-500"
+                        : ""
+                    }`}
+                  >
+                    <div className="relative h-28 bg-gray-200">
+                      <img
+                        src={
+                          location.photos?.[0]?.photo_reference
+                            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                            : "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
+                        }
+                        alt={location.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400';
+                        }}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
+                        {location.name}
+                      </h4>
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+                        {location.distanceText}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
+                          {location.types[0]?.replace(/_/g, ' ') || 'Place'}
+                        </span>
+                        {/* Only show rating if it exists */}
+                        {location.rating && location.rating > 0 && (
+                          <span className="text-xs text-yellow-600 font-semibold">
+                            ★ {location.rating.toFixed(1)}
                           </span>
-                          {/* Only show rating if it exists */}
-                          {location.rating && location.rating > 0 && (
-                            <span className="text-xs text-yellow-600 font-semibold">
-                              ★ {location.rating.toFixed(1)}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

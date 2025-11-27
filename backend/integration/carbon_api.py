@@ -26,12 +26,8 @@ class CarbonAPI:
         distance_km: float,
         passengers: int = 1,
     ) -> float:
-        """Estimate car emissions using data/v1/estimate endpoint"""
-        url = f"{self.basic_base_url}/estimate"
-        
-        # Default activity_id for cars
+        url = f"{self.basic_base_url}/estimate"        
         activity_id = "passenger_vehicle-vehicle_type_car-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na"
-        
         params = {
             "emission_factor": {
                 "activity_id": activity_id,
@@ -45,9 +41,14 @@ class CarbonAPI:
 
         try:
             res = requests.post(url, headers=self.headers, json=params)
-            res.raise_for_status()
+            
+            if res.status_code != 200:
+                raise ValueError(f"Error estimating car emissions: HTTP {res.status_code}")
+            
             data = res.json()
-            # Divide by average occupancy if needed
+            if "error" in data:
+                raise ValueError(f"Error in car emissions response: {data.get('error')}")
+            
             return data["co2e"] / passengers if passengers > 1 else data["co2e"]
 
         except requests.exceptions.RequestException as e:
@@ -67,8 +68,14 @@ class CarbonAPI:
         }
         try:
             response = requests.post(url, headers=self.headers, json=params)
-            response.raise_for_status()
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error estimating electric bus emissions: HTTP {response.status_code}")
+            
             data = response.json()
+            if "error" in data:
+                raise ValueError(f"Error in electric bus emissions response: {data.get('error')}")
+            
             return data["co2e"] * passenger / 30
         except requests.exceptions.RequestException as e:
             raise Exception(f"Electric bus estimation failed: {e}")
@@ -89,8 +96,14 @@ class CarbonAPI:
         
         try:
             response = requests.post(url, headers=self.headers, json=params)
-            response.raise_for_status()
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error estimating motorbike emissions: HTTP {response.status_code}")
+            
             data = response.json()
+            if "error" in data:
+                raise ValueError(f"Error in motorbike emissions response: {data.get('error')}")
+            
             return data["co2e"]
         except requests.exceptions.RequestException as e:
             raise Exception(f"Motorbike estimation failed: {e}")

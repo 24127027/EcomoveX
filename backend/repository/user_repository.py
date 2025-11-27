@@ -144,8 +144,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to delete user with ID {user_id} - {e}")
             return False
-        
-class UserActivityRepository:
+
     @staticmethod
     async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate):
         try:

@@ -32,9 +32,14 @@ class WeatherAPI:
             url,
             params=params
         )
-        response.raise_for_status()
+        
+        if response.status_code != 200:
+            raise ValueError(f"Error fetching current weather: HTTP {response.status_code}")
+        
         data = response.json()
-
+        if "error" in data:
+            raise ValueError(f"Error in current weather response: {data.get('error')}")
+        
         weatherCondition = data.get("weatherCondition")
         temperature = data.get("temperature", {}).get("degrees")
         feelslike_temperature = data.get("feelsLikeTemperature", {}).get("degrees")
@@ -76,8 +81,13 @@ class WeatherAPI:
             params=params
         )
 
-        response.raise_for_status()
+        if response.status_code != 200:
+            raise ValueError(f"Error fetching forecast: HTTP {response.status_code}")
+        
         data = response.json()
+        if "error" in data:
+            raise ValueError(f"Error in forecast response: {data.get('error')}")
+        
         hourly_data = []
         for hour in data.get("forecastHours", []):
             weatherCondition = hour.get("weatherCondition")

@@ -226,22 +226,25 @@ class PlanService:
     @staticmethod
     async def update_plan_destination(
         db: AsyncSession,
-        destination_id: str,
+        plan_destination_id: int,
         updated_data: PlanDestinationUpdate
     ) -> PlanDestinationResponse:
         try:
             updated_dest = await PlanRepository.update_plan_destination(
-                db, destination_id, updated_data
+                db, plan_destination_id, updated_data
             )
             if not updated_dest:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Destination with ID {destination_id} not found"
+                    detail=f"Plan destination with ID {plan_destination_id} not found"
                 )
             return PlanDestinationResponse(
+                id=updated_dest.id,
                 destination_id=updated_dest.destination_id,
                 type=updated_dest.type,
                 visit_date=updated_dest.visit_date,
+                time=updated_dest.time,
+                estimated_cost=updated_dest.estimated_cost,
                 note=updated_dest.note
             )
         except HTTPException:
@@ -249,20 +252,20 @@ class PlanService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error updating destination ID {destination_id}: {e}"
+                detail=f"Unexpected error updating plan destination ID {plan_destination_id}: {e}"
             )
 
     @staticmethod
     async def remove_destination_from_plan(
         db: AsyncSession, 
-        destination_id: str,
+        plan_destination_id: int,
     ):
         try:
-            success = await PlanRepository.remove_destination_from_plan(db, destination_id)
+            success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Destination with ID {destination_id} not found"
+                    detail=f"Destination with ID {plan_destination_id} not found"
                 )
             
             return {"detail": "Destination removed from plan successfully"}
