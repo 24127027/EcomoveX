@@ -438,8 +438,9 @@ export default function MapPage() {
 
   const handleNavigateToDetail = () => {
     if (selectedLocation) {
-      router.push(`/location/${selectedLocation.place_id}`);
-    }
+        const url = '/place_detail_page?place_id=' + selectedLocation.place_id;
+        router.push(url);
+      }
   };
 
   const handleCurrentLocation = () => {
