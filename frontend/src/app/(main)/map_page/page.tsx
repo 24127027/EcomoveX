@@ -92,17 +92,6 @@ export default function MapPage() {
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
 
-  const [userLocation, setUserLocation] = useState<Position>(() => {
-    if (latParam && lngParam) {
-      const lat = parseFloat(latParam);
-      const lng = parseFloat(lngParam);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        return { lat, lng };
-      }
-    }
-    return { lat: 10.7756, lng: 106.7019 };
-  });
-
   const [selectedLocation, setSelectedLocation] =
     useState<PlaceDetailsWithDistance | null>(null);
 
@@ -811,8 +800,8 @@ export default function MapPage() {
                     <div className="relative h-28 bg-gray-200">
                       <img
                         src={
-                          location.photos?.[0]?.photo_reference
-                            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                          location.photos?.[0]?.photo_url
+                            ? location.photos[0].photo_url
                             : "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
                         }
                         alt={location.name}
