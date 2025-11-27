@@ -1,7 +1,9 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Dict, Any, Optional
 from repository.destination_repository import DestinationRepository
 from schemas.destination_schema import *
+from utils.embedded.embedding_utils import encode_text
 
 class DestinationService:
     @staticmethod
@@ -91,7 +93,11 @@ class DestinationService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to save destination for user"
                 )
-            return saved
+            return UserSavedDestinationResponse(
+                user_id=saved.user_id,
+                destination_id=saved.destination_id,
+                saved_at=saved.saved_at
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -152,4 +158,118 @@ class DestinationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error checking saved destination for user ID {user_id} and destination ID {destination_id}: {e}"
+            )
+    
+    @staticmethod
+    async def embed_destination(
+        db: AsyncSession,
+        destination_data: Dict[str, Any]
+    ) -> List[float]:
+        try:
+            text_parts = []
+            
+            if 'name' in destination_data:
+                text_parts.append(destination_data['name'])
+            if 'tags' in destination_data:
+                if isinstance(destination_data['tags'], list):
+                    text_parts.extend(destination_data['tags'])
+                else:
+                    text_parts.append(str(destination_data['tags']))
+            if 'description' in destination_data:
+                text_parts.append(destination_data['description'])
+            if 'category' in destination_data:
+                text_parts.append(destination_data['category'])
+
+            text = " ".join(text_parts) if text_parts else "destination"
+            embedding = encode_text(text)
+            return embedding
+            
+        except Exception as e:
+            return encode_text("destination")
+    
+    @staticmethod
+    async def embed_destination_by_id(
+        db: AsyncSession,
+        destination_id: str,
+        destination_data: Dict[str, Any]
+    ) -> Optional[List[float]]:
+        try:
+            destination = await DestinationRepository.get_destination_by_id(db, destination_id)
+            if not destination:
+                return None
+            
+            embedding = await DestinationService.embed_destination(db, destination_data)
+            
+            embedding_data = DestinationEmbeddingCreate(
+                destination_id=destination_id,
+                embedding_vector=embedding,
+                model_version="v1"
+            )
+            await DestinationRepository.save_embedding(db, embedding_data)
+            
+            return embedding
+            
+        except Exception as e:
+            return None
+    
+    @staticmethod
+    async def get_destination_embedding(
+        db: AsyncSession,
+        destination_id: str
+    ):
+        try:
+            return await DestinationRepository.get_embedding(db, destination_id)
+        except Exception as e:
+            return None
+    
+    @staticmethod
+    async def get_embeddings_by_model(
+        db: AsyncSession,
+        model_version: str,
+        skip: int = 0,
+        limit: int = 1000
+    ):
+        try:
+            return await DestinationRepository.get_embeddings_by_model(db, model_version, skip, limit)
+        except Exception as e:
+            return []
+    
+    @staticmethod
+    async def delete_destination_embedding(
+        db: AsyncSession,
+        destination_id: str
+    ):
+        try:
+            return await DestinationRepository.delete_embedding(db, destination_id)
+        except Exception as e:
+            return False
+        
+    @staticmethod
+    async def bulk_unsave_destinations_for_user(
+        db: AsyncSession,
+        user_id: int,
+        destination_ids: List[str]
+    ):
+        try:
+            for destination_id in destination_ids:
+                try:
+                    success = await DestinationRepository.delete_saved_destination(db, user_id, destination_id)
+                    if not success:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Saved destination {destination_id} not found for user"
+                        )
+                except Exception:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to unsave destination {destination_id} for user"
+                    )
+            
+            return {"detail": "All specified destinations unsaved successfully"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error bulk unsaving destinations: {e}"
             )

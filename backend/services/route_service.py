@@ -147,7 +147,6 @@ class RouteService:
 
                 if driving_alternatives.routes:
                     for idx, route in enumerate(driving_alternatives.routes):
-                        # first driving route is treated as the fastest candidate
                         route_type = RouteType.fastest if idx == 0 else RouteType.fastest
 
                         route_data = await RouteService.process_route_data(
