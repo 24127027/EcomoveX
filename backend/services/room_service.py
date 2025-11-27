@@ -141,17 +141,18 @@ class RoomService:
     @staticmethod
     async def create_room(db: AsyncSession, user_id: int, data: RoomCreate) -> RoomResponse:
         try:
-            new_room = await RoomRepository.create_room(db, data.room_name)
+            new_room = await RoomRepository.create_room(db, data)
             if not new_room:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create room"
                 )
-            room_owner = AddMemberCreate(id=user_id, role=MemberRole.admin)
+            room_owner = RoomMemberCreate(user_id=user_id, room_id=new_room.id, role=MemberRole.admin)
             await RoomRepository.add_member(db, new_room.id, room_owner)
             for member_id in data.member_ids:
                 if member_id != user_id:
-                    member = await RoomRepository.add_member(db, member_id, new_room.id)
+                    member_data = RoomMemberCreate(user_id=member_id, room_id=new_room.id, role=MemberRole.member)
+                    member = await RoomRepository.add_member(db, new_room.id, member_data)
                     if not member:
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -168,7 +169,7 @@ class RoomService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error creating room '{data.room_name}': {e}"
+                detail=f"Unexpected error creating room '{data.name}': {e}"
             )
             
     @staticmethod

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.friend_schema import *
 from schemas.user_schema import *
+from schemas.message_schema import CommonMessageResponse
 from services.friend_service import FriendService
 from utils.token.authentication_util import get_current_user
 
@@ -25,7 +26,7 @@ async def accept_friend_request(
 ):
     return await FriendService.accept_friend_request(user_db, current_user["user_id"], friend_id)
 
-@router.delete("/{friend_id}/reject", status_code=status.HTTP_200_OK)
+@router.delete("/{friend_id}/reject", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def reject_friend_request(
     friend_id: int = Path(...),
     user_db: AsyncSession = Depends(get_db),
@@ -33,7 +34,7 @@ async def reject_friend_request(
 ):
     return await FriendService.reject_friend_request(user_db, current_user["user_id"], friend_id)
 
-@router.delete("/{friend_id}", status_code=status.HTTP_200_OK)
+@router.delete("/{friend_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def unfriend(
     friend_id: int = Path(...),
     user_db: AsyncSession = Depends(get_db),
