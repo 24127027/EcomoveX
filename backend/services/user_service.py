@@ -2,7 +2,7 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
-from repository.user_repository import UserRepository, UserActivityRepository
+from repository.user_repository import UserRepository
 from services.storage_service import StorageService
 from schemas.user_schema import *
 
