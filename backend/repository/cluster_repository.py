@@ -4,12 +4,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Tuple
 from models.cluster import Cluster, UserClusterAssociation, ClusterDestination, Preference
-from schemas.cluster_schema import (
-    ClusterCreate, ClusterUpdate,
-    ClusterDestinationCreate
-)
-from models.user import User
+from models.user import User, UserActivity, Activity
 from sqlalchemy.orm import joinedload
+from schemas.cluster_schema import *
 
 class ClusterRepository:
     @staticmethod
@@ -84,9 +81,7 @@ class ClusterRepository:
             stmt = (
                 update(Cluster)
                 .where(Cluster.id == cluster_id)
-                .values(Cluster.name == updated_data.name if updated_data.name else Cluster.name,
-                        Cluster.algorithm == updated_data.algorithm if updated_data.algorithm else Cluster.algorithm,
-                        Cluster.description == updated_data.description if updated_data.description else Cluster.description)
+                .values(**update_dict)
                 .returning(Cluster)
             )
             result = await db.execute(stmt)
@@ -490,4 +485,96 @@ class ClusterRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users without cluster - {e}")
+            return []
+    
+    @staticmethod
+    async def create_or_update_preference(
+        db: AsyncSession,
+        user_id: int,
+        weather_pref: Optional[dict] = None,
+        attraction_types: Optional[list] = None,
+        budget_range: Optional[dict] = None,
+        kids_friendly: Optional[bool] = None,
+        visited_destinations: Optional[list] = None,
+        embedding: Optional[list] = None,
+        weight: Optional[float] = None,
+        cluster_id: Optional[int] = None
+    ):
+        try:
+            result = await db.execute(
+                select(Preference).where(Preference.user_id == user_id)
+            )
+            preference = result.scalar_one_or_none()
+            
+            if preference:
+                if weather_pref is not None:
+                    preference.weather_pref = weather_pref
+                if attraction_types is not None:
+                    preference.attraction_types = attraction_types
+                if budget_range is not None:
+                    preference.budget_range = budget_range
+                if kids_friendly is not None:
+                    preference.kids_friendly = kids_friendly
+                if visited_destinations is not None:
+                    preference.visited_destinations = visited_destinations
+                if embedding is not None:
+                    preference.embedding = embedding
+                if weight is not None:
+                    preference.weight = weight
+                if cluster_id is not None:
+                    preference.cluster_id = cluster_id
+                preference.last_updated = func.now()
+            else:
+                preference = Preference(
+                    user_id=user_id,
+                    weather_pref=weather_pref,
+                    attraction_types=attraction_types,
+                    budget_range=budget_range,
+                    kids_friendly=kids_friendly or False,
+                    visited_destinations=visited_destinations,
+                    embedding=embedding,
+                    weight=weight or 1.0,
+                    cluster_id=cluster_id
+                )
+                db.add(preference)
+            
+            await db.commit()
+            await db.refresh(preference)
+            return preference
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: creating/updating preference for user {user_id} - {e}")
+            return None
+    
+    @staticmethod
+    async def delete_preference(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(
+                select(Preference).where(Preference.user_id == user_id)
+            )
+            preference = result.scalar_one_or_none()
+            if not preference:
+                print(f"WARNING: Preference for user {user_id} not found")
+                return False
+            
+            await db.delete(preference)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: deleting preference for user {user_id} - {e}")
+            return False
+    
+    @staticmethod
+    async def get_all_preferences(db: AsyncSession, skip: int = 0, limit: int = 100):
+        try:
+            result = await db.execute(
+                select(Preference)
+                .order_by(Preference.last_updated.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching all preferences - {e}")
             return []
