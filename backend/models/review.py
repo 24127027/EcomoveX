@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, DateTime, Enum as SQLEnum, ForeignKey, Index, Integer, PrimaryKeyConstraint, SmallInteger, String, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, Enum as SQLEnum, ForeignKey, ForeignKeyConstraint, Index, Integer, PrimaryKeyConstraint, SmallInteger, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
@@ -25,13 +25,12 @@ class Review(Base):
 class ReviewFile(Base):
     __tablename__ = "review_files"
     __table_args__ = (
-        Index('ix_review_file_destination_user', 'destination_id', 'user_id'),
+        Index('ix_review_file_destination_user', 'review_id'),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    destination_id = Column(String(255), ForeignKey("reviews.destination_id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("reviews.user_id", ondelete="CASCADE"), nullable=False)
+    review_id = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False)
     blob_name = Column(String(255), ForeignKey("metadata.blob_name", ondelete="CASCADE"), nullable=False, unique=True)
 
-    review = relationship("Review", back_populates="files")
     file = relationship("Metadata", back_populates="review_files", foreign_keys=[blob_name])
+    review = relationship("Review", back_populates="files", foreign_keys=[review_id])
