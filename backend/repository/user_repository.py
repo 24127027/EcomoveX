@@ -37,20 +37,20 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def create_user(db: AsyncSession, user: UserRegister):
+    async def create_user(db: AsyncSession, user_data: UserCreate):
         try:
-            existed_email = await UserRepository.get_user_by_email(db, user.email)
+            existed_email = await UserRepository.get_user_by_email(db, user_data.email)
             if existed_email:
-                print(f"WARNING: User with email {user.email} already exists")
+                print(f"WARNING: User with email {user_data.email} already exists")
                 return None
-            existing_username = await UserRepository.get_user_by_username(db, user.username)
+            existing_username = await UserRepository.get_user_by_username(db, user_data.username)
             if existing_username:
-                print(f"WARNING: Username {user.username} already taken")
+                print(f"WARNING: Username {user_data.username} already taken")
                 return None
             new_user = User(
-                username=user.username,
-                email=user.email,
-                password=user.password,
+                username=user_data.username,
+                email=user_data.email,
+                password=user_data.password,
                 eco_point=0,
                 rank=Rank.bronze.value
             )
@@ -175,4 +175,36 @@ class UserRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: Failed to retrieve activities for user ID {user_id} - {e}")
+            return []
+    
+    @staticmethod
+    async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
+        try:
+            result = await db.execute(
+                select(User)
+                .order_by(User.created_at.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: Failed to retrieve all users - {e}")
+            return []
+    
+    @staticmethod
+    async def search_users(db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50):
+        try:
+            result = await db.execute(
+                select(User)
+                .where(
+                    (User.username.ilike(f"%{search_term}%")) |
+                    (User.email.ilike(f"%{search_term}%"))
+                )
+                .order_by(User.created_at.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: Failed to search users with term '{search_term}' - {e}")
             return []
