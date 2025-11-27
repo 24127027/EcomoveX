@@ -6,6 +6,7 @@ from database.db import get_db
 from services.storage_service import StorageService
 from models.metadata import *
 from schemas.storage_schema import *
+from schemas.message_schema import CommonMessageResponse
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
@@ -36,7 +37,7 @@ async def upload_file(
 ):
     return await StorageService.upload_file(db, file, current_user["user_id"], category, bucket_name)
 
-@router.delete("/files/{blob_name:path}", status_code=status.HTTP_200_OK) 
+@router.delete("/files/{blob_name:path}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK) 
 async def delete_file(
     blob_name: str = Path(...),
     bucket_name: Optional[str] = Query(None),
