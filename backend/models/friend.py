@@ -26,6 +26,6 @@ class Friend(Base):
     action_by = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user1 = relationship("User", foreign_keys=[user1_id])
-    user2 = relationship("User", foreign_keys=[user2_id])
-    action_user = relationship("User", foreign_keys=[action_by])
+    user1 = relationship("User", foreign_keys=[user1_id], back_populates="friendships1")
+    user2 = relationship("User", foreign_keys=[user2_id], back_populates="friendships2")
+    action_user = relationship("User", foreign_keys=[action_by], back_populates="friend_actions")

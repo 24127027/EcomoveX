@@ -1,5 +1,6 @@
 from sqlalchemy import CheckConstraint, Column, DateTime, Enum as SQLEnum, ForeignKey, Index, Integer, PrimaryKeyConstraint, SmallInteger, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from database.db import Base
 
 class Review(Base):
@@ -14,7 +15,8 @@ class Review(Base):
     user_id = Column(Integer,ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
     rating = Column(SmallInteger, nullable=False)
     content = Column(Text, nullable=False)
-    files_blob_names = Column(Text, ForeignKey("metadata.blob_name", ondelete="SET NULL"), nullable=True)  # JSON array of blob names
+    files_blob_names = Column(Text, nullable=True)  # JSON array of blob names
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     destination = relationship("Destination", back_populates="reviews")
     user = relationship("User", back_populates="reviews")

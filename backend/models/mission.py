@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Index, Integer, PrimaryKeyConstraint, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, ForeignKey, Index, Integer, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db import Base
@@ -29,6 +29,7 @@ class Mission(Base):
     reward_type = Column(SQLEnum(RewardType), nullable=False)
     action_trigger = Column(SQLEnum(MissionAction), nullable=False)
     value = Column(Integer, nullable=True, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("UserMission", back_populates="mission", cascade="all, delete-orphan")

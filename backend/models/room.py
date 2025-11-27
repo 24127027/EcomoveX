@@ -48,6 +48,7 @@ class RoomDirect(Base):
 class RoomMember(Base):
     __tablename__ = "room_members"
     __table_args__ = (
+        PrimaryKeyConstraint('room_id', 'user_id'),
         Index('ix_room_member_user', 'user_id', 'joined_at'),
         Index('ix_room_member_role', 'room_id', 'role'),
     )
