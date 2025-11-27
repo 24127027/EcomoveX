@@ -79,38 +79,47 @@ export default function FriendsPage() {
     fetchData();
   }, []);
 
-  // --- 2. LOGIC SCROLL CHAT ---
-  // Mỗi khi messages thay đổi, tự cuộn xuống dưới cùng
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // --- 3. LOGIC WEBSOCKET & CHAT ---
 
   // Hàm mở Chat
   const openChat = async (friend: FriendResponse) => {
     if (!currentUserId) return;
     setActiveChatFriend(friend);
-    setMessages([]); // Xóa tin nhắn cũ tạm thời
+    setMessages([]);
 
-    // Xác định ID người bạn
     const friendId =
       currentUserId === friend.user_id ? friend.friend_id : friend.user_id;
 
     try {
-      // B1: Lấy hoặc tạo Room ID từ backend
-      const roomId = await api.getDirectRoomId(friendId);
-      console.log("Chat Room ID:", roomId);
+      let roomId: number;
 
-      // B2: Lấy lịch sử tin nhắn
+      // BƯỚC 1: Lấy tất cả phòng và tìm thủ công (Client-side filtering)
+      // Vì backend không có API "check room", ta phải lấy hết về rồi tự soi.
+      const allRooms = await api.getAllRooms();
+
+      // Tìm phòng nào có chứa friendId trong danh sách thành viên
+      const existingRoom = allRooms.find(
+        (room) => room.member_ids && room.member_ids.includes(friendId)
+      );
+
+      if (existingRoom) {
+        // -> Đã có phòng: Dùng luôn ID đó
+        console.log("Found existing room:", existingRoom.id);
+        roomId = existingRoom.id;
+      } else {
+        // -> Chưa có: Gọi API tạo phòng mới (Dùng hàm create_room có sẵn)
+        console.log("No room found. Creating new room...");
+        // Tạo phòng tên "Chat" với thành viên là friendId
+        const newRoom = await api.createGroupRoom("Private Chat", [friendId]);
+        roomId = newRoom.id;
+      }
+
+      // BƯỚC 2: Lấy lịch sử & Kết nối Socket (Giữ nguyên)
       const history = await api.getChatHistory(roomId);
-      // Backend trả về mảng, ta sắp xếp lại nếu cần (thường backend trả mới nhất trước/sau tùy query)
-      // Ở đây giả định backend trả về list theo thứ tự thời gian tăng dần hoặc cần đảo ngược
-      // Nếu backend trả: Mới nhất -> Cũ nhất. Ta cần đảo lại để hiển thị: Cũ nhất -> Mới nhất
-      // Tạm thời set thẳng, nếu thấy ngược thì thêm .reverse()
       setMessages(history.reverse());
 
-      // B3: Kết nối WebSocket
       connectWebSocket(roomId);
     } catch (error) {
       console.error("Failed to open chat:", error);
@@ -133,8 +142,14 @@ export default function FriendsPage() {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      // Backend broadcast tin nhắn vừa gửi
-      setMessages((prev) => [...prev, data]);
+
+      setMessages((prev) => {
+        const isDuplicate = prev.some((msg) => msg.id === data.id);
+        if (isDuplicate) {
+          return prev;
+        }
+        return [...prev, data];
+      });
     };
 
     ws.onclose = () => {
@@ -148,18 +163,24 @@ export default function FriendsPage() {
     socketRef.current = ws;
   };
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim() || !socketRef.current) return;
+  const isSendingRef = useRef(false);
 
-    // Gửi tin nhắn qua Socket
-    const payload = { content: inputMessage.trim() };
+  const handleSendMessage = () => {
+    if (!inputMessage.trim() || !socketRef.current || isSendingRef.current)
+      return;
+    isSendingRef.current = true;
+    const contentToSend = inputMessage.trim();
+    setInputMessage("");
+    console.log("Sending message", inputMessage);
+
+    const payload = { content: contentToSend };
     socketRef.current.send(JSON.stringify(payload));
 
-    setInputMessage("");
-    // Lưu ý: Không cần setMessages thủ công ở đây,
-    // vì Server sẽ broadcast lại tin nhắn đó và ws.onmessage sẽ hứng nó.
+    setTimeout(() => {
+      isSendingRef.current = false;
+    }, 100);
+    document.querySelector("input")?.focus();
   };
-
   const closeChat = () => {
     setActiveChatFriend(null);
     if (socketRef.current) {
@@ -374,7 +395,14 @@ export default function FriendsPage() {
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return;
+
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
                 placeholder="Type a message..."
                 className="flex-1 bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-green-400 text-gray-700"
               />

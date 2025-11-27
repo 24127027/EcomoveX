@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List, Tuple
-from datetime import date
+from typing import Optional, List
+from datetime import date, datetime
 from models.plan import DestinationType, PlanRole
 
 class PlanCreate(BaseModel):
@@ -40,10 +40,14 @@ class PlanDestinationCreate(BaseModel):
     destination_id: str
     destination_type: DestinationType
     visit_date: date
+    time: Optional[str] = Field(None, max_length=32)
+    estimated_cost: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
     
 class PlanDestinationUpdate(BaseModel):
     visit_date: Optional[date] = None
+    time: Optional[str] = Field(None, max_length=32)
+    estimated_cost: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
 
 class PlanMemberCreate(BaseModel):
@@ -51,11 +55,22 @@ class PlanMemberCreate(BaseModel):
     role: PlanRole = PlanRole.member
 
 class PlanDestinationResponse(BaseModel):
+    id: int
     destination_id: str
     type: DestinationType
     visit_date: date
+    time: Optional[str] = None
+    estimated_cost: Optional[float] = None
     note: Optional[str] = None
     
+    model_config = ConfigDict(from_attributes=True)
+
+class PlanMemberDetailResponse(BaseModel):
+    user_id: int
+    plan_id: int
+    role: PlanRole
+    joined_at: datetime
+
     model_config = ConfigDict(from_attributes=True)
 
 class PlanResponse(BaseModel):

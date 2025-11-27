@@ -1,8 +1,10 @@
+import sys
+from pathlib import Path
+backend_dir = Path(__file__).parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 import asyncio
 import asyncpg
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
 from init_database import init_db
 

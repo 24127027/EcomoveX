@@ -27,8 +27,7 @@ async def autocomplete(
     request: AutocompleteRequest,
     user_db: AsyncSession = Depends(get_db)
 ):
-    result = await mapService.autocomplete(user_db, request)
-    return result
+    return await mapService.autocomplete(user_db, request)
 
 @router.get("/place/{place_id}", response_model=PlaceDetailsResponse, status_code=status.HTTP_200_OK)
 async def get_place_details(
@@ -60,8 +59,7 @@ async def get_place_details(
 async def geocode_address(
     address: str = Body(..., min_length=2),
 ):
-    result = await mapService.geocode_address(address=address)
-    return result
+    return await mapService.geocode_address(address=address)
 
 @router.post("/reverse-geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)
 async def reverse_geocode(
@@ -69,16 +67,14 @@ async def reverse_geocode(
     lng: float = Body(..., ge=-180.0, le=180.0)
 ):    
     location = Location(latitude=lat, longitude=lng)
-    result = await mapService.reverse_geocode(location=location)
-    return result
+    return await mapService.reverse_geocode(location=location)
 
 @router.post("/search-along-route", response_model=SearchAlongRouteResponse, status_code=status.HTTP_200_OK)
 async def search_along_route(
     direction_data: DirectionsResponse = Body(...),
     search_type: str = Body(..., min_length=2),
 ):
-    result = await mapService.search_along_route(
+    return await mapService.search_along_route(
         directions=direction_data,
         search_type=search_type,
     )
-    return result

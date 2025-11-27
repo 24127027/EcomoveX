@@ -2,7 +2,7 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
-from repository.user_repository import UserRepository, UserActivityRepository
+from repository.user_repository import UserRepository
 from services.storage_service import StorageService
 from schemas.user_schema import *
 
@@ -261,7 +261,7 @@ class UserActivityService:
     @staticmethod
     async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate) -> UserActivityResponse:
         try:
-            activity = await UserActivityRepository.log_user_activity(db, user_id, data)
+            activity = await UserRepository.log_user_activity(db, user_id, data)
             if not activity:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -284,7 +284,7 @@ class UserActivityService:
     @staticmethod
     async def get_user_activities(db: AsyncSession, user_id: int)-> List[UserActivityResponse]:
         try:
-            activities = await UserActivityRepository.get_user_activities(db, user_id)
+            activities = await UserRepository.get_user_activities(db, user_id)
             activity_list = []
             for activity in activities:
                 activity_list.append(

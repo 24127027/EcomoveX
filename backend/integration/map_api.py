@@ -1,7 +1,5 @@
-﻿import time
-from typing import Any, Dict, List, Optional, Tuple
+﻿from typing import Any, Dict, List, Optional, Tuple
 import httpx
-from integration.route_api import create_route_api_client
 from schemas.route_schema import *
 from schemas.map_schema import *
 from utils.config import settings
@@ -127,11 +125,15 @@ class MapAPI:
             
             url = f"{self.base_url}/place/autocomplete/json"
             response = await self.client.get(url, params=params)
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error in autocomplete: HTTP {response.status_code}")
+            
             data = response.json()
             if data.get("status") != "OK":
                 if data.get("status") == "ZERO_RESULTS":
                     return AutocompleteResponse(predictions=[])
-                raise ValueError(f"Error fetching autocomplete places: {data.get('status')}")
+                raise ValueError(f"Error in autocomplete: {data.get('status')}")            
             list = data.get("predictions", [])
             list_places = []
             for place in list:
@@ -166,9 +168,13 @@ class MapAPI:
             
             url = f"{self.base_url}/place/details/json"
             response = await self.client.get(url, params=params)
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error fetching place details: HTTP {response.status_code}")
+            
             data = response.json()
             if data.get("status") != "OK":
-                raise ValueError(f"Error fetching place details: {data.get('status')}")
+                raise ValueError(f"Error fetching place details: {data.get('status')}")            
             result = data.get("result", {})
 
             return PlaceDetailsResponse(
@@ -236,16 +242,20 @@ class MapAPI:
     ) -> GeocodingResponse:
         try:
             params = {
-                "latlng": f"{location.longitude},{location.latitude}",
+                "latlng": f"{location.latitude},{location.longitude}",
                 "language": language,
                 "key": self.api_key
             }
             
             url = f"{self.base_url}/geocode/json"
             response = await self.client.get(url, params=params)
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error in reverse geocoding: HTTP {response.status_code}")
+            
             data = response.json()
             if data.get("status") != "OK":
-                raise ValueError(f"Error in reverse geocoding: {data.get('status')}")
+                raise ValueError(f"Error in reverse geocoding: {data.get('status')}")            
             
             results = []
             for result in data.get("results", []):
@@ -296,10 +306,13 @@ class MapAPI:
             
             url = f"{self.base_url}/geocode/json"
             response = await self.client.get(url, params=params)
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error in geocoding: HTTP {response.status_code}")
+            
             data = response.json()
             if data.get("status") != "OK":
-                raise ValueError(f"Error in geocoding: {data.get('status')}")
-            
+                raise ValueError(f"Error in geocoding: {data.get('status')}")            
             results = []
             for result in data.get("results", []):
                 results.append(GeocodingResult(
@@ -353,8 +366,11 @@ class MapAPI:
             
             url = f"{self.base_url}/place/nearbysearch/json"
             response = await self.client.get(url, params=params)
-            response_data = response.json()
             
+            if response.status_code != 200:
+                raise ValueError(f"Error fetching nearby places: HTTP {response.status_code}")
+            
+            response_data = response.json()
             if response_data.get("status") != "OK":
                 raise ValueError(f"Error fetching nearby places: {response_data.get('status')}")
             
@@ -392,9 +408,13 @@ class MapAPI:
             }
             url = f"{self.base_url}/place/nearbysearch/json"
             response = await self.client.get(url, params=params)
+            
+            if response.status_code != 200:
+                raise ValueError(f"Error fetching next page of nearby places: HTTP {response.status_code}")
+            
             response_data = response.json()
             if response_data.get("status") != "OK":
-                raise ValueError(f"Error fetching next page of nearby places: {response_data.get('status')}")
+                raise ValueError(f"Error fetching next page of nearby places: {response_data.get('status')}")            
             places = [
                 NearbyPlaceSimple(
                     place_id=result["place_id"],
@@ -467,11 +487,8 @@ class MapAPI:
         maxwidth: int = 400,
     ) -> str:
         try:
-            # Check if this is a New API resource name (starts with "places/")
             if photo_reference.startswith("places/"):
                 
-                # FIX: Do NOT use self.base_url here. Hardcode the V1 URL.
-                # The photo_reference already contains "places/PLACE_ID/photos/PHOTO_ID"
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
                 
                 params = {
@@ -480,12 +497,10 @@ class MapAPI:
                     "key": self.api_key
                 }
                 
-                # Build the URL string
                 request = self.client.build_request("GET", base_url, params=params)
                 return str(request.url)
 
             else:
-                # Legacy API Logic (Keep this as is)
                 params = {
                     "maxwidth": maxwidth,
                     "photoreference": photo_reference,

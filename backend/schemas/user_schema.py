@@ -1,6 +1,26 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from datetime import datetime
 from models.user import *
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Username cannot be empty or whitespace")
+        return v.strip()
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Password cannot be empty or whitespace")
+        return v.strip()
 
 class UserCredentialUpdate(BaseModel):
     old_password: str = Field(..., min_length=1)
@@ -36,6 +56,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     eco_point: int
     rank: str
+    role: str
     avt_url: Optional[str] = None
     cover_url: Optional[str] = None
 
@@ -46,9 +67,10 @@ class UserActivityCreate(BaseModel):
     destination_id: str
     
 class UserActivityResponse(BaseModel):
+    id: int
     user_id: int
     destination_id: str
     activity: Activity
-    timestamp: str
+    timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)

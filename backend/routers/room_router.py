@@ -59,8 +59,8 @@ async def add_users_to_room(
     return await RoomService.add_users_to_room(
         db, 
         current_user["user_id"], 
-        member_data.ids, 
-        room_id
+        room_id,
+        member_data
     )
 
 @router.delete("/rooms/{room_id}/members", response_model=RoomResponse, status_code=status.HTTP_200_OK)

@@ -85,19 +85,42 @@ const generateSessionToken = () => {
 
 export default function MapPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isLoaded, loadError } = useGoogleMaps();
-  const [selectedLocation, setSelectedLocation] = useState<PlaceDetailsWithDistance | null>(null);
-  const urlQuery = useSearchParams().get("q") || "";
+
+  const urlQuery = searchParams.get("q") || "";
+  const latParam = searchParams.get("lat");
+  const lngParam = searchParams.get("lng");
+
+  const [userLocation, setUserLocation] = useState<Position>(() => {
+    if (latParam && lngParam) {
+      const lat = parseFloat(latParam);
+      const lng = parseFloat(lngParam);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { lat, lng };
+      }
+    }
+    return { lat: 10.7756, lng: 106.7019 };
+  });
+
+  const [selectedLocation, setSelectedLocation] =
+    useState<PlaceDetailsWithDistance | null>(null);
+
   const [searchQuery, setSearchQuery] = useState(urlQuery);
   const prevSearchQuery = usePrevious(searchQuery);
+
   const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
-  const [searchResults, setSearchResults] = useState<PlaceDetailsWithDistance[]>([]);
+  const [searchResults, setSearchResults] = useState<
+    PlaceDetailsWithDistance[]
+  >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [autocompletePredictions, setAutocompletePredictions] = useState<AutocompletePrediction[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(40);
+
+  // Drag sheet state
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startHeight, setStartHeight] = useState(40);
@@ -126,11 +149,11 @@ export default function MapPage() {
   }, [urlQuery]);
 
   useEffect(() => {
-    if (!urlQuery) {
+    if (!urlQuery && !searchQuery) {
       fetchRecommendations();
       initialLoadRef.current = false;
     }
-  }, [userLocation]);
+  }, [userLocation]); // Chạy lại khi location thay đổi để lấy gợi ý quanh đó
 
   // Fetch autocomplete predictions as user types
   useEffect(() => {
@@ -316,14 +339,14 @@ export default function MapPage() {
         place_types: "park|tourist_attraction|point_of_interest",
         session_token: recToken,
       });
-      
+
       if (!response || !response.predictions) {
         setLocations([]);
         return;
       }
       
       const detailedRecommendations = await Promise.all(
-        response.predictions.slice(0, 8).map(async (prediction: AutocompletePrediction) => {
+        response.predictions.slice(0, 8).map(async (prediction) => {
           try {
             const details = await api.getPlaceDetails(prediction.place_id, recToken, ["basic"]);
             return await addDistanceText(details, userLocation);
@@ -332,11 +355,15 @@ export default function MapPage() {
           }
         })
       );
-      
-      setLocations(detailedRecommendations.filter((r): r is PlaceDetailsWithDistance => r !== null));
+
+      setLocations(
+        detailedRecommendations.filter(
+          (r): r is PlaceDetailsWithDistance => r !== null
+        )
+      );
       setSheetHeight(65);
     } catch (error) {
-      console.error('Failed to fetch recommendations:', error);
+      console.error("Failed to fetch recommendations:", error);
       setLocations([]);
     } finally {
       setIsLoadingRecommendations(false);
@@ -345,6 +372,7 @@ export default function MapPage() {
 
   const displayedLocations = searchResults.length > 0 ? searchResults : (!isSearchFocused ? locations : []);
 
+  // --- MAP INITIALIZATION ---
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
     
@@ -366,7 +394,8 @@ export default function MapPage() {
   useEffect(() => {
     if (!googleMapRef.current || !mapLoaded) return;
 
-    markersRef.current.forEach(marker => marker.setMap(null));
+    // Clear old markers
+    markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
     displayedLocations.forEach(location => {
@@ -374,7 +403,10 @@ export default function MapPage() {
       if (!location.geometry || !location.geometry.location) return;
 
       const marker = new window.google.maps.Marker({
-        position: { lat: location.geometry.location.lat, lng: location.geometry.location.lng },
+        position: {
+          lat: location.geometry.location.lat,
+          lng: location.geometry.location.lng,
+        },
         map: googleMapRef.current,
         title: location.name,
         icon: {
@@ -383,13 +415,16 @@ export default function MapPage() {
           fillColor: "#53B552",
           fillOpacity: 1,
           strokeColor: "#ffffff",
-          strokeWeight: 3
-        }
+          strokeWeight: 3,
+        },
       });
 
-      marker.addListener('click', () => {
+      marker.addListener("click", () => {
         handleLocationSelect(location);
-        googleMapRef.current?.panTo({ lat: location.geometry.location.lat, lng: location.geometry.location.lng });
+        googleMapRef.current?.panTo({
+          lat: location.geometry.location.lat,
+          lng: location.geometry.location.lng,
+        });
       });
 
       markersRef.current.push(marker);
@@ -449,17 +484,24 @@ export default function MapPage() {
         (position) => {
           const pos = {
             lat: position.coords.latitude,
-            lng: position.coords.longitude
+            lng: position.coords.longitude,
           };
           setUserLocation(pos);
+
+          // [FIX] Update URL khi bấm nút định vị
+          const params = new URLSearchParams(window.location.search);
+          params.set("lat", pos.lat.toString());
+          params.set("lng", pos.lng.toString());
+          router.replace(`/map_page?${params.toString()}`);
+
           if (googleMapRef.current) {
             googleMapRef.current.setCenter(pos);
             googleMapRef.current.setZoom(15);
           }
         },
         (error) => {
-          console.error('Error getting location:', error);
-          alert('Unable to get your location');
+          console.error("Error getting location:", error);
+          alert("Unable to get your location");
         }
       );
     }
@@ -488,7 +530,6 @@ export default function MapPage() {
     const deltaY = startY - clientY;
     const windowHeight = window.innerHeight;
     const deltaPercent = (deltaY / windowHeight) * 100;
-    
     let newHeight = startHeight + deltaPercent;
     newHeight = Math.max(15, Math.min(90, newHeight));
     
@@ -621,7 +662,7 @@ export default function MapPage() {
           </div>
 
           {/* Current Location Button */}
-          <button 
+          <button
             onClick={handleCurrentLocation}
             className="absolute top-24 right-4 z-10 bg-white p-3 rounded-full shadow-lg hover:bg-gray-50 transition-colors active:scale-95"
           >
@@ -630,7 +671,6 @@ export default function MapPage() {
 
           {/* Google Map */}
           <div ref={mapRef} className="w-full h-full" />
-          
           {!mapLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-[#E9F5EB]">
               <div className="text-center">
@@ -697,15 +737,15 @@ export default function MapPage() {
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
                         {selectedLocation.distanceText}
                       </span>
-                      {selectedLocation.rating && selectedLocation.rating > 0 && (
-                        <span className="text-xs text-yellow-600 font-semibold">
-                          ★ {selectedLocation.rating.toFixed(1)}
-                        </span>
-                      )}
+                      {selectedLocation.rating &&
+                        selectedLocation.rating > 0 && (
+                          <span className="text-xs text-yellow-600 font-semibold">
+                            ★ {selectedLocation.rating.toFixed(1)}
+                          </span>
+                        )}
                     </div>
                   </div>
                 </div>
-
                 <button
                   onClick={handleNavigateToDetail}
                   className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
@@ -763,12 +803,18 @@ export default function MapPage() {
                     key={location.place_id}
                     onClick={() => handleCardClick(location)}
                     className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
-                      selectedLocation?.place_id === location.place_id ? 'ring-2 ring-green-500' : ''
+                      selectedLocation?.place_id === location.place_id
+                        ? "ring-2 ring-green-500"
+                        : ""
                     }`}
                   >
                     <div className="relative h-28 bg-gray-200">
                       <img
-                        src={location.photos?.[0]?.photo_url || 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400'}
+                        src={
+                          location.photos?.[0]?.photo_reference
+                            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                            : "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
+                        }
                         alt={location.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -782,7 +828,9 @@ export default function MapPage() {
                       <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
                         {location.name}
                       </h4>
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">{location.distanceText}</p>
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+                        {location.distanceText}
+                      </p>
                       <div className="flex items-center justify-between">
                         <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
                           {location.types[0]?.replace(/_/g, ' ') || 'Place'}
@@ -804,21 +852,33 @@ export default function MapPage() {
 
         {/* Footer */}
         <footer className="bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-20">
-          <div className="h-0.5 bg-gradient-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
+          <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
           <div className="flex justify-around items-center px-2 pt-2 pb-3">
-            <a href="/homepage" className="flex flex-col items-center justify-center w-1/4 text-green-600">
+            <a
+              href="/user_page/main_page"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+            >
               <Home className="size-6" strokeWidth={2.0} />
               <span className="text-xs font-medium mt-0.5">Home</span>
             </a>
-            <a href="#" className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors">
+            <a
+              href="#"
+              className="flex flex-col items-center justify-center w-1/4 text-green-600 transition-colors"
+            >
               <MapPin className="size-6" strokeWidth={2.0} />
               <span className="text-xs font-medium mt-0.5">Planning</span>
             </a>
-            <a href="#" className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors">
+            <a
+              href="#"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+            >
               <Bot className="size-6" strokeWidth={1.5} />
               <span className="text-xs font-medium mt-0.5">Ecobot</span>
             </a>
-            <a href="/user_page/profile_page" className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors">
+            <a
+              href="/user_page/profile_page"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+            >
               <User className="size-6" strokeWidth={1.5} />
               <span className="text-xs font-medium mt-0.5">User</span>
             </a>

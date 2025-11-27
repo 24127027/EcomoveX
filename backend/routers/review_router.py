@@ -33,14 +33,11 @@ async def create_review(
     current_user: dict = Depends(get_current_user)
 ):
     result = await ReviewService.create_review(user_db, current_user["user_id"], destination_id, review_data)
-    try:
-        activity_data = UserActivityCreate(
-            activity=Activity.review_destination,
-            destination_id=destination_id
-        )
-        await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
-    except Exception as e:
-        print(f"Warning: Failed to log activity - {e}")    
+    activity_data = UserActivityCreate(
+        activity=Activity.review_destination,
+        destination_id=destination_id
+    )
+    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
     return result
 
 @router.put("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)

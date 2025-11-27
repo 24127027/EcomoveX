@@ -12,7 +12,7 @@ router = APIRouter(prefix="/destinations", tags=["Destinations"])
 
 @router.post("/saved/{destination_id}", response_model=UserSavedDestinationResponse, status_code=status.HTTP_201_CREATED)
 async def save_destination_for_current_user(
-    destination_id: str = Path(..., gt=0),
+    destination_id: str = Path(..., min_length=1),
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -21,14 +21,11 @@ async def save_destination_for_current_user(
         current_user["user_id"], 
         destination_id
     )
-    try:
-        activity_data = UserActivityCreate(
-            activity=Activity.save_destination,
-            destination_id=destination_id
-        )
-        await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
-    except Exception as e:
-        print(f"Warning: Failed to log activity - {e}")
+    activity_data = UserActivityCreate(
+        activity=Activity.save_destination,
+        destination_id=destination_id
+    )
+    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
     return result
 
 @router.get("/saved/me/all", response_model=list[UserSavedDestinationResponse], status_code=status.HTTP_200_OK)

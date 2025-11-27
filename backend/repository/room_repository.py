@@ -1,3 +1,4 @@
+from schemas.room_schema import AddMemberCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -133,16 +134,16 @@ class RoomRepository:
             return None
 
     @staticmethod
-    async def add_member(db: AsyncSession, user_id: int, room_id: int):
+    async def add_member(db: AsyncSession, room_id: int, data: AddMemberCreate):
         try:
-            new_member = RoomMember(room_id=room_id, user_id=user_id)
+            new_member = RoomMember(room_id=room_id, user_id=data.id, role=data.role)
             db.add(new_member)
             await db.commit()
             await db.refresh(new_member)
             return new_member
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding user ID {user_id} to room ID {room_id} - {e}")
+            print(f"ERROR: adding user ID {data.id} to room ID {room_id} - {e}")
             return None
     
     @staticmethod

@@ -36,6 +36,8 @@ import {
   TravelPlan,
   CurrentWeatherResponse,
   AirQualityResponse,
+  UserRewardResponse,
+  Mission,
 } from "@/lib/api";
 
 export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
@@ -65,22 +67,38 @@ const parseDate = (dateStr: string) => {
 };
 
 export default function HomePage() {
+  const TAO_DAN_PLACE_ID = "ChIJq46ErLopCzER10OzGact5ew";
+
   const [searchQuery, setSearchQuery] = useState("");
   const [heart, setHeart] = useState(false);
-  const [bookMark, setBookMark] = useState(false);
+  const [loadingHeart, setLoadingHeart] = useState(false);
   const router = useRouter();
   const [requestCount, setRequestCount] = useState(0);
 
   // State for Plan
   const [upcomingPlan, setUpcomingPlan] = useState<TravelPlan | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
-  // State for Weather & AQI
-  const [weather, setWeather] = useState<CurrentWeatherResponse | null>(null);
-  const [airQuality, setAirQuality] = useState<AirQualityResponse | null>(null);
-  const [loadingWeather, setLoadingWeather] = useState(true);
-  const [locationError, setLocationError] = useState(false);
 
-  // 1. Lấy số lượng lời mời kết bạn
+  // State for Rewards
+  const [userReward, setUserReward] = useState<UserRewardResponse | null>(null);
+  const [nextLevelTarget, setNextLevelTarget] = useState(100);
+  const [loadingRewards, setLoadingRewards] = useState(true);
+
+  useEffect(() => {
+    const checkSavedStatus = async () => {
+      try {
+        const savedList = await api.getSavedDestinations();
+        const isSaved = savedList.some(
+          (item) => item.destination_id === TAO_DAN_PLACE_ID
+        );
+        setHeart(isSaved);
+      } catch (error) {
+        console.error("Failed to check saved status", error);
+      }
+    };
+    checkSavedStatus();
+  }, []);
+
   useEffect(() => {
     const fetchRequests = async () => {
       try {
@@ -93,7 +111,6 @@ export default function HomePage() {
     fetchRequests();
   }, []);
 
-  // 2. Lấy kế hoạch sắp tới
   useEffect(() => {
     const fetchUpcomingPlan = async () => {
       try {
@@ -109,7 +126,6 @@ export default function HomePage() {
           return planDate >= today;
         });
 
-        // Sắp xếp: Plan nào gần nhất lên đầu
         futurePlans.sort(
           (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
         );
@@ -128,66 +144,67 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      console.error("Geolocation not supported");
-      setLoadingWeather(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const [weatherRes, airRes] = await Promise.all([
-            api.getCurrentWeather(latitude, longitude),
-            api.getAirQuality(latitude, longitude),
-          ]);
-          setWeather(weatherRes);
-          setAirQuality(airRes);
-        } catch (error) {
-          console.error("Error fetching weather/air:", error);
-        } finally {
-          setLoadingWeather(false);
-        }
-      },
-      (error) => {
-        console.error("Location permission denied or error:", error);
-        setLocationError(true);
-        setLoadingWeather(false);
+    const fetchRewardData = async () => {
+      try {
+        const data = await api.getUserRewards();
+        setUserReward(data);
+        const points = data.total_points || 0;
+        let target = 100;
+        if (points >= 600) target = 1000;
+        else if (points >= 300) target = 600;
+        else if (points >= 100) target = 300;
+        setNextLevelTarget(target);
+      } catch (error) {
+        console.error("Failed to fetch user rewards", error);
+      } finally {
+        setLoadingRewards(false);
       }
-    );
+    };
+    fetchRewardData();
   }, []);
 
-  const getWeatherIcon = (type?: string) => {
-    if (!type) return <Sun size={32} className="text-orange-400" />;
-    const t = type.toUpperCase();
-    if (t.includes("RAIN") || t.includes("DRIZZLE"))
-      return <CloudRain size={32} className="text-blue-500" />;
-    if (t.includes("CLOUD"))
-      return <Cloud size={32} className="text-gray-400" />;
-    if (t.includes("THUNDER"))
-      return <CloudLightning size={32} className="text-purple-500" />;
-    if (t.includes("SNOW"))
-      return <Snowflake size={32} className="text-blue-300" />;
-    return <Sun size={32} className="text-orange-400" />;
+  const getCurrentLevel = (points: number) => {
+    if (points >= 600) return 3;
+    if (points >= 300) return 2;
+    if (points >= 100) return 1;
+    return 1;
   };
 
-  const getAQIColor = (aqi: number) => {
-    if (aqi <= 50) return "text-green-700";
-    if (aqi <= 100) return "text-yellow-600";
-    if (aqi <= 150) return "text-orange-600";
-    return "text-red-600";
-  };
-
-  const getAQIText = (aqi: number) => {
-    if (aqi <= 50) return "(Good)";
-    if (aqi <= 100) return "(Moderate)";
-    if (aqi <= 150) return "(Unhealthy)";
-    return "(Hazardous)";
+  const getProgressPercent = () => {
+    if (!userReward) return 0;
+    const points = userReward.total_points || 0;
+    let prevTarget = 0;
+    if (nextLevelTarget === 300) prevTarget = 100;
+    else if (nextLevelTarget === 600) prevTarget = 300;
+    else if (nextLevelTarget === 1000) prevTarget = 600;
+    const progress =
+      ((points - prevTarget) / (nextLevelTarget - prevTarget)) * 100;
+    return Math.min(Math.max(progress, 0), 100);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
+  };
+
+  const handleHeartClick = async () => {
+    if (loadingHeart) return; // Prevent multiple clicks
+    setLoadingHeart(true);
+    const previousState = heart;
+    setHeart(!heart);
+    try {
+      if (!previousState) {
+        await api.saveDestination(TAO_DAN_PLACE_ID);
+        console.log("Destination saved");
+      } else {
+        await api.unsaveDestination(TAO_DAN_PLACE_ID);
+        console.log("Destination unsaved");
+      }
+    } catch (error) {
+      console.error("Error toggling save: ", error);
+      setHeart(previousState); // Revert state on error
+    } finally {
+      setLoadingHeart(false);
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -200,11 +217,48 @@ export default function HomePage() {
   };
 
   const handleSearchNearby = () => {
-    router.push("/map_page?nearby=true");
+    const fallbackToMap = () => {
+      console.log("Redirecting to map without location");
+      router.push("/map_page?q=eco-friendly");
+    };
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        router.push(
+          `/map_page?q=eco-friendly&lat=${latitude}&lng=${longitude}`
+        );
+      },
+      (error) => {
+        console.warn("Geolocation error:", error);
+        fallbackToMap();
+      },
+      { timeout: 10000, maximumAge: Infinity, enableHighAccuracy: false }
+    );
   };
 
   const handleTagClick = (tag: string) => {
-    router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+    if (!navigator.geolocation) {
+      router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        router.push(
+          `/map_page?q=${encodeURIComponent(
+            tag
+          )}&lat=${latitude}&lng=${longitude}`
+        );
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+      },
+      { timeout: 15000, maximumAge: Infinity, enableHighAccuracy: false }
+    );
   };
 
   return (
@@ -244,7 +298,7 @@ export default function HomePage() {
             {["Café", "Restaurant", "Park", "Hotel", "Shopping"].map((i) => (
               <button
                 key={i}
-                onClick={() => handleTagClick(i)} // Thêm sự kiện click
+                onClick={() => handleTagClick(i)}
                 className={`${jost.className} cursor-pointer bg-white text-[#53B552] rounded-full px-4 py-1 text-sm font-medium hover:text-white hover:bg-green-500 transition-colors`}
               >
                 {i}
@@ -278,22 +332,20 @@ export default function HomePage() {
             </div>
             <div className="flex gap-2 justify-between items-center mt-3">
               <div className="flex gap-3">
-                <Heart
-                  className={`${
-                    heart
-                      ? "fill-green-600 stroke-green-600 scale-110"
-                      : "stroke-green-600"
-                  } cursor-pointer transition-all size-6 text-green-600 strokeWidth={1.5} hover:fill-green-600 `}
-                  onClick={() => setHeart(!heart)}
-                />
-                <Bookmark
-                  onClick={() => setBookMark(!bookMark)}
-                  className={`${
-                    bookMark
-                      ? "fill-green-600 stroke-green-600 scale-110"
-                      : "stroke-green-600"
-                  } cursor-pointer transition-all size-6 text-green-600 strokeWidth={1.5} hover:fill-green-600 `}
-                />
+                <button
+                  onClick={handleHeartClick}
+                  disabled={loadingHeart}
+                  className="focus:outline-none"
+                >
+                  <Heart
+                    className={`${
+                      heart
+                        ? "fill-green-600 stroke-green-600 scale-110"
+                        : "stroke-green-600"
+                    } cursor-pointer transition-all size-6 text-green-600 strokeWidth={1.5} hover:fill-green-600 `}
+                    onClick={() => setHeart(!heart)}
+                  />
+                </button>
               </div>
               <div className="text-right">
                 <p
@@ -365,95 +417,84 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Weather CARD */}
-            <div className="bg-[#E3F1E4] p-4 rounded-2xl flex flex-col justify-between h-full shadow-sm border border-green-100">
-              {loadingWeather ? (
-                <div className="flex flex-col items-center justify-center h-full gap-2 text-green-600/50">
-                  <Loader2 className="animate-spin" size={24} />
-                  <span className="text-xs font-bold">Checking weather...</span>
-                </div>
-              ) : locationError ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <span className="text-xs text-gray-500">
-                    Location required for weather
-                  </span>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="mt-2 text-[10px] bg-green-500 text-white px-2 py-1 rounded"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      {/* Nhiệt độ thật */}
-                      <span className="text-3xl font-bold text-gray-800">
-                        {Math.round(weather?.temperature.temperature || 0)}°C
-                      </span>
-                      {/* AQI thật */}
-                      <div className="flex items-center gap-1 mt-1">
-                        <Wind size={14} className="text-green-600" />
-                        <span
-                          className={`text-[10px] font-bold ${
-                            airQuality
-                              ? getAQIColor(airQuality.aqi_data.aqi)
-                              : "text-gray-500"
-                          }`}
-                        >
-                          AQI: {airQuality?.aqi_data.aqi || "--"}{" "}
-                          {airQuality
-                            ? getAQIText(airQuality.aqi_data.aqi)
-                            : ""}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Icon thời tiết thật */}
-                    {getWeatherIcon(weather?.weather_condition.type)}
-                  </div>
-                </>
-              )}
+            {/* Search Nearby */}
+            <div className="bg-[#F3FBF5] p-5 rounded-2xl flex flex-col justify-center items-center h-full shadow-sm border border-green-500 text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-green-100 rounded-bl-full opacity-50"></div>
+
+              <h3
+                className={`${abhaya_libre.className} text-green-700/80 uppercase tracking-widset text-sm mb-1`}
+              >
+                Nearby
+              </h3>
+              <h2
+                className={`${abhaya_libre.className} text-green-600 text-xl font-bold leading-tight mb-4`}
+              >
+                ECO-FRIENDLY <br />
+                SPOTS
+              </h2>
+              <button
+                onClick={handleSearchNearby}
+                className="bg-[#53B552] text-white px-6 py-2 rounded-full text-sm font-bold shadow-md hover:bg-green-600 hover:shadow-lg transition-all active:scale-95 flex items-center gap-2"
+              >
+                Search Now
+              </button>
             </div>
           </section>
 
-          {/* SECTION 3: Explore Activities */}
-          <section className="bg-[#E9F5EB] rounded-2xl p-6 shadow-sm mt-0">
-            <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-lg text-gray-800">
-                  Your Eco Impact
-                </h3>
-                <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">
-                  Level 2
-                </span>
-              </div>
-
-              {/* Challenge Card */}
-              <div className="flex gap-4 items-center">
-                {/* Icon huy hiệu/cúp */}
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 shrink-0">
-                  <Trophy size={24} />
+          {/* SECTION 3: Your Eco Impact */}
+          <section className="mt-0">
+            <div className="bg-white p-5 rouned-3xl shadow-sm border border-gray-100">
+              {loadingRewards ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="animate-spin text-green-600" />
                 </div>
-
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-700">
-                    Green Traveler Challenge
-                  </p>
-                  <p className="text-xs text-gray-400 mb-2">
-                    Visit 3 parks this week to earn badge
-                  </p>
-
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-[#53B552] h-full w-2/3 rounded-full"></div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3
+                      className={`${jost.className} font-bold text-lg text-gray-800`}
+                    >
+                      Your Eco Impact
+                    </h3>
+                    <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full text-xs">
+                      Level{" "}
+                      {userReward
+                        ? getCurrentLevel(userReward.total_points || 0)
+                        : 1}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-[10px] mt-1 text-gray-400">
-                    <span>2/3 visited</span>
-                    <span>+100 pts</span>
+                  <div className="flex gap-4 items-center">
+                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 shrink-0">
+                      <Trophy size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <p
+                        className={`${jost.className} text-sm font-bold text-gray-700`}
+                      >
+                        Eco Warrior Journey
+                      </p>
+                      <p className="text-xs text-gray-400 mb-2">
+                        Earn points to reach Level{" "}
+                        {userReward
+                          ? getCurrentLevel(userReward.total_points || 0) + 1
+                          : 2}
+                      </p>
+                      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-green-500 h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${getProgressPercent()}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-[10px] mt-1 text-gray-400 font-medium">
+                        <span>
+                          {userReward?.total_points || 0}/{nextLevelTarget} pts
+                        </span>
+                        <span className="text-green-600">Keep going!</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </section>
         </main>

@@ -201,9 +201,10 @@ class MessageService:
             
             await socket.connect(websocket, room_id, user_id)
             return user_id
-        except Exception:
+        except Exception as e:
             if user_id:
                 socket.disconnect(websocket, room_id, user_id)
+                print(f"BẮT ĐƯỢC LỖI SOCKET: {e}")  # <--- Thêm dòng này
             return None
         
     @staticmethod
@@ -217,14 +218,19 @@ class MessageService:
                 )
                 
                 response = await MessageService.handle_websocket_message(db, user_id, room_id, request)
-                
+                response_data = response.model_dump(mode='json')
                 if response.type == "message":
-                    await socket.broadcast(response.model_dump(), room_id)
+                    await socket.broadcast(response_data, room_id)
                 else:
-                    await socket.send_to_user(response.model_dump(), room_id, user_id)
+                    await socket.send_to_user(response_data, room_id, user_id)
         except WebSocketDisconnect:
+            print(f"User {user_id} disconnected from room {room_id}")
             socket.disconnect(websocket, room_id, user_id)
-        except Exception:
+        except Exception as e:
+            print(f"🔴 WEBSOCKET ERROR: {e}") 
+            import traceback
+            traceback.print_exc()
+            
             socket.disconnect(websocket, room_id, user_id)
             try:
                 await websocket.close(code=1011)
