@@ -16,6 +16,8 @@ from routers.route_router import router as route_router
 from routers.reward_router import router as reward_router
 from routers.room_router import router as room_router
 from routers.message_router import router as message_router
+from routers.plan_router import router as plan_router
+
 # from routers.chatbot_router import router as chatbot_router
 # from routers.recommendation_router import router as recommendation_router
 
@@ -84,6 +86,7 @@ app.include_router(route_router)
 app.include_router(reward_router)
 app.include_router(room_router)
 app.include_router(message_router)
+app.include_router(plan_router)
 #app.include_router(chatbot_router)
 #app.include_router(recommendation_router)
 

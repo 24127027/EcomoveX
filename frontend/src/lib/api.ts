@@ -27,10 +27,6 @@ interface AuthResponse {
   email: string;
 }
 
-interface ApiError {
-  detail: string;
-}
-
 interface ValidationError {
   loc: (string | number)[];
   msg: string;
@@ -78,9 +74,9 @@ export interface PhotoInfo {
 }
 
 export interface PlaceSearchResult {
-  id: string; // Backend sends "id"
-  displayName: LocalizedText; // Backend sends "displayName"
-  formattedAddress?: string; // Backend sends "formattedAddress"
+  id: string; //  sends "id"
+  displayName: LocalizedText; //  sends "displayName"
+  formattedAddress?: string; //  sends "formattedAddress"
   location?: Position;
   types: string[];
   photos?: PhotoInfo | null;
@@ -95,11 +91,11 @@ export interface TextSearchRequest {
 }
 
 export interface TextSearchResponse {
-  places: PlaceSearchResult[]; // Backend sends "places"
+  places: PlaceSearchResult[]; //  sends "places"
 }
 // --- NEW TEXT SEARCH TYPES END ---
 
-export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
+export type PlaceDataCategory = "basic" | "contact" | "atmosphere";
 
 export interface AutocompleteRequest {
   query: string;
@@ -187,21 +183,6 @@ export interface UploadResponse {
   filename: string;
 }
 
-export interface PlanActivity {
-  id: number;
-  title: string;
-  address: string;
-  image_url: string;
-  time_slot: "Morning" | "Afternoon" | "Evening";
-}
-
-export interface TravelPlan {
-  id: number;
-  destination: string;
-  date: string;
-  activities: PlanActivity[];
-}
-
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
@@ -283,6 +264,56 @@ export interface UserRewardResponse {
   mission: Mission[];
   total_points: number;
 }
+
+//PLAN DESTINATION TYPES
+export interface PlanDestination {
+  destination_id: string;
+  type: string;
+  visit_date: string;
+  note?: string;
+}
+
+export interface PlanResponse {
+  id: number;
+  place_name: string;
+  start_date: string;
+  end_date: string;
+  budget_limit: number;
+  destinations: PlanDestination[];
+}
+
+export interface PlanActivity {
+  id: number | string;
+  title: string;
+  address: string;
+  image_url: string;
+  time_slot: "Morning" | "Afternoon" | "Evening";
+  date?: string;
+}
+
+export interface TravelPlan {
+  id: number;
+  destination: string;
+  date: string;
+  end_date?: string;
+  activities: PlanActivity[];
+}
+
+export interface CreatePlanRequest {
+  place_name: string;
+  start_date: string;
+  end_date?: string;
+  budget_limit: number;
+}
+
+export interface DestinationCard {
+  tempId: number;
+  destinationId: string;
+  name: string;
+  visitDate: string;
+  type: string;
+}
+
 // --- API CLIENT CLASS ---
 
 class ApiClient {
@@ -445,38 +476,41 @@ class ApiClient {
       body: formData,
     });
   }
+// --- PLAN ENDPOINTS ---
+  async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
+    return this.request<PlanResponse>("/plans/", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+
+  async addDestinationToPlan(planId: number, data:PlanDestination): Promise<any> {
+    return this.request(`/plans/${planId}/destinations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
 
   async getPlans(): Promise<TravelPlan[]> {
-    // Mock data
-    return [
-      {
-        id: 201,
-        destination: "Ho Chi Minh City (Upcoming)",
-        date: "30/11/2025",
-        activities: [
-          {
-            id: 1,
-            title: "Thảo Cầm Viên",
-            address: "2 Nguyen Binh Khiem, D1",
-            image_url:
-              "https://images.unsplash.com/photo-1596263576925-48c581d6a90a?q=80&w=200",
-            time_slot: "Morning",
-          },
-        ],
-      },
-      {
-        id: 101,
-        destination: "District 1 (Past)",
-        date: "04/01/2026",
-        activities: [],
-      },
-      {
-        id: 102,
-        destination: "District 5 (Past)",
-        date: "01/01/2023",
-        activities: [],
-      },
-    ];
+    const plans = await this.request<PlanResponse[]>("/plans/", {
+      method: "GET",
+    });
+    return plans.map((p) => ({
+      id: p.id,
+      destination: p.place_name,
+      date: p.start_date,
+      end_date: p.end_date,
+      activities: p.destinations.map((d, index) => ({
+        id: d.destination_id,
+        title: d.note || `Destination ${index + 1}`,
+        address: "Loading address...",
+        image_url:
+          "https://images.unsplash.com/photo-1500835556837-99ac94a94552?q=80&w=200",
+
+        time_slot: index % 2 === 0 ? "Morning" : "Afternoon",
+        date: d.visit_date,
+      })),
+    }));
   }
 
   // --- FRIEND ENDPOINTS ---

@@ -45,6 +45,7 @@ class PlanService:
                 ]
                 plan_response = PlanResponse(
                     id=plan.id,
+                    user_id=user_id,
                     place_name=plan.place_name,
                     start_date=plan.start_date,
                     end_date=plan.end_date,
@@ -73,6 +74,7 @@ class PlanService:
 
             return PlanResponse(
                 id=new_plan.id,
+                user_id=user_id,
                 place_name=new_plan.place_name,
                 start_date=new_plan.start_date,
                 end_date=new_plan.end_date,
@@ -109,6 +111,7 @@ class PlanService:
                 )
             return PlanResponse(
                 id=updated_plan.id,
+                user_id=user_id,
                 place_name=updated_plan.place_name,
                 start_date=updated_plan.start_date,
                 end_date=updated_plan.end_date,

@@ -13,6 +13,8 @@ import {
   Loader2,
   Map,
   Plus,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
 import { api, TravelPlan, PlanActivity } from "@/lib/api";
@@ -34,10 +36,13 @@ const parseDate = (dateStr: string) => {
 
 export default function PlanningPage() {
   // --- State quản lý dữ liệu và giao diện ---
-  const [activeTab, setActiveTab] = useState<"Current" | "Previous">("Current");
+  const [activeTab, setActiveTab] = useState<
+    "Incoming" | "Future" | "Previous"
+  >("Incoming");
 
-  const [currentPlan, setCurrentPlan] = useState<TravelPlan | null>(null);
+  const [incomingPlan, setIncomingPlan] = useState<TravelPlan | null>(null);
   const [previousPlans, setPreviousPlans] = useState<TravelPlan[]>([]);
+  const [futurePlans, setFuturePlans] = useState<TravelPlan[]>([]);
 
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null); // Cho Accordion bên Previous
   const [loading, setLoading] = useState(true);
@@ -48,43 +53,37 @@ export default function PlanningPage() {
       try {
         setLoading(true);
 
-        // 1. Gọi API lấy toàn bộ danh sách
         const allPlans = await api.getPlans();
 
         if (!allPlans || allPlans.length === 0) {
-          setCurrentPlan(null);
+          setIncomingPlan(null);
+          setFuturePlans([]);
           setPreviousPlans([]);
           return;
         }
 
-        // 2. Chuẩn bị ngày hiện tại (xóa giờ phút giây để so sánh chính xác)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // 3. Phân loại
-        // - Future: Ngày >= Hôm nay
-        // - Past: Ngày < Hôm nay
-        const futurePlans = allPlans.filter((p) => parseDate(p.date) >= today);
-        const pastPlans = allPlans.filter((p) => parseDate(p.date) < today);
+        const allFuture = allPlans.filter((p) => parseDate(p.date) >= today);
+        const allPast = allPlans.filter((p) => parseDate(p.date) < today);
 
-        // 4. Xác định Current Plan
-        if (futurePlans.length > 0) {
-          // Lấy chuyến đi có ngày NHỎ NHẤT trong tương lai (gần hôm nay nhất)
-          futurePlans.sort(
+        if (allFuture.length > 0) {
+          allFuture.sort(
             (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
           );
 
-          setCurrentPlan(futurePlans[0]);
-          setPreviousPlans(pastPlans);
+          setIncomingPlan(allFuture[0]);
+          setFuturePlans(allFuture.slice(1));
         } else {
-          setCurrentPlan(null);
-          setPreviousPlans(pastPlans);
+          setIncomingPlan(null);
+          setFuturePlans([]);
         }
 
-        pastPlans.sort(
+        allPast.sort(
           (a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime()
         );
-        setPreviousPlans(pastPlans);
+        setPreviousPlans(allPast);
       } catch (error) {
         console.error("Failed to fetch plans:", error);
       } finally {
@@ -95,12 +94,10 @@ export default function PlanningPage() {
     initData();
   }, []);
 
-  // Helper: Toggle Accordion cho Previous Plan
   const handleTogglePlan = (id: number) => {
     setExpandedPlanId(expandedPlanId === id ? null : id);
   };
 
-  // Helper: Lọc activity theo buổi cho Current Plan
   const getActivitiesByTime = (activities: PlanActivity[], slot: string) => {
     if (!activities) return [];
     return activities.filter((a) => a.time_slot === slot);
@@ -118,32 +115,23 @@ export default function PlanningPage() {
           </h1>
         </div>
 
-        {/* --- TABS --- */}
-        <div className="px-4 mb-4 flex shrink-0">
-          <button
-            onClick={() => setActiveTab("Current")}
-            className={`${
-              jost.className
-            } flex-1 py-3 rounded-l-lg text-sm font-bold transition-colors ${
-              activeTab === "Current"
-                ? "bg-[#53B552] text-white"
-                : "bg-[#E3F1E4] text-[#53B552]"
-            }`}
-          >
-            Current Plan
-          </button>
-          <button
-            onClick={() => setActiveTab("Previous")}
-            className={`${
-              jost.className
-            } flex-1 py-3 rounded-r-lg text-sm font-bold transition-colors ${
-              activeTab === "Previous"
-                ? "bg-[#53B552] text-white"
-                : "bg-[#E3F1E4] text-[#53B552]"
-            }`}
-          >
-            Previous Plan
-          </button>
+        {/* --- TABS (3 SECTIONS) --- */}
+        <div className="px-4 mb-4 flex shrink-0 gap-1">
+          {(["Incoming", "Future", "Previous"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`${
+                jost.className
+              } flex-1 py-2.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                activeTab === tab
+                  ? "bg-[#53B552] text-white shadow-md transform scale-105"
+                  : "bg-white text-gray-400 border border-transparent hover:border-green-200"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
         {/* --- MAIN CONTENT --- */}
@@ -151,211 +139,159 @@ export default function PlanningPage() {
           {loading && (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
               <Loader2 className="animate-spin" size={32} />
-              <span className={`${jost.className}`}>Checking schedule...</span>
+              <span className={`${jost.className}`}>Loading schedules...</span>
             </div>
           )}
 
-          {/* ================= VIEW: CURRENT PLAN ================= */}
-          {!loading &&
-            activeTab === "Current" &&
-            (!currentPlan ? (
-              // --- EMPTY STATE ---
-              <div className="h-full flex flex-col items-center justify-center text-center opacity-80 -mt-10 animate-in fade-in duration-500">
-                <div className="bg-white p-6 rounded-full shadow-sm mb-6">
-                  <Map
-                    size={64}
-                    className="text-[#53B552] opacity-80"
-                    strokeWidth={1.5}
-                  />
-                </div>
-                <h3
-                  className={`${jost.className} text-2xl font-bold text-gray-700 mb-2`}
-                >
-                  No plans yet
-                </h3>
-                <p
-                  className={`${abhaya_libre.className} text-gray-500 text-lg max-w-[250px] leading-tight`}
-                >
-                  You haven't created any upcoming travel plans.
-                </p>
-                <Link href="/planning_page/create_plan" className="w-full mt-8">
-                  <button
-                    className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-white hover:bg-[#53B552] hover:text-white transition-all text-lg font-bold py-3 rounded-full shadow-sm flex items-center justify-center gap-2`}
-                  >
-                    <Plus size={20} /> Create New Plan
-                  </button>
-                </Link>
-              </div>
-            ) : (
-              // --- ACTIVE STATE ---
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white rounded-full px-4 py-3 flex justify-between items-center shadow-sm mb-2 cursor-pointer hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-2 text-gray-800">
-                    <MapPin className="text-red-500 fill-red-500" size={18} />
-                    <span className={`${jost.className} font-bold text-sm`}>
-                      {currentPlan.destination}
-                    </span>
-                  </div>
-                  <ChevronRight size={20} className="text-gray-400" />
-                </div>
-
-                <p className="text-right text-[10px] text-gray-400 mb-4 italic">
-                  Date: {currentPlan.date}
-                </p>
-
-                {/* Day Header */}
-                <div className="flex justify-between items-end mb-3 px-1">
-                  <span
-                    className={`${abhaya_libre.className} text-xl italic text-gray-700`}
-                  >
-                    Day 1
-                  </span>
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className={`${abhaya_libre.className} italic`}>
-                      Morning
-                    </span>
-                    <Sun
-                      size={18}
-                      className="text-yellow-500 fill-yellow-500"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3 mb-6">
-                  {getActivitiesByTime(currentPlan.activities, "Morning").map(
-                    (item) => (
-                      <ActivityCard key={item.id} item={item} />
-                    )
-                  )}
-                </div>
-
-                {/* Afternoon Header */}
-                <div className="flex justify-between items-end mb-3 px-1">
-                  <span
-                    className={`${abhaya_libre.className} text-xl italic text-gray-700`}
-                  >
-                    Day 1
-                  </span>
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className={`${abhaya_libre.className} italic`}>
-                      Afternoon
-                    </span>
-                    <div className="w-4 h-4 rounded-full bg-yellow-400 overflow-hidden relative border border-gray-200">
-                      <div className="absolute left-1/2 w-4 h-4 bg-gray-600"></div>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-3 mb-8">
-                  {getActivitiesByTime(currentPlan.activities, "Afternoon").map(
-                    (item) => (
-                      <ActivityCard key={item.id} item={item} />
-                    )
-                  )}
-                </div>
-
-                {/* --- BUTTONS ACTION --- */}
-                <div className="flex flex-col gap-3 mb-8">
-                  {/* Nút Edit Places hiện tại */}
-                  <button
-                    className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-[#F5F7F5] hover:bg-green-50 transition-all text-lg font-bold py-3 rounded-full shadow-sm`}
-                  >
-                    Edit Places
-                  </button>
-
-                  {/* Nút Create New Plan MỚI */}
-                  <Link href="/planning_page/create_plan">
-                    <button
-                      className={`${jost.className} w-full bg-[#53B552] text-white hover:bg-green-600 transition-all text-lg font-bold py-3 rounded-full shadow-lg flex justify-center items-center gap-2`}
-                    >
-                      <Plus size={20} /> Create New Plan
-                    </button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-
-          {/* ================= VIEW: PREVIOUS PLAN ================= */}
-          {!loading && activeTab === "Previous" && (
-            <div className="space-y-3 pt-2 animate-in fade-in duration-300">
-              {previousPlans.length === 0 ? (
-                <div className="text-center text-gray-400 mt-10 italic">
-                  No history available.
-                </div>
-              ) : (
-                previousPlans.map((plan) => (
-                  <div
-                    key={plan.id}
-                    className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300"
-                  >
-                    <div
-                      onClick={() => handleTogglePlan(plan.id)}
-                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 select-none"
-                    >
-                      <div className="flex items-center gap-3">
+          {!loading && (
+            <>
+              {/* ================= VIEW: INCOMING PLAN (Detail View) ================= */}
+              {activeTab === "Incoming" &&
+                (incomingPlan ? (
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-4">
+                    <div className="bg-white rounded-full px-4 py-3 flex justify-between items-center shadow-sm mb-2 cursor-pointer hover:bg-gray-50 transition-colors border border-green-100">
+                      <div className="flex items-center gap-2 text-gray-800">
                         <MapPin
-                          className="text-[#D9534F]"
-                          size={20}
-                          fill="#D9534F"
+                          className="text-[#53B552]"
+                          size={18}
+                          fill="#53B552"
+                          fillOpacity={0.2}
                         />
-                        <div>
-                          <h4
-                            className={`${jost.className} font-bold text-gray-800 text-base`}
-                          >
-                            {plan.destination}
-                          </h4>
-                          <p
-                            className={`${jost.className} text-gray-500 text-xs mt-0.5`}
-                          >
-                            Time: {plan.date}
-                          </p>
-                        </div>
+                        <span
+                          className={`${jost.className} font-bold text-base text-[#53B552]`}
+                        >
+                          {incomingPlan.destination}
+                        </span>
                       </div>
-                      <ChevronRight
-                        size={20}
-                        className={`text-gray-400 transition-transform duration-300 ${
-                          expandedPlanId === plan.id ? "rotate-90" : ""
-                        }`}
-                      />
+                      <Link href={`/planning_page/${incomingPlan.id}/edit`}>
+                        <ChevronRight size={20} className="text-gray-400" />
+                      </Link>
                     </div>
 
-                    {expandedPlanId === plan.id && (
-                      <div className="px-4 pb-4 pt-0 border-t border-gray-100 animate-in slide-in-from-top-2">
-                        <div className="mt-3 mb-2">
-                          <span
-                            className={`${abhaya_libre.className} italic text-sm text-gray-500`}
-                          >
-                            Trip Details
-                          </span>
-                        </div>
+                    <div className="flex justify-end items-center gap-1 mb-6 pr-2">
+                      <Calendar size={12} className="text-gray-400" />
+                      <p className="text-[12px] text-gray-500 italic font-medium">
+                        Start Date:{" "}
+                        {new Date(incomingPlan.date).toLocaleDateString()}
+                      </p>
+                    </div>
 
-                        {plan.activities.length > 0 ? (
-                          <div className="space-y-2">
-                            {plan.activities.map((act) => (
-                              <ActivityCard
-                                key={act.id}
-                                item={act}
-                                isSmall={true}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-center text-xs text-gray-300 italic py-2">
-                            No activity data recorded.
-                          </p>
-                        )}
+                    {/* Morning Section */}
+                    <div className="flex justify-between items-end mb-3 px-1">
+                      <span
+                        className={`${abhaya_libre.className} text-xl italic text-gray-700`}
+                      >
+                        Schedule
+                      </span>
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <span className={`${abhaya_libre.className} italic`}>
+                          Morning
+                        </span>
+                        <Sun
+                          size={18}
+                          className="text-yellow-500 fill-yellow-500"
+                        />
+                      </div>
+                    </div>
 
-                        <div className="mt-3 flex justify-end">
-                          <button
-                            className={`${jost.className} text-xs text-[#53B552] font-bold hover:underline`}
-                          >
-                            View Full Report
-                          </button>
+                    <div className="space-y-3 mb-6">
+                      {getActivitiesByTime(incomingPlan.activities, "Morning")
+                        .length > 0 ? (
+                        getActivitiesByTime(
+                          incomingPlan.activities,
+                          "Morning"
+                        ).map((item) => (
+                          <ActivityCard key={item.id} item={item} />
+                        ))
+                      ) : (
+                        <EmptySlotMessage />
+                      )}
+                    </div>
+
+                    {/* Afternoon Section */}
+                    <div className="flex justify-between items-end mb-3 px-1">
+                      <div className="w-full h-px bg-gray-200 mr-4 self-center"></div>
+                      <div className="flex items-center gap-1 text-gray-600 shrink-0">
+                        <span className={`${abhaya_libre.className} italic`}>
+                          Afternoon
+                        </span>
+                        <div className="w-4 h-4 rounded-full bg-orange-400 overflow-hidden relative border border-gray-200">
+                          {/* Simple Icon for afternoon */}
                         </div>
                       </div>
-                    )}
+                    </div>
+
+                    <div className="space-y-3 mb-8">
+                      {getActivitiesByTime(incomingPlan.activities, "Afternoon")
+                        .length > 0 ? (
+                        getActivitiesByTime(
+                          incomingPlan.activities,
+                          "Afternoon"
+                        ).map((item) => (
+                          <ActivityCard key={item.id} item={item} />
+                        ))
+                      ) : (
+                        <EmptySlotMessage />
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col gap-3 mt-6">
+                      <button
+                        className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-white hover:bg-green-50 transition-all text-lg font-bold py-3 rounded-full shadow-sm`}
+                      >
+                        Edit Schedule
+                      </button>
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  <EmptyState message="No incoming trips planned." />
+                ))}
+
+              {/* ================= VIEW: FUTURE PLAN (List View) ================= */}
+              {activeTab === "Future" &&
+                (futurePlans.length > 0 ? (
+                  <div className="space-y-3 pt-2 animate-in fade-in duration-300">
+                    <p
+                      className={`${jost.className} text-sm text-gray-500 mb-2 px-1`}
+                    >
+                      Upcoming trips after your next one:
+                    </p>
+                    {futurePlans.map((plan) => (
+                      <PlanSummaryCard
+                        key={plan.id}
+                        plan={plan}
+                        expandedId={expandedPlanId}
+                        onToggle={handleTogglePlan}
+                        type="future"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    message="No other future trips planned."
+                    showCreateButton={true}
+                  />
+                ))}
+
+              {/* ================= VIEW: PREVIOUS PLAN (List View) ================= */}
+              {activeTab === "Previous" &&
+                (previousPlans.length > 0 ? (
+                  <div className="space-y-3 pt-2 animate-in fade-in duration-300">
+                    {previousPlans.map((plan) => (
+                      <PlanSummaryCard
+                        key={plan.id}
+                        plan={plan}
+                        expandedId={expandedPlanId}
+                        onToggle={handleTogglePlan}
+                        type="past"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState message="No travel history found." />
+                ))}
+            </>
           )}
         </main>
 
@@ -403,7 +339,55 @@ export default function PlanningPage() {
   );
 }
 
-// Component ActivityCard tái sử dụng
+// --- SUB-COMPONENTS ---
+
+function EmptyState({
+  message,
+  showCreateButton = false,
+}: {
+  message: string;
+  showCreateButton?: boolean;
+}) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center opacity-80 -mt-10">
+      <div className="bg-white p-6 rounded-full shadow-sm mb-6">
+        <Map
+          size={64}
+          className="text-[#53B552] opacity-50"
+          strokeWidth={1.5}
+        />
+      </div>
+      <h3 className={`${jost.className} text-xl font-bold text-gray-700 mb-2`}>
+        Empty List
+      </h3>
+      <p
+        className={`${abhaya_libre.className} text-gray-500 text-lg max-w-[250px] leading-tight`}
+      >
+        {message}
+      </p>
+      {showCreateButton && (
+        <Link href="/planning_page/create_plan" className="mt-6 w-full px-8">
+          <button
+            className={`${jost.className} w-full bg-[#53B552] text-white hover:bg-green-600 transition-all text-sm font-bold py-3 rounded-full shadow-lg flex justify-center items-center gap-2`}
+          >
+            <Plus size={18} /> Create New Plan
+          </button>
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function EmptySlotMessage() {
+  return (
+    <div className="border border-dashed border-gray-300 rounded-xl p-4 text-center">
+      <p className={`${jost.className} text-gray-400 text-xs italic`}>
+        No activities planned for this time.
+      </p>
+    </div>
+  );
+}
+
 function ActivityCard({
   item,
   isSmall = false,
@@ -414,8 +398,10 @@ function ActivityCard({
   return (
     <div
       className={`${
-        isSmall ? "bg-gray-50 border border-gray-100" : "bg-white shadow-sm"
-      } rounded-2xl p-3 flex gap-3 items-center`}
+        isSmall
+          ? "bg-gray-50 border border-gray-100"
+          : "bg-white shadow-sm border border-gray-50"
+      } rounded-2xl p-3 flex gap-3 items-center transition-transform active:scale-95`}
     >
       <div className="flex-1 min-w-0">
         <h4
@@ -432,15 +418,116 @@ function ActivityCard({
       <div
         className={`${
           isSmall ? "w-14 h-10" : "w-20 h-14"
-        } shrink-0 relative rounded-lg overflow-hidden bg-gray-100`}
+        } shrink-0 relative rounded-lg overflow-hidden bg-gray-200`}
       >
-        <Image
-          src={item.image_url}
-          alt={item.title}
-          fill
-          className="object-cover"
+        {item.image_url ? (
+          <Image
+            src={item.image_url}
+            alt={item.title}
+            fill
+            className="object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400 text-xs">
+            No Img
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlanSummaryCard({
+  plan,
+  expandedId,
+  onToggle,
+  type,
+}: {
+  plan: TravelPlan;
+  expandedId: number | null;
+  onToggle: (id: number) => void;
+  type: "future" | "past";
+}) {
+  const isExpanded = expandedId === plan.id;
+  const dateObj = new Date(plan.date);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 border border-gray-100">
+      <div
+        onClick={() => onToggle(plan.id)}
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 select-none"
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`p-2 rounded-full ${
+              type === "future" ? "bg-blue-50" : "bg-red-50"
+            }`}
+          >
+            <Calendar
+              className={type === "future" ? "text-blue-500" : "text-red-500"}
+              size={18}
+            />
+          </div>
+          <div>
+            <h4
+              className={`${jost.className} font-bold text-gray-800 text-base`}
+            >
+              {plan.destination}
+            </h4>
+            <div className="flex items-center gap-1 mt-0.5">
+              <Clock size={10} className="text-gray-400" />
+              <p className={`${jost.className} text-gray-500 text-xs`}>
+                {dateObj.toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        </div>
+        <ChevronRight
+          size={20}
+          className={`text-gray-400 transition-transform duration-300 ${
+            isExpanded ? "rotate-90" : ""
+          }`}
         />
       </div>
+
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-0 border-t border-gray-100 animate-in slide-in-from-top-2">
+          <div className="mt-3 mb-2 flex justify-between items-center">
+            <span
+              className={`${abhaya_libre.className} italic text-sm text-gray-500`}
+            >
+              Preview Activities
+            </span>
+          </div>
+
+          {plan.activities && plan.activities.length > 0 ? (
+            <div className="space-y-2">
+              {plan.activities.slice(0, 3).map((act) => (
+                <ActivityCard key={act.id} item={act} isSmall={true} />
+              ))}
+              {plan.activities.length > 3 && (
+                <p className="text-center text-xs text-gray-400 py-1">
+                  +{plan.activities.length - 3} more activities
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-center text-xs text-gray-300 italic py-2">
+              No activity data recorded.
+            </p>
+          )}
+
+          <div className="mt-3 flex justify-end">
+            <Link href={`/planning_page/${plan.id}/details`}>
+              <button
+                className={`${jost.className} text-xs text-[#53B552] font-bold hover:underline`}
+              >
+                View Full Plan
+              </button>
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

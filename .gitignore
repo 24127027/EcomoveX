@@ -82,4 +82,4 @@ Thumbs.db
 service-account.json
 
 # AI models
-backend/utils/green_verification/models/
+/utils/green_verification/models/

@@ -96,7 +96,7 @@ export default function FriendsPage() {
       let roomId: number;
 
       // BƯỚC 1: Lấy tất cả phòng và tìm thủ công (Client-side filtering)
-      // Vì backend không có API "check room", ta phải lấy hết về rồi tự soi.
+      // Vì  không có API "check room", ta phải lấy hết về rồi tự soi.
       const allRooms = await api.getAllRooms();
 
       // Tìm phòng nào có chứa friendId trong danh sách thành viên
