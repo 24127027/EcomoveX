@@ -107,3 +107,13 @@ async def log_user_activity(
         db, user_id, 
         activity_data
     )
+
+@router.get("/users", 
+            dependencies=[Depends(require_roles(["Admin"]))],
+            response_model=List[UserResponse], 
+            status_code=status.HTTP_200_OK)
+async def list_users(
+    filters: UserFilterParams = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    return await UserService.list_users(db, filters)
