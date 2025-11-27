@@ -6,6 +6,7 @@ from schemas.authentication_schema import *
 from schemas.user_schema import *
 from services.user_service import UserActivityService, UserService
 from utils.token.authentication_util import get_current_user
+from utils.token.authorizer import require_roles
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -66,30 +67,43 @@ async def delete_user(
         detail="User not found"
     )
 
-@router.post("/{user_id}/eco_point/add", response_model=UserResponse, status_code=status.HTTP_200_OK)
+@router.delete("/{user_id}", 
+               dependencies=[Depends(require_roles(["Admin"]))],
+                status_code=status.HTTP_200_OK)
+async def admin_delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await UserService.delete_user(db, user_id)
+    if deleted:
+        return {"message": "User deleted successfully"}
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found"
+    )
+
+@router.post("/{user_id}/eco_point/add", 
+             dependencies=[Depends(require_roles(["Admin"]))],
+             response_model=UserResponse, 
+             status_code=status.HTTP_200_OK)
 async def add_eco_point(
     user_id: int,
     point: int = Query(..., gt=0),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    if current_user["role"] != "Admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can add eco point"
-        )
     return await UserService.add_eco_point(db, user_id, point)
 
-@router.post("/{user_id}/activity", response_model=UserActivityResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{user_id}/activity", 
+             dependencies=[Depends(require_roles(["Admin"]))],
+             response_model=UserActivityResponse, 
+             status_code=status.HTTP_201_CREATED)
 async def log_user_activity(
     user_id: int,
     activity_data: UserActivityCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
 ):
-    if current_user["role"] != "Admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can log activity for other users"
-        )
-    return await UserActivityService.log_user_activity(db, user_id, activity_data)
+    return await UserActivityService.log_user_activity(
+        db, user_id, 
+        activity_data
+    )
