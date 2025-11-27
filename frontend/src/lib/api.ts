@@ -268,7 +268,7 @@ export interface UserRewardResponse {
 //PLAN DESTINATION TYPES
 export interface PlanDestination {
   destination_id: string;
-  type: string;
+  destination_type: string;
   visit_date: string;
   note?: string;
 }
@@ -284,6 +284,7 @@ export interface PlanResponse {
 
 export interface PlanActivity {
   id: number | string;
+  original_id?: string;
   title: string;
   address: string;
   image_url: string;
@@ -476,7 +477,7 @@ class ApiClient {
       body: formData,
     });
   }
-// --- PLAN ENDPOINTS ---
+  // --- PLAN ENDPOINTS ---
   async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
     return this.request<PlanResponse>("/plans/", {
       method: "POST",
@@ -484,9 +485,31 @@ class ApiClient {
     });
   }
 
-  async addDestinationToPlan(planId: number, data:PlanDestination): Promise<any> {
+  async addDestinationToPlan(
+    planId: number,
+    data: PlanDestination
+  ): Promise<any> {
     return this.request(`/plans/${planId}/destinations`, {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  async updatePlanDestination(
+    destinationId: string | number,
+    data: { note?: string; visit_date?: string }
+  ): Promise<any> {
+    return this.request(`/plans/destinations/${destinationId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePlan(
+    planId: number,
+    data: { place_name?: string; start_date?: string; end_date?: string }
+  ): Promise<PlanResponse> {
+    return this.request<PlanResponse>(`/plans/${planId}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
@@ -500,16 +523,23 @@ class ApiClient {
       destination: p.place_name,
       date: p.start_date,
       end_date: p.end_date,
-      activities: p.destinations.map((d, index) => ({
-        id: d.destination_id,
-        title: d.note || `Destination ${index + 1}`,
-        address: "Loading address...",
-        image_url:
-          "https://images.unsplash.com/photo-1500835556837-99ac94a94552?q=80&w=200",
+      activities: p.destinations.map((d, index) => {
+        let slot = "Morning";
+        const hour = new Date(d.visit_date).getHours();
 
-        time_slot: index % 2 === 0 ? "Morning" : "Afternoon",
-        date: d.visit_date,
-      })),
+        if (hour >= 12 && hour < 18) slot = "Afternoon";
+        if (hour >= 18) slot = "Evening";
+
+        return {
+          id: `${d.destination_id}-${index}`,
+          original_id: d.destination_id,
+          title: d.note || "Destination",
+          address: "",
+          image_url: "",
+          time_slot: slot as "Morning" | "Afternoon" | "Evening",
+          date: d.visit_date,
+        };
+      }),
     }));
   }
 
@@ -673,9 +703,7 @@ class ApiClient {
     );
   }
 
-  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc cho hàm này
   async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
-    // Gọi endpoint /air/air-quality
     return this.request<AirQualityResponse>(
       `/air/air-quality?lat=${lat}&lng=${lng}`,
       { method: "GET" }

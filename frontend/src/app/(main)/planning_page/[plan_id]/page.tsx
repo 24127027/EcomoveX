@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react"; // Thêm useEffect
+import React, { useState, useEffect, useRef } from "react"; // Thêm useEffect
 import { useParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -31,6 +31,10 @@ export default function AddDestinationsPage() {
   const router = useRouter();
   const params = useParams();
   const planId = Number(params.plan_id);
+  const generateSessionToken = () => {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  };
+  const sessionTokenRef = useRef(generateSessionToken());
 
   const [cards, setCards] = useState<DestinationCard[]>([
     {
@@ -103,7 +107,7 @@ export default function AddDestinationsPage() {
         ["lodging", "hotel", "resort", "guest_house"].includes(t)
       )
     )
-      return "accommodation";
+      return "hotel";
     if (
       googleTypes.some((t) =>
         [
@@ -116,7 +120,7 @@ export default function AddDestinationsPage() {
         ].includes(t)
       )
     )
-      return "food";
+      return "restaurant";
     if (
       googleTypes.some((t) =>
         ["transit_station", "bus_station", "train_station", "airport"].includes(
@@ -124,7 +128,7 @@ export default function AddDestinationsPage() {
         )
       )
     )
-      return "transportation";
+      return "attraction";
     return "attraction";
   };
 
@@ -136,7 +140,10 @@ export default function AddDestinationsPage() {
     );
     if (value.length > 2) {
       try {
-        const res = await api.autocomplete({ query: value });
+        const res = await api.autocomplete({
+          query: value,
+          session_token: sessionTokenRef.current,
+        });
         setSuggestions((prev) => ({ ...prev, [tempId]: res.predictions }));
       } catch (err) {
         console.error(err);
@@ -165,6 +172,7 @@ export default function AddDestinationsPage() {
     );
     setSuggestions((prev) => ({ ...prev, [tempId]: [] }));
     setErrorMessage("");
+    sessionTokenRef.current = generateSessionToken();
   };
 
   const handleDateChange = (tempId: number, date: string) => {
@@ -218,7 +226,7 @@ export default function AddDestinationsPage() {
       for (const card of validCards) {
         await api.addDestinationToPlan(planId, {
           destination_id: card.destinationId,
-          type: card.type,
+          destination_type: card.type,
           visit_date: card.visitDate,
           note: card.name,
         });
