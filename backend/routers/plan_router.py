@@ -62,16 +62,26 @@ async def add_destination_to_plan(
 async def update_plan_destination(
     plan_destination_id: int,
     updated_data: PlanDestinationUpdate,
+    plan_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    return await PlanService.update_plan_destination(db, plan_destination_id, updated_data)
+    return await PlanService.update_plan_destination(
+        db, 
+        current_user["user_id"], 
+        plan_id, 
+        plan_destination_id, 
+        updated_data
+        )
 
 @router.delete("/destinations/{plan_destination_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def remove_destination_from_plan(
     plan_destination_id: int,
+    plan_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    return await PlanService.remove_destination_from_plan(db, plan_destination_id)
+    return await PlanService.remove_destination_from_plan(db, current_user["user_id"], plan_id, plan_destination_id)
 
 @router.get("/{plan_id}/members", response_model=PlanMemberResponse, status_code=status.HTTP_200_OK)
 async def get_plan_members(

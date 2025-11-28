@@ -361,7 +361,7 @@ export default function AddDestinationsPage() {
     if (!confirmDelete) return;
 
     try {
-      await api.deletePlanDestination(activityId);
+      await api.deletePlanDestination(activityId, planId);
 
       setExistingActivities((prev) =>
         prev.filter((item) => item.original_id !== activityId)

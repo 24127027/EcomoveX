@@ -119,7 +119,6 @@ export default function MapPage() {
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
 
-
   // [NEW] Xác định chế độ Picker
   const mode = searchParams.get("mode");
   const isPickerMode = mode === "picker";
@@ -170,12 +169,12 @@ export default function MapPage() {
     }
   }, [urlQuery]);
 
-  useEffect(() => {
-    if (!urlQuery) {
-      fetchRecommendations();
-      initialLoadRef.current = false;
-    }
-  }, [userLocation]);
+  // useEffect(() => {
+  //   if (!urlQuery) {
+  //     fetchRecommendations();
+  //     initialLoadRef.current = false;
+  //   }
+  // }, [userLocation]);
 
   // Autocomplete Effect
   useEffect(() => {
@@ -228,55 +227,76 @@ export default function MapPage() {
 
   // --- HANDLERS ---
 
+  const executeSearch = async (query: string) => {
+    if (!query.trim()) return;
+
+    // Tắt loading recommendations ngay lập tức để tránh xung đột spinner
+    setIsLoadingRecommendations(false);
+    setIsSearching(true);
+    setIsSearchFocused(false);
+    setAutocompletePredictions([]);
+
+    try {
+      const response = await api.textSearchPlace({
+        query: query,
+        location: userLocation,
+        radius: 5000,
+      });
+
+      const list = response.places || [];
+      const adaptedResults = list.map((res) =>
+        convertSearchResultToDetails(res, userLocation)
+      );
+
+      setSearchResults(adaptedResults);
+
+      // Logic zoom map vào kết quả
+      if (adaptedResults.length > 0) {
+        setSheetHeight(65);
+        if (googleMapRef.current && window.google) {
+          const bounds = new window.google.maps.LatLngBounds();
+          adaptedResults.forEach((p) => {
+            if (p.geometry.location) {
+              bounds.extend(p.geometry.location);
+            }
+          });
+          // Nếu chỉ có 1 kết quả thì zoom gần, nhiều thì fit bounds
+          if (adaptedResults.length === 1) {
+            googleMapRef.current.setCenter(adaptedResults[0].geometry.location);
+            googleMapRef.current.setZoom(16);
+          } else {
+            googleMapRef.current.fitBounds(bounds);
+          }
+        }
+      } else {
+        setSheetHeight(40); // Không có kết quả thì thu gọn sheet
+      }
+    } catch (error) {
+      console.error("Text search failed:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleTextSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.currentTarget.blur();
-      setIsSearchFocused(false);
-      setAutocompletePredictions([]);
-      setIsSearching(true);
-
-      try {
-        const response = await api.textSearchPlace({
-          query: searchQuery,
-          location: userLocation,
-          radius: 5000,
-        });
-
-        const list = response.places || [];
-        const adaptedResults = list.map((res) =>
-          convertSearchResultToDetails(res, userLocation)
-        );
-
-        setSearchResults(adaptedResults);
-
-        if (adaptedResults.length > 0) {
-          setSheetHeight(65);
-          if (googleMapRef.current && window.google) {
-            const bounds = new window.google.maps.LatLngBounds();
-            adaptedResults.forEach((p) => {
-              if (p.geometry.location) {
-                bounds.extend(p.geometry.location);
-              }
-            });
-            if (adaptedResults.length === 1) {
-              googleMapRef.current.setCenter(
-                adaptedResults[0].geometry.location
-              );
-              googleMapRef.current.setZoom(16);
-            } else {
-              googleMapRef.current.fitBounds(bounds);
-            }
-          }
-        } else {
-          setSheetHeight(40);
-        }
-      } catch (error) {
-        console.error("Text search failed:", error);
-      } finally {
-        setIsSearching(false);
-      }
+      executeSearch(searchQuery); // Gọi hàm đã tách ở trên
     }
   };
+
+  // 2. THÊM useEffect NÀY: Tự động tìm kiếm khi có urlQuery (từ Homepage)
+  useEffect(() => {
+    if (urlQuery) {
+      // Nếu có query từ URL, chạy tìm kiếm ngay
+      setSearchQuery(urlQuery);
+      executeSearch(urlQuery);
+    } else {
+      // Nếu không có query, chạy logic gợi ý (recommendations) như cũ
+      fetchRecommendations();
+      initialLoadRef.current = false;
+    }
+  }, [urlQuery]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -490,9 +510,9 @@ export default function MapPage() {
 
   const handleNavigateToDetail = () => {
     if (selectedLocation) {
-        const url = '/place_detail_page?place_id=' + selectedLocation.place_id;
-        router.push(url);
-      }
+      const url = "/place_detail_page?place_id=" + selectedLocation.place_id;
+      router.push(url);
+    }
   };
 
   const handlePickLocation = () => {
@@ -517,8 +537,6 @@ export default function MapPage() {
       router.back();
     }
   };
-
- 
 
   const handleCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -627,12 +645,9 @@ export default function MapPage() {
   return (
     <div className="min-h-screen w-full bg-white sm:bg-gray-200 sm:flex sm:justify-center">
       <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-2xl">
-        {/* Map Container */}
         <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
-          {/* Search Bar */}
           <div className="absolute top-5 left-4 right-4 z-10 search-container">
             <div className="bg-white rounded-full shadow-lg flex items-center p-3 transition-transform active:scale-95">
-              {/* [NEW] Nút Back thay đổi tùy Mode */}
               <div onClick={() => router.back()} className="cursor-pointer">
                 <ChevronLeft className="text-gray-500 mr-2 hover:text-green-600" />
               </div>
@@ -927,7 +942,7 @@ export default function MapPage() {
                 <span className="text-xs font-medium mt-0.5">Ecobot</span>
               </a>
               <a
-                href="/user_page/profile_page"
+                href="/user_page/main_page"
                 className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
               >
                 <User className="size-6" strokeWidth={1.5} />

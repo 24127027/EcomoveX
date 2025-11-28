@@ -48,6 +48,7 @@ class PlanDestinationUpdate(BaseModel):
     visit_date: Optional[date] = None
     estimated_cost: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
+    url: Optional[str] = None
 
 class PlanMemberCreate(BaseModel):
     user_id: int

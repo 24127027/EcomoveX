@@ -377,7 +377,7 @@ export default function PlanDetailsPage() {
       if (activity.date) {
         dateToSave = activity.date.split("T")[0];
       }
-      return api.updatePlanDestination(realId, {
+      return api.updatePlanDestination(realId, planId, {
         note: activity.title,
         visit_date: dateToSave,
       });

@@ -317,6 +317,22 @@ export interface DestinationCard {
   type: string;
 }
 
+//--- REVIEW TYPES ---
+export interface ReviewResponse {
+  destination_id: string;
+  rating: number;
+  content: string;
+  user_id: number;
+  created_at: string;
+  files_urls: string[];
+}
+
+export interface ReviewStatisticsResponse {
+  average_rating: number;
+  total_reviews: number;
+  rating_distribution: Record<string, number>;
+}
+
 // --- API CLIENT CLASS ---
 
 class ApiClient {
@@ -498,17 +514,27 @@ class ApiClient {
   }
   async updatePlanDestination(
     destinationId: string | number,
+    planId: number,
     data: { note?: string; visit_date?: string }
   ): Promise<any> {
-    return this.request(`/plans/destinations/${destinationId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
+    return this.request(
+      `/plans/destinations/${destinationId}?plan_id=${planId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
   }
-  async deletePlanDestination(planDestinationId: number): Promise<void> {
-    return this.request(`/plans/destinations/${planDestinationId}`, {
-      method: "DELETE",
-    });
+  async deletePlanDestination(
+    planDestinationId: number,
+    planId: number
+  ): Promise<void> {
+    return this.request(
+      `/plans/destinations/${planDestinationId}?plan_id=${planId}`,
+      {
+        method: "DELETE",
+      }
+    );
   }
 
   async updatePlan(
@@ -725,6 +751,63 @@ class ApiClient {
   async getUserRewards(): Promise<UserRewardResponse> {
     return this.request<UserRewardResponse>("/rewards/me/missions", {
       method: "GET",
+    });
+  }
+
+  // --- REVIEW ENDPOINTS ---
+
+  // Lấy danh sách review theo địa điểm
+  async getReviewsByDestination(
+    destinationId: string
+  ): Promise<ReviewResponse[]> {
+    return this.request<ReviewResponse[]>(
+      `/reviews/destination/${destinationId}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  // Tạo review mới (có upload ảnh)
+  async createReview(
+    destinationId: string,
+    data: { rating: number; content: string },
+    files: File[] = []
+  ): Promise<ReviewResponse> {
+    const formData = new FormData();
+
+    // Backend dùng Depends(ReviewCreate.as_form), nên gửi dữ liệu dạng form field
+    formData.append("rating", String(data.rating));
+    formData.append("content", data.content);
+
+    // Append từng file vào key "files" (khớp với endpoint: files: List[UploadFile])
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    // Lưu ý: Khi body là FormData, hàm request() phía trên sẽ tự động bỏ header Content-Type JSON
+    // để trình duyệt tự set boundary multipart/form-data.
+    return this.request<ReviewResponse>(`/reviews/${destinationId}`, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async getReviewStatistics(
+    destinationId: string
+  ): Promise<ReviewStatisticsResponse> {
+    return this.request<ReviewStatisticsResponse>(
+      `/reviews/destination/${destinationId}/statistics`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  // Xóa review
+  async deleteReview(destinationId: string): Promise<void> {
+    return this.request<void>(`/reviews/${destinationId}`, {
+      method: "DELETE",
     });
   }
 }

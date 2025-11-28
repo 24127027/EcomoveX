@@ -129,7 +129,7 @@ class PlanService:
                         destination_id=dest.destination_id,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time,
+                        #time=dest.time,
                         estimated_cost=dest.estimated_cost,
                         note=dest.note
                     )
@@ -200,7 +200,7 @@ class PlanService:
                     destination_id=dest.destination_id,
                     type=dest.type,
                     visit_date=dest.visit_date,
-                    time=dest.time,
+                    #time=dest.time,
                     estimated_cost=dest.estimated_cost,
                     note=dest.note
                 )
