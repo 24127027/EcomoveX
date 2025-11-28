@@ -346,18 +346,23 @@ export default function AddDestinationsPage() {
 
   const handleRemoveExisting = async (activityId: number | undefined) => {
     if (!activityId) return;
+    const currentTotal = existingActivities.length + cards.length;
 
-    // Xác nhận trước khi xóa
+    if (currentTotal <= 3) {
+      setErrorMessage("A plan must have at least 2 destinations remaining.");
+
+      setTimeout(() => setErrorMessage(""), 3000);
+      return;
+    }
+
     const confirmDelete = window.confirm(
       "Are you sure you want to remove this destination from your plan?"
     );
     if (!confirmDelete) return;
 
     try {
-      // 1. Gọi API xóa
       await api.deletePlanDestination(activityId);
 
-      // 2. Cập nhật State để UI tự biến mất ngay lập tức
       setExistingActivities((prev) =>
         prev.filter((item) => item.original_id !== activityId)
       );

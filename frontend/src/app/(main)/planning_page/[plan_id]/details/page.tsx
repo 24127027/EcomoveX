@@ -533,8 +533,20 @@ export default function PlanDetailsPage() {
                 >
                   {planInfo.name}
                 </h2>
-                <p className="text-gray-500 text-sm flex gap-2 mt-1">
-                  <CalendarDays size={16} /> {planInfo.date}
+                <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
+                  <CalendarDays size={16} />
+                  <span>
+                    {planInfo.date ? planInfo.date.split("T")[0] : ""}
+
+                    {planInfo.end_date &&
+                      planInfo.end_date.split("T")[0] !==
+                        planInfo.date.split("T")[0] && (
+                        <>
+                          <span className="mx-1 text-gray-400">-</span>
+                          {planInfo.end_date.split("T")[0]}
+                        </>
+                      )}
+                  </span>
                 </p>
               </div>
             )}
