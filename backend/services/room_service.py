@@ -79,10 +79,10 @@ class RoomService:
             )
             
     @staticmethod
-    async def get_all_direct_rooms_for_user(db: AsyncSession, user_id: int) -> List[DirectRoomResponse]:
+    async def get_all_direct_rooms_for_user(db: AsyncSession, user_id: int) -> List[RoomResponse]:
         try:
             direct_rooms = await RoomRepository.list_direct_rooms_for_user(db, user_id)
-            return [DirectRoomResponse(id=room.id) for room in direct_rooms]
+            return [RoomResponse(id=room.id, room_type=room.room_type, created_at=room.created_at) for room in direct_rooms]
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,7 +101,7 @@ class RoomService:
             )
     
     @staticmethod
-    async def get_direct_rooms_between_users(db: AsyncSession, user1_id: int, user2_id: int) -> DirectRoomResponse:
+    async def get_direct_rooms_between_users(db: AsyncSession, user1_id: int, user2_id: int) -> RoomResponse:
         try:
             user1_id = min(user1_id, user2_id)
             user2_id = max(user1_id, user2_id)
@@ -111,7 +111,7 @@ class RoomService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Direct room between user ID {user1_id} and user ID {user2_id} not found"
                 )
-            return DirectRoomResponse(id=room.id)
+            return RoomResponse(id=room.id, room_type=room.room_type, created_at=room.created_at)
         except HTTPException:
             raise
         except Exception as e:
@@ -121,7 +121,7 @@ class RoomService:
             )
     
     @staticmethod
-    async def get_direct_room(db: AsyncSession, room_id: int) -> DirectRoomResponse:
+    async def get_direct_room(db: AsyncSession, room_id: int) -> RoomResponse:
         try:
             room = await RoomRepository.get_room_by_id(db, room_id)
             if not room or room.room_type != RoomType.direct:
@@ -129,7 +129,7 @@ class RoomService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Direct room ID {room_id} not found"
                 )
-            return DirectRoomResponse(id=room.id)
+            return RoomResponse(id=room.id, room_type=room.room_type, created_at=room.created_at)
         except HTTPException:
             raise
         except Exception as e:
@@ -173,7 +173,7 @@ class RoomService:
             )
             
     @staticmethod
-    async def create_direct_room(db: AsyncSession, user1_id: int, user2_id: int) -> DirectRoomResponse:
+    async def create_direct_room(db: AsyncSession, user1_id: int, user2_id: int) -> RoomResponse:
         try:
             if user1_id == user2_id:
                 raise HTTPException(
@@ -186,7 +186,7 @@ class RoomService:
 
             existing_room = await RoomRepository.get_direct_room_between_users(db, u1_norm, u2_norm)
             if existing_room:
-                return DirectRoomResponse(id=existing_room.id)
+                return RoomResponse(id=existing_room.id, room_type=existing_room.room_type, created_at=existing_room.created_at)
             
             new_room = await RoomRepository.create_direct_room(db, u1_norm, u2_norm)
             if not new_room:
@@ -194,7 +194,7 @@ class RoomService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create direct room"
                 )
-            return DirectRoomResponse(id=new_room.id)
+            return RoomResponse(id=new_room.id, room_type=new_room.room_type, created_at=new_room.created_at)
         except HTTPException:
             raise
         except Exception as e:
@@ -245,7 +245,7 @@ class RoomService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error adding user ID {user_id} to room ID {room_id}: {e}"
+                detail=f"Unexpected error adding user to room ID {room_id}: {e}"
             )
             
     @staticmethod

@@ -60,14 +60,14 @@ class MessageRepository:
         
     @staticmethod
     async def create_text_message(
-        db: AsyncSession, sender_id: int, room_id: int, content: str
+        db: AsyncSession, sender_id: int, room_id: int, message_text: str
     ):
         try:
             new_message = Message(
                 sender_id=sender_id,
                 room_id=room_id,
                 message_type=MessageType.text,
-                content=content,
+                content=message_text,
                 file_blob_name=None,
                 status=MessageStatus.sent
             )
@@ -175,173 +175,16 @@ class MessageRepository:
             print(f"ERROR: deleting message ID {message_id} - {e}")
             return False
     
-        
     @staticmethod
-    async def create_session(
+    async def save_room_context(
         db: AsyncSession,
-        session_data: ChatSessionCreate
-    ) -> Optional[ChatSession]:
+        context_data: RoomContextCreate
+    ) -> Optional[RoomContext]:
         try:
-            session = ChatSession(
-                user_id=session_data.user_id,
-                session_token=session_data.session_token,
-                status=session_data.status
-            )
-            db.add(session)
-            await db.commit()
-            await db.refresh(session)
-            return session
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Creating chat session - {e}")
-            return None
-
-    @staticmethod
-    async def get_session_by_id(
-        db: AsyncSession,
-        session_id: int,
-        include_messages: bool = False,
-        include_contexts: bool = False
-    ) -> Optional[ChatSession]:
-        try:
-            query = select(ChatSession).where(ChatSession.id == session_id)
-            if include_messages:
-                query = query.options(selectinload(ChatSession.messages))
-            if include_contexts:
-                query = query.options(selectinload(ChatSession.contexts))
-            
-            result = await db.execute(query)
-            return result.scalars().first()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Getting session by ID {session_id} - {e}")
-            return None
-
-    @staticmethod
-    async def get_session_by_token(
-        db: AsyncSession,
-        session_token: str,
-        include_contexts: bool = False
-    ) -> Optional[ChatSession]:
-        try:
-            query = select(ChatSession).where(ChatSession.session_token == session_token)
-            
-            if include_contexts:
-                query = query.options(selectinload(ChatSession.contexts))
-            
-            result = await db.execute(query)
-            return result.scalars().first()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Getting session by token - {e}")
-            return None
-
-    @staticmethod
-    async def get_user_sessions(
-        db: AsyncSession,
-        user_id: int,
-        status: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[ChatSession]:
-        try:
-            query = select(ChatSession).where(ChatSession.user_id == user_id)
-            
-            if status:
-                query = query.where(ChatSession.status == status)
-            
-            query = query.order_by(ChatSession.last_active_at.desc())
-            query = query.limit(limit).offset(offset)
-            
-            result = await db.execute(query)
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Getting user sessions for user {user_id} - {e}")
-            return []
-
-    @staticmethod
-    async def update_session_status(
-        db: AsyncSession,
-        session_id: int,
-        updated_data: ChatSessionUpdate
-    ) -> bool:
-        try:
-            update_dict = {}
-            if updated_data.status is not None:
-                update_dict['status'] = updated_data.status
-            update_dict['last_active_at'] = func.now()
-            
-            stmt = (
-                update(ChatSession)
-                .where(ChatSession.id == session_id)
-                .values(**update_dict)
-            )
-            result = await db.execute(stmt)
-            await db.commit()
-            return result.rowcount > 0
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Updating session status for {session_id} - {e}")
-            return False
-
-    @staticmethod
-    async def update_last_active(
-        db: AsyncSession,
-        session_id: int
-    ) -> bool:
-        try:
-            stmt = (
-                update(ChatSession)
-                .where(ChatSession.id == session_id)
-                .values(last_active_at=func.now())
-            )
-            result = await db.execute(stmt)
-            await db.commit()
-            return result.rowcount > 0
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Updating last active for session {session_id} - {e}")
-            return False
-
-    @staticmethod
-    async def delete_session(
-        db: AsyncSession,
-        session_id: int
-    ) -> bool:
-        try:
-            stmt = delete(ChatSession).where(ChatSession.id == session_id)
-            result = await db.execute(stmt)
-            await db.commit()
-            return result.rowcount > 0
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Deleting session {session_id} - {e}")
-            return False
-
-    @staticmethod
-    async def delete_inactive_sessions(
-        db: AsyncSession,
-        days: int = 30
-    ) -> int:
-        try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
-            stmt = delete(ChatSession).where(ChatSession.last_active_at < cutoff_date)
-            result = await db.execute(stmt)
-            await db.commit()
-            return result.rowcount
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Deleting inactive sessions - {e}")
-            return 0
-
-    @staticmethod
-    async def save_session_context(
-        db: AsyncSession,
-        context_data: ChatSessionContextCreate
-    ) -> Optional[ChatSessionContext]:
-        try:
-            query = select(ChatSessionContext).where(
+            query = select(RoomContext).where(
                 and_(
-                    ChatSessionContext.session_id == context_data.session_id,
-                    ChatSessionContext.key == context_data.key
+                    RoomContext.room_id == context_data.room_id,
+                    RoomContext.key == context_data.key
                 )
             )
             result = await db.execute(query)
@@ -351,8 +194,8 @@ class MessageRepository:
                 context.value = context_data.value
                 context.updated_at = func.now()
             else:
-                context = ChatSessionContext(
-                    session_id=context_data.session_id,
+                context = RoomContext(
+                    room_id=context_data.room_id,
                     key=context_data.key,
                     value=context_data.value
                 )
@@ -363,56 +206,56 @@ class MessageRepository:
             return context
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Saving session context for session {context_data.session_id}, key {context_data.key} - {e}")
+            print(f"ERROR: Saving room context for room {context_data.room_id}, key {context_data.key} - {e}")
             return None
 
     @staticmethod
-    async def get_session_context(
+    async def get_room_context(
         db: AsyncSession,
-        session_id: int,
+        room_id: int,
         key: str
     ) -> Optional[Any]:
         try:
-            query = select(ChatSessionContext).where(
+            query = select(RoomContext).where(
                 and_(
-                    ChatSessionContext.session_id == session_id,
-                    ChatSessionContext.key == key
+                    RoomContext.room_id == room_id,
+                    RoomContext.key == key
                 )
             )
             result = await db.execute(query)
             context = result.scalars().first()
             return context.value if context else None
         except SQLAlchemyError as e:
-            print(f"ERROR: Getting context for session {session_id}, key {key} - {e}")
+            print(f"ERROR: Getting context for room {room_id}, key {key} - {e}")
             return None
 
     @staticmethod
-    async def load_session_context(
+    async def load_room_context(
         db: AsyncSession,
-        session_id: int
+        room_id: int
     ) -> Dict[str, Any]:
         try:
-            query = select(ChatSessionContext).where(
-                ChatSessionContext.session_id == session_id
+            query = select(RoomContext).where(
+                RoomContext.room_id == room_id
             )
             result = await db.execute(query)
             contexts = result.scalars().all()
             return {context.key: context.value for context in contexts}
         except SQLAlchemyError as e:
-            print(f"ERROR: Loading session context for session {session_id} - {e}")
+            print(f"ERROR: Loading room context for room {room_id} - {e}")
             return {}
 
     @staticmethod
-    async def delete_session_context(
+    async def delete_room_context(
         db: AsyncSession,
-        session_id: int,
+        room_id: int,
         key: str
     ) -> bool:
         try:
-            stmt = delete(ChatSessionContext).where(
+            stmt = delete(RoomContext).where(
                 and_(
-                    ChatSessionContext.session_id == session_id,
-                    ChatSessionContext.key == key
+                    RoomContext.room_id == room_id,
+                    RoomContext.key == key
                 )
             )
             result = await db.execute(stmt)
@@ -420,60 +263,25 @@ class MessageRepository:
             return result.rowcount > 0
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Deleting context for session {session_id}, key {key} - {e}")
+            print(f"ERROR: Deleting context for room {room_id}, key {key} - {e}")
             return False
 
     @staticmethod
-    async def clear_session_context(
+    async def clear_room_context(
         db: AsyncSession,
-        session_id: int
+        room_id: int
     ) -> bool:
         try:
-            stmt = delete(ChatSessionContext).where(
-                ChatSessionContext.session_id == session_id
+            stmt = delete(RoomContext).where(
+                RoomContext.room_id == room_id
             )
             await db.execute(stmt)
             await db.commit()
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Clearing context for session {session_id} - {e}")
+            print(f"ERROR: Clearing context for room {room_id} - {e}")
             return False
-
-    @staticmethod
-    async def search_sessions(
-        db: AsyncSession,
-        user_id: Optional[int] = None,
-        status: Optional[str] = None,
-        from_date: Optional[datetime] = None,
-        to_date: Optional[datetime] = None,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[ChatSession]:
-        try:
-            query = select(ChatSession)
-            
-            conditions = []
-            if user_id:
-                conditions.append(ChatSession.user_id == user_id)
-            if status:
-                conditions.append(ChatSession.status == status)
-            if from_date:
-                conditions.append(ChatSession.created_at >= from_date)
-            if to_date:
-                conditions.append(ChatSession.created_at <= to_date)
-            
-            if conditions:
-                query = query.where(and_(*conditions))
-            
-            query = query.order_by(ChatSession.created_at.desc())
-            query = query.limit(limit).offset(offset)
-            
-            result = await db.execute(query)
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Searching sessions - {e}")
-            return []
     
     @staticmethod
     async def get_message_count_by_room(db: AsyncSession, room_id: int):

@@ -30,20 +30,17 @@ class RoomDirectResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class RoomMemberResponse(BaseModel):
-    room_id: int
-    user_id: int
     role: MemberRole
     joined_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
-class AddMemberCreate(BaseModel):
-    id: int
+class RoomMemberCreate(BaseModel):
+    user_id: int
     role: MemberRole = MemberRole.member
 
 class AddMemberRequest(BaseModel):
-    data: List[AddMemberCreate] = Field(..., min_length=1)
+    data: List[RoomMemberCreate] = Field(..., min_length=1)
 
 class RemoveMemberRequest(BaseModel):
     ids: List[int] = Field(..., min_length=1)
