@@ -28,13 +28,12 @@ class ReviewUpdate(BaseModel):
         return v.strip() if v else None
 
 class ReviewResponse(BaseModel):
-    id: int
     destination_id: str
     user_id: int
     rating: int
     content: str
     created_at: datetime
-    files_blob_names: List[str] = Field(default_factory=list)
+    files_urls: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

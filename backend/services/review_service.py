@@ -1,8 +1,8 @@
 from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.schemas.storage_schema import FileCategory
-from backend.services.storage_service import StorageService
+from schemas.storage_schema import FileCategory
+from services.storage_service import StorageService
 from repository.destination_repository import DestinationRepository
 from repository.review_repository import ReviewRepository
 from schemas.review_schema import *
@@ -12,17 +12,19 @@ class ReviewService:
     async def get_reviews_by_destination(db: AsyncSession, destination_id: str)-> List[ReviewResponse]:
         try:
             reviews = await ReviewRepository.get_all_reviews_by_destination(db, destination_id)
-            review_files = await ReviewRepository.get_review_files_by_destination(db, destination_id)
             review_lists = []
-            for review in reviews:                
+            urls = []
+            for review in reviews:   
+                files = await ReviewRepository.get_review_files(db, destination_id, review.user_id)   
+                for file in files:
+                    urls.append(await StorageService.generate_signed_url(file.blob_name))  
                 review_lists.append(ReviewResponse(
-                    id=review.id,
                     destination_id=review.destination_id,
                     rating=review.rating,
                     content=review.content,
                     user_id=review.user_id,
                     created_at=review.created_at,
-                    files_blob_names=[f.blob_name for f in review_files]
+                    files_urls=urls
                 ))
             return review_lists
         except HTTPException:
@@ -37,17 +39,19 @@ class ReviewService:
     async def get_reviews_by_user(db: AsyncSession, user_id: int) -> List[ReviewResponse]:
         try:
             reviews = await ReviewRepository.get_all_reviews_by_user(db, user_id)
-            review_files = await ReviewRepository.get_review_files_by_user(db, user_id)
             review_lists = []
-            for review in reviews:                
+            for review in reviews:           
+                urls = []
+                files = await ReviewRepository.get_review_files(db, review.destination_id, user_id)
+                for file in files:
+                    urls.append(await StorageService.generate_signed_url(file.blob_name))
                 review_lists.append(ReviewResponse(
-                    id=review.id,
                     destination_id=review.destination_id,
                     rating=review.rating,
                     content=review.content,
                     user_id=review.user_id,
                     created_at=review.created_at,
-                    files_blob_names=[f.blob_name for f in review_files if f.destination_id == review.destination_id]
+                    files_urls=urls
                 ))
             return review_lists
         except HTTPException:
@@ -75,20 +79,19 @@ class ReviewService:
                     detail="Failed to create review"
                 )
             
-            files = []
+            urls = []
             for file in review_data.files:
                 metadata = await StorageService.upload_file(db, file, user_id, FileCategory.review)
-                files.append(metadata.blob_name)
+                urls.append(await StorageService.generate_signed_url(metadata.blob_name))
 
                             
             return ReviewResponse(
-                id=new_review.id,
                 destination_id=new_review.destination_id,
                 rating=new_review.rating,
                 content=new_review.content,
                 user_id=new_review.user_id,
                 created_at=new_review.created_at,
-                files_blob_names=files
+                files_urls=urls
             )
         except HTTPException:
             raise
@@ -112,15 +115,17 @@ class ReviewService:
                 await StorageService.upload_file(db, file, user_id, FileCategory.review)
                 
             files = await ReviewRepository.get_review_files(db, destination_id, user_id)
+            urls = []
+            for file in files:
+                urls.append(await StorageService.generate_signed_url(file.blob_name))   
             
             return ReviewResponse(  
-                id=updated_review.id,
                 destination_id=updated_review.destination_id,
                 rating=updated_review.rating,
                 content=updated_review.content,
                 user_id=updated_review.user_id,
                 created_at=updated_review.created_at,
-                files_blob_names=[file.blob_name for file in files]
+                files_urls=urls
             )
         except HTTPException:
             raise
