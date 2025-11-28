@@ -52,7 +52,6 @@ class MissionResponse(BaseModel):
     reward_type: RewardType
     action_trigger: MissionAction
     value: Optional[int]
-    is_active: bool
     
     model_config = ConfigDict(from_attributes=True)
 

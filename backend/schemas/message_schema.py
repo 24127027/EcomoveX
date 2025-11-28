@@ -1,4 +1,3 @@
-from fastapi import UploadFile
 from pydantic import BaseModel, Field, field_validator, ConfigDict, model_validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime

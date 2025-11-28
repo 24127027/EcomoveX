@@ -40,13 +40,12 @@ class PlanDestinationCreate(BaseModel):
     destination_id: str
     destination_type: DestinationType
     visit_date: date
-    time: Optional[str] = Field(None, max_length=32)
     estimated_cost: Optional[float] = Field(None, ge=0)
+    url: Optional[str] = None
     note: Optional[str] = None
     
 class PlanDestinationUpdate(BaseModel):
     visit_date: Optional[date] = None
-    time: Optional[str] = Field(None, max_length=32)
     estimated_cost: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
 
@@ -59,8 +58,8 @@ class PlanDestinationResponse(BaseModel):
     destination_id: str
     type: DestinationType
     visit_date: date
-    time: Optional[str] = None
     estimated_cost: Optional[float] = None
+    url: Optional[str] = None
     note: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)

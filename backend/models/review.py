@@ -15,7 +15,6 @@ class Review(Base):
     user_id = Column(Integer,ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
     rating = Column(SmallInteger, nullable=False)
     content = Column(Text, nullable=False)
-    files_blob_names = Column(Text, nullable=True)  # JSON array of blob names
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     destination = relationship("Destination", back_populates="reviews")

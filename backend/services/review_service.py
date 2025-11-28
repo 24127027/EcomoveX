@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import HTTPException, status
+from typing import List, Optional
+from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.storage_schema import FileCategory
 from services.storage_service import StorageService
@@ -63,7 +63,7 @@ class ReviewService:
             )
     
     @staticmethod
-    async def create_review(db: AsyncSession, user_id: int, destination_id: str, review_data: ReviewCreate) -> ReviewResponse:
+    async def create_review(db: AsyncSession, user_id: int, destination_id: str, review_data: ReviewCreate, files: List[UploadFile] = None) -> ReviewResponse:
         try:
             destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
@@ -80,9 +80,10 @@ class ReviewService:
                 )
             
             urls = []
-            for file in review_data.files:
-                metadata = await StorageService.upload_file(db, file, user_id, FileCategory.review)
-                urls.append(await StorageService.generate_signed_url(metadata.blob_name))
+            if files:
+                for file in files:
+                    metadata = await StorageService.upload_file(db, file, user_id, FileCategory.review)
+                    urls.append(await StorageService.generate_signed_url(metadata.blob_name))
 
                             
             return ReviewResponse(
@@ -102,7 +103,7 @@ class ReviewService:
             )
         
     @staticmethod
-    async def update_review(db: AsyncSession, user_id: int, destination_id: str, updated_data: ReviewUpdate) -> ReviewResponse:
+    async def update_review(db: AsyncSession, user_id: int, destination_id: str, updated_data: ReviewUpdate, files: Optional[List[UploadFile]] = None) -> ReviewResponse:
         try:
             updated_review = await ReviewRepository.update_review(db, user_id, destination_id, updated_data)
             if not updated_review:
@@ -111,8 +112,9 @@ class ReviewService:
                     detail=f"Review for destination {destination_id} and user {user_id} not found"
                 )
             
-            for file in updated_data.files:
-                await StorageService.upload_file(db, file, user_id, FileCategory.review)
+            if files:
+                for file in files:
+                    await StorageService.upload_file(db, file, user_id, FileCategory.review)
                 
             files = await ReviewRepository.get_review_files(db, destination_id, user_id)
             urls = []
