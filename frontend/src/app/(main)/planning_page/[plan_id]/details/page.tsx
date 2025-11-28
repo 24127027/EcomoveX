@@ -275,10 +275,28 @@ export default function PlanDetailsPage() {
       clearTimeout(finishTimeout);
     };
   }, [planId, isNewPlan]);
+  const getDaysArray = (start: string, end?: string) => {
+    const arr = [];
+    const dt = new Date(start);
+    const endDate = end ? new Date(end) : new Date(start);
+
+    while (dt <= endDate) {
+      arr.push(new Date(dt).toISOString().split("T")[0]);
+      dt.setDate(dt.getDate() + 1);
+    }
+    return arr;
+  };
+  const planDays = React.useMemo(() => {
+    if (!planInfo.date) return [];
+    return getDaysArray(planInfo.date, planInfo.end_date);
+  }, [planInfo.date, planInfo.end_date]);
 
   const findContainer = (id: string | number) => {
-    if (["Morning", "Afternoon", "Evening"].includes(id as string)) return id;
-    return activities.find((a) => a.id === id)?.time_slot;
+    if (String(id).includes("_")) return id;
+    const item = activities.find((a) => a.id === id);
+    if (!item) return null;
+    const dateStr = item.date ? item.date.split("T")[0] : planDays[0];
+    return `${dateStr}_${item.time_slot}`;
   };
 
   const handleDragStart = (event: any) => setActiveId(event.active.id);
@@ -302,11 +320,13 @@ export default function PlanDetailsPage() {
     setActivities((prev) => {
       const activeIndex = prev.findIndex((i) => i.id === active.id);
       const overIndex = prev.findIndex((i) => i.id === overId);
+      const [newDate, newSlot] = String(overContainer).split("_");
 
       const newActivities = [...prev];
       newActivities[activeIndex] = {
         ...newActivities[activeIndex],
-        time_slot: overContainer as "Morning" | "Afternoon" | "Evening",
+        time_slot: newSlot as "Morning" | "Afternoon" | "Evening",
+        date: newDate,
       };
 
       return arrayMove(
@@ -579,29 +599,74 @@ export default function PlanDetailsPage() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="space-y-2">
-              <TimeSlotContainer
-                id="Morning"
-                title="Morning"
-                icon={<Sun size={18} className="text-orange-400" />}
-                items={activities.filter((a) => a.time_slot === "Morning")}
-              />
-              <TimeSlotContainer
-                id="Afternoon"
-                title="Afternoon"
-                icon={<Sunset size={18} className="text-red-400" />}
-                items={activities.filter((a) => a.time_slot === "Afternoon")}
-              />
-              <TimeSlotContainer
-                id="Evening"
-                title="Evening"
-                icon={<Moon size={18} className="text-purple-400" />}
-                items={activities.filter((a) => a.time_slot === "Evening")}
-              />
+            <div className="space-y-8">
+              {planDays.map((day, dayIndex) => (
+                <div
+                  key={day}
+                  className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+                >
+                  <div className="flex items-center gap-2 mb-4 sticky top-0 bg-[#F5F7F5] z-10 py-2 border-b border-gray-200">
+                    <div className="bg-[#53B552] text-white font-bold w-8 h-8 rounded-full flex items-center justify-center shadow-md">
+                      {dayIndex + 1}
+                    </div>
+                    <div>
+                      <h3
+                        className={`${jost.className} font-bold text-gray-800 text-lg`}
+                      >
+                        Day {dayIndex + 1}
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        {new Date(day).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pl-2 border-l-2 border-dashed border-gray-200 ml-4">
+                    <TimeSlotContainer
+                      id={`${day}_Morning`}
+                      title="Morning"
+                      icon={<Sun size={18} className="text-orange-400" />}
+                      items={activities.filter(
+                        (a) =>
+                          (a.date?.split("T")[0] === day ||
+                            (!a.date && dayIndex === 0)) &&
+                          a.time_slot === "Morning"
+                      )}
+                    />
+                    <TimeSlotContainer
+                      id={`${day}_Afternoon`}
+                      title="Afternoon"
+                      icon={<Sunset size={18} className="text-red-400" />}
+                      items={activities.filter(
+                        (a) =>
+                          (a.date?.split("T")[0] === day ||
+                            (!a.date && dayIndex === 0)) &&
+                          a.time_slot === "Afternoon"
+                      )}
+                    />
+                    <TimeSlotContainer
+                      id={`${day}_Evening`}
+                      title="Evening"
+                      icon={<Moon size={18} className="text-purple-400" />}
+                      items={activities.filter(
+                        (a) =>
+                          (a.date?.split("T")[0] === day ||
+                            (!a.date && dayIndex === 0)) &&
+                          a.time_slot === "Evening"
+                      )}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
+
             <DragOverlay dropAnimation={dropAnimation}>
               {activeId ? (
-                <div className="bg-white p-4 rounded-xl shadow-xl border-2 border-[#53B552] opacity-90">
+                <div className="bg-white p-4 rounded-xl shadow-xl border-2 border-[#53B552] opacity-90 cursor-grabbing">
                   {activities.find((a) => a.id === activeId)?.title}
                 </div>
               ) : null}
