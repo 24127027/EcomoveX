@@ -20,7 +20,6 @@ class Mission(Base):
     __tablename__ = "missions"
     __table_args__ = (
         Index('ix_mission_action_trigger', 'action_trigger'),
-        Index('ix_mission_is_active', 'is_active'),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -29,7 +28,6 @@ class Mission(Base):
     reward_type = Column(SQLEnum(RewardType), nullable=False)
     action_trigger = Column(SQLEnum(MissionAction), nullable=False)
     value = Column(Integer, nullable=True, default=0)
-    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("UserMission", back_populates="mission", cascade="all, delete-orphan")
