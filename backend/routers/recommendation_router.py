@@ -1,13 +1,64 @@
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
-from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
 from services.recommendation_service import RecommendationService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
+@router.post("/sort", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
+async def sort_recommendations_(
+    request: Dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Sort a list of destinations by cluster affinity, popularity, and GPS proximity.
+    
+    Request body:
+    {
+        "destination_ids": [1, 2, 3],
+        "user_location": {"lat": 10.762622, "lng": 106.660172},  // optional
+        "cluster_weight": 0.4,      // optional, default 0.4
+        "popularity_weight": 0.3,   // optional, default 0.3
+        "proximity_weight": 0.3     // optional, default 0.3
+    }
+    """
+    return await RecommendationService.sort_recommendations_by_place_details(
+        db=db,
+        user_id=current_user["user_id"],
+        request_data=request
+    )
+
+
+@router.get("/nearby", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
+async def get_nearby_recommendations(
+    latitude: float = Query(..., description="Current latitude"),
+    longitude: float = Query(..., description="Current longitude"),
+    radius_km: float = Query(5.0, ge=0.1, le=50, description="Search radius in kilometers"),
+    k: int = Query(10, ge=1, le=50, description="Number of recommendations"),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get nearby destination recommendations based on user's cluster tags and GPS proximity.
+    
+    Query Parameters:
+    - latitude: Current GPS latitude
+    - longitude: Current GPS longitude  
+    - radius_km: Search radius in kilometers (default: 5km, max: 50km)
+    - k: Number of recommendations to return (default: 10, max: 50)
+    """
+    return await RecommendationService.recommend_nearby_by_cluster_tags(
+        db=db,
+        user_id=current_user["user_id"],
+        latitude=latitude,
+        longitude=longitude,
+        radius_km=radius_km,
+        k=k
+    )
+    
 @router.get("/user/me", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
 async def get_recommendations_for_current_user(
     k: int = Query(default=10, ge=1, le=50),
@@ -20,81 +71,4 @@ async def get_recommendations_for_current_user(
         current_user["user_id"], 
         k=k, 
         use_hybrid=use_hybrid
-    )
-
-@router.get("/user/{user_id}", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
-async def get_recommendations_for_user(
-    user_id: int,
-    k: int = Query(default=10, ge=1, le=50),
-    use_hybrid: bool = Query(default=False),
-    db: AsyncSession = Depends(get_db)
-):
-    return await RecommendationService.recommend_for_user(
-        db, 
-        user_id, 
-        k=k, 
-        use_hybrid=use_hybrid
-    )
-
-@router.get("/cluster/{cluster_id}/hybrid", response_model=RecommendationResponse, status_code=status.HTTP_200_OK)
-async def get_hybrid_recommendations_for_cluster(
-    cluster_id: int,
-    k: int = Query(default=20, ge=1, le=100),
-    similarity_weight: float = Query(default=0.7, ge=0, le=1),
-    popularity_weight: float = Query(default=0.3, ge=0, le=1),
-    db: AsyncSession = Depends(get_db)
-):
-    return await RecommendationService.recommend_for_cluster_hybrid(
-        db, 
-        cluster_id, 
-        k=k, 
-        similarity_weight=similarity_weight, 
-        popularity_weight=popularity_weight
-    )
-
-@router.get("/cluster/{cluster_id}/similarity", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
-async def get_similarity_recommendations_for_cluster(
-    cluster_id: int,
-    k: int = Query(default=10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db)
-):
-    return await RecommendationService.recommend_for_cluster_similarity(
-        db, 
-        cluster_id, 
-        k=k
-    )
-
-@router.get("/cluster/{cluster_id}/popularity", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
-async def get_popularity_recommendations_for_cluster(
-    cluster_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    return await RecommendationService.recommend_for_cluster_popularity(db, cluster_id)
-
-@router.get("/user/{user_id}/cluster/{cluster_id}", response_model=List[str], status_code=status.HTTP_200_OK)
-async def get_recommendations_based_on_user_cluster(
-    user_id: int,
-    cluster_id: int,
-    k: int = Query(default=10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db)
-):
-    return await RecommendationService.recommend_destination_based_on_user_cluster(
-        db, 
-        user_id, 
-        cluster_id, 
-        k=k
-    )
-
-@router.get("/me/cluster/{cluster_id}", response_model=List[str], status_code=status.HTTP_200_OK)
-async def get_recommendations_for_current_user_cluster(
-    cluster_id: int,
-    k: int = Query(default=10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    return await RecommendationService.recommend_destination_based_on_user_cluster(
-        db, 
-        current_user["user_id"], 
-        cluster_id, 
-        k=k
     )
