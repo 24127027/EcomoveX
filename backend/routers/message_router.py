@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Path, Query, UploadFile, File, Form, status, WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
-from schemas.message_schema import MessageFileCreate, MessageTextCreate, MessageResponse, CommonMessageResponse
+from schemas.message_schema import MessageResponse, CommonMessageResponse
 from services.message_service import MessageService
 from utils.token.authentication_util import get_current_user
 

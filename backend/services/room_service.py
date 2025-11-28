@@ -37,6 +37,7 @@ class RoomService:
                     RoomResponse(
                         id=room.id,
                         name=room.name,
+                        room_type=room.room_type,
                         created_at=room.created_at,
                         member_ids=[member.user_id for member in members]
                     )
@@ -67,6 +68,7 @@ class RoomService:
             return RoomResponse(
                 id=room_id,
                 name=room.name,
+                room_type=room.room_type,
                 created_at=room.created_at,
                 member_ids=[member.user_id for member in members]
             )
@@ -161,6 +163,7 @@ class RoomService:
             return RoomResponse(
                 id=new_room.id,
                 name=new_room.name,
+                room_type=new_room.room_type,
                 created_at=new_room.created_at,
                 member_ids=data.member_ids or []
             )
@@ -212,24 +215,25 @@ class RoomService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Room ID {room_id} not found"
                 )
+            
             is_current_user_member = await RoomRepository.is_member(db, current_user_id, room_id)
             if not is_current_user_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Current user ID {current_user_id} is not a member of room ID {room_id}"
                 )
+            
             for user_data in data.data:
-                is_member = await RoomRepository.is_member(db, user_data.id, room_id)
+                if user_data.user_id <= 0:
+                    continue
+                is_member = await RoomRepository.is_member(db, user_data.user_id, room_id)
                 if is_member:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"User ID {user_data.id} is already a member of room ID {room_id}"
-                    )
+                    continue
                 success = await RoomRepository.add_member(db, room_id, user_data)
                 if not success:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to add user ID {user_data.id} to room ID {room_id}"
+                        detail=f"Failed to add user ID {user_data.user_id} to room ID {room_id}"
                     )
             room = await RoomRepository.get_room_by_id(db, room_id)
             members = await RoomRepository.list_members(db, room_id)
@@ -237,6 +241,7 @@ class RoomService:
             return RoomResponse(
                 id=room_id,
                 name=room.name,
+                room_type=room.room_type,
                 created_at=room.created_at,
                 member_ids=member_ids
             )
@@ -257,25 +262,30 @@ class RoomService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Room ID {room_id} not found"
                 )
+            
             is_owner = await RoomRepository.is_owner(db, current_user_id, room_id)
             if not is_owner:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Current user ID {current_user_id} is not the owner of room ID {room_id}"
                 )
+            
             for user_id in data.ids:
+                is_user_owner = await RoomRepository.is_owner(db, user_id, room_id)
+                if is_user_owner:
+                    continue
+                    
                 success = await RoomRepository.remove_member(db, user_id, room_id)
                 if not success:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to remove user ID {user_id} from room ID {room_id}"
-                )
+                    continue
+                    
             room = await RoomRepository.get_room_by_id(db, room_id)
             members = await RoomRepository.list_members(db, room_id)
             member_ids = [member.user_id for member in members]
             return RoomResponse(
                 id=room_id,
                 name=room.name,
+                room_type=room.room_type,
                 created_at=room.created_at,
                 member_ids=member_ids
             )
@@ -284,5 +294,38 @@ class RoomService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error removing user ID {user_id} from room ID {room_id}: {e}"
+                detail=f"Unexpected error removing users from room ID {room_id}: {e}"
+            )
+    
+    @staticmethod
+    async def delete_room(db: AsyncSession, current_user_id: int, room_id: int):
+        try:
+            room = await RoomRepository.get_room_by_id(db, room_id)
+            if not room:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Room ID {room_id} not found"
+                )
+            
+            is_owner = await RoomRepository.is_owner(db, current_user_id, room_id)
+            if not is_owner:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Only the room owner can delete room ID {room_id}"
+                )
+            
+            success = await RoomRepository.delete_room(db, room_id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to delete room ID {room_id}"
+                )
+            
+            return {"detail": "Room deleted successfully"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error deleting room ID {room_id}: {e}"
             )

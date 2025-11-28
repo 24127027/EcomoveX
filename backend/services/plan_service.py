@@ -1,5 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from schemas.map_schema import *
+from services.map_service import MapService
 from repository.destination_repository import DestinationRepository
 from repository.plan_repository import PlanRepository
 from schemas.plan_schema import *
@@ -42,8 +44,8 @@ class PlanService:
                         destination_id=dest.destination_id,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time,
                         estimated_cost=dest.estimated_cost,
+                        url=dest.url,
                         note=dest.note
                     )
                     for dest in destinations
@@ -142,17 +144,25 @@ class PlanService:
     @staticmethod
     async def delete_plan(db: AsyncSession, user_id: int, plan_id: int):
         try:
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan with ID {plan_id} not found"
+                )
+            
             is_owner = await PlanRepository.is_plan_owner(db, user_id, plan_id)
-            if is_owner == False:
+            if not is_owner:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the owner can delete the plan"
                 )
+            
             success = await PlanRepository.delete_plan(db, plan_id)
             if not success:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Plan with ID {plan_id} not found"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to delete plan with ID {plan_id}"
                 )
             return {"detail": "Plan deleted successfully"}
         except HTTPException:
@@ -166,8 +176,15 @@ class PlanService:
     @staticmethod
     async def get_plan_destinations(db: AsyncSession, user_id: int, plan_id: int) -> List[PlanDestinationResponse]:
         try:
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan with ID {plan_id} not found"
+                )
+            
             is_member = await PlanRepository.is_member(db, user_id, plan_id)
-            if is_member == False:
+            if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="User is not a member of the plan"
@@ -197,7 +214,8 @@ class PlanService:
 
     @staticmethod
     async def add_destination_to_plan(
-        db: AsyncSession, 
+        db: AsyncSession,
+        user_id: int,
         plan_id: int,
         data: PlanDestinationCreate,
     ) -> PlanDestinationResponse:
@@ -208,7 +226,20 @@ class PlanService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Plan with ID {plan_id} not found"
                     )
-                        
+            
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only plan members can add destinations"
+                )
+            
+            try:
+                image = await MapService.get_location_details(PlaceDetailsRequest(place_id=data.destination_id))
+                data.url = image.photos[0].photo_url if image.photos else None
+            except Exception:
+                data.url = None
+            
             plan_dest = await PlanRepository.add_destination_to_plan(db, plan_id, data)
             
             if not plan_dest:
@@ -222,8 +253,8 @@ class PlanService:
                 destination_id=plan_dest.destination_id,
                 type=plan_dest.type,
                 visit_date=plan_dest.visit_date,
-                time=plan_dest.time,
                 estimated_cost=plan_dest.estimated_cost,
+                url=plan_dest.url,
                 note=plan_dest.note
             )
         except HTTPException:
@@ -237,10 +268,19 @@ class PlanService:
     @staticmethod
     async def update_plan_destination(
         db: AsyncSession,
+        user_id: int,
+        plan_id: int,
         plan_destination_id: int,
         updated_data: PlanDestinationUpdate
     ) -> PlanDestinationResponse:
         try:
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only plan members can update destinations"
+                )
+            
             updated_dest = await PlanRepository.update_plan_destination(
                 db, plan_destination_id, updated_data
             )
@@ -254,8 +294,8 @@ class PlanService:
                 destination_id=updated_dest.destination_id,
                 type=updated_dest.type,
                 visit_date=updated_dest.visit_date,
-                time=updated_dest.time,
                 estimated_cost=updated_dest.estimated_cost,
+                url=updated_dest.url,
                 note=updated_dest.note
             )
         except HTTPException:
@@ -268,10 +308,19 @@ class PlanService:
 
     @staticmethod
     async def remove_destination_from_plan(
-        db: AsyncSession, 
+        db: AsyncSession,
+        user_id: int,
+        plan_id: int,
         plan_destination_id: int,
     ):
         try:
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only plan members can remove destinations"
+                )
+            
             success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
             if not success:
                 raise HTTPException(
@@ -314,8 +363,8 @@ class PlanService:
                             destination_id=plan_dest.destination_id,
                             type=plan_dest.type,
                             visit_date=plan_dest.visit_date,
-                            time=plan_dest.time,
                             estimated_cost=plan_dest.estimated_cost,
+                            url=plan_dest.url,
                             note=plan_dest.note
                         ))
                     else:
@@ -403,12 +452,20 @@ class PlanService:
     @staticmethod
     async def add_plan_member(db: AsyncSession, user_id: int, plan_id: int, data: MemberCreate) -> PlanMemberResponse:
         try:
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan with ID {plan_id} not found"
+                )
+            
             is_owner = await PlanRepository.is_plan_owner(db, user_id, plan_id)
-            if is_owner == False:
+            if not is_owner:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the owner can add members to the plan"
                 )
+            
             duplicates = []
             for id in data.ids:
                 if await PlanService.is_member(db, id, plan_id):
@@ -432,14 +489,25 @@ class PlanService:
     @staticmethod
     async def remove_plan_member(db: AsyncSession, user_id: int ,plan_id: int, data: MemberDelete) -> PlanMemberResponse:
         try:
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan with ID {plan_id} not found"
+                )
+            
             is_owner = await PlanRepository.is_plan_owner(db, user_id, plan_id)
-            if is_owner == False:
+            if not is_owner:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the owner can remove members from the plan"
                 )
+            
             ids_not_in_plan = []
             for member_id in data.ids:
+                is_member_owner = await PlanRepository.is_plan_owner(db, member_id, plan_id)
+                if is_member_owner:
+                    continue
                 if not await PlanService.is_member(db, member_id, plan_id):
                     ids_not_in_plan.append(member_id)
                     continue

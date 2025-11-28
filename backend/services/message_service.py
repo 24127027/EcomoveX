@@ -24,7 +24,8 @@ class MessageService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Message ID {message_id} not found"
                 )
-            is_member = await RoomService.is_user_in_room(db, user_id, message.room_id)
+            
+            is_member = await RoomService.is_member(db, user_id, message.room_id)
             if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -50,6 +51,12 @@ class MessageService:
     @staticmethod
     async def get_message_by_keyword(db: AsyncSession, user_id: int, room_id: int, keyword: str) -> list[MessageResponse]:
         try:
+            if not keyword or not keyword.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Keyword cannot be empty"
+                )
+            
             is_member = await RoomService.is_member(db, user_id, room_id)
             if not is_member:
                 raise HTTPException(
@@ -162,11 +169,24 @@ class MessageService:
     @staticmethod
     async def delete_message(db: AsyncSession, sender_id: int, message_id: int):
         try:
-            success = await MessageRepository.delete_message(db, sender_id, message_id)
-            if not success:
+            message = await MessageRepository.get_message_by_id(db, message_id)
+            if not message:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Message with ID {message_id} not found"
+                    detail=f"Message ID {message_id} not found"
+                )
+            
+            if message.sender_id != sender_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User does not have permission to delete this message"
+                )
+            
+            success = await MessageRepository.delete_message(db, message_id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to delete message with ID {message_id}"
                 )
             return {"detail": "Message deleted successfully"}
         except HTTPException:

@@ -141,7 +141,7 @@ class MessageRepository:
                         Message.id == message_id,
                     )
                 )
-                .values(content=new_content, edited_at=func.now())
+                .values(content=new_content)
                 .returning(Message)
             )
             result = await db.execute(stmt)
