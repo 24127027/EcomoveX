@@ -462,7 +462,7 @@ class PlanService:
     async def handle_intent(
         db: AsyncSession,
         user_id: int,
-        session_id: int,
+        room_id: int,
         user_text: str
     ) -> IntentHandlerResponse:
         try:

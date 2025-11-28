@@ -9,7 +9,6 @@ from schemas.message_schema import CommonMessageResponse
 from services.review_service import ReviewService
 from services.user_service import UserActivityService
 from services.storage_service import StorageService
-from models.metadata import FileCategory
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
@@ -66,11 +65,3 @@ async def delete_review(
     current_user: dict = Depends(get_current_user)
 ):
     return await ReviewService.delete_review(user_db, current_user["user_id"], destination_id)
-
-@router.get("/{destination_id}/files", response_model=List[ReviewResponse], status_code=status.HTTP_200_OK)
-async def get_review_files(
-    destination_id: str = Path(...),
-    user_db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    return await ReviewService.get_review_files(user_db, current_user["user_id"], destination_id)

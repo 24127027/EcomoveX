@@ -4,7 +4,7 @@ from schemas.route_schema import *
 from schemas.map_schema import *
 from services.carbon_service import CarbonService
 from integration.route_api import create_route_api_client
-from integration.text_generator_api import get_text_generator
+from integration.text_generator_api import create_text_generator_api
 
 class RouteService:
     @staticmethod
@@ -356,8 +356,8 @@ Key insights:
 
 Provide a concise recommendation that balances environmental impact and convenience. Focus on the most practical choice for the user."""
 
-            text_gen = get_text_generator()
-            ai_recommendation = await text_gen.generate_text(prompt)
+            text_gen = await create_text_generator_api()
+            ai_recommendation = await text_gen.generate_reply([{"role": "user", "content": prompt}])
             
             recommended_route = "fastest"
             if carbon_savings_percent > 50 and lowest_carbon_route.duration <= fastest_route.duration * 1.5:
