@@ -6,10 +6,8 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Jost, Abhaya_Libre, Roboto } from "next/font/google";
 import { api } from "@/lib/api";
-import { CreatePlanRequest } from "@/lib/api";
 
 // --- FONTS ---
-
 const roboto = Roboto({
   subsets: ["vietnamese"],
   weight: ["400", "500", "700"],
@@ -26,6 +24,7 @@ const abhaya_libre = Abhaya_Libre({
 export default function CreatePlanPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+
   // --- FORM STATE ---
   const [placeName, setPlaceName] = useState<string>("");
   const [budget, setBudget] = useState<number>(100000);
@@ -33,11 +32,12 @@ export default function CreatePlanPage() {
 
   // --- CALENDAR STATE ---
   const [displayDate, setDisplayDate] = useState(new Date());
+
   const [selectedRange, setSelectedRange] = useState<{
-    start: number | null;
-    end: number | null;
+    start: Date | null;
+    end: Date | null;
   }>({
-    start: new Date().getDate(),
+    start: new Date(),
     end: null,
   });
 
@@ -46,6 +46,7 @@ export default function CreatePlanPage() {
   const month = displayDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+
   const monthNames = [
     "January",
     "February",
@@ -64,22 +65,52 @@ export default function CreatePlanPage() {
   const handlePrevMonth = () => setDisplayDate(new Date(year, month - 1, 1));
   const handleNextMonth = () => setDisplayDate(new Date(year, month + 1, 1));
 
+  const isSameDay = (d1: Date, d2: Date) => {
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
+
   const handleDateClick = (day: number) => {
+    const clickedDate = new Date(year, month, day);
+    clickedDate.setHours(0, 0, 0, 0);
+
     if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
-      setSelectedRange({ start: day, end: null });
+      setSelectedRange({ start: clickedDate, end: null });
     } else {
-      const newStart = Math.min(selectedRange.start, day);
-      const newEnd = Math.max(selectedRange.start, day);
-      setSelectedRange({ start: newStart, end: newEnd });
+      if (clickedDate < selectedRange.start) {
+        setSelectedRange({ start: clickedDate, end: selectedRange.start });
+      } else if (isSameDay(clickedDate, selectedRange.start)) {
+        setSelectedRange({ start: null, end: null });
+      } else {
+        setSelectedRange({ ...selectedRange, end: clickedDate });
+      }
     }
   };
 
-  const isSelected = (day: number) => {
-    if (!selectedRange.start) return false;
-    if (selectedRange.end) {
-      return day >= selectedRange.start && day <= selectedRange.end;
+  const getDayStatus = (day: number) => {
+    if (!selectedRange.start) return "none";
+
+    const currentCellDate = new Date(year, month, day);
+    currentCellDate.setHours(0, 0, 0, 0);
+    const start = selectedRange.start;
+    const end = selectedRange.end;
+
+    // Reset giờ cho start/end để so sánh
+    const sTime = new Date(start).setHours(0, 0, 0, 0);
+    const cTime = currentCellDate.getTime();
+
+    if (end) {
+      const eTime = new Date(end).setHours(0, 0, 0, 0);
+      if (cTime === sTime || cTime === eTime) return "selected";
+      if (cTime > sTime && cTime < eTime) return "in-range";
+    } else {
+      if (cTime === sTime) return "selected";
     }
-    return day === selectedRange.start;
+
+    return "none";
   };
 
   const toggleTag = (tag: string) => {
@@ -93,6 +124,14 @@ export default function CreatePlanPage() {
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     if (val >= 0) setBudget(val);
+    else if (val < 0) setBudget(0);
+  };
+
+  const handlePeopleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    if (val <= 0) {
+      e.target.value = "1";
+    }
   };
 
   const handleCreatePlan = async () => {
@@ -104,17 +143,23 @@ export default function CreatePlanPage() {
       alert("Please select at least one date for your trip!");
       return;
     }
+
     try {
       setIsLoading(true);
-      const startDate = new Date(year, month, selectedRange.start);
-      const endDate = selectedRange.end
-        ? new Date(year, month, selectedRange.end)
-        : startDate;
-      const formatDate = (d: Date) => d.toISOString().split("T")[0];
+
+      const startDate = selectedRange.start;
+      const endDate = selectedRange.end ? selectedRange.end : startDate;
+
+      const formatDateLocal = (date: Date) => {
+        const offset = date.getTimezoneOffset();
+        const localDate = new Date(date.getTime() - offset * 60 * 1000);
+        return localDate.toISOString().split("T")[0];
+      };
+
       const newPlan = await api.createPlan({
         place_name: placeName,
-        start_date: formatDate(startDate),
-        end_date: formatDate(endDate),
+        start_date: formatDateLocal(startDate),
+        end_date: formatDateLocal(endDate),
         budget_limit: budget,
       });
       router.push(`/planning_page/${newPlan.id}`);
@@ -167,7 +212,6 @@ export default function CreatePlanPage() {
             </h3>
 
             <div className="bg-[#F1F8F1] rounded-xl p-4 select-none">
-              {/* Month Nav */}
               <div className="flex justify-between items-center mb-4 px-2">
                 <ChevronLeft
                   size={24}
@@ -205,17 +249,35 @@ export default function CreatePlanPage() {
                 ))}
                 {Array.from({ length: daysInMonth }).map((_, index) => {
                   const day = index + 1;
-                  const selected = isSelected(day);
+
+                  const dateToCheck = new Date(year, month, day);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const isPast = dateToCheck < today;
+
+                  const status = getDayStatus(day);
+
                   return (
                     <div key={day} className="flex justify-center items-center">
                       <div
-                        onClick={() => handleDateClick(day)}
+                        onClick={() => !isPast && handleDateClick(day)}
                         className={`${
                           jost.className
-                        } w-8 h-8 flex items-center justify-center rounded-full text-sm cursor-pointer transition-all ${
-                          selected
-                            ? "bg-[#53B552] text-white font-bold shadow-md scale-110"
-                            : "text-gray-800 hover:bg-green-100"
+                        } w-8 h-8 flex items-center justify-center rounded-full text-sm transition-all 
+                        ${
+                          isPast
+                            ? "text-gray-300 cursor-not-allowed"
+                            : "cursor-pointer text-gray-800 hover:bg-green-100"
+                        }
+                        ${
+                          status === "selected" && !isPast
+                            ? "bg-[#53B552] text-white font-bold shadow-md scale-110 hover:bg-[#53B552]"
+                            : ""
+                        }
+                        ${
+                          status === "in-range" && !isPast
+                            ? "bg-[#E3F1E4] text-[#53B552] font-semibold"
+                            : ""
                         }`}
                       >
                         {day}
@@ -231,6 +293,8 @@ export default function CreatePlanPage() {
           <div className="bg-white border border-[#53B552] rounded-xl p-4 shadow-sm">
             <input
               type="number"
+              onChange={handlePeopleCountChange}
+              min={1}
               placeholder="How many people joining this trip?"
               className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552] bg-transparent text-sm`}
             />

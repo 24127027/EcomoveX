@@ -37,7 +37,7 @@ class Mission(Base):
 class UserMission(Base):
     __tablename__ = "mission_users"
     __table_args__ = (
-        Index('ix_user_mission_status', 'user_id', 'is_completed'),
+        Index('ix_user_mission_status', 'user_id', 'completed_at'),
     )
     
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)

@@ -69,23 +69,15 @@ export default function PlanningPage() {
           return;
         }
 
-        // [FIX QUAN TRỌNG]: LỌC BỎ CÁC PLAN KHÔNG ĐẠT CHUẨN (Ít hơn 2 địa điểm)
-        // Những plan này sẽ không được tính là Incoming, Future hay Previous
         const validPlans = allPlans.filter(
           (p) => p.activities && p.activities.length >= 2
         );
 
-        // --- XỬ LÝ PLAN RÁC (TÙY CHỌN) ---
-        // Nếu bạn muốn xóa dùm người dùng luôn (Cẩn thận: có thể xóa nhầm lúc họ đang tạo dở)
-        // const invalidPlans = allPlans.filter(p => p.activities.length < 2);
-        // invalidPlans.forEach(p => api.deletePlan(p.id));
 
-        // --- LOGIC PHÂN LOẠI (Dùng validPlans thay vì allPlans) ---
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const allActiveAndFuture = validPlans.filter((p) => {
-          // Dùng validPlans
           const endDate = p.end_date
             ? parseDate(p.end_date)
             : parseDate(p.date);
@@ -93,14 +85,12 @@ export default function PlanningPage() {
         });
 
         const allPast = validPlans.filter((p) => {
-          // Dùng validPlans
           const endDate = p.end_date
             ? parseDate(p.end_date)
             : parseDate(p.date);
           return endDate < today;
         });
 
-        // ... (Phần sort và set state giữ nguyên logic cũ) ...
 
         if (allActiveAndFuture.length > 0) {
           allActiveAndFuture.sort(
@@ -133,9 +123,7 @@ export default function PlanningPage() {
 
   const getActivitiesByTime = (activities: PlanActivity[], slot: string) => {
     if (!activities) return [];
-    // [FIX 3 - Tạm thời] Vì mất giờ nên backend trả về toàn Morning.
-    // Nếu bạn muốn hiển thị tạm để check data thì có thể bỏ filter,
-    // nhưng tốt nhất là hiển thị đúng data backend trả về.
+
     return activities.filter((a) => a.time_slot === slot);
   };
 

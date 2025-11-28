@@ -1,16 +1,32 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
-import { api, AutocompletePrediction, PlaceDetails, Position, PlaceSearchResult } from "@/lib/api";
+import {
+  Search,
+  Home,
+  MapPin,
+  Bot,
+  User,
+  ChevronLeft,
+  Navigation,
+  Check,
+} from "lucide-react";
+import {
+  api,
+  AutocompletePrediction,
+  PlaceDetails,
+  Position,
+  PlaceSearchResult,
+} from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
-import { flushSync } from 'react-dom';
+import { flushSync } from "react-dom";
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
 }
 
+// --- HELPER FUNCTIONS ---
 const birdDistance = (pos1: Position, pos2: Position): number => {
   const toRad = (value: number) => (value * Math.PI) / 180;
   const R = 6371;
@@ -24,18 +40,22 @@ const birdDistance = (pos1: Position, pos2: Position): number => {
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-}
+};
 
-const addDistanceText = async (details: PlaceDetails, userPos: Position): Promise<PlaceDetailsWithDistance> => {
+const addDistanceText = async (
+  details: PlaceDetails,
+  userPos: Position
+): Promise<PlaceDetailsWithDistance> => {
   const destination: Position = details.geometry.location;
   const distanceKm = birdDistance(userPos, destination);
-  const distanceText = distanceKm < 1 
-    ? `${Math.round(distanceKm * 1000)}m away`
-    : `${distanceKm.toFixed(1)}km away`;
-  
+  const distanceText =
+    distanceKm < 1
+      ? `${Math.round(distanceKm * 1000)}m away`
+      : `${distanceKm.toFixed(1)}km away`;
+
   return {
     ...details,
-    distanceText
+    distanceText,
   };
 };
 
@@ -52,16 +72,9 @@ const convertSearchResultToDetails = (
       : `${distanceKm.toFixed(1)}km away`;
 
   return {
-    // Map JSON "id" -> UI "place_id"
     place_id: result.id,
-
-    // Map JSON "displayName.text" -> UI "name"
-    // Safe navigation (?.) prevents crash if displayName is null
     name: result.displayName?.text || "Unknown Place",
-
-    // Map JSON "formattedAddress" -> UI "formatted_address"
     formatted_address: result.formattedAddress || "",
-
     geometry: {
       location: result.location || { lat: 0, lng: 0 },
     },
@@ -96,28 +109,40 @@ const generateSessionToken = () => {
   return crypto.randomUUID();
 };
 
+// --- MAIN COMPONENT ---
 export default function MapPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // [NEW] Xác định chế độ Picker
+  const mode = searchParams.get("mode");
+  const isPickerMode = mode === "picker";
+
   const { isLoaded, loadError } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] =
     useState<PlaceDetailsWithDistance | null>(null);
-  const urlQuery = useSearchParams().get("q") || "";
+  const urlQuery = searchParams.get("q") || "";
   const [searchQuery, setSearchQuery] = useState(urlQuery);
-  const prevSearchQuery = usePrevious(searchQuery);
   const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
   const [searchResults, setSearchResults] = useState<
     PlaceDetailsWithDistance[]
   >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [autocompletePredictions, setAutocompletePredictions] = useState<AutocompletePrediction[]>([]);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true);
+  const [autocompletePredictions, setAutocompletePredictions] = useState<
+    AutocompletePrediction[]
+  >([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] =
+    useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(40);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startHeight, setStartHeight] = useState(40);
-  const [userLocation, setUserLocation] = useState<Position>({ lat: 10.7756, lng: 106.7019 });
+  const [userLocation, setUserLocation] = useState<Position>({
+    lat: 10.7756,
+    lng: 106.7019,
+  });
   const [enableTransition, setEnableTransition] = useState(true);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
@@ -148,13 +173,12 @@ export default function MapPage() {
     }
   }, [userLocation]);
 
-  // Fetch autocomplete predictions as user types
+  // Autocomplete Effect
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Only run autocomplete if we are focused and strictly typing
     if (searchQuery.trim() === "" || !isSearchFocused) {
       if (searchQuery.trim() === "") {
         setAutocompletePredictions([]);
@@ -169,7 +193,6 @@ export default function MapPage() {
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // Only run autocomplete if user hasn't hit enter yet (checked via focus)
         if (!isSearchFocused) return;
 
         let activeToken = sessionTokenRef.current;
@@ -197,27 +220,24 @@ export default function MapPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, userLocation, isSearchFocused]); 
+  }, [searchQuery, userLocation, isSearchFocused]);
 
-  // --- NEW: Handle Text Search Submit (Enter Key) ---
+  // --- HANDLERS ---
+
   const handleTextSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      // 1. Dismiss Keyboard & Focus
       e.currentTarget.blur();
       setIsSearchFocused(false);
       setAutocompletePredictions([]);
       setIsSearching(true);
 
       try {
-        // Use 'any' cast temporarily if Typescript complains about strict interface matching
-        // or ensure your API request method generic matches the new interface.
         const response = await api.textSearchPlace({
           query: searchQuery,
           location: userLocation,
           radius: 5000,
         });
 
-        // 3. Convert results to UI format
         const list = response.places || [];
         const adaptedResults = list.map((res) =>
           convertSearchResultToDetails(res, userLocation)
@@ -225,11 +245,8 @@ export default function MapPage() {
 
         setSearchResults(adaptedResults);
 
-        // 4. Update UI: Show results on bottom sheet
         if (adaptedResults.length > 0) {
-          setSheetHeight(65); // Expand sheet
-
-          // 5. Fit Map Bounds to show all results
+          setSheetHeight(65);
           if (googleMapRef.current && window.google) {
             const bounds = new window.google.maps.LatLngBounds();
             adaptedResults.forEach((p) => {
@@ -237,7 +254,6 @@ export default function MapPage() {
                 bounds.extend(p.geometry.location);
               }
             });
-            // Don't zoom in too close if only 1 result
             if (adaptedResults.length === 1) {
               googleMapRef.current.setCenter(
                 adaptedResults[0].geometry.location
@@ -245,8 +261,6 @@ export default function MapPage() {
               googleMapRef.current.setZoom(16);
             } else {
               googleMapRef.current.fitBounds(bounds);
-              // Optional: Add padding
-              // googleMapRef.current.panBy(0, 100);
             }
           }
         } else {
@@ -282,14 +296,6 @@ export default function MapPage() {
       document.removeEventListener("touchstart", handleClickOutside as any);
     };
   }, [isSearchFocused, searchResults, locations]);
-
-  // Handle URL query parameter changes
-  useEffect(() => {
-    if (urlQuery && urlQuery !== searchQuery) {
-      setSearchQuery(urlQuery);
-      // NOTE: Logic here could be replaced by handleTextSearch if we extracted logic
-    }
-  }, [urlQuery]);
 
   const handleSelectPrediction = async (prediction: AutocompletePrediction) => {
     setSearchQuery(prediction.description);
@@ -329,7 +335,7 @@ export default function MapPage() {
       const response = await api.autocomplete({
         query: "park",
         user_location: userLocation,
-        radius: 5000, 
+        radius: 5000,
         place_types: "park|tourist_attraction|point_of_interest",
         session_token: recToken,
       });
@@ -338,7 +344,7 @@ export default function MapPage() {
         setLocations([]);
         return;
       }
-      
+
       const detailedRecommendations = await Promise.all(
         response.predictions
           .slice(0, 8)
@@ -370,20 +376,29 @@ export default function MapPage() {
     }
   };
 
-  const displayedLocations = searchResults.length > 0 ? searchResults : (!isSearchFocused ? locations : []);
+  const displayedLocations =
+    searchResults.length > 0
+      ? searchResults
+      : !isSearchFocused
+      ? locations
+      : [];
 
   // --- MAP INITIALIZATION ---
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
-    
+
     const map = new window.google.maps.Map(mapRef.current, {
       center: userLocation,
       zoom: 14,
       styles: [
-        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
+        {
+          featureType: "poi",
+          elementType: "labels",
+          stylers: [{ visibility: "off" }],
+        },
       ],
       disableDefaultUI: true,
-      gestureHandling: 'cooperative'
+      gestureHandling: "cooperative",
     });
 
     googleMapRef.current = map;
@@ -397,8 +412,7 @@ export default function MapPage() {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
-    displayedLocations.forEach(location => {
-      // Safety check for geometry
+    displayedLocations.forEach((location) => {
       if (!location.geometry || !location.geometry.location) return;
 
       const marker = new window.google.maps.Marker({
@@ -430,7 +444,6 @@ export default function MapPage() {
     });
   }, [displayedLocations, mapLoaded]);
 
-  // User Location Marker
   useEffect(() => {
     if (!googleMapRef.current || !mapLoaded) return;
 
@@ -457,21 +470,46 @@ export default function MapPage() {
 
   const handleLocationSelect = (location: PlaceDetailsWithDistance) => {
     setSelectedLocation(location);
-    setSheetHeight(65); // Ensure sheet is visible when clicking marker
+    setSheetHeight(65);
   };
 
   const handleCardClick = async (location: PlaceDetailsWithDistance) => {
-    // If it's a TextSearchResult, it might have incomplete info, but for now we just center it
     setSelectedLocation(location);
     if (googleMapRef.current) {
-        googleMapRef.current.panTo({ lat: location.geometry.location.lat, lng: location.geometry.location.lng });
-        googleMapRef.current.setZoom(16);
+      googleMapRef.current.panTo({
+        lat: location.geometry.location.lat,
+        lng: location.geometry.location.lng,
+      });
+      googleMapRef.current.setZoom(16);
     }
   };
 
   const handleNavigateToDetail = () => {
     if (selectedLocation) {
       router.push(`/location/${selectedLocation.place_id}`);
+    }
+  };
+
+  const handlePickLocation = () => {
+    if (selectedLocation) {
+      sessionStorage.setItem("picked_location_name", selectedLocation.name);
+      sessionStorage.setItem("picked_location_id", selectedLocation.place_id);
+
+      sessionStorage.setItem(
+        "picked_location_types",
+        JSON.stringify(selectedLocation.types || [])
+      );
+
+      sessionStorage.setItem(
+        "picked_location_lat",
+        selectedLocation.geometry.location.lat.toString()
+      );
+      sessionStorage.setItem(
+        "picked_location_lng",
+        selectedLocation.geometry.location.lng.toString()
+      );
+
+      router.back();
     }
   };
 
@@ -501,41 +539,40 @@ export default function MapPage() {
     sheetHeightRef.current = sheetHeight;
   }, [sheetHeight]);
 
-  // Unified Handler for MouseDown and TouchStart
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     setIsDragging(true);
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
     setStartY(clientY);
-    setStartHeight(sheetHeight); // State is fine here for the "Snapshot" start point
-    
-    document.body.style.overflow = 'hidden';
-    document.body.style.userSelect = 'none';
+    setStartHeight(sheetHeight);
+
+    document.body.style.overflow = "hidden";
+    document.body.style.userSelect = "none";
   };
 
   const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
-    
-    const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
-    
+
+    const clientY =
+      "touches" in e
+        ? (e as TouchEvent).touches[0].clientY
+        : (e as MouseEvent).clientY;
+
     const deltaY = startY - clientY;
     const windowHeight = window.innerHeight;
     const deltaPercent = (deltaY / windowHeight) * 100;
 
     let newHeight = startHeight + deltaPercent;
     newHeight = Math.max(15, Math.min(90, newHeight));
-    
-    // Update State (for rendering) AND Ref (for logic)
+
     setSheetHeight(newHeight);
     sheetHeightRef.current = newHeight;
   };
 
   const handleDragEnd = () => {
     setIsDragging(false);
-    
-    document.body.style.overflow = '';
-    document.body.style.userSelect = '';
+    document.body.style.overflow = "";
+    document.body.style.userSelect = "";
 
-    // FIX: Read from REF, not State, to get the live value inside the event listener
     const currentHeight = sheetHeightRef.current;
     const dragDistance = currentHeight - startHeight;
 
@@ -551,37 +588,31 @@ export default function MapPage() {
       );
     };
 
-    // Logic: If dragged significantly (> 5vh), force snap to next level
-    // Otherwise, snap to nearest
     if (dragDistance < -5) {
-      // Dragged Down
       if (startHeight >= SNAP_HIGH - 5) setSheetHeight(SNAP_MID);
       else if (startHeight >= SNAP_MID - 5) setSheetHeight(SNAP_LOW);
       else setSheetHeight(SNAP_MIN);
     } else if (dragDistance > 5) {
-      // Dragged Up
       if (startHeight <= SNAP_MIN + 5) setSheetHeight(SNAP_LOW);
       else if (startHeight <= SNAP_LOW + 5) setSheetHeight(SNAP_MID);
       else setSheetHeight(SNAP_HIGH);
     } else {
-      // Small drag, just snap to nearest
       setSheetHeight(findNearest(currentHeight));
     }
   };
 
-  // Effect to attach global listeners
   useEffect(() => {
     if (isDragging) {
-      window.addEventListener('touchmove', handleDragMove, { passive: false });
-      window.addEventListener('touchend', handleDragEnd);
-      window.addEventListener('mousemove', handleDragMove);
-      window.addEventListener('mouseup', handleDragEnd);
-      
+      window.addEventListener("touchmove", handleDragMove, { passive: false });
+      window.addEventListener("touchend", handleDragEnd);
+      window.addEventListener("mousemove", handleDragMove);
+      window.addEventListener("mouseup", handleDragEnd);
+
       return () => {
-        window.removeEventListener('touchmove', handleDragMove);
-        window.removeEventListener('touchend', handleDragEnd);
-        window.removeEventListener('mousemove', handleDragMove);
-        window.removeEventListener('mouseup', handleDragEnd);
+        window.removeEventListener("touchmove", handleDragMove);
+        window.removeEventListener("touchend", handleDragEnd);
+        window.removeEventListener("mousemove", handleDragMove);
+        window.removeEventListener("mouseup", handleDragEnd);
       };
     }
   }, [isDragging]);
@@ -594,16 +625,17 @@ export default function MapPage() {
           {/* Search Bar */}
           <div className="absolute top-5 left-4 right-4 z-10 search-container">
             <div className="bg-white rounded-full shadow-lg flex items-center p-3 transition-transform active:scale-95">
-              <a href="/homepage">
-                <ChevronLeft className="text-gray-500 mr-2 cursor-pointer hover:text-green-600" />
-              </a>
+              {/* [NEW] Nút Back thay đổi tùy Mode */}
+              <div onClick={() => router.back()} className="cursor-pointer">
+                <ChevronLeft className="text-gray-500 mr-2 hover:text-green-600" />
+              </div>
+
               <Search size={18} className="text-green-600 mr-2" />
               <input
                 type="text"
                 placeholder="Search for a location..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                // ADDED: onKeyDown handler
                 onKeyDown={handleTextSearch}
                 onFocus={() => {
                   flushSync(() => {
@@ -676,41 +708,38 @@ export default function MapPage() {
         </div>
 
         {/* Bottom Sheet */}
-          <div 
-            ref={sheetRef}
-            style={{ 
-              height: `${sheetHeight}vh`,
-              touchAction: 'none' 
-            }}
-            className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${isDragging || !enableTransition ? '' : 'transition-all duration-300 ease-out'}`}
+        <div
+          ref={sheetRef}
+          style={{
+            height: `${sheetHeight}vh`,
+            touchAction: "none",
+          }}
+          className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${
+            isDragging || !enableTransition
+              ? ""
+              : "transition-all duration-300 ease-out"
+          }`}
+        >
+          {/* Drag Handle Area */}
+          <div
+            className="w-full flex justify-center py-4 touch-none cursor-grab active:cursor-grabbing"
+            onTouchStart={handleDragStart}
+            onMouseDown={handleDragStart}
           >
-            {/* Drag Handle Area */}
-            <div 
-              className="w-full flex justify-center py-4 touch-none cursor-grab active:cursor-grabbing"
-              onTouchStart={handleDragStart} // Mobile
-              onMouseDown={handleDragStart}  // Desktop
-            >
-              <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
-            </div>
+            <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
+          </div>
 
           {/* Content Area */}
           <div
             className="px-6 pb-6 overflow-y-auto overscroll-contain scrollbar-hide"
             style={{ height: "calc(100% - 56px)" }}
-            // Prevent drag from starting when scrolling content (Mobile logic)
             onTouchStart={(e) => {
-              if (sheetHeight < 60) {
-                e.stopPropagation();
-              }
+              if (sheetHeight < 60) e.stopPropagation();
             }}
-            // Prevent drag from starting when scrolling content (Desktop logic)
             onMouseDown={(e) => {
-              if (sheetHeight < 60) {
-                e.stopPropagation();
-              }
+              if (sheetHeight < 60) e.stopPropagation();
             }}
           >
-            {/* Selected Location Card */}
             {selectedLocation ? (
               <div className="mb-4">
                 <div className="bg-[#F9FFF9] border border-green-100 rounded-xl p-4 mb-3 flex items-start gap-3 shadow-sm">
@@ -741,16 +770,25 @@ export default function MapPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleNavigateToDetail}
-                  className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
-                >
-                  View Details
-                </button>
+                {isPickerMode ? (
+                  <button
+                    onClick={handlePickLocation}
+                    className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <Check size={20} strokeWidth={3} />
+                    <span>Select This Location</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleNavigateToDetail}
+                    className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
+                  >
+                    View Details
+                  </button>
+                )}
               </div>
             ) : (
               <>
-                {/* Title Section */}
                 {!isSearchFocused && (
                   <div className="mb-4">
                     <h3 className="text-gray-900 text-lg font-bold mb-1">
@@ -766,7 +804,6 @@ export default function MapPage() {
                   </div>
                 )}
 
-                {/* Search Hint when focused but no typing */}
                 {isSearchFocused &&
                   autocompletePredictions.length === 0 &&
                   sheetHeight > 15 && (
@@ -784,7 +821,6 @@ export default function MapPage() {
               </>
             )}
 
-            {/* Loading State */}
             {(isLoadingRecommendations || isSearching) &&
               displayedLocations.length === 0 &&
               !isSearchFocused && (
@@ -793,7 +829,6 @@ export default function MapPage() {
                 </div>
               )}
 
-            {/* Empty State */}
             {!isLoadingRecommendations &&
               !isSearching &&
               !isSearchFocused &&
@@ -803,95 +838,97 @@ export default function MapPage() {
                 </div>
               )}
 
-            {/* Recommendations/Results Grid */}
-            {!isSearching && !isSearchFocused && displayedLocations.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 pb-2">
-                {displayedLocations.map((location) => (
-                  <div
-                    key={location.place_id}
-                    onClick={() => handleCardClick(location)}
-                    className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
-                      selectedLocation?.place_id === location.place_id
-                        ? "ring-2 ring-green-500"
-                        : ""
-                    }`}
-                  >
-                    <div className="relative h-28 bg-gray-200">
-                      <img
-                        src={
-                          location.photos?.[0]?.photo_reference
-                            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-                            : "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
-                        }
-                        alt={location.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400';
-                        }}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
-                        {location.name}
-                      </h4>
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-1">
-                        {location.distanceText}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
-                          {location.types[0]?.replace(/_/g, ' ') || 'Place'}
-                        </span>
-                        {/* Only show rating if it exists */}
-                        {location.rating && location.rating > 0 && (
-                          <span className="text-xs text-yellow-600 font-semibold">
-                            ★ {location.rating.toFixed(1)}
+            {!isSearching &&
+              !isSearchFocused &&
+              displayedLocations.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 pb-2">
+                  {displayedLocations.map((location) => (
+                    <div
+                      key={location.place_id}
+                      onClick={() => handleCardClick(location)}
+                      className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
+                        selectedLocation?.place_id === location.place_id
+                          ? "ring-2 ring-green-500"
+                          : ""
+                      }`}
+                    >
+                      <div className="relative h-28 bg-gray-200">
+                        <img
+                          src={
+                            location.photos?.[0]?.photo_reference
+                              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                              : "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
+                          }
+                          alt={location.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400";
+                          }}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                      <div className="p-3">
+                        <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">
+                          {location.name}
+                        </h4>
+                        <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+                          {location.distanceText}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
+                            {location.types[0]?.replace(/_/g, " ") || "Place"}
                           </span>
-                        )}
+                          {location.rating && location.rating > 0 && (
+                            <span className="text-xs text-yellow-600 font-semibold">
+                              ★ {location.rating.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
           </div>
         </div>
 
-        {/* Footer */}
-        <footer className="bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-20">
-          <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
-          <div className="flex justify-around items-center px-2 pt-2 pb-3">
-            <a
-              href="/homepage"
-              className="flex flex-col items-center justify-center w-1/4 text-green-600"
-            >
-              <Home className="size-6" strokeWidth={2.0} />
-              <span className="text-xs font-medium mt-0.5">Home</span>
-            </a>
-            <a
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <MapPin className="size-6" strokeWidth={2.0} />
-              <span className="text-xs font-medium mt-0.5">Planning</span>
-            </a>
-            <a
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Bot className="size-6" strokeWidth={1.5} />
-              <span className="text-xs font-medium mt-0.5">Ecobot</span>
-            </a>
-            <a
-              href="/user_page/profile_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <User className="size-6" strokeWidth={1.5} />
-              <span className="text-xs font-medium mt-0.5">User</span>
-            </a>
-          </div>
-        </footer>
+        {!isPickerMode && (
+          <footer className="bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-20">
+            <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
+            <div className="flex justify-around items-center px-2 pt-2 pb-3">
+              <a
+                href="/homepage"
+                className="flex flex-col items-center justify-center w-1/4 text-green-600"
+              >
+                <Home className="size-6" strokeWidth={2.0} />
+                <span className="text-xs font-medium mt-0.5">Home</span>
+              </a>
+              <a
+                href="#"
+                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+              >
+                <MapPin className="size-6" strokeWidth={2.0} />
+                <span className="text-xs font-medium mt-0.5">Planning</span>
+              </a>
+              <a
+                href="#"
+                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+              >
+                <Bot className="size-6" strokeWidth={1.5} />
+                <span className="text-xs font-medium mt-0.5">Ecobot</span>
+              </a>
+              <a
+                href="/user_page/profile_page"
+                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+              >
+                <User className="size-6" strokeWidth={1.5} />
+                <span className="text-xs font-medium mt-0.5">User</span>
+              </a>
+            </div>
+          </footer>
+        )}
       </div>
     </div>
   );

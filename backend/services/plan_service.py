@@ -36,6 +36,7 @@ class PlanService:
                 destinations = await PlanRepository.get_plan_destinations(db, plan.id)
                 dest_infos = [
                     PlanDestinationResponse(
+                        id=dest.id,
                         destination_id=dest.destination_id,
                         type=dest.type,
                         visit_date=dest.visit_date,
@@ -118,6 +119,7 @@ class PlanService:
                 budget_limit=updated_plan.budget_limit,
                 destinations=[
                     PlanDestinationResponse(
+                        id = dest.id,
                         destination_id=dest.destination_id,
                         type=dest.type,
                         visit_date=dest.visit_date,
@@ -171,6 +173,7 @@ class PlanService:
             destinations = await PlanRepository.get_plan_destinations(db, plan_id)
             list_dest_responses = [
                 PlanDestinationResponse(
+                    id=dest.id,
                     destination_id=dest.destination_id,
                     type=dest.type,
                     visit_date=dest.visit_date,
@@ -210,6 +213,7 @@ class PlanService:
                 )
             
             return PlanDestinationResponse(
+                id=plan_dest.id,
                 destination_id=plan_dest.destination_id,
                 type=plan_dest.type,
                 visit_date=plan_dest.visit_date,

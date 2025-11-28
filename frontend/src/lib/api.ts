@@ -267,6 +267,7 @@ export interface UserRewardResponse {
 
 //PLAN DESTINATION TYPES
 export interface PlanDestination {
+  id: number;
   destination_id: string;
   destination_type: string;
   visit_date: string;
@@ -284,12 +285,13 @@ export interface PlanResponse {
 
 export interface PlanActivity {
   id: number | string;
-  original_id?: string;
+  original_id?: number;
   title: string;
   address: string;
   image_url: string;
   time_slot: "Morning" | "Afternoon" | "Evening";
   date?: string;
+  type?: string;
 }
 
 export interface TravelPlan {
@@ -503,6 +505,11 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+  async deletePlanDestination(planDestinationId: number): Promise<void> {
+    return this.request(`/plans/destinations/${planDestinationId}`, {
+      method: "DELETE",
+    });
+  }
 
   async updatePlan(
     planId: number,
@@ -532,12 +539,13 @@ class ApiClient {
 
         return {
           id: `${d.destination_id}-${index}`,
-          original_id: d.destination_id,
+          original_id: d.id,
           title: d.note || "Destination",
           address: "",
           image_url: "",
           time_slot: slot as "Morning" | "Afternoon" | "Evening",
           date: d.visit_date,
+          type: d.destination_type,
         };
       }),
     }));
@@ -604,9 +612,10 @@ class ApiClient {
       {
         method: "POST",
         body: JSON.stringify(request),
-      });
-      return response;
-    }
+      }
+    );
+    return response;
+  }
   // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
@@ -655,26 +664,25 @@ class ApiClient {
   }
 
   async getPlaceDetails(
-      placeId: string,
-      sessionToken?: string | null,
-      categories?: PlaceDataCategory[] 
-    ): Promise<PlaceDetails> {
-      
-      const params = new URLSearchParams();
+    placeId: string,
+    sessionToken?: string | null,
+    categories?: PlaceDataCategory[]
+  ): Promise<PlaceDetails> {
+    const params = new URLSearchParams();
 
-      if (sessionToken) {
-        params.append("session_token", sessionToken);
-      }
-
-      if (categories && categories.length > 0) {
-        categories.forEach((cat) => params.append("categories", cat));
-      }
-
-      const queryString = params.toString();
-      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
-
-      return this.request<PlaceDetails>(path, { method: "GET" });
+    if (sessionToken) {
+      params.append("session_token", sessionToken);
     }
+
+    if (categories && categories.length > 0) {
+      categories.forEach((cat) => params.append("categories", cat));
+    }
+
+    const queryString = params.toString();
+    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PlaceDetails>(path, { method: "GET" });
+  }
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {

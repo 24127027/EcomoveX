@@ -268,6 +268,7 @@ class UserActivityService:
                     detail="Failed to log user activity"
                 )
             return UserActivityResponse(
+                id=activity.id,
                 user_id=activity.user_id,
                 destination_id=activity.destination_id,
                 activity=activity.activity,
@@ -289,6 +290,7 @@ class UserActivityService:
             for activity in activities:
                 activity_list.append(
                     UserActivityResponse(
+                        id=activity.id,
                         user_id=activity.user_id,
                         destination_id=activity.destination_id,
                         activity=activity.activity,
