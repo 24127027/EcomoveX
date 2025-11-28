@@ -1,9 +1,10 @@
 from fastapi import File, UploadFile, HTTPException, status
 from google.cloud import storage
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Dict, Any
 from utils.config import settings
 from repository.storage_repository import StorageRepository
-from schemas.storage_schema import FileCategory, FileMetadata, FileMetadataFilter, FileMetadataResponse
+from schemas.storage_schema import *
 import uuid
 from datetime import timedelta
 import asyncio
@@ -19,7 +20,16 @@ class StorageService:
         try:
             file_metadata = await StorageService.upload_file_to_gcs(file, category, bucket_name)
             
-            stored_metadata = await StorageRepository.store_metadata(db, user_id, file_metadata, category)
+            metadata_create = MetadataCreate(
+                blob_name=file_metadata.blob_name,
+                user_id=user_id,
+                filename=file_metadata.filename,
+                content_type=file_metadata.content_type,
+                category=category.value,
+                bucket=file_metadata.bucket,
+                size=file_metadata.size
+            )
+            stored_metadata = await StorageRepository.store_metadata(db, metadata_create)
             
             if not stored_metadata:
                 raise HTTPException(

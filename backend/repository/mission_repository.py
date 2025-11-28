@@ -169,3 +169,29 @@ class MissionRepository:
             await db.rollback()
             print(f"ERROR: deleting mission for user {user_id} - {e}")
             return False
+    
+    @staticmethod
+    async def get_missions_by_action(db: AsyncSession, action_trigger: MissionAction):
+        try:
+            result = await db.execute(
+                select(Mission).where(Mission.action_trigger == action_trigger)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching missions by action {action_trigger} - {e}")
+            return []
+    
+    @staticmethod
+    async def get_user_incomplete_missions(db: AsyncSession, user_id: int):
+        try:
+            completed_subquery = select(UserMission.mission_id).where(
+                UserMission.user_id == user_id
+            )
+            
+            result = await db.execute(
+                select(Mission).where(Mission.id.notin_(completed_subquery))
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching incomplete missions for user {user_id} - {e}")
+            return []

@@ -3,7 +3,6 @@ from database.db import Base, engine
 from models import *
 
 async def drop_specific_tables(table_names: list[str]):
-    """Drop specific tables by name (deletes table structure + all data)"""
     async with engine.begin() as conn:
         for table_name in table_names:
             print(f"Dropping table: {table_name}")
@@ -11,7 +10,6 @@ async def drop_specific_tables(table_names: list[str]):
         print("Tables dropped successfully")
 
 async def clear_table_data(table_names: list[str]):
-    """Clear all data from tables but keep table structure"""
     async with engine.begin() as conn:
         for table_name in table_names:
             print(f"Clearing data from table: {table_name}")

@@ -10,6 +10,7 @@ class CarbonService:
         distance_km: float,
         passengers: int = 1,
     ):
+        carbonAPI = None
         try:
             carbonAPI = await create_carbonAPI_client()
             estimation = await carbonAPI.estimate_transport(
@@ -18,6 +19,8 @@ class CarbonService:
                 passengers=passengers,
             )
             return estimation
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

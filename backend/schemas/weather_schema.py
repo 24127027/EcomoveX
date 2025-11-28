@@ -15,12 +15,10 @@ class WeatherCondition(BaseModel):
     type: str  # e.g., "CLEAR", "CLOUDY", "RAINY"
 
 class Interval(BaseModel):
-    """Represents a UTC time interval."""
     start_time: datetime = Field(..., alias="startTime")
     end_time: datetime = Field(..., alias="endTime")
 
 class DisplayDateTime(BaseModel):
-    """Represents the components of a local date and time."""
     year: int
     month: int
     day: int

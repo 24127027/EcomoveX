@@ -64,33 +64,25 @@ class MapAPI:
             
             data = response.json()
             
-            # --- MANUALLY PROCESS PHOTOS ---
-            # We must iterate here to call the async generate_place_photo_url function
-            # because Pydantic validators cannot easily make async calls.
             if "places" in data:
                 for place in data["places"]:
                     raw_photos = place.get("photos", [])
                     
-                    # If photos exist, pick the first one
                     if raw_photos and isinstance(raw_photos, list) and len(raw_photos) > 0:
                         first_photo = raw_photos[0]
                         
-                        # New API returns 'name' (resource name) instead of 'photo_reference'
                         ref = first_photo.get("name")
                         
-                        # Call your function
                         final_url = await self.generate_place_photo_url(ref)
                         
                         width = first_photo.get("widthPx", 0)
                         height = first_photo.get("heightPx", 0)
                         
-                        # Replace list with single PhotoInfo dict structure
                         place["photos"] = {
                             "photo_url": final_url,
                             "size": (width, height)
                         }
                     else:
-                        # Ensure it's None so Pydantic doesn't complain
                         place["photos"] = None
 
             return TextSearchResponse(**data)
@@ -185,7 +177,6 @@ class MapAPI:
                     name=comp.get("long_name"),
                     types=comp.get("types", [])
                 ) for comp in result.get("address_components", [])],
-                # FIX: Actually map the phone number
                 formatted_phone_number=result.get("formatted_phone_number"), 
                 
                 geometry=Geometry(
@@ -209,14 +200,12 @@ class MapAPI:
                 user_ratings_total=result.get("user_ratings_total"),
                 price_level=result.get("price_level"),
                 
-                # Uncommented and guarded opening_hours
                 opening_hours=OpeningHours(
                     open_now=result.get("opening_hours", {}).get("open_now", False),
                     periods=result.get("opening_hours", {}).get("periods", []),
                     weekday_text=result.get("opening_hours", {}).get("weekday_text", [])
                 ) if result.get("opening_hours") else None,
                 
-                # FIX: Actually map the website
                 website=result.get("website"),
                 
                 photos=[PhotoInfo(

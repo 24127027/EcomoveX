@@ -4,6 +4,7 @@ from models.user import *
 from database.db import get_db
 from schemas.destination_schema import *
 from schemas.user_schema import *
+from schemas.message_schema import CommonMessageResponse
 from services.destination_service import DestinationService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
@@ -38,7 +39,7 @@ async def get_my_saved_destinations(
         current_user["user_id"]
     )
 
-@router.delete("/saved/{destination_id}", status_code=status.HTTP_200_OK)
+@router.delete("/saved/{destination_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def unsave_destination_for_current_user(
     destination_id: str = Path(...),
     user_db: AsyncSession = Depends(get_db),

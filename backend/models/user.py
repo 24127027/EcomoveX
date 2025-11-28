@@ -54,7 +54,6 @@ class User(Base):
     friendships1 = relationship("Friend", foreign_keys="[Friend.user1_id]", back_populates="user1", cascade="all, delete-orphan")
     friendships2 = relationship("Friend", foreign_keys="[Friend.user2_id]", back_populates="user2", cascade="all, delete-orphan")
     friend_actions = relationship("Friend", foreign_keys="[Friend.action_by]", back_populates="action_user", cascade="all, delete-orphan")
-    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     preference = relationship("Preference", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
 class UserActivity(Base):

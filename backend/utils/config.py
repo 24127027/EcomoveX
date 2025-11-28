@@ -24,9 +24,11 @@ class Settings(BaseSettings):
     SUSTAINABILITY_DATA_API_CLIENT_ID: str = ""
     SUSTAINABILITY_DATA_API_CLIENT_SECRET: str = ""
     
-    #For Google Cloud Storage
     GCS_BUCKET_NAME: str = "ecomovex"
     GOOGLE_APPLICATION_CREDENTIALS: Path = Path("etc/secrets/service-account.json")
+    
+    OPEN_ROUTER_API_KEY: str = ""
+    OPEN_ROUTER_MODEL_NAME: str = "meta-llama/llama-3.3-70b-instruct"
 
     #BREEAM API Credentials
     BREEAM_USERNAME: str = ""

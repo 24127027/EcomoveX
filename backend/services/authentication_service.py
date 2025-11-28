@@ -3,7 +3,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import *
-from schemas.authentication_schema import *
+from schemas.authentication_schema import UserLogin, AuthenticationResponse, UserRegister
+from schemas.user_schema import UserCreate
 from utils.config import settings
 from repository.user_repository import UserRepository
 
@@ -78,9 +79,9 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def register_user(db: AsyncSession, user: UserRegister) -> AuthenticationResponse:
+    async def register_user(db: AsyncSession, user_data: UserRegister) -> AuthenticationResponse:
         try:
-            new_user = await UserRepository.create_user(db, user)
+            new_user = await UserRepository.create_user(db, user_data)
             if not new_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
