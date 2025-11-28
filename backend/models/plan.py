@@ -38,12 +38,13 @@ class PlanDestination(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
+    order_in_day = Column(Integer, nullable=False)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
     destination_id = Column(String(255), ForeignKey("destinations.place_id", ondelete="CASCADE"), nullable=False)
-    time = Column(String(32), nullable=True)            # e.g. "08:00"
     type = Column(SQLEnum(DestinationType), nullable=False, index=True)
     estimated_cost = Column(Float, nullable=True) 
     visit_date = Column(Date, nullable=False)
+    url = Column(String(512), nullable=True)
     note = Column(Text, nullable=True)
 
     plan = relationship("Plan", back_populates="destinations")
