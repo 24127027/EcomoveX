@@ -29,6 +29,7 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
+                role=user.role,
                 avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
@@ -62,6 +63,7 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
+                role=user.role,
                 avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
@@ -95,6 +97,7 @@ class UserService:
                 email=user.email,
                 eco_point=user.eco_point,
                 rank=user.rank,
+                role=user.role,
                 avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
@@ -129,19 +132,20 @@ class UserService:
             if user.cover_blob_name:
                 cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
 
-            user_update = UserUpdateEcoPoint()
-            user_update.point = (user.eco_point or 0) + point
+            new_point = (user.eco_point or 0) + point
 
-            if user_update.point <= 500:
-                user_update.rank = Rank.bronze
-            elif user_update.point <= 2000:
-                user_update.rank = Rank.silver
-            elif user_update.point <= 5000:
-                user_update.rank = Rank.gold
-            elif user_update.point <= 10000:
-                user_update.rank = Rank.platinum
+            if new_point <= 500:
+                new_rank = Rank.bronze
+            elif new_point <= 2000:
+                new_rank = Rank.silver
+            elif new_point <= 5000:
+                new_rank = Rank.gold
+            elif new_point <= 10000:
+                new_rank = Rank.platinum
             else:
-                user_update.rank = Rank.diamond
+                new_rank = Rank.diamond
+
+            user_update = UserUpdateEcoPoint(point=new_point, rank=new_rank)
 
             updated_user = await UserRepository.add_eco_point(db, user_id, user_update)
             if not updated_user:
@@ -156,6 +160,7 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
+                role=updated_user.role,
                 avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
@@ -187,6 +192,7 @@ class UserService:
                     email=user.email,
                     eco_point=user.eco_point,
                     rank=user.rank,
+                    role=user.role,
                     avt_url=avt_url if user.avt_blob_name else None,
                     cover_url=cover_url if user.cover_blob_name else None,
                 ))
@@ -236,6 +242,7 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
+                role=updated_user.role,
                 avt_url=avt_url if user.avt_blob_name else None,
                 cover_url=cover_url if user.cover_blob_name else None,
             )
@@ -276,6 +283,7 @@ class UserService:
                 email=updated_user.email,
                 eco_point=updated_user.eco_point,
                 rank=updated_user.rank,
+                role=updated_user.role,
                 avt_url=avt_url,
                 cover_url=cover_url,
             )
@@ -316,10 +324,11 @@ class UserActivityService:
                     detail="Failed to log user activity"
                 )
             return UserActivityResponse(
+                id=activity.id,
                 user_id=activity.user_id,
                 destination_id=activity.destination_id,
                 activity=activity.activity,
-                timestamp=activity.timestamp.isoformat()
+                timestamp=activity.timestamp
             )
         except HTTPException:
             raise
@@ -337,10 +346,11 @@ class UserActivityService:
             for activity in activities:
                 activity_list.append(
                     UserActivityResponse(
+                        id=activity.id,
                         user_id=activity.user_id,
                         destination_id=activity.destination_id,
                         activity=activity.activity,
-                        timestamp=activity.timestamp.isoformat()
+                        timestamp=activity.timestamp
                     )
                 )
             return activity_list
