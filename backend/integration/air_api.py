@@ -36,10 +36,13 @@ class AirQualityAPI:
                 params={"key": self.api_key},
                 json=payload
             )
-            data = response.json()
             
-            if response.status_code != 200 or "error" in data:
-                raise ValueError(f"Error fetching air quality data: {data.get('error', 'Unknown error')}")
+            if response.status_code != 200:
+                raise ValueError(f"Error fetching air quality data: HTTP {response.status_code}")
+            
+            data = response.json()
+            if "error" in data:
+                raise ValueError(f"Error in air quality response: {data.get('error')}")
             
             indexes = data.get("indexes", [])
             if not indexes:

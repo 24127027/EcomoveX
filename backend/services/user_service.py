@@ -2,7 +2,7 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import Rank
-from repository.user_repository import UserRepository, UserActivityRepository
+from repository.user_repository import UserRepository
 from services.storage_service import StorageService
 from schemas.user_schema import *
 
@@ -11,15 +11,18 @@ class UserService:
     async def get_user_by_id(db: AsyncSession, user_id: int) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
-            if user.avt_blob_name:
-                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
-            if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with ID {user_id} not found"
                 )
+            
+            avt_url = None
+            cover_url = None
+            if user.avt_blob_name:
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             return UserResponse(
                 id=user.id,
                 username=user.username,
@@ -41,15 +44,18 @@ class UserService:
     async def get_user_by_email(db: AsyncSession, email: str) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_email(db, email)
-            if user.avt_blob_name:
-                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
-            if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with email '{email}' not found"
                 )
+            
+            avt_url = None
+            cover_url = None
+            if user.avt_blob_name:
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             return UserResponse(
                 id=user.id,
                 username=user.username,
@@ -71,15 +77,18 @@ class UserService:
     async def get_user_by_username(db: AsyncSession, username: str) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_username(db, username)
-            if user.avt_blob_name:
-                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
-            if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with username '{username}' not found"
                 )
+            
+            avt_url = None
+            cover_url = None
+            if user.avt_blob_name:
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             return UserResponse(
                 id=user.id,
                 username=user.username,
@@ -107,15 +116,18 @@ class UserService:
                 )
 
             user = await UserRepository.get_user_by_id(db, user_id)
-            if user.avt_blob_name:
-                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
-            if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with ID {user_id} not found"
                 )
+            
+            avt_url = None
+            cover_url = None
+            if user.avt_blob_name:
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
 
             user_update = UserUpdateEcoPoint()
             user_update.point = (user.eco_point or 0) + point
@@ -152,22 +164,58 @@ class UserService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error updating eco point for user {user_id}: {e}"
+                detail=f"Unexpected error adding eco point for user {user_id}: {e}"
+            )
+    
+    @staticmethod
+    async def get_users_by_ids(db: AsyncSession, user_ids: List[int]) -> List[UserResponse]:
+        try:
+            users = await UserRepository.get_users_by_ids(db, user_ids)
+            
+            user_responses = []
+            for user in users:
+                avt_url = None
+                cover_url = None
+                if user.avt_blob_name:
+                    avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+                if user.cover_blob_name:
+                    cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                
+                user_responses.append(UserResponse(
+                    id=user.id,
+                    username=user.username,
+                    email=user.email,
+                    eco_point=user.eco_point,
+                    rank=user.rank,
+                    avt_url=avt_url if user.avt_blob_name else None,
+                    cover_url=cover_url if user.cover_blob_name else None,
+                ))
+            
+            return user_responses
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving users by IDs: {e}"
             )
 
     @staticmethod
     async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate) -> UserResponse:
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
-            if user.avt_blob_name:
-                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
-            if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with ID {user_id} not found"
                 )
+            
+            avt_url = None
+            cover_url = None
+            if user.avt_blob_name:
+                avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+            if user.cover_blob_name:
+                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
 
             if user.password != updated_data.old_password:
                 raise HTTPException(
@@ -261,7 +309,7 @@ class UserActivityService:
     @staticmethod
     async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate) -> UserActivityResponse:
         try:
-            activity = await UserActivityRepository.log_user_activity(db, user_id, data)
+            activity = await UserRepository.log_user_activity(db, user_id, data)
             if not activity:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -284,7 +332,7 @@ class UserActivityService:
     @staticmethod
     async def get_user_activities(db: AsyncSession, user_id: int)-> List[UserActivityResponse]:
         try:
-            activities = await UserActivityRepository.get_user_activities(db, user_id)
+            activities = await UserRepository.get_user_activities(db, user_id)
             activity_list = []
             for activity in activities:
                 activity_list.append(

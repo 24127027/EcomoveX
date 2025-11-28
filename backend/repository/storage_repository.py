@@ -5,16 +5,16 @@ from sqlalchemy import select, and_, or_
 
 class StorageRepository:
     @staticmethod
-    async def store_metadata(db: AsyncSession, user_id: int, file_metadata: FileMetadata, category: FileCategory):
+    async def store_metadata(db: AsyncSession, metadata_data: MetadataCreate):
         try:
             new_metadata = Metadata(
-                blob_name=file_metadata.blob_name,
-                user_id=user_id,
-                filename=file_metadata.filename,
-                content_type=file_metadata.content_type,
-                category=category.value,
-                bucket=file_metadata.bucket,
-                size=file_metadata.size
+                blob_name=metadata_data.blob_name,
+                user_id=metadata_data.user_id,
+                filename=metadata_data.filename,
+                content_type=metadata_data.content_type,
+                category=metadata_data.category,
+                bucket=metadata_data.bucket,
+                size=metadata_data.size
             )
             db.add(new_metadata)
             await db.commit()
@@ -25,17 +25,13 @@ class StorageRepository:
             raise
 
     @staticmethod
-    async def get_metadata_by_blob_name(db: AsyncSession, user_id: int, blob_name: str):
-        """Get metadata for a specific file by blob name and user ID"""
+    async def get_metadata_by_blob_name(db: AsyncSession, blob_name: str):
         try:
             result = await db.execute(
                 select(Metadata).where(
-                    and_(
-                        Metadata.blob_name == blob_name,
-                        Metadata.user_id == user_id
+                    Metadata.blob_name == blob_name
                     )
                 )
-            )
             return result.scalar_one_or_none()
         except Exception as e:
             print(f"Error retrieving metadata: {e}")
@@ -51,21 +47,17 @@ class StorageRepository:
             query = select(Metadata).where(Metadata.user_id == user_id)
             
             if filters:
-                # Apply category filter
                 if filters.category:
                     query = query.where(Metadata.category == filters.category.value)
                 
-                # Apply content type filter
                 if filters.content_type:
                     query = query.where(Metadata.content_type == filters.content_type)
                 
-                # Apply date filters
                 if filters.uploaded_after:
                     query = query.where(Metadata.uploaded_at >= filters.uploaded_after)
                 if filters.uploaded_before:
                     query = query.where(Metadata.uploaded_at <= filters.uploaded_before)
                 
-                # Apply sorting
                 sort_column = getattr(Metadata, filters.sort_by.value, Metadata.uploaded_at)
                 if filters.sort_order == SortOrder.ASCENDING:
                     query = query.order_by(sort_column.asc())
@@ -99,24 +91,60 @@ class StorageRepository:
             return False
     
     @staticmethod
-    async def get_user_files_count(db: AsyncSession, user_id: int, filters: FileMetadataFilter = None) -> int:
+    async def update_metadata(
+        db: AsyncSession,
+        blob_name: str,
+        updated_data: MetadataUpdate
+    ):
         try:
-            from sqlalchemy import func
+            result = await db.execute(
+                select(Metadata).where(Metadata.blob_name == blob_name)
+            )
+            metadata = result.scalar_one_or_none()
             
-            query = select(func.count(Metadata.id)).where(Metadata.user_id == user_id)
+            if not metadata:
+                print(f"WARNING: Metadata for blob {blob_name} not found")
+                return None
             
-            if filters:
-                if filters.category:
-                    query = query.where(Metadata.category == filters.category.value)
-                if filters.content_type:
-                    query = query.where(Metadata.content_type == filters.content_type)
-                if filters.uploaded_after:
-                    query = query.where(Metadata.uploaded_at >= filters.uploaded_after)
-                if filters.uploaded_before:
-                    query = query.where(Metadata.uploaded_at <= filters.uploaded_before)
+            if updated_data.filename is not None:
+                metadata.filename = updated_data.filename
+            if updated_data.category is not None:
+                metadata.category = updated_data.category
+            
+            db.add(metadata)
+            await db.commit()
+            await db.refresh(metadata)
+            return metadata
+        except Exception as e:
+            await db.rollback()
+            print(f"Error updating metadata for blob {blob_name}: {e}")
+            return None
+    
+    @staticmethod
+    async def get_file_count_by_user(db: AsyncSession, user_id: int, category: FileCategory = None):
+        try:
+            query = select(func.count(Metadata.blob_name)).where(Metadata.user_id == user_id)
+            
+            if category:
+                query = query.where(Metadata.category == category.value)
             
             result = await db.execute(query)
-            return result.scalar_one()
+            return result.scalar() or 0
         except Exception as e:
             print(f"Error counting files for user {user_id}: {e}")
+            return 0
+    
+    @staticmethod
+    async def get_total_size_by_user(db: AsyncSession, user_id: int, category: FileCategory = None):
+        try:
+            query = select(func.sum(Metadata.size)).where(Metadata.user_id == user_id)
+            
+            if category:
+                query = query.where(Metadata.category == category.value)
+            
+            result = await db.execute(query)
+            total_size = result.scalar()
+            return total_size if total_size else 0
+        except Exception as e:
+            print(f"Error calculating total size for user {user_id}: {e}")
             return 0

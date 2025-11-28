@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.authentication_schema import *
 from schemas.user_schema import *
+from schemas.message_schema import CommonMessageResponse
 from services.user_service import UserActivityService, UserService
 from utils.token.authentication_util import get_current_user
 
@@ -53,7 +54,7 @@ async def update_user_profile(
 ):
     return await UserService.update_user_profile(db, current_user["user_id"], updated_data)
 
-@router.delete("/me", status_code=status.HTTP_200_OK)
+@router.delete("/me", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)

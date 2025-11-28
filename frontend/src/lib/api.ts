@@ -1,6 +1,6 @@
-import { types } from "util";
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// --- INTERFACES & TYPES ---
 
 interface LoginCredentials {
   email: string;
@@ -8,7 +8,9 @@ interface LoginCredentials {
 }
 
 export interface UserCredentialUpdate {
-  password?: string;
+  old_password: string;
+  new_email?: string;
+  new_password?: string;
 }
 
 interface SignupData {
@@ -35,9 +37,6 @@ interface ValidationError {
   type: string;
 }
 
-interface ValidationErrorResponse {
-  detail?: string | ValidationError[];
-}
 // User Types
 export interface UserProfileUpdate {
   username?: string;
@@ -60,20 +59,57 @@ export interface FriendResponse {
   status: string;
   created_at: string;
 }
+
 // Map/Location Types
 export interface Position {
   lat: number;
   lng: number;
 }
 
-export interface SearchPlacesRequest {
+// --- NEW TEXT SEARCH TYPES START ---
+export interface LocalizedText {
+  text: string;
+  languageCode?: string;
+}
+
+export interface PhotoInfo {
+  photo_url: string;
+  size: [number, number]; // Tuple matching Python's Tuple[int, int]
+}
+
+export interface PlaceSearchResult {
+  id: string; // Backend sends "id"
+  displayName: LocalizedText; // Backend sends "displayName"
+  formattedAddress?: string; // Backend sends "formattedAddress"
+  location?: Position;
+  types: string[];
+  photos?: PhotoInfo | null;
+}
+
+export interface TextSearchRequest {
   query: string;
-  user_location?: Position; 
+  location?: Position;
+  radius?: number; // Integer 100-50000
+  place_types?: string; // e.g., "restaurant"
+  field_mask?: string[]; // Optional: ["places.id", "places.displayName"]
+}
+
+export interface TextSearchResponse {
+  places: PlaceSearchResult[]; // Backend sends "places"
+}
+// --- NEW TEXT SEARCH TYPES END ---
+
+export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
+
+export interface AutocompleteRequest {
+  query: string;
+  user_location?: Position;
   radius?: number; // in meters
   place_types?: string; // Comma-separated string
   language?: string;
   session_token?: string | null;
 }
+
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
@@ -82,6 +118,7 @@ export interface AutocompletePrediction {
   matched_substrings?: Array<Record<string, any>>;
   distance?: number;
 }
+
 export interface AutocompleteResponse {
   predictions: AutocompletePrediction[];
 }
@@ -121,6 +158,7 @@ export interface PlaceDetails {
   utc_offset?: number;
   sustainable_certified: boolean;
 }
+
 export interface ReverseGeocodeResponse {
   results: Array<{
     formatted_address: string;
@@ -136,21 +174,11 @@ export interface ReverseGeocodeResponse {
   }>;
 }
 
-export interface PhotoUrlResponse {
-  photo_url: string;
-}
-
 export interface SavedDestination {
-  id: number; // ID in DB saved_destinations
-  destination_id: string; // ID Google Place
+  id: number;
+  destination_id: string;
   name?: string;
   image_url?: string;
-}
-
-export interface UserCredentialUpdate {
-  old_password: string; // Bắt buộc
-  new_email?: string; // Optional
-  new_password?: string; // Optional
 }
 
 export interface UploadResponse {
@@ -170,7 +198,7 @@ export interface PlanActivity {
 export interface TravelPlan {
   id: number;
   destination: string;
-  date: string; // e.g., "Day 1"
+  date: string;
   activities: PlanActivity[];
 }
 
@@ -195,7 +223,7 @@ export class ApiHttpError extends Error {
 export interface WeatherCondition {
   description: string;
   icon_base_uri: string;
-  type: string; // VD: "CLEAR", "CLOUDY", "RAINY"
+  type: string;
 }
 
 export interface Temperature {
@@ -222,7 +250,6 @@ export interface AirQualityIndex {
 export interface AirQualityResponse {
   location: [number, number];
   aqi_data: AirQualityIndex;
-  // recommendations: ... (Có thể thêm nếu cần)
 }
 
 //Chat Types
@@ -235,10 +262,28 @@ export interface ChatMessage {
   message_type: string;
 }
 
-const parseMockDate = (dateStr: string) => {
-  const [day, month, year] = dateStr.split("/").map(Number);
-  return new Date(year, month - 1, day);
-};
+export interface RoomResponse {
+  id: number;
+  name: string;
+  created_at: string;
+  member_ids: number[]; // Quan trọng: cần trường này để lọc
+}
+//REWARD & MISSION TYPES
+export interface Mission {
+  id: number;
+  name: string;
+  description: string;
+  reward_type: string;
+  action_trigger: string;
+  value: number;
+}
+
+export interface UserRewardResponse {
+  user_id: number;
+  mission: Mission[];
+  total_points: number;
+}
+// --- API CLIENT CLASS ---
 
 class ApiClient {
   private baseURL: string;
@@ -258,12 +303,10 @@ class ApiClient {
 
     const headers = new Headers();
 
-    // Only set Content-Type if not FormData
     if (!(options.body instanceof FormData)) {
       headers.set("Content-Type", "application/json");
     }
 
-    // merge any provided headers (Headers | string[][] | Record<string, string>)
     if (options.headers) {
       if (options.headers instanceof Headers) {
         options.headers.forEach((value, key) => headers.set(key, value));
@@ -282,7 +325,6 @@ class ApiClient {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    // If FormData, let browser set Content-Type (with boundary)
     const fetchOptions: RequestInit = {
       ...options,
       headers: options.body instanceof FormData ? headers : headers,
@@ -294,7 +336,6 @@ class ApiClient {
       try {
         const errorData = await response.json();
 
-        // Handle FastAPI validation errors (422)
         if (response.status === 422 && Array.isArray(errorData.detail)) {
           const validationErrors = errorData.detail as ValidationError[];
           const firstError = validationErrors[0];
@@ -302,19 +343,14 @@ class ApiClient {
           throw new ApiValidationError(fieldName, firstError.msg);
         }
 
-        // Handle other error responses
         console.error(`API Error [${response.status}] ${endpoint}:`, errorData);
         throw new ApiHttpError(
           response.status,
           errorData.detail || `HTTP ${response.status}: An error occurred`
         );
       } catch (e) {
-        if (e instanceof ApiValidationError) {
-          throw e;
-        }
-        if (e instanceof ApiHttpError) {
-          throw e;
-        }
+        if (e instanceof ApiValidationError) throw e;
+        if (e instanceof ApiHttpError) throw e;
         console.error(`API Error [${response.status}] ${endpoint}:`, e);
         throw new Error(`HTTP ${response.status}: An error occurred`);
       }
@@ -323,7 +359,7 @@ class ApiClient {
     return response.json();
   }
 
-  // Auth endpoints
+  // --- AUTH ENDPOINTS ---
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     return this.request<AuthResponse>("/auth/login", {
       method: "POST",
@@ -346,12 +382,9 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<any> {
-    return this.request("/auth/me", {
-      method: "GET",
-    });
+    return this.request("/auth/me", { method: "GET" });
   }
 
-  // Add more endpoints as needed
   async resetPassword(email: string): Promise<void> {
     return this.request("/auth/reset-password", {
       method: "POST",
@@ -359,21 +392,26 @@ class ApiClient {
     });
   }
 
-  //Saved Destinantions Endpoint
+  // --- DESTINATION ENDPOINTS ---
   async getSavedDestinations(): Promise<SavedDestination[]> {
     return this.request<SavedDestination[]>("/destinations/saved/me/all", {
       method: "GET",
     });
   }
 
-  async unsaveDestination(destinationId: number): Promise<void> {
+  async saveDestination(destinationId: string): Promise<any> {
+    return this.request(`/destinations/saved/${destinationId}`, {
+      method: "POST",
+    });
+  }
+
+  async unsaveDestination(destinationId: string): Promise<void> {
     return this.request(`/destinations/saved/${destinationId}`, {
       method: "DELETE",
     });
   }
 
   // --- USER ENDPOINTS ---
-
   async getUserProfile(): Promise<UserProfile> {
     return this.request<UserProfile>("/users/me", { method: "GET" });
   }
@@ -393,9 +431,7 @@ class ApiClient {
   }
 
   async deleteUser(): Promise<void> {
-    return this.request("/users/me", {
-      method: "DELETE",
-    });
+    return this.request("/users/me", { method: "DELETE" });
   }
 
   async uploadFile(
@@ -404,7 +440,6 @@ class ApiClient {
   ): Promise<UploadResponse> {
     const formData = new FormData();
     formData.append("file", file);
-    // Gọi endpoint POST /storage/files với query params category (lowercase)
     return this.request<UploadResponse>(`/storage/files?category=${category}`, {
       method: "POST",
       body: formData,
@@ -412,14 +447,12 @@ class ApiClient {
   }
 
   async getPlans(): Promise<TravelPlan[]> {
-    // Giả lập delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
+    // Mock data
     return [
       {
         id: 201,
         destination: "Ho Chi Minh City (Upcoming)",
-        date: "30/11/2025", // Ngày tương lai (Sẽ là Current Plan)
+        date: "30/11/2025",
         activities: [
           {
             id: 1,
@@ -446,12 +479,9 @@ class ApiClient {
     ];
   }
 
-  // Friend Endpoints
-
+  // --- FRIEND ENDPOINTS ---
   async getFriends(): Promise<FriendResponse[]> {
-    return this.request<FriendResponse[]>("/friends/", {
-      method: "GET",
-    });
+    return this.request<FriendResponse[]>("/friends/", { method: "GET" });
   }
 
   async getPendingRequests(): Promise<FriendResponse[]> {
@@ -461,11 +491,8 @@ class ApiClient {
   }
 
   async getSentRequests(): Promise<FriendResponse[]> {
-    return this.request<FriendResponse[]>("/friends/sent", {
-      method: "GET",
-    });
+    return this.request<FriendResponse[]>("/friends/sent", { method: "GET" });
   }
-  // -----------------------
 
   async sendFriendRequest(friendId: number): Promise<FriendResponse> {
     return this.request<FriendResponse>(`/friends/${friendId}/request`, {
@@ -489,65 +516,37 @@ class ApiClient {
     return this.request(`/friends/${friendId}`, { method: "DELETE" });
   }
 
-  // Map Endpoints
-  async searchPlaces(request: SearchPlacesRequest): 
+  // --- MAP ENDPOINTS ---
+
+  // Integrated Text Search Function
+  async textSearchPlace(request: TextSearchRequest): Promise<TextSearchResponse> {
+    const response = await this.request<TextSearchResponse>("/map/text-search", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+    return response;
+  }
+
+  async autocomplete(request: AutocompleteRequest): 
     Promise<AutocompleteResponse> {
-      const response = await this.request<AutocompleteResponse>("/map/search", {
+      const response = await this.request<AutocompleteResponse>("/map/autocomplete", {
         method: "POST",
         body: JSON.stringify(request),
       });
       return response;
     }
-
-  async getPlaceDetails(
-  placeId: string,
-  sessionToken?: string | null
-): Promise<PlaceDetails> {
-
-  let path = `/map/place/${placeId}`;
-
-  if (sessionToken) {
-    path += `?session_token=${encodeURIComponent(sessionToken)}`;
-  }
-
-  return this.request<PlaceDetails>(path, { method: "GET" });
-}
-
-  async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
-    return this.request<ReverseGeocodeResponse>("/map/geocode", {
-      method: "POST",
-      body: JSON.stringify({ address }),
-    });
-  }
-
-  async reverseGeocode(position: Position): Promise<ReverseGeocodeResponse> {
-    return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
-      method: "POST",
-      body: JSON.stringify(position),
-    });
-  }
-
-  async birdDistance(
-    origin: Position,
-    destination: Position
-  ): Promise<number> {
-    const params = new URLSearchParams({
-      origin_lat: origin.lat.toString(),
-      origin_lng: origin.lng.toString(),
-      destination_lat: destination.lat.toString(),
-      destination_lng: destination.lng.toString(),
-    });
-    return this.request<number>(`/map/bird-distance?${params.toString()}`, {
-      method: "GET",
-    });
-  }
-
+  // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
       method: "POST",
       body: JSON.stringify({ partner_id: partnerId }),
     });
     return res.id;
+  }
+  async getAllRooms(): Promise<RoomResponse[]> {
+    return this.request<RoomResponse[]>("/rooms/rooms", {
+      method: "GET",
+    });
   }
 
   async getChatHistory(roomId: number): Promise<ChatMessage[]> {
@@ -570,6 +569,57 @@ class ApiClient {
     return `${protocol}//${host}/messages/ws/${roomId}?token=${token}`;
   }
 
+  async createGroupRoom(
+    name: string,
+    memberIds: number[]
+  ): Promise<RoomResponse> {
+    return this.request<RoomResponse>("/rooms/rooms", {
+      method: "POST",
+      body: JSON.stringify({
+        room_name: name,
+        member_ids: memberIds,
+      }),
+    });
+  }
+
+  async getPlaceDetails(
+      placeId: string,
+      sessionToken?: string | null,
+      categories?: PlaceDataCategory[] 
+    ): Promise<PlaceDetails> {
+      
+      const params = new URLSearchParams();
+
+      if (sessionToken) {
+        params.append("session_token", sessionToken);
+      }
+
+      if (categories && categories.length > 0) {
+        categories.forEach((cat) => params.append("categories", cat));
+      }
+
+      const queryString = params.toString();
+      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+      return this.request<PlaceDetails>(path, { method: "GET" });
+    }
+
+  async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/geocode", {
+      method: "POST",
+      body: JSON.stringify({ address }),
+    });
+  }
+
+  async reverseGeocode(position: Position): Promise<ReverseGeocodeResponse> {
+    return this.request<ReverseGeocodeResponse>("/map/reverse-geocode", {
+      method: "POST",
+      body: JSON.stringify(position),
+    });
+  }
+
+  // --- WEATHER & AIR ENDPOINTS ---
+
   async getCurrentWeather(
     lat: number,
     lng: number
@@ -580,12 +630,24 @@ class ApiClient {
     );
   }
 
+  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc cho hàm này
   async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
     // Gọi endpoint /air/air-quality
     return this.request<AirQualityResponse>(
       `/air/air-quality?lat=${lat}&lng=${lng}`,
       { method: "GET" }
     );
+  }
+
+  //REWARD & MISSION ENDPOINTS
+  async getAllMissions(): Promise<Mission[]> {
+    return this.request<Mission[]>("/rewards/missions", { method: "GET" });
+  }
+
+  async getUserRewards(): Promise<UserRewardResponse> {
+    return this.request<UserRewardResponse>("/rewards/me/missions", {
+      method: "GET",
+    });
   }
 }
 

@@ -16,7 +16,11 @@ import {
 import { useRouter } from "next/navigation";
 
 import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
-import { api, UserProfile, SavedDestination } from "@/lib/api";
+import { api, UserProfile, SavedDestination, PlaceDetails } from "@/lib/api";
+
+interface EnrichedSavedDestination extends SavedDestination {
+  details?: PlaceDetails;
+}
 
 // --- Font Setup ---
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "700"] });
@@ -28,12 +32,17 @@ const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
 
 export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [savedPlaces, setSavedPlaces] = useState<SavedDestination[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<EnrichedSavedDestination[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const handleViewProfileButton = () => {
     router.push("/user_page/profile_page");
   };
+  const [activeTab, setActiveTab] = useState<"profile" | "saved" | "settings">(
+    "profile"
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,6 +66,33 @@ export default function ProfilePage() {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const fetchSavedPlaces = async () => {
+      try {
+        const data = await api.getSavedDestinations();
+        const enrichedData = await Promise.all(
+          data.map(async (item) => {
+            try {
+              const details = await api.getPlaceDetails(item.destination_id);
+              return { ...item, details };
+            } catch (error) {
+              console.error("Error fetching place details:", error);
+              return item;
+            }
+          })
+        );
+        setSavedPlaces(enrichedData);
+      } catch (error) {
+        console.error("Error fetching saved places:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (activeTab === "saved") {
+      fetchSavedPlaces();
+    }
+  }, [activeTab]);
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
@@ -95,7 +131,6 @@ export default function ProfilePage() {
           </Link>
         </div>
 
-        {/* --- INFO --- */}
         <div className="relative flex flex-col items-center -mt-[70px] px-4 shrink-0">
           <div className="p-1.5 bg-white rounded-full shadow-md z-10">
             <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white bg-gray-200">
@@ -128,7 +163,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* --- MAIN CONTENT --- */}
         <main className="flex-1 overflow-y-auto p-4 pt-8 pb-24">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
@@ -136,7 +170,6 @@ export default function ProfilePage() {
               <span className="text-sm">Loading saved places...</span>
             </div>
           ) : savedPlaces.length === 0 ? (
-            // --- CASE 1: CHƯA CÓ DỮ LIỆU (Mảng rỗng) ---
             <div className="flex flex-col items-center justify-center h-full text-center opacity-60 mt-10">
               <Heart size={48} className="text-gray-300 mb-3" />
               <p className={`${abhaya_libre.className} text-gray-500 text-lg`}>
@@ -148,33 +181,37 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
-              {savedPlaces.map((place) => (
-                <div
-                  key={place.id}
-                  className="bg-white rounded-xl p-2 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full"
-                >
-                  {/* Image: Backend trả về image_url thì dùng, không thì dùng ảnh mặc định */}
-                  <div className="relative w-full h-32 rounded-lg overflow-hidden mb-2 bg-gray-100">
-                    <Image
-                      src={place.image_url || "/images/placeholder-place.png"}
-                      alt={place.name || "Place"}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
+              {savedPlaces.map((place) => {
+                // Lấy ảnh từ Google (nếu có) hoặc ảnh mặc định
+                const photoRef = place.details?.photos?.[0]?.photo_reference;
+                const imageUrl = photoRef
+                  ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                  : "/images/placeholder-place.png";
 
-                  {/* Info */}
-                  <div className="flex flex-col flex-1 justify-between px-1">
-                    <div>
-                      <h3
-                        className={`${abhaya_libre.className} font-bold text-gray-800 text-sm leading-tight line-clamp-2`}
-                      >
-                        {place.name || `Saved Place #${place.destination_id}`}
-                      </h3>
+                return (
+                  <div
+                    key={place.destination_id} 
+                    className="bg-white rounded-xl p-2 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full"
+                  >
+                    <div className="relative w-full h-32 rounded-lg overflow-hidden mb-2 bg-gray-100">
+                      <Image
+                        src={imageUrl}
+                        alt={place.details?.name || "Place"}
+                        fill
+                        className="object-cover"
+                      />
                     </div>
+
+                    <h3 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1">
+                      {place.details ? place.details.name : "Loading..."}
+                    </h3>
+
+                    <p className="text-xs text-gray-500 line-clamp-1">
+                      {place.details?.formatted_address || place.destination_id}
+                    </p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>

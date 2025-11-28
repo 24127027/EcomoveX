@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from datetime import datetime
 from models.destination import GreenVerifiedStatus
 
@@ -31,14 +31,26 @@ class DestinationCreate(BaseModel):
 
 class DestinationUpdate(BaseModel):
     green_verified_status: Optional[GreenVerifiedStatus] = None
-    
-class UserSavedDestinationCreate(BaseModel):
-    user_id: int = Field(..., gt=0)
-    destination_id: str = Field(..., min_length=1)
-    
+      
 class UserSavedDestinationResponse(BaseModel):
     user_id: int
     destination_id: str
     saved_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class DestinationEmbeddingCreate(BaseModel):
+    destination_id: str = Field(..., min_length=1)
+    embedding_vector: List[float] = Field(..., min_length=1)
+    model_version: str = Field("v1", max_length=50)
+
+class DestinationEmbeddingUpdate(BaseModel):
+    embedding_vector: Optional[List[float]] = Field(None, min_length=1)
+    model_version: Optional[str] = Field(None, max_length=50)
+
+class DestinationEmbeddingResponse(BaseModel):
+    destination_id: str
+    embedding_vector: List[float]
+    model_version: str
 
     model_config = ConfigDict(from_attributes=True)

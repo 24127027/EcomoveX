@@ -188,11 +188,10 @@ export default function CreatePlanPage() {
                 Budget
               </span>
 
-              {/* Phần nhập số tiền */}
               <div className="flex items-center justify-end gap-1 w-1/2">
                 <input
                   type="number"
-                  value={budget.toString()} // Chuyển sang string để tránh lỗi số 0 đầu
+                  value={budget.toString()}
                   onChange={handleBudgetChange}
                   className={`${jost.className} text-[#53B552] font-medium text-sm text-right outline-none bg-transparent border-b border-gray-200 focus:border-[#53B552] w-full`}
                 />
@@ -202,23 +201,6 @@ export default function CreatePlanPage() {
                   VND
                 </span>
               </div>
-            </div>
-
-            {/* Custom Slider */}
-            <div className="relative h-4 w-full bg-transparent border border-[#53B552] rounded-full overflow-hidden mt-2">
-              <div
-                className="absolute top-0 left-0 h-full bg-[#53B552] rounded-full transition-all duration-100 ease-out"
-                style={{ width: `${Math.min((budget / 5000000) * 100, 100)}%` }} // Giới hạn thanh hiển thị max 100%
-              ></div>
-              <input
-                type="range"
-                min="0"
-                max="5000000"
-                step="50000"
-                value={budget > 5000000 ? 5000000 : budget} // Nếu nhập quá max slider thì slider giữ max
-                onChange={handleBudgetChange}
-                className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
             </div>
           </div>
 

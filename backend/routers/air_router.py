@@ -9,5 +9,4 @@ router = APIRouter(prefix="/air", tags=["Air Quality"])
 async def get_air_quality(
     place_id: str = Query(...),
 ):
-    result = await AirService.get_air_quality(place_id=place_id)
-    return result
+    return await AirService.get_air_quality(place_id=place_id)

@@ -88,8 +88,8 @@ class RecommendResponse(BaseModel):
     recommendation: str
     
     model_config = ConfigDict(from_attributes=True)
-    
-class TransitDetails(BaseModel):
+
+class TransitStepDetail(BaseModel):
     arrival_stop: Tuple[str, Location]
     departure_stop: Tuple[str, Location]
     arrival_time: Dict[str, Any]
@@ -105,7 +105,7 @@ class Step(BaseModel):
     html_instructions: str
     travel_mode: TransportMode
     polyline: Optional[str] = None
-    transit_details: Optional[TransitDetails] = None
+    transit_details: Optional[TransitStepDetail] = None
 
     model_config = ConfigDict(from_attributes=True)
 

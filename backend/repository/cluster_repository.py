@@ -1,58 +1,58 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, delete, update, and_, func
 from sqlalchemy.exc import SQLAlchemyError
-from models.cluster import *
+from sqlalchemy.orm import selectinload
+from typing import List, Optional, Tuple
+from models.cluster import Cluster, UserClusterAssociation, ClusterDestination, Preference
+from models.user import User, UserActivity, Activity
+from sqlalchemy.orm import joinedload
 from schemas.cluster_schema import *
-from typing import List, Optional
 
 class ClusterRepository:
     @staticmethod
-    async def get_all_clusters(db: AsyncSession) -> List[Cluster]:
-        """Get all clusters"""
+    async def get_all_clusters(
+        db: AsyncSession,
+    ):
         try:
-            result = await db.execute(select(Cluster))
+            query = select(Cluster).order_by(Cluster.created_at.desc())
+            
+            result = await db.execute(query)
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching all clusters - {e}")
             return []
 
     @staticmethod
-    async def get_cluster_by_id(db: AsyncSession, cluster_id: int) -> Optional[Cluster]:
-        """Get a cluster by ID"""
+    async def get_cluster_by_id(
+        db: AsyncSession,
+        cluster_id: int,
+        include_users: bool = False,
+        include_destinations: bool = False
+    ):
         try:
-            result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
+            query = select(Cluster).where(Cluster.id == cluster_id)
+            
+            if include_users:
+                query = query.options(selectinload(Cluster.users))
+            if include_destinations:
+                query = query.options(selectinload(Cluster.destinations))
+            
+            result = await db.execute(query)
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching cluster ID {cluster_id} - {e}")
             return None
 
     @staticmethod
-    async def get_cluster_by_name(db: AsyncSession, name: str) -> Optional[Cluster]:
-        """Get a cluster by name"""
-        try:
-            result = await db.execute(select(Cluster).where(Cluster.name == name))
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching cluster by name {name} - {e}")
-            return None
-
-    @staticmethod
-    async def get_clusters_by_algorithm(db: AsyncSession, algorithm: str) -> List[Cluster]:
-        """Get all clusters created with a specific algorithm"""
-        try:
-            result = await db.execute(select(Cluster).where(Cluster.algorithm == algorithm))
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching clusters by algorithm {algorithm} - {e}")
-            return []
-
-    @staticmethod
-    async def create_cluster(db: AsyncSession, cluster_data: ClusterCreate) -> Optional[Cluster]:
-        """Create a new cluster"""
+    async def create_cluster(
+        db: AsyncSession,
+        cluster_data: ClusterCreate
+    ):
         try:
             new_cluster = Cluster(
                 name=cluster_data.name,
-                algorithm=cluster_data.algorithm
+                algorithm=cluster_data.algorithm,
+                description=cluster_data.description
             )
             db.add(new_cluster)
             await db.commit()
@@ -64,23 +64,32 @@ class ClusterRepository:
             return None
 
     @staticmethod
-    async def update_cluster(db: AsyncSession, cluster_id: int, updated_data: ClusterUpdate) -> Optional[Cluster]:
-        """Update a cluster"""
+    async def update_cluster(
+        db: AsyncSession,
+        cluster_id: int,
+        updated_data: ClusterUpdate
+    ):
         try:
-            result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
-            cluster = result.scalar_one_or_none()
-            if not cluster:
-                print(f"WARNING: WARNING: Cluster ID {cluster_id} not found")
-                return None
-
-            if updated_data.name is not None:
-                cluster.name = updated_data.name
-            if updated_data.algorithm is not None:
-                cluster.algorithm = updated_data.algorithm
-
-            db.add(cluster)
+            update_dict = {
+                k: v for k, v in updated_data.model_dump(exclude_unset=True).items()
+                if v is not None
+            }
+            
+            if not update_dict:
+                return await ClusterRepository.get_cluster_by_id(db, cluster_id)
+            
+            stmt = (
+                update(Cluster)
+                .where(Cluster.id == cluster_id)
+                .values(**update_dict)
+                .returning(Cluster)
+            )
+            result = await db.execute(stmt)
             await db.commit()
-            await db.refresh(cluster)
+            
+            cluster = result.scalar_one_or_none()
+            if cluster:
+                await db.refresh(cluster)
             return cluster
         except SQLAlchemyError as e:
             await db.rollback()
@@ -88,58 +97,26 @@ class ClusterRepository:
             return None
 
     @staticmethod
-    async def delete_cluster(db: AsyncSession, cluster_id: int) -> bool:
-        """Delete a cluster (CASCADE will remove associations and destinations)"""
+    async def delete_cluster(
+        db: AsyncSession,
+        cluster_id: int
+    ):
         try:
-            result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
-            cluster = result.scalar_one_or_none()
-            if not cluster:
-                print(f"WARNING: WARNING: Cluster ID {cluster_id} not found")
-                return False
-
-            await db.delete(cluster)
+            stmt = delete(Cluster).where(Cluster.id == cluster_id)
+            result = await db.execute(stmt)
             await db.commit()
-            return True
+            return result.rowcount > 0
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: deleting cluster ID {cluster_id} - {e}")
             return False
 
-class UserClusterAssociationRepository:
     @staticmethod
-    async def add_user_to_cluster(db: AsyncSession, association_data: UserClusterAssociationCreate) -> Optional[UserClusterAssociation]:
-        """Associate a user with a cluster"""
-        try:
-
-            result = await db.execute(
-                select(UserClusterAssociation).where(
-                    and_(
-                        UserClusterAssociation.user_id == association_data.user_id,
-                        UserClusterAssociation.cluster_id == association_data.cluster_id
-                    )
-                )
-            )
-            existing = result.scalar_one_or_none()
-            if existing:
-                print(f"WARNING: User {association_data.user_id} already associated with cluster {association_data.cluster_id}")
-                return existing
-
-            new_association = UserClusterAssociation(
-                user_id=association_data.user_id,
-                cluster_id=association_data.cluster_id
-            )
-            db.add(new_association)
-            await db.commit()
-            await db.refresh(new_association)
-            return new_association
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: adding user {association_data.user_id} to cluster {association_data.cluster_id} - {e}")
-            return None
-
-    @staticmethod
-    async def remove_user_from_cluster(db: AsyncSession, user_id: int, cluster_id: int) -> bool:
-        """Remove user from cluster"""
+    async def add_user_to_cluster(
+        db: AsyncSession,
+        user_id: int,
+        cluster_id: int
+    ):
         try:
             result = await db.execute(
                 select(UserClusterAssociation).where(
@@ -149,41 +126,71 @@ class UserClusterAssociationRepository:
                     )
                 )
             )
-            association = result.scalar_one_or_none()
-            if not association:
-                print(f"WARNING: WARNING: Association between user {user_id} and cluster {cluster_id} not found")
-                return False
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing
 
-            await db.delete(association)
+            new_association = UserClusterAssociation(
+                user_id=user_id,
+                cluster_id=cluster_id
+            )
+            db.add(new_association)
             await db.commit()
-            return True
+            await db.refresh(new_association)
+            return new_association
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: adding user {user_id} to cluster {cluster_id} - {e}")
+            return None
+
+    @staticmethod
+    async def remove_user_from_cluster(
+        db: AsyncSession,
+        user_id: int,
+        cluster_id: int
+    ):
+        try:
+            stmt = delete(UserClusterAssociation).where(
+                and_(
+                    UserClusterAssociation.user_id == user_id,
+                    UserClusterAssociation.cluster_id == cluster_id
+                )
+            )
+            result = await db.execute(stmt)
+            await db.commit()
+            return result.rowcount > 0
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: removing user {user_id} from cluster {cluster_id} - {e}")
             return False
 
     @staticmethod
-    async def get_users_in_cluster(db: AsyncSession, cluster_id: int) -> List[int]:
-        """Get all user IDs in a cluster"""
+    async def get_users_in_cluster(
+        db: AsyncSession,
+        cluster_id: int,
+    ):
         try:
-            result = await db.execute(
-                select(UserClusterAssociation.user_id).where(
-                    UserClusterAssociation.cluster_id == cluster_id
-                )
+            query = select(UserClusterAssociation.user_id).where(
+                UserClusterAssociation.cluster_id == cluster_id
             )
+            
+            result = await db.execute(query)
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users in cluster {cluster_id} - {e}")
             return []
 
     @staticmethod
-    async def get_clusters_for_user(db: AsyncSession, user_id: int) -> List[Cluster]:
-        """Get all clusters a user belongs to"""
+    async def get_clusters_for_user(
+        db: AsyncSession,
+        user_id: int
+    ):
         try:
             result = await db.execute(
                 select(Cluster)
                 .join(UserClusterAssociation)
                 .where(UserClusterAssociation.user_id == user_id)
+                .order_by(Cluster.created_at.desc())
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
@@ -191,56 +198,53 @@ class UserClusterAssociationRepository:
             return []
 
     @staticmethod
-    async def remove_all_users_from_cluster(db: AsyncSession, cluster_id: int) -> bool:
-        """Remove all users from a cluster"""
+    async def is_user_in_cluster(
+        db: AsyncSession,
+        user_id: int,
+        cluster_id: int
+    ):
         try:
-            result = await db.execute(
-                select(UserClusterAssociation).where(
+            query = select(UserClusterAssociation).where(
+                and_(
+                    UserClusterAssociation.user_id == user_id,
                     UserClusterAssociation.cluster_id == cluster_id
                 )
             )
-            associations = result.scalars().all()
-            
-            for association in associations:
-                await db.delete(association)
-            
-            await db.commit()
-            return True
+            result = await db.execute(query)
+            return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: removing all users from cluster {cluster_id} - {e}")
+            print(f"ERROR: checking user {user_id} in cluster {cluster_id} - {e}")
             return False
 
-class ClusterDestinationRepository:
     @staticmethod
     async def add_destination_to_cluster(
-        db: AsyncSession, 
-        destination_data: ClusterDestinationCreate
-    ) -> Optional[ClusterDestination]:
-        """Associate a destination with a cluster"""
+        db: AsyncSession,
+        cluster_id: int,
+        destination_id: str,
+        popularity_score: Optional[float] = None
+    ):
         try:
-
             result = await db.execute(
                 select(ClusterDestination).where(
                     and_(
-                        ClusterDestination.cluster_id == destination_data.cluster_id,
-                        ClusterDestination.destination_id == destination_data.destination_id
+                        ClusterDestination.cluster_id == cluster_id,
+                        ClusterDestination.destination_id == destination_id
                     )
                 )
             )
             existing = result.scalar_one_or_none()
+            
             if existing:
-
-                if destination_data.popularity_score is not None:
-                    existing.popularity_score = destination_data.popularity_score
+                if popularity_score is not None:
+                    existing.popularity_score = popularity_score
                     await db.commit()
                     await db.refresh(existing)
                 return existing
 
             new_cluster_dest = ClusterDestination(
-                cluster_id=destination_data.cluster_id,
-                destination_id=destination_data.destination_id,
-                popularity_score=destination_data.popularity_score
+                cluster_id=cluster_id,
+                destination_id=destination_id,
+                popularity_score=popularity_score
             )
             db.add(new_cluster_dest)
             await db.commit()
@@ -248,128 +252,329 @@ class ClusterDestinationRepository:
             return new_cluster_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding destination {destination_data.destination_id} to cluster {destination_data.cluster_id} - {e}")
+            print(f"ERROR: adding destination to cluster - {e}")
             return None
 
     @staticmethod
-    async def remove_destination_from_cluster(db: AsyncSession, cluster_id: int, destination_id: str) -> bool:
-        """Remove destination from cluster"""
+    async def remove_destination_from_cluster(
+        db: AsyncSession,
+        cluster_id: int,
+        destination_id: str
+    ):
         try:
-            result = await db.execute(
-                select(ClusterDestination).where(
-                    and_(
-                        ClusterDestination.cluster_id == cluster_id,
-                        ClusterDestination.destination_id == destination_id
-                    )
+            stmt = delete(ClusterDestination).where(
+                and_(
+                    ClusterDestination.cluster_id == cluster_id,
+                    ClusterDestination.destination_id == destination_id
                 )
             )
-            cluster_dest = result.scalar_one_or_none()
-            if not cluster_dest:
-                print(f"WARNING: Destination {destination_id} not found in cluster {cluster_id}")
-                return False
-
-            await db.delete(cluster_dest)
+            result = await db.execute(stmt)
             await db.commit()
-            return True
+            return result.rowcount > 0
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: removing destination {destination_id} from cluster {cluster_id} - {e}")
+            print(f"ERROR: removing destination from cluster - {e}")
             return False
 
     @staticmethod
-    async def get_destinations_in_cluster(db: AsyncSession, cluster_id: int) -> List[ClusterDestination]:
-        """Get all destinations in a cluster with their popularity scores"""
-        try:
-            result = await db.execute(
-                select(ClusterDestination)
-                .where(ClusterDestination.cluster_id == cluster_id)
-                .order_by(ClusterDestination.popularity_score.desc())
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching destinations in cluster {cluster_id} - {e}")
-            return []
-
-    @staticmethod
-    async def get_clusters_for_destination(db: AsyncSession, destination_id: str) -> List[ClusterDestination]:
-        """Get all clusters that include a specific destination"""
-        try:
-            result = await db.execute(
-                select(ClusterDestination)
-                .where(ClusterDestination.destination_id == destination_id)
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching clusters for destination {destination_id} - {e}")
-            return []
-
-    @staticmethod
     async def update_destination_popularity(
-        db: AsyncSession, 
-        cluster_id: int, 
-        destination_id: str, 
-        updated_data: ClusterDestinationUpdate
-    ) -> Optional[ClusterDestination]:
-        """Update the popularity score of a destination in a cluster"""
+        db: AsyncSession,
+        cluster_id: int,
+        destination_id: str,
+        popularity_score: float
+    ):
         try:
-            result = await db.execute(
-                select(ClusterDestination).where(
+            stmt = (
+                update(ClusterDestination)
+                .where(
                     and_(
                         ClusterDestination.cluster_id == cluster_id,
                         ClusterDestination.destination_id == destination_id
                     )
                 )
+                .values(popularity_score=popularity_score)
+                .returning(ClusterDestination)
             )
-            cluster_dest = result.scalar_one_or_none()
-            if not cluster_dest:
-                print(f"WARNING: Destination {destination_id} not found in cluster {cluster_id}")
-                return None
-
-            cluster_dest.popularity_score = updated_data.popularity_score
-            db.add(cluster_dest)
+            result = await db.execute(stmt)
             await db.commit()
+            
+            cluster_dest = result.scalar_one_or_none()
             await db.refresh(cluster_dest)
             return cluster_dest
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: updating popularity score - {e}")
             return None
+        
+    @staticmethod
+    async def get_destinations_in_cluster(
+        db: AsyncSession,
+        cluster_id: int,
+    ):
+        try:
+            query = (
+                select(ClusterDestination)
+                .where(ClusterDestination.cluster_id == cluster_id)
+                .order_by(ClusterDestination.popularity_score.desc())
+            )
+            result = await db.execute(query)
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching destinations in cluster {cluster_id} - {e}")
+            return []
 
     @staticmethod
-    async def remove_all_destinations_from_cluster(db: AsyncSession, cluster_id: int) -> bool:
-        """Remove all destinations from a cluster"""
+    async def get_cluster_destination(
+        db: AsyncSession,
+        cluster_id: int,
+        destination_id: str
+    ):
         try:
-            result = await db.execute(
-                select(ClusterDestination).where(
-                    ClusterDestination.cluster_id == cluster_id
+            query = (
+                select(ClusterDestination)
+                .where(
+                    and_(
+                        ClusterDestination.cluster_id == cluster_id,
+                        ClusterDestination.destination_id == destination_id
+                    )
                 )
             )
-            cluster_dests = result.scalars().all()
-            
-            for cluster_dest in cluster_dests:
-                await db.delete(cluster_dest)
-            
-            await db.commit()
-            return True
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"ERROR: removing all destinations from cluster {cluster_id} - {e}")
-            return False
-
+            print(f"ERROR: fetching destination {destination_id} in cluster {cluster_id} - {e}")
+            return None
+        
     @staticmethod
     async def get_top_destinations_in_cluster(
-        db: AsyncSession, 
-        cluster_id: int, 
+        db: AsyncSession,
+        cluster_id: int,
         limit: int = 10
-    ) -> List[ClusterDestination]:
-        """Get top N destinations in a cluster by popularity score"""
+    ):
         try:
-            result = await db.execute(
+            query = (
                 select(ClusterDestination)
                 .where(ClusterDestination.cluster_id == cluster_id)
                 .order_by(ClusterDestination.popularity_score.desc())
                 .limit(limit)
             )
+            result = await db.execute(query)
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching top destinations in cluster {cluster_id} - {e}")
+            return []
+        
+    @staticmethod
+    async def get_users_needing_embedding_update(
+        db: AsyncSession,
+        cutoff_date: int
+    ):
+        try:
+            recent_prefs = (
+                select(Preference.user_id)
+                .where(
+                    and_(
+                        Preference.embedding.isnot(None),
+                        Preference.last_updated > cutoff_date
+                    )
+                )
+            )
+            query = select(User).where(User.id.notin_(recent_prefs))
+        
+            result = await db.execute(query)
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching users needing embedding update - {e}")
+            return []
+    
+    @staticmethod
+    async def get_users_with_embeddings(db: AsyncSession):
+        try:
+            query = (
+                select(Preference)
+                .where(Preference.embedding.isnot(None))
+            )
+            result = await db.execute(query)
+            return result.unique().scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching users with embeddings - {e}")
+            return []
+                        
+    @staticmethod
+    async def update_user_embedding(
+        db: AsyncSession,
+        user_id: int,
+        embedding: List[float],
+    ):
+        try:
+            pref_query = select(Preference).where(Preference.user_id == user_id)
+            result = await db.execute(pref_query)
+            existing_pref = result.scalar_one_or_none()
+            
+            if existing_pref:
+                stmt = (
+                    update(Preference)
+                    .where(Preference.user_id == user_id)
+                    .values(
+                        embedding=embedding,
+                        last_updated=func.now()
+                    )
+                )
+                await db.execute(stmt)
+            else:
+                new_pref = Preference(
+                    user_id=user_id,
+                    embedding=embedding,
+                    last_updated=func.now()
+                )
+                db.add(new_pref)
+            
+            await db.flush()
+            return True
+        except SQLAlchemyError as e:
+            print(f"ERROR: updating embedding for user {user_id} - {e}")
+            return False
+    
+    @staticmethod
+    async def get_preference_by_user_id(
+        db: AsyncSession,
+        user_id: int
+    ):
+        try:
+            query = select(Preference).where(Preference.user_id == user_id)
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching preference for user {user_id} - {e}")
+            return None
+    
+    @staticmethod
+    async def update_preference_cluster(
+        db: AsyncSession,
+        user_id: int,
+        cluster_id: int
+    ):
+        try:
+            stmt = (
+                update(Preference)
+                .where(Preference.user_id == user_id)
+                .values(
+                    cluster_id=cluster_id,
+                    last_updated=func.now()
+                )
+            )
+            await db.execute(stmt)
+            await db.flush()
+            return True
+        except SQLAlchemyError as e:
+            print(f"ERROR: updating cluster for user {user_id} preference - {e}")
+            return False
+    
+    @staticmethod
+    async def get_users_without_cluster(
+        db: AsyncSession,
+    ):
+        try:
+            subquery = select(UserClusterAssociation.user_id).distinct()
+            query = (
+                select(User)
+                .where(User.id.notin_(subquery))
+            )
+            
+            result = await db.execute(query)
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching users without cluster - {e}")
+            return []
+    
+    @staticmethod
+    async def create_or_update_preference(
+        db: AsyncSession,
+        user_id: int,
+        weather_pref: Optional[dict] = None,
+        attraction_types: Optional[list] = None,
+        budget_range: Optional[dict] = None,
+        kids_friendly: Optional[bool] = None,
+        visited_destinations: Optional[list] = None,
+        embedding: Optional[list] = None,
+        weight: Optional[float] = None,
+        cluster_id: Optional[int] = None
+    ):
+        try:
+            result = await db.execute(
+                select(Preference).where(Preference.user_id == user_id)
+            )
+            preference = result.scalar_one_or_none()
+            
+            if preference:
+                if weather_pref is not None:
+                    preference.weather_pref = weather_pref
+                if attraction_types is not None:
+                    preference.attraction_types = attraction_types
+                if budget_range is not None:
+                    preference.budget_range = budget_range
+                if kids_friendly is not None:
+                    preference.kids_friendly = kids_friendly
+                if visited_destinations is not None:
+                    preference.visited_destinations = visited_destinations
+                if embedding is not None:
+                    preference.embedding = embedding
+                if weight is not None:
+                    preference.weight = weight
+                if cluster_id is not None:
+                    preference.cluster_id = cluster_id
+                preference.last_updated = func.now()
+            else:
+                preference = Preference(
+                    user_id=user_id,
+                    weather_pref=weather_pref,
+                    attraction_types=attraction_types,
+                    budget_range=budget_range,
+                    kids_friendly=kids_friendly or False,
+                    visited_destinations=visited_destinations,
+                    embedding=embedding,
+                    weight=weight or 1.0,
+                    cluster_id=cluster_id
+                )
+                db.add(preference)
+            
+            await db.commit()
+            await db.refresh(preference)
+            return preference
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: creating/updating preference for user {user_id} - {e}")
+            return None
+    
+    @staticmethod
+    async def delete_preference(db: AsyncSession, user_id: int):
+        try:
+            result = await db.execute(
+                select(Preference).where(Preference.user_id == user_id)
+            )
+            preference = result.scalar_one_or_none()
+            if not preference:
+                print(f"WARNING: Preference for user {user_id} not found")
+                return False
+            
+            await db.delete(preference)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: deleting preference for user {user_id} - {e}")
+            return False
+    
+    @staticmethod
+    async def get_all_preferences(db: AsyncSession, skip: int = 0, limit: int = 100):
+        try:
+            result = await db.execute(
+                select(Preference)
+                .order_by(Preference.last_updated.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching all preferences - {e}")
             return []

@@ -1,5 +1,5 @@
-from backend.models.destination import Destination
-from backend.services.map_service import MapService
+from models.destination import Destination
+from services.map_service import MapService
 
 class DestinationEmbeddingService:
     def __init__(self, encoder, google_client, model_version: str):
@@ -8,16 +8,12 @@ class DestinationEmbeddingService:
         self.model_version = model_version
 
     async def build_embedding_record(self, destination: Destination):
-        # 1) Lấy dữ liệu thật từ Google API
         place = await MapService.get_location_details(destination.google_place_id)
 
-        # 2) Build text
         text = self._build_text(place)
 
-        # 3) Encode
         vector = await self._encode(text)
 
-        # 4) Return DB record
         return {
             "google_place_id": destination.google_place_id,
             "embedding": vector,
@@ -25,8 +21,6 @@ class DestinationEmbeddingService:
         }
         
     def _build_text(self, place):
-        """Chuyển dữ liệu Google Place → đoạn mô tả cho embedding."""
-
         name = place.name or ""
         types = ", ".join(place.types or [])
         address = place.formatted_address or ""
@@ -47,5 +41,4 @@ class DestinationEmbeddingService:
         
 
     async def _encode(self, text: str):
-        """Encode thành vector embedding."""
         return await self.encoder.encode(text)

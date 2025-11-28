@@ -1,3 +1,4 @@
+from schemas.room_schema import *
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -94,19 +95,20 @@ class RoomRepository:
             return None
         
     @staticmethod
-    async def create_room(db: AsyncSession, name: str):
+    async def create_room(db: AsyncSession, room_data: RoomCreate):
         try:
             new_room = Room(
-                name=name,
-                room_type=RoomType.group
-                )  
+                name=room_data.name,
+                room_type=room_data.room_type,
+                avatar_blob_name=room_data.avatar_blob_name
+            )  
             db.add(new_room)
             await db.commit()
             await db.refresh(new_room)
             return new_room
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: creating room '{name}' - {e}")
+            print(f"ERROR: creating room '{room_data.name}' - {e}")
             return None
         
     @staticmethod
@@ -133,16 +135,20 @@ class RoomRepository:
             return None
 
     @staticmethod
-    async def add_member(db: AsyncSession, user_id: int, room_id: int):
+    async def add_member(db: AsyncSession, room_id: int, member_data: RoomMemberCreate):
         try:
-            new_member = RoomMember(room_id=room_id, user_id=user_id)
+            new_member = RoomMember(
+                room_id=room_id, 
+                user_id=member_data.user_id, 
+                role=member_data.role
+            )
             db.add(new_member)
             await db.commit()
             await db.refresh(new_member)
             return new_member
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding user ID {user_id} to room ID {room_id} - {e}")
+            print(f"ERROR: adding user ID {member_data.user_id} to room ID {room_id} - {e}")
             return None
     
     @staticmethod
@@ -186,3 +192,78 @@ class RoomRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: listing rooms for user ID {user_id} - {e}")
             return []
+    
+    @staticmethod
+    async def update_room(db: AsyncSession, room_id: int, updated_data: RoomUpdate):
+        try:
+            result = await db.execute(select(Room).where(Room.id == room_id))
+            room = result.scalar_one_or_none()
+            if not room:
+                print(f"WARNING: Room {room_id} not found")
+                return None
+            
+            if updated_data.name is not None:
+                room.name = updated_data.name
+            if updated_data.avatar_blob_name is not None:
+                room.avatar_blob_name = updated_data.avatar_blob_name
+            
+            db.add(room)
+            await db.commit()
+            await db.refresh(room)
+            return room
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating room {room_id} - {e}")
+            return None
+    
+    @staticmethod
+    async def delete_room(db: AsyncSession, room_id: int):
+        try:
+            result = await db.execute(select(Room).where(Room.id == room_id))
+            room = result.scalar_one_or_none()
+            if not room:
+                print(f"WARNING: Room {room_id} not found")
+                return False
+            
+            await db.delete(room)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: deleting room {room_id} - {e}")
+            return False
+    
+    @staticmethod
+    async def update_member_role(db: AsyncSession, room_id: int, user_id: int, new_role: MemberRole):
+        try:
+            result = await db.execute(
+                select(RoomMember).where(
+                    RoomMember.room_id == room_id,
+                    RoomMember.user_id == user_id
+                )
+            )
+            member = result.scalar_one_or_none()
+            if not member:
+                print(f"WARNING: Member {user_id} not found in room {room_id}")
+                return None
+            
+            member.role = new_role
+            db.add(member)
+            await db.commit()
+            await db.refresh(member)
+            return member
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating member role for user {user_id} in room {room_id} - {e}")
+            return None
+    
+    @staticmethod
+    async def get_room_direct_info(db: AsyncSession, room_id: int):
+        try:
+            result = await db.execute(
+                select(RoomDirect).where(RoomDirect.room_id == room_id)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: getting direct room info for room {room_id} - {e}")
+            return None
