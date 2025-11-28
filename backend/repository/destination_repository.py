@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any, Optional
 from sqlalchemy import and_, delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,10 +86,10 @@ class DestinationRepository:
     @staticmethod
     async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
         try:
-            # THÊM check duplicate
-            existing = await DestinationRepository.is_saved_destination(db, user_id, destination_id)
+            existing = await DestinationRepository.is_saved_destination(
+                db, user_id, destination_id
+            )
             if existing:
-                # Return existing record thay vì tạo mới
                 result = await db.execute(
                     select(UserSavedDestination).where(
                         and_(
@@ -180,28 +180,26 @@ class DestinationRepository:
     @staticmethod
     async def save_embedding(
         db: AsyncSession,
-        destination_id: str,
-        vector: list[float],
-        model_version: str = "v1"
+        embedding_data: DestinationEmbeddingCreate
     ):
         try:
             result = await db.execute(
                 select(DestinationEmbedding).where(
-                    DestinationEmbedding.destination_id == destination_id
+                    DestinationEmbedding.destination_id == embedding_data.destination_id
                 )
             )
             embedding = result.scalar_one_or_none()
             
             if embedding:
-                embedding.set_vector(vector)
-                embedding.model_version = model_version
+                embedding.set_vector(embedding_data.embedding_vector)
+                embedding.model_version = embedding_data.model_version
                 embedding.updated_at = func.now()
             else:
                 embedding = DestinationEmbedding(
-                    destination_id=destination_id,
-                    model_version=model_version
+                    destination_id=embedding_data.destination_id,
+                    model_version=embedding_data.model_version
                 )
-                embedding.set_vector(vector)
+                embedding.set_vector(embedding_data.embedding_vector)
                 db.add(embedding)
             
             await db.commit()
@@ -209,7 +207,7 @@ class DestinationRepository:
             return embedding
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Failed to save embedding for {destination_id} - {e}")
+            print(f"ERROR: Failed to save embedding for {embedding_data.destination_id} - {e}")
             return None
 
     @staticmethod
@@ -264,3 +262,50 @@ class DestinationRepository:
             await db.rollback()
             print(f"ERROR: Failed to delete embedding for {destination_id} - {e}")
             return False
+    
+    @staticmethod
+    async def get_all_destinations(db: AsyncSession, skip: int = 0, limit: int = 100):
+        try:
+            result = await db.execute(
+                select(Destination)
+                .offset(skip)
+                .limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: Failed to retrieve all destinations - {e}")
+            return []
+    
+    @staticmethod
+    async def get_destinations_by_green_status(
+        db: AsyncSession, 
+        status: GreenVerifiedStatus,
+        skip: int = 0,
+        limit: int = 100
+    ):
+        try:
+            result = await db.execute(
+                select(Destination)
+                .where(Destination.green_verified == status)
+                .offset(skip)
+                .limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: Failed to retrieve destinations by green status {status} - {e}")
+            return []
+    
+    @staticmethod
+    async def search_destinations(
+        db: AsyncSession,
+        place_ids: List[str]
+    ):
+        try:
+            result = await db.execute(
+                select(Destination)
+                .where(Destination.place_id.in_(place_ids))
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: Failed to search destinations - {e}")
+            return []

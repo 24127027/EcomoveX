@@ -1,7 +1,7 @@
 from.cluster import Cluster, ClusterDestination, UserClusterAssociation, Preference
 from.destination import Destination, UserSavedDestination
 from.friend import Friend
-from.message import Message, ChatSession, ChatSessionContext
+from.message import Message, RoomContext
 from.mission import Mission, UserMission
 from.plan import Plan, PlanDestination, PlanMember
 from.review import Review
@@ -29,7 +29,6 @@ __all__ = [
     "Room",
     "RoomMember",
     "RoomDirect",
-    "ChatSession",
-    "ChatSessionContext",
+    "RoomContext",
     "Preference",
 ]

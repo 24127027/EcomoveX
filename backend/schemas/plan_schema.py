@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from models.plan import DestinationType, PlanRole
 
@@ -40,13 +40,12 @@ class PlanDestinationCreate(BaseModel):
     destination_id: str
     destination_type: DestinationType
     visit_date: date
-    time: Optional[str] = Field(None, max_length=32)
     estimated_cost: Optional[float] = Field(None, ge=0)
+    url: Optional[str] = None
     note: Optional[str] = None
     
 class PlanDestinationUpdate(BaseModel):
     visit_date: Optional[date] = None
-    time: Optional[str] = Field(None, max_length=32)
     estimated_cost: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
 
@@ -59,8 +58,8 @@ class PlanDestinationResponse(BaseModel):
     destination_id: str
     type: DestinationType
     visit_date: date
-    time: Optional[str] = None
     estimated_cost: Optional[float] = None
+    url: Optional[str] = None
     note: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
@@ -75,7 +74,6 @@ class PlanMemberDetailResponse(BaseModel):
 
 class PlanResponse(BaseModel):
     id: int
-    user_id: int
     place_name: str
     start_date: date
     end_date: date
@@ -94,4 +92,16 @@ class PlanMemberResponse(BaseModel):
     plan_id: int
     ids: List[int] = Field(..., min_length=1)
 
+    model_config = ConfigDict(from_attributes=True)
+
+class IntentHandlerResponse(BaseModel):
+    ok: bool
+    message: Optional[str] = None
+    action: Optional[str] = None
+    item: Optional[Dict[str, Any]] = None
+    item_id: Optional[int] = None
+    budget: Optional[float] = None
+    plan: Optional[Dict[str, Any]] = None
+    suggestions: Optional[List[Any]] = None
+    
     model_config = ConfigDict(from_attributes=True)

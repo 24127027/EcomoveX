@@ -1,21 +1,35 @@
 from fastapi import APIRouter, Depends, Path, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from database.db import get_db
 from services.storage_service import StorageService
 from models.metadata import *
 from schemas.storage_schema import *
+from schemas.message_schema import CommonMessageResponse
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
 
 @router.get("/files", response_model=list[FileMetadataResponse], status_code=status.HTTP_200_OK)
 async def get_user_files_metadata(
-    filters: FileMetadataFilter,
+    category: Optional[FileCategory] = Query(None),
+    content_type: Optional[str] = Query(None),
+    uploaded_after: Optional[datetime] = Query(None),
+    uploaded_before: Optional[datetime] = Query(None),
+    sort_by: FileSortBy = Query(FileSortBy.UPLOADED_AT),
+    sort_order: SortOrder = Query(SortOrder.DESCENDING),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    filters = FileMetadataFilter(
+        category=category,
+        content_type=content_type,
+        uploaded_after=uploaded_after,
+        uploaded_before=uploaded_before,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
     return await StorageService.get_user_files(db, current_user["user_id"], filters)
 
 @router.get("/files/{blob_name:path}", response_model=FileMetadataResponse, status_code=status.HTTP_200_OK)
@@ -36,7 +50,7 @@ async def upload_file(
 ):
     return await StorageService.upload_file(db, file, current_user["user_id"], category, bucket_name)
 
-@router.delete("/files/{blob_name:path}", status_code=status.HTTP_200_OK) 
+@router.delete("/files/{blob_name:path}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK) 
 async def delete_file(
     blob_name: str = Path(...),
     bucket_name: Optional[str] = Query(None),

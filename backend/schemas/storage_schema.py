@@ -1,13 +1,13 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
 class FileCategory(str, Enum):
     profile_avatar = "profile_avatar"
     profile_cover = "profile_cover"
-    travel_photo = "travel_photo"
-    message_photo = "message_photo"
+    review = "review"
+    message = "message"
 
 class FileSortBy(str, Enum):
     FILENAME = "filename"
@@ -42,5 +42,30 @@ class FileMetadataResponse(BaseModel):
     category: str = Field(...)
     size: int = Field(...)
     updated_at: Optional[datetime] = Field(None)
+
+    model_config = ConfigDict(from_attributes=True)
+
+class MetadataCreate(BaseModel):
+    blob_name: str = Field(..., min_length=1, max_length=255)
+    user_id: int = Field(..., gt=0)
+    filename: str = Field(..., min_length=1, max_length=255)
+    content_type: str = Field(..., min_length=1, max_length=255)
+    category: str = Field(..., min_length=1, max_length=255)
+    bucket: str = Field(..., min_length=1, max_length=255)
+    size: int = Field(..., gt=0)
+
+class MetadataUpdate(BaseModel):
+    filename: Optional[str] = Field(None, min_length=1, max_length=255)
+    category: Optional[str] = Field(None, min_length=1, max_length=255)
+
+class MetadataResponse(BaseModel):
+    blob_name: str
+    user_id: int
+    filename: str
+    content_type: str
+    category: str
+    bucket: str
+    size: int
+    uploaded_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

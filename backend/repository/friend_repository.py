@@ -245,7 +245,7 @@ class FriendRepository:
                         or_(Friend.user1_id == user_id, Friend.user2_id == user_id),
                         or_(
                             User.username.ilike(f"%{search_term}%"),
-                            User.full_name.ilike(f"%{search_term}%")
+                            User.email.ilike(f"%{search_term}%")
                         )
                     )
                 )

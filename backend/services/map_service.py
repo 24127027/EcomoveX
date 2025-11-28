@@ -22,18 +22,14 @@ FIELD_GROUPS = {
     ]
 }
 
-class mapService:
+class MapService:
     @staticmethod
     async def text_search_place(db: AsyncSession, data: TextSearchRequest) -> TextSearchResponse:
         map_client = await create_map_client()
         
         try:
-            # 1. Call Google API
             response = await map_client.text_search_place(data)
 
-            # 2. Save to Database Sequentially
-            # FIX: We cannot use asyncio.gather with a single DB session.
-            # We must await them one by one.
             for result in response.results:
                 try:
                     await DestinationService.create_destination(
@@ -41,8 +37,6 @@ class mapService:
                         DestinationCreate(place_id=result.place_id)
                     )
                 except Exception:
-                    # FIX: If creating fails (e.g. Duplicate Key), strictly ignore it.
-                    # We do not want to stop the loop or crash the request.
                     pass
 
             return response
@@ -59,27 +53,31 @@ class mapService:
 
     @staticmethod
     async def autocomplete(db: AsyncSession, data: AutocompleteRequest) -> AutocompleteResponse:
-        try:            
-            try:
-                map = await create_map_client()
-                response = await map.autocomplete_place(data)
-                for prediction in response.predictions:
+        map_client = None
+        try:
+            map_client = await create_map_client()
+            response = await map_client.autocomplete_place(data)
+            for prediction in response.predictions:
+                try:
                     await DestinationService.create_destination(
                         db, DestinationCreate(place_id=prediction.place_id)
                     )
-                return response
-            finally:
-                if map:
-                    await map.close()
+                except Exception:
+                    pass
+            return response
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to search location: {str(e)}"
             )
+        finally:
+            if map_client:
+                await map_client.close()
     
     @staticmethod
     async def get_location_details(data: PlaceDetailsRequest) -> PlaceDetailsResponse:
-        # 1. Validation
         if not data.place_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -90,15 +88,12 @@ class mapService:
         try:
             final_fields = set()
             for cat in data.categories:
-                # cat.value gets the string "basic" from the Enum
                 group = FIELD_GROUPS.get(cat.value, [])
                 final_fields.update(group)
 
-            # Fallback: if list is empty, fetch basic info
             if not final_fields:
                 final_fields.update(FIELD_GROUPS[PlaceDataCategory.BASIC])
 
-            # 3. Call API
             map_client = await create_map_client()
             return await map_client.get_place_details(
                 place_id=data.place_id, 
@@ -107,10 +102,8 @@ class mapService:
             )
 
         except HTTPException:
-            # Re-raise HTTP exceptions so 400 stays 400
             raise 
         except Exception as e:
-            # Handle unexpected errors
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get location details: {str(e)}"
@@ -121,84 +114,99 @@ class mapService:
             
     @staticmethod
     async def geocode_address(address: str) -> GeocodingResponse:
+        map_client = None
         try:
-            map = await create_map_client()
-            return await map.geocode(address=address)
+            map_client = await create_map_client()
+            return await map_client.geocode(address=address)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to geocode address: {str(e)}"
             )
         finally:
-            if map:
-                await map.close()
+            if map_client:
+                await map_client.close()
             
     @staticmethod
     async def reverse_geocode(location: Location) -> GeocodingResponse:
+        map_client = None
         try:
-            map = await create_map_client()
-            return await map.reverse_geocode(location=location)
+            map_client = await create_map_client()
+            return await map_client.reverse_geocode(location=location)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to reverse geocode location: {str(e)}"
             )
         finally:
-            if map:
-                await map.close()
+            if map_client:
+                await map_client.close()
                 
     @staticmethod
     async def get_nearby_places(
         data: NearbyPlaceRequest,
     ) -> NearbyPlacesResponse:
+        map_client = None
         try:
-            map = await create_map_client()
-            return await map.get_nearby_places_for_map(
+            map_client = await create_map_client()
+            return await map_client.get_nearby_places_for_map(
                 data=data,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get nearby places: {str(e)}"
             )
         finally:
-            if map:
-                await map.close()
+            if map_client:
+                await map_client.close()
                 
     @staticmethod
     async def get_next_page_nearby_places(
         page_token: str,
     ) -> NearbyPlacesResponse:
+        map_client = None
         try:
-            map = await create_map_client()
-            return await map.get_next_page_nearby_places(
+            map_client = await create_map_client()
+            return await map_client.get_next_page_nearby_places(
                 page_token=page_token,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get next page of nearby places: {str(e)}"
             )
         finally:
-            if map:
-                await map.close()
+            if map_client:
+                await map_client.close()
                 
     @staticmethod
     async def search_along_route(
-        dỉrection_data: DirectionsResponse,
+        direction_data: DirectionsResponse,
         search_type: str,
     ) -> SearchAlongRouteResponse:
+        map_client = None
         try:
-            map = await create_map_client()
-            return await map.search_along_route(
-                directions=dỉrection_data,
+            map_client = await create_map_client()
+            return await map_client.search_along_route(
+                directions=direction_data,
                 search_type=search_type,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to search along route: {str(e)}"
             )
         finally:
-            if map:
-                await map.close()
+            if map_client:
+                await map_client.close()

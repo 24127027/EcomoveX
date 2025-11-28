@@ -1,6 +1,7 @@
 from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from models.user import *
 from schemas.authentication_schema import *
 from schemas.user_schema import *
@@ -15,6 +16,16 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to retrieve user by ID {user_id} - {e}")
             return None
+    
+    @staticmethod
+    async def get_users_by_ids(db: AsyncSession, user_ids: List[int]):
+        try:
+            result = await db.execute(select(User).where(User.id.in_(user_ids)))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to retrieve users by IDs - {e}")
+            return []
                   
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str):

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from models.plan import *
 from schemas.plan_schema import *
@@ -128,13 +128,33 @@ class PlanRepository:
             return []
 
     @staticmethod
+    async def get_next_order_in_day(db: AsyncSession, plan_id: int, visit_date) -> int:
+        try:
+            result = await db.execute(
+                select(func.coalesce(func.max(PlanDestination.order_in_day), 0))
+                .where(
+                    PlanDestination.plan_id == plan_id,
+                    PlanDestination.visit_date == visit_date
+                )
+            )
+            max_order = result.scalar()
+            return max_order + 1
+        except SQLAlchemyError as e:
+            print(f"ERROR: getting next order_in_day for plan {plan_id} and date {visit_date} - {e}")
+            return 1
+
+    @staticmethod
     async def add_destination_to_plan(db: AsyncSession, plan_id: int, data: PlanDestinationCreate):
         try:
+            next_order = await PlanRepository.get_next_order_in_day(db, plan_id, data.visit_date)
+            
             new_plan_dest = PlanDestination(
                 plan_id=plan_id,
                 destination_id=data.destination_id,
                 type=data.destination_type,
                 visit_date=data.visit_date,
+                order_in_day=next_order,
+                url=data.url,
                 note=data.note
             )
             db.add(new_plan_dest)
@@ -159,15 +179,18 @@ class PlanRepository:
                 print(f"WARNING: Plan destination ID {plan_destination_id} not found")
                 return None
 
-            if updated_data.visit_date is not None:
+            if updated_data.visit_date is not None and updated_data.visit_date != plan_dest.visit_date:
+                new_order = await PlanRepository.get_next_order_in_day(db, plan_dest.plan_id, updated_data.visit_date)
                 plan_dest.visit_date = updated_data.visit_date
+                plan_dest.order_in_day = new_order
+            
             if updated_data.note is not None:
                 plan_dest.note = updated_data.note
-            if updated_data.time is not None:
-                plan_dest.time = updated_data.time
             if updated_data.estimated_cost is not None:
                 plan_dest.estimated_cost = updated_data.estimated_cost
-
+            if updated_data.url is not None:
+                plan_dest.url = updated_data.url
+                
             db.add(plan_dest)
             await db.commit()
             await db.refresh(plan_dest)
@@ -176,6 +199,26 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: updating plan destination ID {plan_destination_id} - {e}")
             return None
+
+    @staticmethod
+    async def reorder_destinations_after_delete(db: AsyncSession, plan_id: int, visit_date, deleted_order: int):
+        """Cập nhật lại order_in_day cho các destination sau khi xóa một item"""
+        try:
+            result = await db.execute(
+                select(PlanDestination)
+                .where(
+                    PlanDestination.plan_id == plan_id,
+                    PlanDestination.visit_date == visit_date,
+                    PlanDestination.order_in_day > deleted_order
+                )
+                .order_by(PlanDestination.order_in_day)
+            )
+            destinations = result.scalars().all()
+            for dest in destinations:
+                dest.order_in_day -= 1
+                db.add(dest)
+        except SQLAlchemyError as e:
+            print(f"ERROR: reordering destinations for plan {plan_id} and date {visit_date} - {e}")
 
     @staticmethod
     async def remove_destination_from_plan(db: AsyncSession, plan_destination_id: int):
@@ -190,7 +233,16 @@ class PlanRepository:
                 print(f"WARNING: Plan destination ID {plan_destination_id} not found")
                 return False
 
+            # Lưu thông tin để reorder sau khi xóa
+            plan_id = plan_dest.plan_id
+            visit_date = plan_dest.visit_date
+            deleted_order = plan_dest.order_in_day
+
             await db.delete(plan_dest)
+            
+            # Reorder các destination còn lại
+            await PlanRepository.reorder_destinations_after_delete(db, plan_id, visit_date, deleted_order)
+            
             await db.commit()
             return True
         except SQLAlchemyError as e:

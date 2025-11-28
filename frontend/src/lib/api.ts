@@ -146,7 +146,7 @@ export interface PlaceDetails {
   };
   website?: string;
   photos?: Array<{
-    photo_reference: string;
+    photo_url: string;
     width: number;
     height: number;
   }>;

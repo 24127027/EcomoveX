@@ -14,7 +14,7 @@ async def list_rooms(
 ):
     return await RoomService.get_all_rooms_for_user(db, current_user["user_id"])
 
-@router.get("/direct-rooms", response_model=list[DirectRoomResponse], status_code=status.HTTP_200_OK)
+@router.get("/direct-rooms", response_model=list[RoomDirectResponse], status_code=status.HTTP_200_OK)
 async def list_direct_rooms(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -29,7 +29,7 @@ async def get_room(
 ):
     return await RoomService.get_room(db, current_user["user_id"], room_id)
 
-@router.get("/direct-rooms/{direct_room_id}", response_model=DirectRoomResponse, status_code=status.HTTP_200_OK)
+@router.get("/direct-rooms/{direct_room_id}", response_model=RoomDirectResponse, status_code=status.HTTP_200_OK)
 async def get_direct_room(
     direct_room_id: int = Path(..., gt=0),
     db: AsyncSession = Depends(get_db),

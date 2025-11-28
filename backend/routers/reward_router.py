@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.reward_schema import *
+from schemas.message_schema import CommonMessageResponse
 from services.reward_service import RewardService
 from utils.token.authentication_util import get_current_user
 
@@ -53,7 +54,7 @@ async def get_my_completed_missions(
 ):
     return await RewardService.all_completed_missions(user_db, current_user["user_id"])
 
-@router.post("/missions/{mission_id}/complete", status_code=status.HTTP_200_OK)
+@router.post("/missions/{mission_id}/complete", response_model=UserMissionResponse, status_code=status.HTTP_200_OK)
 async def complete_mission(
     mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_db),
@@ -61,7 +62,7 @@ async def complete_mission(
 ):
     return await RewardService.complete_mission(user_db, current_user["user_id"], mission_id)
 
-@router.delete("/missions/{mission_id}/remove", status_code=status.HTTP_200_OK)
+@router.delete("/missions/{mission_id}/remove", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def remove_completed_mission(
     mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_db),
@@ -69,7 +70,7 @@ async def remove_completed_mission(
 ):
     return await RewardService.remove_mission_from_user(user_db, current_user["user_id"], mission_id)
 
-@router.delete("/missions/{mission_id}", status_code=status.HTTP_200_OK)
+@router.delete("/missions/{mission_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def delete_mission(
     mission_id: int = Path(..., gt=0),
     user_db: AsyncSession = Depends(get_db),

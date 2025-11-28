@@ -122,8 +122,8 @@ class RewardService:
             completed_missions = await MissionRepository.get_all_missions_by_user(db, user_id)
             mission_list = []
             value = 0
-            for mission_id in completed_missions:
-                mission = await MissionRepository.get_mission_by_id(db, mission_id)
+            for user_mission in completed_missions:
+                mission = await MissionRepository.get_mission_by_id(db, user_mission.mission_id)
                 if mission:
                     mission_list.append(MissionResponse(
                         id=mission.id,

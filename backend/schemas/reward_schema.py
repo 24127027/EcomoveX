@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
+from datetime import datetime
 from models.mission import RewardType, MissionAction
 
 class MissionCreate(BaseModel):
@@ -54,9 +55,16 @@ class MissionResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
+class UserMissionResponse(BaseModel):
+    user_id: int
+    mission_id: int
+    completed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 class UserRewardResponse(BaseModel):
     user_id: int
     missions: List[MissionResponse]
-    total_point: Optional[int] = 0
+    total_value: Optional[int] = 0
 
     model_config = ConfigDict(from_attributes=True)

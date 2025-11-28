@@ -1,47 +1,62 @@
-from typing import Dict, List, Optional
 import httpx
 from openai import OpenAI
 from utils.config import settings
 
-class TextGenerator:
+class TextGeneratorAPI:
     def __init__(self):
         self.client = OpenAI(
-            base_url="https://router.huggingface.co/v1",
+            base_url="https://openrouter.ai/api/v1/chat/completions",
             api_key=settings.HUGGINGFACE_API_KEY,
         )
         self.http_client = httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"},
+            headers={
+                "Authorization": f"Bearer {settings.OPEN_ROUTER_API_KEY}",
+                "Content-Type": "application/json",
+                "X-Title": "EcomoveX",
+                "Referer": "http://localhost:3000",
+                "Origin": "http://localhost:3000"
+            },
             timeout=30.0
         )
-        self.text_model = "deepseek-ai/DeepSeek-R1-0528"
-    
-    def chat_completion(
-        self,
-        messages: List[Dict[str, str]],
-        temperature: float = 1,
-    ) -> str:
-        try:
-            response = self.client.chat.completions.create(
-                model=self.text_model,
-                messages=messages,
-                temperature=temperature,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"ERROR: Chat completion failed - {e}")
-            return "I'm sorry, I encountered an error. Please try again."
-
-    async def generate_text(self, prompt: str) -> str:
-        messages = [{"role": "user", "content": prompt}]
-        return self.chat_completion(messages)
-
+        self.text_model = settings.OPEN_ROUTER_MODEL_NAME or "meta-llama/llama-3.3-70b-instruct"
+        
     async def close(self):
         await self.http_client.aclose()
+    
+    async def generate_reply(self, context_messages: list, api_key: str = settings.OPEN_ROUTER_API_KEY, model: str = settings.OPEN_ROUTER_MODEL_NAME) -> str:
+        if model is None:
+            model = self.text_model
+                
+        payload = {
+            "model": model,
+            "messages": context_messages,
+            "temperature": 0.7,
+            "max_tokens": 1000
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(self.client.base_url, json=payload, headers=self.http_client.headers)
+                resp.raise_for_status()
 
-_text_generator_instance: Optional[TextGenerator] = None
+                if not resp.text or resp.text.strip() == "":
+                    raise Exception("Empty response from LLM")
 
-def get_text_generator() -> TextGenerator:
-    global _text_generator_instance
-    if _text_generator_instance is None:
-        _text_generator_instance = TextGenerator()
-    return _text_generator_instance
+                try:
+                    data = resp.json()
+                except Exception as json_err:
+                    raise Exception("LLM returned non-JSON body") from json_err
+
+                if "choices" not in data or len(data["choices"]) == 0:
+                    raise Exception("Invalid response format: missing 'choices'")
+
+                reply = data["choices"][0]["message"]["content"]
+                return reply
+                
+        except httpx.HTTPStatusError as e:
+            raise Exception(f"HTTP Error: {e.response.text}")
+        except Exception as e:
+            raise Exception(f"LLM Error: {str(e)}")
+        
+async def create_text_generator_api() -> TextGeneratorAPI:
+    return TextGeneratorAPI()

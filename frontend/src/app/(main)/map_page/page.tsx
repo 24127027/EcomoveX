@@ -82,7 +82,7 @@ const convertSearchResultToDetails = (
     photos: result.photos
       ? [
           {
-            photo_reference: result.photos.photo_url,
+            photo_url: result.photos.photo_url,
             width: result.photos.size[0],
             height: result.photos.size[1],
           },
@@ -113,15 +113,19 @@ const generateSessionToken = () => {
 export default function MapPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isLoaded, loadError } = useGoogleMaps();
+
+  const urlQuery = searchParams.get("q") || "";
+  const latParam = searchParams.get("lat");
+  const lngParam = searchParams.get("lng");
+
 
   // [NEW] Xác định chế độ Picker
   const mode = searchParams.get("mode");
   const isPickerMode = mode === "picker";
 
-  const { isLoaded, loadError } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] =
     useState<PlaceDetailsWithDistance | null>(null);
-  const urlQuery = searchParams.get("q") || "";
   const [searchQuery, setSearchQuery] = useState(urlQuery);
   const [locations, setLocations] = useState<PlaceDetailsWithDistance[]>([]);
   const [searchResults, setSearchResults] = useState<
@@ -486,8 +490,9 @@ export default function MapPage() {
 
   const handleNavigateToDetail = () => {
     if (selectedLocation) {
-      router.push(`/location/${selectedLocation.place_id}`);
-    }
+        const url = '/place_detail_page?place_id=' + selectedLocation.place_id;
+        router.push(url);
+      }
   };
 
   const handlePickLocation = () => {
@@ -512,6 +517,8 @@ export default function MapPage() {
       router.back();
     }
   };
+
+ 
 
   const handleCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -855,8 +862,8 @@ export default function MapPage() {
                       <div className="relative h-28 bg-gray-200">
                         <img
                           src={
-                            location.photos?.[0]?.photo_reference
-                              ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${location.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                            location.photos?.[0]?.photo_url
+                              ? location.photos[0].photo_url
                               : "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400"
                           }
                           alt={location.name}
