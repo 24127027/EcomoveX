@@ -28,6 +28,7 @@ class Room(Base):
     members = relationship("RoomMember", back_populates="room", cascade="all, delete-orphan")
     direct_info = relationship("RoomDirect", uselist=False, back_populates="room", cascade="all, delete-orphan")
     file_metadata = relationship("Metadata", back_populates="rooms", foreign_keys=[avatar_blob_name])
+    contexts = relationship("RoomContext", back_populates="room", cascade="all, delete-orphan")
     
 class RoomDirect(Base):
     __tablename__ = "room_direct"
