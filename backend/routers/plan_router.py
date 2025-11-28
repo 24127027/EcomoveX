@@ -54,8 +54,9 @@ async def add_destination_to_plan(
     plan_id: int,
     data: PlanDestinationCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    return await PlanService.add_destination_to_plan(db, plan_id, data)
+    return await PlanService.add_destination_to_plan(db, current_user["user_id"], plan_id, data)
 
 @router.put("/destinations/{plan_destination_id}", response_model=PlanDestinationResponse, status_code=status.HTTP_200_OK)
 async def update_plan_destination(
