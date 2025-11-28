@@ -28,4 +28,8 @@ class Settings(BaseSettings):
     GCS_BUCKET_NAME: str = "ecomovex"
     GOOGLE_APPLICATION_CREDENTIALS: Path = Path("etc/secrets/service-account.json")
 
+    #BREEAM API Credentials
+    BREEAM_USERNAME: str = ""
+    BREEAM_PASSWORD: str = ""
+
 settings = Settings()
