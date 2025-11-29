@@ -1,7 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 from enum import Enum
+
 
 class FileCategory(str, Enum):
     profile_avatar = "profile_avatar"
@@ -9,14 +10,17 @@ class FileCategory(str, Enum):
     review = "review"
     message = "message"
 
+
 class FileSortBy(str, Enum):
     FILENAME = "filename"
     SIZE = "size"
     UPLOADED_AT = "uploaded_at"
 
+
 class SortOrder(str, Enum):
     ASCENDING = "ascending"
     DESCENDING = "descending"
+
 
 class FileMetadata(BaseModel):
     url: str = Field(...)
@@ -25,7 +29,8 @@ class FileMetadata(BaseModel):
     content_type: str = Field(...)
     bucket: str = Field(...)
     size: int = Field(...)
-    
+
+
 class FileMetadataFilter(BaseModel):
     category: Optional[FileCategory] = Field(None)
     content_type: Optional[str] = Field(None)
@@ -33,6 +38,7 @@ class FileMetadataFilter(BaseModel):
     uploaded_before: Optional[datetime] = Field(None)
     sort_by: FileSortBy = Field(FileSortBy.UPLOADED_AT)
     sort_order: SortOrder = Field(SortOrder.DESCENDING)
+
 
 class FileMetadataResponse(BaseModel):
     url: str = Field(...)
@@ -45,6 +51,7 @@ class FileMetadataResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class MetadataCreate(BaseModel):
     blob_name: str = Field(..., min_length=1, max_length=255)
     user_id: int = Field(..., gt=0)
@@ -54,9 +61,11 @@ class MetadataCreate(BaseModel):
     bucket: str = Field(..., min_length=1, max_length=255)
     size: int = Field(..., gt=0)
 
+
 class MetadataUpdate(BaseModel):
     filename: Optional[str] = Field(None, min_length=1, max_length=255)
     category: Optional[str] = Field(None, min_length=1, max_length=255)
+
 
 class MetadataResponse(BaseModel):
     blob_name: str

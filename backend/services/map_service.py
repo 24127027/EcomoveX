@@ -1,7 +1,5 @@
-import asyncio
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 from schemas.route_schema import DirectionsResponse
 from integration.map_api import create_map_client
 from schemas.destination_schema import DestinationCreate
@@ -11,30 +9,40 @@ from schemas.destination_schema import Location
 
 FIELD_GROUPS = {
     PlaceDataCategory.BASIC: [
-        "place_id", "name", "formatted_address", "geometry/location", 
-        "geometry/viewport","photos", "types", "address_components", "utc_offset"
+        "place_id",
+        "name",
+        "formatted_address",
+        "geometry/location",
+        "geometry/viewport",
+        "photos",
+        "types",
+        "address_components",
+        "utc_offset",
     ],
-    PlaceDataCategory.CONTACT: [
-        "formatted_phone_number", "website", "opening_hours"
-    ],
+    PlaceDataCategory.CONTACT: ["formatted_phone_number", "website", "opening_hours"],
     PlaceDataCategory.ATMOSPHERE: [
-        "rating", "user_ratings_total", "reviews", "price_level"
-    ]
+        "rating",
+        "user_ratings_total",
+        "reviews",
+        "price_level",
+    ],
 }
+
 
 class MapService:
     @staticmethod
-    async def text_search_place(db: AsyncSession, data: TextSearchRequest) -> TextSearchResponse:
+    async def text_search_place(
+        db: AsyncSession, data: TextSearchRequest
+    ) -> TextSearchResponse:
         map_client = await create_map_client()
-        
+
         try:
             response = await map_client.text_search_place(data)
 
             for result in response.results:
                 try:
                     await DestinationService.create_destination(
-                        db, 
-                        DestinationCreate(place_id=result.place_id)
+                        db, DestinationCreate(place_id=result.place_id)
                     )
                 except Exception:
                     pass
@@ -46,13 +54,15 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to search location: {str(e)}"
+                detail=f"Failed to search location: {str(e)}",
             )
         finally:
             await map_client.close()
 
     @staticmethod
-    async def autocomplete(db: AsyncSession, data: AutocompleteRequest) -> AutocompleteResponse:
+    async def autocomplete(
+        db: AsyncSession, data: AutocompleteRequest
+    ) -> AutocompleteResponse:
         map_client = None
         try:
             map_client = await create_map_client()
@@ -70,18 +80,17 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to search location: {str(e)}"
+                detail=f"Failed to search location: {str(e)}",
             )
         finally:
             if map_client:
                 await map_client.close()
-    
+
     @staticmethod
     async def get_location_details(data: PlaceDetailsRequest) -> PlaceDetailsResponse:
         if not data.place_id:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="place_id is required"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="place_id is required"
             )
 
         map_client = None
@@ -96,22 +105,22 @@ class MapService:
 
             map_client = await create_map_client()
             return await map_client.get_place_details(
-                place_id=data.place_id, 
-                fields=list(final_fields), # Convert set back to list
-                session_token=data.session_token
+                place_id=data.place_id,
+                fields=list(final_fields),  # Convert set back to list
+                session_token=data.session_token,
             )
 
         except HTTPException:
-            raise 
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get location details: {str(e)}"
+                detail=f"Failed to get location details: {str(e)}",
             )
         finally:
             if map_client:
                 await map_client.close()
-            
+
     @staticmethod
     async def geocode_address(address: str) -> GeocodingResponse:
         map_client = None
@@ -123,12 +132,12 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to geocode address: {str(e)}"
+                detail=f"Failed to geocode address: {str(e)}",
             )
         finally:
             if map_client:
                 await map_client.close()
-            
+
     @staticmethod
     async def reverse_geocode(location: Location) -> GeocodingResponse:
         map_client = None
@@ -140,12 +149,12 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to reverse geocode location: {str(e)}"
+                detail=f"Failed to reverse geocode location: {str(e)}",
             )
         finally:
             if map_client:
                 await map_client.close()
-                
+
     @staticmethod
     async def get_nearby_places(
         data: NearbyPlaceRequest,
@@ -161,12 +170,12 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get nearby places: {str(e)}"
+                detail=f"Failed to get nearby places: {str(e)}",
             )
         finally:
             if map_client:
                 await map_client.close()
-                
+
     @staticmethod
     async def get_next_page_nearby_places(
         page_token: str,
@@ -182,12 +191,12 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get next page of nearby places: {str(e)}"
+                detail=f"Failed to get next page of nearby places: {str(e)}",
             )
         finally:
             if map_client:
                 await map_client.close()
-                
+
     @staticmethod
     async def search_along_route(
         direction_data: DirectionsResponse,
@@ -205,7 +214,7 @@ class MapService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to search along route: {str(e)}"
+                detail=f"Failed to search along route: {str(e)}",
             )
         finally:
             if map_client:

@@ -7,14 +7,16 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     user_data = decode_access_token(token)
     if not user_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials"
+            detail="Invalid authentication credentials",
         )
     return user_data
+
 
 def decode_access_token(token: str):
     try:
@@ -23,12 +25,11 @@ def decode_access_token(token: str):
         role: str = payload.get("role")
         if user_id is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
             )
         return {"user_id": int(user_id), "role": role}
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or corrupted token"
+            detail="Invalid or corrupted token",
         )

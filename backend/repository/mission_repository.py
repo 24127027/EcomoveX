@@ -5,6 +5,7 @@ from models.user import *
 from models.mission import *
 from schemas.reward_schema import *
 
+
 class MissionRepository:
     @staticmethod
     async def get_all_missions(db: AsyncSession):
@@ -23,11 +24,13 @@ class MissionRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching mission with id {mission_id} - {e}")
             return None
-        
+
     @staticmethod
     async def get_mission_by_name(db: AsyncSession, name: str):
         try:
-            result = await db.execute(select(Mission).where(func.lower(Mission.name) == name.lower()))
+            result = await db.execute(
+                select(Mission).where(func.lower(Mission.name) == name.lower())
+            )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching mission with name {name} - {e}")
@@ -41,7 +44,7 @@ class MissionRepository:
                 description=mission_data.description,
                 reward_type=mission_data.reward_type,
                 action_trigger=mission_data.action_trigger,
-                value=mission_data.value
+                value=mission_data.value,
             )
             db.add(new_mission)
             await db.commit()
@@ -53,12 +56,16 @@ class MissionRepository:
             return None
 
     @staticmethod
-    async def update_mission(db: AsyncSession, mission_id: int, updated_data: MissionUpdate):
+    async def update_mission(
+        db: AsyncSession, mission_id: int, updated_data: MissionUpdate
+    ):
         try:
             result = await db.execute(select(Mission).where(Mission.id == mission_id))
             mission = result.scalar_one_or_none()
             if not mission:
-                print(f"WARNING: WARNING: Mission with id {mission_id} not found for update.")
+                print(
+                    f"WARNING: WARNING: Mission with id {mission_id} not found for update."
+                )
                 return None
 
             if updated_data.name is not None:
@@ -103,18 +110,20 @@ class MissionRepository:
             user = await db.get(User, user_id)
             mission = await db.get(Mission, mission_id)
             if not user or not mission:
-                print(f"WARNING: User or Mission not found (user={user_id}, mission={mission_id})")
+                print(
+                    f"WARNING: User or Mission not found (user={user_id}, mission={mission_id})"
+                )
                 return None
 
-            existing = await MissionRepository.completed_mission(db, user_id, mission_id)
+            existing = await MissionRepository.completed_mission(
+                db, user_id, mission_id
+            )
             if existing:
                 print("WARNING: User already completed this mission")
                 return existing
 
             new_user_mission = UserMission(
-                user_id=user_id,
-                mission_id=mission_id,
-                completed_at=func.now()
+                user_id=user_id, mission_id=mission_id, completed_at=func.now()
             )
             db.add(new_user_mission)
             await db.commit()
@@ -140,8 +149,9 @@ class MissionRepository:
     async def completed_mission(db: AsyncSession, user_id: int, mission_id: int):
         try:
             result = await db.execute(
-                select(UserMission)
-                .where(UserMission.user_id == user_id, UserMission.mission_id == mission_id)
+                select(UserMission).where(
+                    UserMission.user_id == user_id, UserMission.mission_id == mission_id
+                )
             )
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
@@ -153,13 +163,14 @@ class MissionRepository:
         try:
             result = await db.execute(
                 select(UserMission).where(
-                    UserMission.user_id == user_id,
-                    UserMission.mission_id == mission_id
+                    UserMission.user_id == user_id, UserMission.mission_id == mission_id
                 )
             )
             user_mission = result.scalar_one_or_none()
             if not user_mission:
-                print(f"WARNING: WARNING: Mission {mission_id} not found for user {user_id}.")
+                print(
+                    f"WARNING: WARNING: Mission {mission_id} not found for user {user_id}."
+                )
                 return False
 
             await db.delete(user_mission)
@@ -169,7 +180,7 @@ class MissionRepository:
             await db.rollback()
             print(f"ERROR: deleting mission for user {user_id} - {e}")
             return False
-    
+
     @staticmethod
     async def get_missions_by_action(db: AsyncSession, action_trigger: MissionAction):
         try:
@@ -180,14 +191,14 @@ class MissionRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching missions by action {action_trigger} - {e}")
             return []
-    
+
     @staticmethod
     async def get_user_incomplete_missions(db: AsyncSession, user_id: int):
         try:
             completed_subquery = select(UserMission.mission_id).where(
                 UserMission.user_id == user_id
             )
-            
+
             result = await db.execute(
                 select(Mission).where(Mission.id.notin_(completed_subquery))
             )

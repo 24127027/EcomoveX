@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from models.mission import RewardType, MissionAction
 
+
 class MissionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
@@ -10,19 +11,20 @@ class MissionCreate(BaseModel):
     action_trigger: MissionAction
     value: Optional[int] = Field(0, ge=0)
 
-    @field_validator('name')
+    @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Mission name cannot be empty or whitespace")
         return v.strip()
 
-    @field_validator('description')
+    @field_validator("description")
     @classmethod
     def validate_description(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Description cannot be empty or whitespace")
         return v.strip() if v else None
+
 
 class MissionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -31,19 +33,20 @@ class MissionUpdate(BaseModel):
     action_trigger: Optional[MissionAction] = None
     value: Optional[int] = Field(None, ge=0)
 
-    @field_validator('name')
+    @field_validator("name")
     @classmethod
     def validate_name(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Mission name cannot be empty or whitespace")
         return v.strip() if v else None
 
-    @field_validator('description')
+    @field_validator("description")
     @classmethod
     def validate_description(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Description cannot be empty or whitespace")
         return v.strip() if v else None
+
 
 class MissionResponse(BaseModel):
     id: int
@@ -52,8 +55,9 @@ class MissionResponse(BaseModel):
     reward_type: RewardType
     action_trigger: MissionAction
     value: Optional[int]
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 class UserMissionResponse(BaseModel):
     user_id: int
@@ -61,6 +65,7 @@ class UserMissionResponse(BaseModel):
     completed_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class UserRewardResponse(BaseModel):
     user_id: int

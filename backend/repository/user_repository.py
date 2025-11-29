@@ -6,6 +6,7 @@ from models.user import *
 from schemas.authentication_schema import *
 from schemas.user_schema import *
 
+
 class UserRepository:
     @staticmethod
     async def get_user_by_id(db: AsyncSession, user_id: int):
@@ -16,7 +17,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to retrieve user by ID {user_id} - {e}")
             return None
-    
+
     @staticmethod
     async def get_users_by_ids(db: AsyncSession, user_ids: List[int]):
         try:
@@ -26,7 +27,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to retrieve users by IDs - {e}")
             return []
-                  
+
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str):
         try:
@@ -36,7 +37,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to retrieve user by email {email} - {e}")
             return None
-        
+
     @staticmethod
     async def get_user_by_username(db: AsyncSession, username: str):
         try:
@@ -54,7 +55,9 @@ class UserRepository:
             if existed_email:
                 print(f"WARNING: User with email {user_data.email} already exists")
                 return None
-            existing_username = await UserRepository.get_user_by_username(db, user_data.username)
+            existing_username = await UserRepository.get_user_by_username(
+                db, user_data.username
+            )
             if existing_username:
                 print(f"WARNING: Username {user_data.username} already taken")
                 return None
@@ -63,7 +66,7 @@ class UserRepository:
                 email=user_data.email,
                 password=user_data.password,
                 eco_point=0,
-                rank=Rank.bronze.value
+                rank=Rank.bronze.value,
             )
             db.add(new_user)
             await db.commit()
@@ -75,7 +78,9 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def update_user_credentials(db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate):
+    async def update_user_credentials(
+        db: AsyncSession, user_id: int, updated_data: UserCredentialUpdate
+    ):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -95,9 +100,11 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to update user credentials for ID {user_id} - {e}")
             return None
-        
+
     @staticmethod
-    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
+    async def update_user_profile(
+        db: AsyncSession, user_id: int, updated_data: UserProfileUpdate
+    ):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -119,7 +126,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to update user profile for ID {user_id} - {e}")
             return None
-        
+
     @staticmethod
     async def add_eco_point(db: AsyncSession, user_id: int, data: UserUpdateEcoPoint):
         try:
@@ -139,7 +146,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to add eco point for user ID {user_id} - {e}")
             return None
-        
+
     @staticmethod
     async def delete_user(db: AsyncSession, user_id: int):
         try:
@@ -157,13 +164,15 @@ class UserRepository:
             return False
 
     @staticmethod
-    async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate):
+    async def log_user_activity(
+        db: AsyncSession, user_id: int, data: UserActivityCreate
+    ):
         try:
             new_activity = UserActivity(
                 user_id=user_id,
                 activity=data.activity,
                 destination_id=data.destination_id,
-                timestamp=func.now()
+                timestamp=func.now(),
             )
             db.add(new_activity)
             await db.commit()
@@ -173,7 +182,7 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to log activity for user ID {user_id} - {e}")
             return None
-        
+
     @staticmethod
     async def get_user_activities(db: AsyncSession, user_id: int):
         try:
@@ -187,29 +196,28 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to retrieve activities for user ID {user_id} - {e}")
             return []
-    
+
     @staticmethod
     async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
         try:
             result = await db.execute(
-                select(User)
-                .order_by(User.created_at.desc())
-                .offset(skip)
-                .limit(limit)
+                select(User).order_by(User.created_at.desc()).offset(skip).limit(limit)
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to retrieve all users - {e}")
             return []
-    
+
     @staticmethod
-    async def search_users(db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50):
+    async def search_users(
+        db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50
+    ):
         try:
             result = await db.execute(
                 select(User)
                 .where(
-                    (User.username.ilike(f"%{search_term}%")) |
-                    (User.email.ilike(f"%{search_term}%"))
+                    (User.username.ilike(f"%{search_term}%"))
+                    | (User.email.ilike(f"%{search_term}%"))
                 )
                 .order_by(User.created_at.desc())
                 .offset(skip)

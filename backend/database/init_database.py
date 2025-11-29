@@ -2,6 +2,7 @@ from sqlalchemy import text
 from database.db import Base, engine
 from models import *
 
+
 async def drop_specific_tables(table_names: list[str]):
     async with engine.begin() as conn:
         for table_name in table_names:
@@ -9,12 +10,14 @@ async def drop_specific_tables(table_names: list[str]):
             await conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
         print("Tables dropped successfully")
 
+
 async def clear_table_data(table_names: list[str]):
     async with engine.begin() as conn:
         for table_name in table_names:
             print(f"Clearing data from table: {table_name}")
             await conn.execute(text(f"TRUNCATE TABLE {table_name} CASCADE"))
         print("Table data cleared successfully")
+
 
 async def init_db(drop_all: bool = False):
     async with engine.begin() as conn:
