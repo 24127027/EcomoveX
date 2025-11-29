@@ -38,7 +38,7 @@ import {
   AirQualityResponse,
 } from "@/lib/api";
 
-export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
+export const gotu = Gotu({ subsets: ["latin"], weight: ["400"], display: 'swap'});
 export const jost = Jost({ subsets: ["latin"], weight: ["700"] });
 export const abhaya_libre = Abhaya_Libre({
   subsets: ["latin"],
