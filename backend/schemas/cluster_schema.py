@@ -1,37 +1,41 @@
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class ClusterCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     algorithm: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
 
-    @field_validator('name', 'algorithm')
+    @field_validator("name", "algorithm")
     @classmethod
     def validate_not_empty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Field cannot be empty or whitespace")
         return v.strip()
 
-    @field_validator('description')
+    @field_validator("description")
     @classmethod
     def validate_description(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Description cannot be empty or whitespace")
         return v.strip() if v else None
 
+
 class ClusterUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     algorithm: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
 
-    @field_validator('name', 'algorithm', 'description')
+    @field_validator("name", "algorithm", "description")
     @classmethod
     def validate_fields(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("Field cannot be empty or whitespace")
         return v.strip() if v else None
+
 
 class ClusterResponse(BaseModel):
     id: int
@@ -41,9 +45,11 @@ class ClusterResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class UserClusterAssociationCreate(BaseModel):
     user_id: int = Field(..., gt=0)
     cluster_id: int = Field(..., gt=0)
+
 
 class UserClusterAssociationResponse(BaseModel):
     user_id: int
@@ -52,13 +58,16 @@ class UserClusterAssociationResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ClusterDestinationCreate(BaseModel):
     cluster_id: int = Field(..., gt=0)
     destination_id: str = Field(..., min_length=1)
     popularity_score: Optional[float] = Field(None, ge=0)
 
+
 class ClusterDestinationUpdate(BaseModel):
     popularity_score: Optional[float] = Field(None, ge=0)
+
 
 class ClusterDestinationResponse(BaseModel):
     cluster_id: int
@@ -66,6 +75,7 @@ class ClusterDestinationResponse(BaseModel):
     popularity_score: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class PreferenceCreate(BaseModel):
     user_id: int = Field(..., gt=0)
@@ -78,6 +88,7 @@ class PreferenceCreate(BaseModel):
     weight: float = Field(1.0, ge=0, le=10)
     cluster_id: Optional[int] = Field(None, gt=0)
 
+
 class PreferenceUpdate(BaseModel):
     weather_pref: Optional[Dict[str, Any]] = None
     attraction_types: Optional[List[str]] = None
@@ -87,6 +98,7 @@ class PreferenceUpdate(BaseModel):
     embedding: Optional[List[float]] = None
     weight: Optional[float] = Field(None, ge=0, le=10)
     cluster_id: Optional[int] = Field(None, gt=0)
+
 
 class PreferenceResponse(BaseModel):
     id: int
@@ -102,11 +114,13 @@ class PreferenceResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ClusteringStats(BaseModel):
     embeddings_updated: int
     users_clustered: int
     associations_created: int
     clusters_updated: int
+
 
 class ClusteringResultResponse(BaseModel):
     success: bool

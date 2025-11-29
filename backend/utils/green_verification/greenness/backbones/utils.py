@@ -1,5 +1,4 @@
 import torch
-
 import torch.nn as nn
 
 
@@ -9,7 +8,7 @@ class Slice(nn.Module):
         self.start_index = start_index
 
     def forward(self, x):
-        return x[:, self.start_index:]
+        return x[:, self.start_index :]
 
 
 class AddReadout(nn.Module):
@@ -22,7 +21,7 @@ class AddReadout(nn.Module):
             readout = (x[:, 0] + x[:, 1]) / 2
         else:
             readout = x[:, 0]
-        return x[:, self.start_index:] + readout.unsqueeze(1)
+        return x[:, self.start_index :] + readout.unsqueeze(1)
 
 
 class ProjectReadout(nn.Module):
@@ -33,8 +32,8 @@ class ProjectReadout(nn.Module):
         self.project = nn.Sequential(nn.Linear(2 * in_features, in_features), nn.GELU())
 
     def forward(self, x):
-        readout = x[:, 0].unsqueeze(1).expand_as(x[:, self.start_index:])
-        features = torch.cat((x[:, self.start_index:], readout), -1)
+        readout = x[:, 0].unsqueeze(1).expand_as(x[:, self.start_index :])
+        features = torch.cat((x[:, self.start_index :], readout), -1)
 
         return self.project(features)
 
@@ -116,10 +115,10 @@ def forward_adapted_unflatten(pretrained, x, function_name="forward_features"):
     if layer_4.ndim == 3:
         layer_4 = unflatten(layer_4)
 
-    layer_1 = pretrained.act_postprocess1[3: len(pretrained.act_postprocess1)](layer_1)
-    layer_2 = pretrained.act_postprocess2[3: len(pretrained.act_postprocess2)](layer_2)
-    layer_3 = pretrained.act_postprocess3[3: len(pretrained.act_postprocess3)](layer_3)
-    layer_4 = pretrained.act_postprocess4[3: len(pretrained.act_postprocess4)](layer_4)
+    layer_1 = pretrained.act_postprocess1[3 : len(pretrained.act_postprocess1)](layer_1)
+    layer_2 = pretrained.act_postprocess2[3 : len(pretrained.act_postprocess2)](layer_2)
+    layer_3 = pretrained.act_postprocess3[3 : len(pretrained.act_postprocess3)](layer_3)
+    layer_4 = pretrained.act_postprocess4[3 : len(pretrained.act_postprocess4)](layer_4)
 
     return layer_1, layer_2, layer_3, layer_4
 
@@ -130,9 +129,7 @@ def get_readout_oper(vit_features, features, use_readout, start_index=1):
     elif use_readout == "add":
         readout_oper = [AddReadout(start_index)] * len(features)
     elif use_readout == "project":
-        readout_oper = [
-            ProjectReadout(vit_features, start_index) for out_feat in features
-        ]
+        readout_oper = [ProjectReadout(vit_features, start_index) for out_feat in features]
     else:
         assert (
             False
@@ -142,14 +139,14 @@ def get_readout_oper(vit_features, features, use_readout, start_index=1):
 
 
 def make_backbone_default(
-        model,
-        features=[96, 192, 384, 768],
-        size=[384, 384],
-        hooks=[2, 5, 8, 11],
-        vit_features=768,
-        use_readout="ignore",
-        start_index=1,
-        start_index_readout=1,
+    model,
+    features=[96, 192, 384, 768],
+    size=[384, 384],
+    hooks=[2, 5, 8, 11],
+    vit_features=768,
+    use_readout="ignore",
+    start_index=1,
+    start_index_readout=1,
 ):
     pretrained = nn.Module()
 

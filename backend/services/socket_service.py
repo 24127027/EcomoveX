@@ -1,5 +1,7 @@
 from typing import Dict, List
+
 from fastapi import WebSocket
+
 
 class SocketService:
     def __init__(self):
