@@ -1,17 +1,21 @@
 from enum import Enum
+
 from sqlalchemy import (
     JSON,
     Column,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from database.db import Base
 
 
@@ -45,9 +49,7 @@ class Message(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(SQLEnum(MessageStatus), default=MessageStatus.sent)
 
-    sender = relationship(
-        "User", foreign_keys=[sender_id], back_populates="sent_messages"
-    )
+    sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
     room = relationship("Room", back_populates="messages")
     file_metadata = relationship(
         "Metadata", back_populates="messages", foreign_keys=[file_blob_name]
@@ -64,8 +66,6 @@ class RoomContext(Base):
     )
     key = Column(String(128), nullable=False)
     value = Column(JSON, nullable=True)
-    updated_at = Column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     room = relationship("Room", back_populates="contexts")

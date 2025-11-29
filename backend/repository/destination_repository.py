@@ -1,7 +1,9 @@
 from typing import List, Optional
+
 from sqlalchemy import and_, delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from models.destination import *
 from schemas.destination_schema import *
 
@@ -15,9 +17,7 @@ class DestinationRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(
-                f"ERROR: Failed to retrieve destination with ID {destination_id} - {e}"
-            )
+            print(f"ERROR: Failed to retrieve destination with ID {destination_id} - {e}")
             return None
 
     @staticmethod
@@ -54,9 +54,7 @@ class DestinationRepository:
             }
 
             if not update_dict:
-                return await DestinationRepository.get_destination_by_id(
-                    db, destination_id
-                )
+                return await DestinationRepository.get_destination_by_id(db, destination_id)
 
             if "green_verified_status" in update_dict:
                 update_dict["green_verified"] = update_dict.pop("green_verified_status")
@@ -92,13 +90,9 @@ class DestinationRepository:
             return False
 
     @staticmethod
-    async def save_destination_for_user(
-        db: AsyncSession, user_id: int, destination_id: str
-    ):
+    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
         try:
-            existing = await DestinationRepository.is_saved_destination(
-                db, user_id, destination_id
-            )
+            existing = await DestinationRepository.is_saved_destination(db, user_id, destination_id)
             if existing:
                 result = await db.execute(
                     select(UserSavedDestination).where(
@@ -127,22 +121,15 @@ class DestinationRepository:
     async def get_saved_destinations_for_user(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(
-                select(UserSavedDestination).where(
-                    UserSavedDestination.user_id == user_id
-                )
+                select(UserSavedDestination).where(UserSavedDestination.user_id == user_id)
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(
-                f"ERROR: Failed to retrieve saved destinations for user ID "
-                f"{user_id} - {e}"
-            )
+            print(f"ERROR: Failed to retrieve saved destinations for user ID " f"{user_id} - {e}")
             return []
 
     @staticmethod
-    async def delete_saved_destination(
-        db: AsyncSession, user_id: int, destination_id: str
-    ):
+    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             stmt = delete(UserSavedDestination).where(
                 and_(
@@ -188,17 +175,13 @@ class DestinationRepository:
                 .limit(limit)
             )
             result = await db.execute(query)
-            return [
-                {"destination_id": row[0], "save_count": row[1]} for row in result.all()
-            ]
+            return [{"destination_id": row[0], "save_count": row[1]} for row in result.all()]
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to get popular destinations - {e}")
             return []
 
     @staticmethod
-    async def save_embedding(
-        db: AsyncSession, embedding_data: DestinationEmbeddingCreate
-    ):
+    async def save_embedding(db: AsyncSession, embedding_data: DestinationEmbeddingCreate):
         try:
             result = await db.execute(
                 select(DestinationEmbedding).where(
@@ -224,10 +207,7 @@ class DestinationRepository:
             return embedding
         except SQLAlchemyError as e:
             await db.rollback()
-            print(
-                f"ERROR: Failed to save embedding for "
-                f"{embedding_data.destination_id} - {e}"
-            )
+            print(f"ERROR: Failed to save embedding for " f"{embedding_data.destination_id} - {e}")
             return None
 
     @staticmethod
@@ -296,10 +276,7 @@ class DestinationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(
-                f"ERROR: Failed to retrieve destinations by green status "
-                f"{status} - {e}"
-            )
+            print(f"ERROR: Failed to retrieve destinations by green status " f"{status} - {e}")
             return []
 
     @staticmethod

@@ -1,8 +1,10 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from enum import Enum
-from schemas.destination_schema import Location, Bounds
+from typing import Any, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from schemas.destination_schema import Bounds, Location
 
 
 class TransportMode(str, Enum):

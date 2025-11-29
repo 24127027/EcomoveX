@@ -1,16 +1,20 @@
 from enum import Enum
+
 from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
     String,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from database.db import Base
 
 
@@ -61,15 +65,9 @@ class User(Base):
         back_populates="sender",
         cascade="all, delete-orphan",
     )
-    rooms = relationship(
-        "RoomMember", back_populates="user", cascade="all, delete-orphan"
-    )
-    reviews = relationship(
-        "Review", back_populates="user", cascade="all, delete-orphan"
-    )
-    missions = relationship(
-        "UserMission", back_populates="user", cascade="all, delete-orphan"
-    )
+    rooms = relationship("RoomMember", back_populates="user", cascade="all, delete-orphan")
+    reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
+    missions = relationship("UserMission", back_populates="user", cascade="all, delete-orphan")
     clusters = relationship(
         "UserClusterAssociation",
         back_populates="user",
@@ -83,12 +81,8 @@ class User(Base):
     activity_logs = relationship(
         "UserActivity", back_populates="user", cascade="all, delete-orphan"
     )
-    files = relationship(
-        "Metadata", back_populates="user", cascade="all, delete-orphan"
-    )
-    plan_members = relationship(
-        "PlanMember", back_populates="user", cascade="all, delete-orphan"
-    )
+    files = relationship("Metadata", back_populates="user", cascade="all, delete-orphan")
+    plan_members = relationship("PlanMember", back_populates="user", cascade="all, delete-orphan")
     friendships1 = relationship(
         "Friend",
         foreign_keys="[Friend.user1_id]",
@@ -137,9 +131,7 @@ class UserActivity(Base):
         index=True,
     )
     activity = Column(SQLEnum(Activity), nullable=False)
-    timestamp = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="activity_logs")
     destination = relationship("Destination", back_populates="user_activities")

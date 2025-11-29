@@ -1,9 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, delete, select, func, update
+from typing import Any, Dict, Optional
+
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from models.message import *
 from schemas.message_schema import *
-from typing import Optional, Any, Dict
 
 
 class MessageRepository:
@@ -34,10 +36,7 @@ class MessageRepository:
         try:
             result = await db.execute(
                 select(Message)
-                .where(
-                    (Message.room_id == room_id)
-                    & (Message.message_type == MessageType.file)
-                )
+                .where((Message.room_id == room_id) & (Message.message_type == MessageType.file))
                 .order_by(Message.created_at.desc())
             )
             return result.scalars().all()
@@ -50,17 +49,12 @@ class MessageRepository:
         try:
             result = await db.execute(
                 select(Message)
-                .where(
-                    (Message.content.ilike(f"%{keyword}%"))
-                    & (Message.room_id == room_id)
-                )
+                .where((Message.content.ilike(f"%{keyword}%")) & (Message.room_id == room_id))
                 .order_by(Message.created_at.desc())
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(
-                f"ERROR: searching messages for room ID {room_id} with keyword '{keyword}' - {e}"
-            )
+            print(f"ERROR: searching messages for room ID {room_id} with keyword '{keyword}' - {e}")
             return []
 
     @staticmethod
@@ -108,9 +102,7 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def update_message_status(
-        db: AsyncSession, message_id: int, new_status: MessageStatus
-    ):
+    async def update_message_status(db: AsyncSession, message_id: int, new_status: MessageStatus):
         try:
             stmt = (
                 update(Message)
@@ -131,9 +123,7 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def update_message_content(
-        db: AsyncSession, message_id: int, new_content: str
-    ):
+    async def update_message_content(db: AsyncSession, message_id: int, new_content: str):
         try:
             stmt = (
                 update(Message)
@@ -209,9 +199,7 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def get_room_context(
-        db: AsyncSession, room_id: int, key: str
-    ) -> Optional[Any]:
+    async def get_room_context(db: AsyncSession, room_id: int, key: str) -> Optional[Any]:
         try:
             query = select(RoomContext).where(
                 and_(RoomContext.room_id == room_id, RoomContext.key == key)

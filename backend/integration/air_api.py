@@ -1,8 +1,10 @@
-from schemas.air_schema import *
-from utils.config import settings
-from typing import Optional, List
+from typing import List, Optional
+
 import httpx
+
+from schemas.air_schema import *
 from schemas.destination_schema import Location
+from utils.config import settings
 
 
 class AirQualityAPI:
@@ -37,9 +39,7 @@ class AirQualityAPI:
             )
 
             if response.status_code != 200:
-                raise ValueError(
-                    f"Error fetching air quality data: HTTP {response.status_code}"
-                )
+                raise ValueError(f"Error fetching air quality data: HTTP {response.status_code}")
 
             data = response.json()
             if "error" in data:

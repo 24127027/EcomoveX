@@ -1,15 +1,17 @@
-import numpy as np
-from typing import List, Optional, Dict, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sklearn.cluster import KMeans
 from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 from fastapi import HTTPException, status
-from schemas.cluster_schema import *
+from sklearn.cluster import KMeans
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from models.user import Activity, User, UserActivity
-from utils.embedded.embedding_utils import encode_text
 from repository.cluster_repository import ClusterRepository
 from repository.user_repository import UserRepository
+from schemas.cluster_schema import *
+from utils.embedded.embedding_utils import encode_text
 
 EMBEDDING_UPDATE_INTERVAL_DAYS = 7
 NUM_CLUSTERS = 5
@@ -17,9 +19,7 @@ NUM_CLUSTERS = 5
 
 class ClusterService:
     @staticmethod
-    async def compute_cluster_embedding(
-        db: AsyncSession, cluster_id: int
-    ) -> Optional[np.ndarray]:
+    async def compute_cluster_embedding(db: AsyncSession, cluster_id: int) -> Optional[np.ndarray]:
         try:
             user_ids = await ClusterRepository.get_users_in_cluster(db, cluster_id)
 
@@ -31,9 +31,7 @@ class ClusterService:
 
             user_embeddings = []
             for user_id in user_ids:
-                preference = await ClusterRepository.get_preference_by_user_id(
-                    db, user_id
-                )
+                preference = await ClusterRepository.get_preference_by_user_id(db, user_id)
                 if preference and preference.embedding:
                     user_embeddings.append(np.array(preference.embedding))
 
@@ -74,14 +72,10 @@ class ClusterService:
                 if preference.budget_range:
                     budget = preference.budget_range
                     if "min" in budget and "max" in budget:
-                        text_parts.append(
-                            f"budget range {budget['min']} to {budget['max']}"
-                        )
+                        text_parts.append(f"budget range {budget['min']} to {budget['max']}")
 
                 if preference.attraction_types:
-                    text_parts.append(
-                        f"interested in {', '.join(preference.attraction_types)}"
-                    )
+                    text_parts.append(f"interested in {', '.join(preference.attraction_types)}")
 
                 if preference.kids_friendly:
                     text_parts.append("prefers kid-friendly destinations")
@@ -94,9 +88,7 @@ class ClusterService:
             activity_counts = {}
             for activity in activities:
                 activity_type = activity.activity.value
-                activity_counts[activity_type] = (
-                    activity_counts.get(activity_type, 0) + 1
-                )
+                activity_counts[activity_type] = activity_counts.get(activity_type, 0) + 1
             for act, count in activity_counts.items():
                 text_parts.append(f"{act} {count} times")
 
@@ -141,9 +133,7 @@ class ClusterService:
     @staticmethod
     async def get_users_needing_embedding_update(db: AsyncSession, cutoff_date: int):
         try:
-            return await ClusterRepository.get_users_needing_embedding_update(
-                db, cutoff_date
-            )
+            return await ClusterRepository.get_users_needing_embedding_update(db, cutoff_date)
         except Exception:
             return []
 
@@ -180,15 +170,11 @@ class ClusterService:
                     destination_scores[dest_id]["review"] += 1
 
             for dest_id, scores in destination_scores.items():
-                popularity_score = (
-                    scores["save"] * 3 + scores["review"] * 2 + scores["search"] * 1
-                )
+                popularity_score = scores["save"] * 3 + scores["review"] * 2 + scores["search"] * 1
                 normalized_score = min(100.0, (popularity_score / len(user_ids)) * 20)
                 if normalized_score > 50:
                     if (
-                        await ClusterRepository.get_cluster_destination(
-                            db, cluster_id, dest_id
-                        )
+                        await ClusterRepository.get_cluster_destination(db, cluster_id, dest_id)
                         is None
                     ):
                         await ClusterRepository.add_destination_to_cluster(
@@ -240,18 +226,14 @@ class ClusterService:
                 days=EMBEDDING_UPDATE_INTERVAL_DAYS
             )
 
-            users_needing_update = (
-                await ClusterRepository.get_users_needing_embedding_update(
-                    db, cutoff_date
-                )
+            users_needing_update = await ClusterRepository.get_users_needing_embedding_update(
+                db, cutoff_date
             )
 
             for user in users_needing_update:
                 embedding = await ClusterService.embed_preference(db, user.id)
                 if embedding:
-                    success = await ClusterService.save_preference_embedding(
-                        db, user.id, embedding
-                    )
+                    success = await ClusterService.save_preference_embedding(db, user.id, embedding)
                     if not success:
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -269,13 +251,9 @@ class ClusterService:
     ) -> int:
         try:
             for user_id, cluster_id in user_cluster_mapping.items():
-                association = await ClusterRepository.add_user_to_cluster(
-                    db, user_id, cluster_id
-                )
+                association = await ClusterRepository.add_user_to_cluster(db, user_id, cluster_id)
                 if association:
-                    await ClusterRepository.update_preference_cluster(
-                        db, user_id, cluster_id
-                    )
+                    await ClusterRepository.update_preference_cluster(db, user_id, cluster_id)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -286,9 +264,7 @@ class ClusterService:
     async def run_user_clustering(db: AsyncSession) -> ClusteringResultResponse:
         try:
             embeddings_updated = await ClusterService.update_user_embeddings(db)
-            users_with_embeddings = await ClusterRepository.get_users_with_embeddings(
-                db
-            )
+            users_with_embeddings = await ClusterRepository.get_users_with_embeddings(db)
             if not users_with_embeddings:
                 return ClusteringResultResponse(
                     success=False,
@@ -329,10 +305,8 @@ class ClusterService:
             for cluster_id in sorted(cluster_counts.keys()):
                 print(f"    - Cluster {cluster_id}: {cluster_counts[cluster_id]} users")
 
-            associations_created = (
-                await ClusterService.create_user_cluster_associations(
-                    db, user_cluster_mapping
-                )
+            associations_created = await ClusterService.create_user_cluster_associations(
+                db, user_cluster_mapping
             )
             for cluster_id in user_cluster_mapping.values():
                 await ClusterService.compute_cluster_popularity(db, cluster_id)

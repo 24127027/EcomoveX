@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.db import get_db
 from schemas.room_schema import *
 from services.room_service import RoomService
@@ -26,9 +27,7 @@ async def list_direct_rooms(
     return await RoomService.get_all_direct_rooms_for_user(db, current_user["user_id"])
 
 
-@router.get(
-    "/rooms/{room_id}", response_model=RoomResponse, status_code=status.HTTP_200_OK
-)
+@router.get("/rooms/{room_id}", response_model=RoomResponse, status_code=status.HTTP_200_OK)
 async def get_room(
     room_id: int = Path(..., gt=0),
     db: AsyncSession = Depends(get_db),
@@ -47,9 +46,7 @@ async def get_direct_room(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await RoomService.get_direct_room(
-        db, current_user["user_id"], direct_room_id
-    )
+    return await RoomService.get_direct_room(db, current_user["user_id"], direct_room_id)
 
 
 @router.post("/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
@@ -72,9 +69,7 @@ async def add_users_to_room(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await RoomService.add_users_to_room(
-        db, current_user["user_id"], room_id, member_data
-    )
+    return await RoomService.add_users_to_room(db, current_user["user_id"], room_id, member_data)
 
 
 @router.delete(

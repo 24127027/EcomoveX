@@ -1,6 +1,8 @@
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from schemas.destination_schema import Geometry, Location
 
 

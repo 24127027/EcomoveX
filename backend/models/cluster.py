@@ -5,12 +5,13 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
-    Index,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from database.db import Base
 
 
@@ -23,9 +24,7 @@ class Cluster(Base):
     algorithm = Column(String(100), nullable=False, index=True)
     description = Column(String(500), nullable=True)  # Thêm mô tả
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     users = relationship(
         "UserClusterAssociation", back_populates="cluster", cascade="all, delete-orphan"
@@ -94,20 +93,14 @@ class Preference(Base):
     )
 
     weather_pref = Column(JSON, nullable=True)  # e.g. {"min_temp": 20, "max_temp": 30}
-    attraction_types = Column(
-        JSON, nullable=True
-    )  # e.g. ["beach", "museum", "mountain"]
+    attraction_types = Column(JSON, nullable=True)  # e.g. ["beach", "museum", "mountain"]
     budget_range = Column(JSON, nullable=True)  # e.g. {"min": 200, "max": 1000}
     kids_friendly = Column(Boolean, default=False)
-    visited_destinations = Column(
-        JSON, nullable=True
-    )  # list of destination IDs or names
+    visited_destinations = Column(JSON, nullable=True)  # list of destination IDs or names
 
     embedding = Column(JSON, nullable=True)
     weight = Column(Float, default=1.0)
-    cluster_id = Column(
-        Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True
-    )
+    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True)
     last_updated = Column(DateTime, default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="preference")

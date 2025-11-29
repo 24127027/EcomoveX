@@ -1,18 +1,18 @@
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.db import get_db
-from schemas.reward_schema import *
 from schemas.message_schema import CommonMessageResponse
+from schemas.reward_schema import *
 from services.reward_service import RewardService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/rewards", tags=["Rewards & Missions"])
 
 
-@router.get(
-    "/missions", response_model=List[MissionResponse], status_code=status.HTTP_200_OK
-)
+@router.get("/missions", response_model=List[MissionResponse], status_code=status.HTTP_200_OK)
 async def get_all_missions(user_db: AsyncSession = Depends(get_db)):
     return await RewardService.get_all_missions(user_db)
 
@@ -28,9 +28,7 @@ async def get_mission_by_id(
     return await RewardService.get_mission_by_id(user_db, mission_id)
 
 
-@router.post(
-    "/missions", response_model=MissionResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/missions", response_model=MissionResponse, status_code=status.HTTP_201_CREATED)
 async def create_mission(
     mission_data: MissionCreate,
     user_db: AsyncSession = Depends(get_db),
@@ -63,9 +61,7 @@ async def update_mission(
     return await RewardService.update_mission(user_db, mission_id, updated_data)
 
 
-@router.get(
-    "/me/missions", response_model=UserRewardResponse, status_code=status.HTTP_200_OK
-)
+@router.get("/me/missions", response_model=UserRewardResponse, status_code=status.HTTP_200_OK)
 async def get_my_completed_missions(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -83,9 +79,7 @@ async def complete_mission(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await RewardService.complete_mission(
-        user_db, current_user["user_id"], mission_id
-    )
+    return await RewardService.complete_mission(user_db, current_user["user_id"], mission_id)
 
 
 @router.delete(

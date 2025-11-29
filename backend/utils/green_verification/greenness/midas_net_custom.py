@@ -5,7 +5,6 @@ https://github.com/thomasjpfan/pytorch_refinenet/blob/master/pytorch_refinenet/r
 
 import torch
 import torch.nn as nn
-
 from base_model import BaseModel
 from blocks import (
     FeatureFusionBlock_custom,
@@ -172,9 +171,7 @@ def fuse_model(m):
             )
         elif prev_previous_type == nn.Conv2d and previous_type == nn.BatchNorm2d:
             # print("FUSED ", prev_previous_name, previous_name)
-            torch.quantization.fuse_modules(
-                m, [prev_previous_name, previous_name], inplace=True
-            )
+            torch.quantization.fuse_modules(m, [prev_previous_name, previous_name], inplace=True)
         # elif previous_type == nn.Conv2d and type(module) == nn.ReLU:
         #    print("FUSED ", previous_name, name)
         #    torch.quantization.fuse_modules(m, [previous_name, name], inplace=True)

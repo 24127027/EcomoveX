@@ -1,6 +1,8 @@
+from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Dict, Any, Optional
+
 from repository.destination_repository import DestinationRepository
 from schemas.destination_schema import *
 from utils.embedded.embedding_utils import encode_text
@@ -10,9 +12,7 @@ class DestinationService:
     @staticmethod
     async def get_destination_by_id(db: AsyncSession, destination_id: str):
         try:
-            destination = await DestinationRepository.get_destination_by_id(
-                db, destination_id
-            )
+            destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -30,9 +30,7 @@ class DestinationService:
     @staticmethod
     async def create_destination(db: AsyncSession, destination_data: DestinationCreate):
         try:
-            new_destination = await DestinationRepository.create_destination(
-                db, destination_data
-            )
+            new_destination = await DestinationRepository.create_destination(db, destination_data)
             if not new_destination:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -92,9 +90,7 @@ class DestinationService:
         db: AsyncSession, user_id: int, destination_id: str
     ) -> UserSavedDestinationResponse:
         try:
-            is_saved = await DestinationRepository.is_saved_destination(
-                db, user_id, destination_id
-            )
+            is_saved = await DestinationRepository.is_saved_destination(db, user_id, destination_id)
             if is_saved:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -126,8 +122,8 @@ class DestinationService:
         db: AsyncSession, user_id: int
     ) -> list[UserSavedDestinationResponse]:
         try:
-            saved_destinations = (
-                await DestinationRepository.get_saved_destinations_for_user(db, user_id)
+            saved_destinations = await DestinationRepository.get_saved_destinations_for_user(
+                db, user_id
             )
             saved_list = []
             for saved in saved_destinations:
@@ -148,9 +144,7 @@ class DestinationService:
             )
 
     @staticmethod
-    async def delete_saved_destination(
-        db: AsyncSession, user_id: int, destination_id: str
-    ):
+    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
             success = await DestinationRepository.delete_saved_destination(
                 db, user_id, destination_id
@@ -175,8 +169,8 @@ class DestinationService:
     @staticmethod
     async def is_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
         try:
-            saved_destinations = (
-                await DestinationRepository.get_saved_destinations_for_user(db, user_id)
+            saved_destinations = await DestinationRepository.get_saved_destinations_for_user(
+                db, user_id
             )
             for saved in saved_destinations:
                 if saved.destination_id == destination_id:
@@ -194,9 +188,7 @@ class DestinationService:
             )
 
     @staticmethod
-    async def embed_destination(
-        db: AsyncSession, destination_data: Dict[str, Any]
-    ) -> List[float]:
+    async def embed_destination(db: AsyncSession, destination_data: Dict[str, Any]) -> List[float]:
         try:
             text_parts = []
 
@@ -224,9 +216,7 @@ class DestinationService:
         db: AsyncSession, destination_id: str, destination_data: Dict[str, Any]
     ) -> Optional[List[float]]:
         try:
-            destination = await DestinationRepository.get_destination_by_id(
-                db, destination_id
-            )
+            destination = await DestinationRepository.get_destination_by_id(db, destination_id)
             if not destination:
                 return None
 

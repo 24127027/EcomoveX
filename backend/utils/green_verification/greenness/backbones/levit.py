@@ -1,9 +1,9 @@
+import numpy as np
 import timm
 import torch
 import torch.nn as nn
-import numpy as np
 
-from .utils import activations, get_activation, Transpose
+from .utils import Transpose, activations, get_activation
 
 
 def forward_levit(pretrained, x):
@@ -37,15 +37,11 @@ def _make_levit_backbone(model, hooks=[3, 11, 21], patch_grid=[14, 14]):
     )
     pretrained.act_postprocess2 = nn.Sequential(
         Transpose(1, 2),
-        nn.Unflatten(
-            2, torch.Size((np.ceil(patch_grid_size / 2).astype(int)).tolist())
-        ),
+        nn.Unflatten(2, torch.Size((np.ceil(patch_grid_size / 2).astype(int)).tolist())),
     )
     pretrained.act_postprocess3 = nn.Sequential(
         Transpose(1, 2),
-        nn.Unflatten(
-            2, torch.Size((np.ceil(patch_grid_size / 4).astype(int)).tolist())
-        ),
+        nn.Unflatten(2, torch.Size((np.ceil(patch_grid_size / 4).astype(int)).tolist())),
     )
 
     return pretrained

@@ -1,11 +1,13 @@
+from typing import Any, Dict, List
+
 import numpy as np
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Dict, Any
-from utils.embedded.faiss_utils import search_index, is_index_ready
-from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from repository.cluster_repository import ClusterRepository
+from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
 from services.cluster_service import ClusterService
+from utils.embedded.faiss_utils import is_index_ready, search_index
 
 
 def blend_scores(
@@ -34,8 +36,7 @@ def blend_scores(
         results = []
         for dest_id, scores in destination_scores.items():
             hybrid_score = (
-                scores["similarity"] * similarity_weight
-                + scores["popularity"] * popularity_weight
+                scores["similarity"] * similarity_weight + scores["popularity"] * popularity_weight
             )
             results.append(
                 RecommendationScore(
@@ -110,9 +111,7 @@ class RecommendationService:
                     detail="FAISS index is not available",
                 )
 
-            cluster_vector = await ClusterService.compute_cluster_embedding(
-                db, cluster_id
-            )
+            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
             if cluster_vector is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -165,9 +164,7 @@ class RecommendationService:
                     detail="FAISS index is not available",
                 )
 
-            cluster_vector = await ClusterService.compute_cluster_embedding(
-                db, cluster_id
-            )
+            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
             if cluster_vector is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -193,8 +190,8 @@ class RecommendationService:
         try:
             await ClusterService.compute_cluster_popularity(db, cluster_id)
 
-            popular_destinations_raw = (
-                await ClusterRepository.get_destinations_in_cluster(db, cluster_id)
+            popular_destinations_raw = await ClusterRepository.get_destinations_in_cluster(
+                db, cluster_id
             )
 
             results = [
@@ -232,9 +229,7 @@ class RecommendationService:
                     detail=f"Could not generate embedding for user {user_id}",
                 )
 
-            cluster_vector = await ClusterService.compute_cluster_embedding(
-                db, cluster_id
-            )
+            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
             if cluster_vector is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,

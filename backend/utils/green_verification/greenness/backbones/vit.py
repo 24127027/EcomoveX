@@ -1,17 +1,18 @@
+import math
+import types
+
+import timm
 import torch
 import torch.nn as nn
-import timm
-import types
-import math
 import torch.nn.functional as F
 
 from .utils import (
+    Transpose,
     activations,
     forward_adapted_unflatten,
     get_activation,
     get_readout_oper,
     make_backbone_default,
-    Transpose,
 )
 
 
@@ -102,9 +103,7 @@ def _make_vit_b16_backbone(
     # We inject this function into the VisionTransformer instances so that
     # we can use it with interpolated position embeddings without modifying the library source.
     pretrained.model.forward_flex = types.MethodType(forward_flex, pretrained.model)
-    pretrained.model._resize_pos_embed = types.MethodType(
-        _resize_pos_embed, pretrained.model
-    )
+    pretrained.model._resize_pos_embed = types.MethodType(_resize_pos_embed, pretrained.model)
 
     return pretrained
 
@@ -153,9 +152,7 @@ def _make_vit_b_rn50_backbone(
             get_activation(str(s + 1))
         )
     for s in range(used_number_stages, 4):
-        pretrained.model.blocks[hooks[s]].register_forward_hook(
-            get_activation(str(s + 1))
-        )
+        pretrained.model.blocks[hooks[s]].register_forward_hook(get_activation(str(s + 1)))
 
     pretrained.activations = activations
 
@@ -214,9 +211,7 @@ def _make_vit_b_rn50_backbone(
 
     # We inject this function into the VisionTransformer instances so that
     # we can use it with interpolated position embeddings without modifying the library source.
-    pretrained.model._resize_pos_embed = types.MethodType(
-        _resize_pos_embed, pretrained.model
-    )
+    pretrained.model._resize_pos_embed = types.MethodType(_resize_pos_embed, pretrained.model)
 
     return pretrained
 

@@ -1,7 +1,9 @@
-import numpy as np
 import json
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
 from sqlalchemy.orm import Session
-from typing import List, Tuple, Dict, Any
+
 from models.destination import DestinationEmbedding
 
 try:
@@ -20,9 +22,7 @@ class FAISSIndex:
         self.index = None
         self.destination_ids = []
 
-    def build_index(
-        self, vectors: np.ndarray, ids: List[str], use_ivf: bool = None
-    ) -> bool:
+    def build_index(self, vectors: np.ndarray, ids: List[str], use_ivf: bool = None) -> bool:
         if not FAISS_AVAILABLE:
             print("FAISS not available")
             return False
@@ -133,8 +133,7 @@ def search_index(
         results = _faiss_index.search(query_arr, k)
 
         return [
-            {"destination_id": dest_id, "similarity_score": score}
-            for dest_id, score in results
+            {"destination_id": dest_id, "similarity_score": score} for dest_id, score in results
         ]
 
     except Exception as e:

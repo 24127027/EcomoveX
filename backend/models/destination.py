@@ -1,17 +1,21 @@
-from enum import Enum
 import json
+from enum import Enum
+
 from sqlalchemy import (
     Column,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from database.db import Base
 
 
@@ -31,9 +35,7 @@ class Destination(Base):
         default=GreenVerifiedStatus.Not_Green_Verified,
     )
 
-    reviews = relationship(
-        "Review", back_populates="destination", cascade="all, delete-orphan"
-    )
+    reviews = relationship("Review", back_populates="destination", cascade="all, delete-orphan")
     plan_destinations = relationship(
         "PlanDestination",
         back_populates="destination",

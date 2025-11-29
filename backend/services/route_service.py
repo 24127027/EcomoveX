@@ -1,10 +1,12 @@
 from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException, status
-from schemas.route_schema import *
-from schemas.map_schema import *
-from services.carbon_service import CarbonService
+
 from integration.route_api import create_route_api_client
 from integration.text_generator_api import create_text_generator_api
+from schemas.map_schema import *
+from schemas.route_schema import *
+from services.carbon_service import CarbonService
 
 
 class RouteService:
@@ -28,17 +30,11 @@ class RouteService:
 
                     transit_steps.append(
                         {
-                            "line": (
-                                transit_details.get("line", {}).get("short_name", "N/A")
-                            ),
+                            "line": (transit_details.get("line", {}).get("short_name", "N/A")),
                             "vehicle": TransportMode.bus,
                             "departure_stop": {
-                                "lat": (
-                                    departure_stop.get("location", {}).get("lat", 0.0)
-                                ),
-                                "lng": (
-                                    departure_stop.get("location", {}).get("lng", 0.0)
-                                ),
+                                "lat": (departure_stop.get("location", {}).get("lat", 0.0)),
+                                "lng": (departure_stop.get("location", {}).get("lng", 0.0)),
                             },
                             "arrival_stop": {
                                 "lat": arrival_stop.get("location", {}).get("lat", 0.0),
@@ -88,9 +84,7 @@ class RouteService:
             distance_km = leg["distance"]
             duration_min = leg["duration"]
 
-            carbon_response = await CarbonService.estimate_transport_emission(
-                mode, distance_km
-            )
+            carbon_response = await CarbonService.estimate_transport_emission(mode, distance_km)
 
             result = RouteData(
                 type=route_type,
@@ -166,9 +160,7 @@ class RouteService:
 
                 if driving_alternatives.routes:
                     for idx, route in enumerate(driving_alternatives.routes):
-                        route_type = (
-                            RouteType.fastest if idx == 0 else RouteType.fastest
-                        )
+                        route_type = RouteType.fastest if idx == 0 else RouteType.fastest
 
                         route_data = await RouteService.process_route_data(
                             route.model_dump(), TransportMode.car, route_type
@@ -291,21 +283,14 @@ class RouteService:
                 if driving_routes:
                     best_driving = min(driving_routes, key=lambda x: x.duration)
                     carbon_saving_percent = (
-                        (
-                            (best_driving.carbon - best_transit.carbon)
-                            / best_driving.carbon
-                            * 100
-                        )
+                        ((best_driving.carbon - best_transit.carbon) / best_driving.carbon * 100)
                         if best_driving.carbon > 0
                         else 0
                     )
 
                     max_acceptable_time = fastest_route.duration * max_time_ratio
 
-                    if (
-                        carbon_saving_percent > 30
-                        or best_transit.duration <= max_acceptable_time
-                    ):
+                    if carbon_saving_percent > 30 or best_transit.duration <= max_acceptable_time:
                         return RouteData(
                             type=RouteType.smart_combination.value,
                             mode=best_transit.mode,
@@ -321,10 +306,7 @@ class RouteService:
                 walk_route = walking_routes[0]
                 max_acceptable_time = fastest_route.duration * max_time_ratio
 
-                if (
-                    walk_route.distance <= 3.0
-                    and walk_route.duration <= max_acceptable_time
-                ):
+                if walk_route.distance <= 3.0 and walk_route.duration <= max_acceptable_time:
                     return RouteData(
                         type=RouteType.smart_combination.value,
                         mode=walk_route.mode,
@@ -347,9 +329,7 @@ class RouteService:
         lowest_carbon_route: RouteData,
     ) -> RecommendResponse:
         try:
-            carbon_savings_vs_fastest = (
-                fastest_route.carbon - lowest_carbon_route.carbon
-            )
+            carbon_savings_vs_fastest = fastest_route.carbon - lowest_carbon_route.carbon
             carbon_savings_percent = (
                 (carbon_savings_vs_fastest / fastest_route.carbon * 100)
                 if fastest_route.carbon > 0
@@ -395,9 +375,7 @@ Key insights:
 Provide a concise recommendation that balances environmental impact and convenience. Focus on the most practical choice for the user."""
 
             text_gen = await create_text_generator_api()
-            ai_recommendation = await text_gen.generate_reply(
-                [{"role": "user", "content": prompt}]
-            )
+            ai_recommendation = await text_gen.generate_reply([{"role": "user", "content": prompt}])
 
             recommended_route = "fastest"
             if (
@@ -407,8 +385,7 @@ Provide a concise recommendation that balances environmental impact and convenie
                 recommended_route = "lowest_carbon"
             elif (
                 RouteType.smart_combination in routes
-                and routes[RouteType.smart_combination].carbon
-                < fastest_route.carbon * 0.7
+                and routes[RouteType.smart_combination].carbon < fastest_route.carbon * 0.7
             ):
                 recommended_route = "smart_combination"
 
@@ -419,11 +396,7 @@ Provide a concise recommendation that balances environmental impact and convenie
             print(f"WARNING: Failed to generate AI recommendation - {str(e)}")
 
             carbon_savings_percent = (
-                (
-                    (fastest_route.carbon - lowest_carbon_route.carbon)
-                    / fastest_route.carbon
-                    * 100
-                )
+                ((fastest_route.carbon - lowest_carbon_route.carbon) / fastest_route.carbon * 100)
                 if fastest_route.carbon > 0
                 else 0
             )

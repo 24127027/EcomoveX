@@ -1,8 +1,10 @@
 from typing import Optional
+
 import httpx
 import requests
-from utils.config import settings
+
 from schemas.route_schema import *
+from utils.config import settings
 
 
 class CarbonAPI:
@@ -38,24 +40,18 @@ class CarbonAPI:
             res = requests.post(url, headers=self.headers, json=params)
 
             if res.status_code != 200:
-                raise ValueError(
-                    f"Error estimating car emissions: HTTP {res.status_code}"
-                )
+                raise ValueError(f"Error estimating car emissions: HTTP {res.status_code}")
 
             data = res.json()
             if "error" in data:
-                raise ValueError(
-                    f"Error in car emissions response: {data.get('error')}"
-                )
+                raise ValueError(f"Error in car emissions response: {data.get('error')}")
 
             return data["co2e"] / passengers if passengers > 1 else data["co2e"]
 
         except requests.exceptions.RequestException as e:
             raise Exception(f"Car estimation failed: {e}")
 
-    async def estimate_electric_bus(
-        self, distance_km: float = 100, passenger: int = 1
-    ) -> float:
+    async def estimate_electric_bus(self, distance_km: float = 100, passenger: int = 1) -> float:
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
@@ -76,9 +72,7 @@ class CarbonAPI:
 
             data = response.json()
             if "error" in data:
-                raise ValueError(
-                    f"Error in electric bus emissions response: {data.get('error')}"
-                )
+                raise ValueError(f"Error in electric bus emissions response: {data.get('error')}")
 
             return data["co2e"] * passenger / 30
         except requests.exceptions.RequestException as e:
@@ -106,9 +100,7 @@ class CarbonAPI:
 
             data = response.json()
             if "error" in data:
-                raise ValueError(
-                    f"Error in motorbike emissions response: {data.get('error')}"
-                )
+                raise ValueError(f"Error in motorbike emissions response: {data.get('error')}")
 
             return data["co2e"]
         except requests.exceptions.RequestException as e:

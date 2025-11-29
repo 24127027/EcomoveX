@@ -1,18 +1,18 @@
 from typing import List
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from services.room_service import RoomService
+
 from repository.friend_repository import FriendRepository
 from repository.user_repository import UserRepository
 from schemas.friend_schema import *
 from schemas.user_schema import *
+from services.room_service import RoomService
 
 
 class FriendService:
     @staticmethod
-    async def send_friend_request(
-        db: AsyncSession, user_id: int, friend_id: int
-    ) -> FriendResponse:
+    async def send_friend_request(db: AsyncSession, user_id: int, friend_id: int) -> FriendResponse:
         try:
             if user_id == friend_id:
                 raise HTTPException(
@@ -34,9 +34,7 @@ class FriendService:
                     detail="Friendship already exists",
                 )
 
-            friendship = await FriendRepository.send_friend_request(
-                db, user_id, friend_id
-            )
+            friendship = await FriendRepository.send_friend_request(db, user_id, friend_id)
             if not friendship:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -62,17 +60,13 @@ class FriendService:
         db: AsyncSession, user_id: int, friend_id: int
     ) -> FriendResponse:
         try:
-            friendship = await FriendRepository.accept_friend_request(
-                db, user_id, friend_id
-            )
+            friendship = await FriendRepository.accept_friend_request(db, user_id, friend_id)
             if not friendship:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Friend request not found",
                 )
-            is_direct_room = await RoomService.is_direct_room_between_users(
-                db, user_id, friend_id
-            )
+            is_direct_room = await RoomService.is_direct_room_between_users(db, user_id, friend_id)
             if not is_direct_room:
                 await RoomService.create_direct_room(db, user_id, friend_id)
 
@@ -93,9 +87,7 @@ class FriendService:
     @staticmethod
     async def reject_friend_request(db: AsyncSession, user_id: int, friend_id: int):
         try:
-            result = await FriendRepository.reject_friend_request(
-                db, user_id, friend_id
-            )
+            result = await FriendRepository.reject_friend_request(db, user_id, friend_id)
             if not result:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -135,9 +127,7 @@ class FriendService:
 
             for friendship in friends:
                 friend_user_id = (
-                    friendship.user1_id
-                    if friendship.user2_id == user_id
-                    else friendship.user2_id
+                    friendship.user1_id if friendship.user2_id == user_id else friendship.user2_id
                 )
                 friend_user = await UserRepository.get_user_by_id(db, friend_user_id)
 
@@ -161,9 +151,7 @@ class FriendService:
             )
 
     @staticmethod
-    async def get_pending_requests(
-        db: AsyncSession, user_id: int
-    ) -> List[FriendResponse]:
+    async def get_pending_requests(db: AsyncSession, user_id: int) -> List[FriendResponse]:
         try:
             requests = await FriendRepository.get_pending_requests(db, user_id)
             request_list = []
@@ -173,9 +161,7 @@ class FriendService:
                     FriendResponse(
                         user_id=user_id,
                         friend_id=(
-                            request.user1_id
-                            if request.user2_id == user_id
-                            else request.user2_id
+                            request.user1_id if request.user2_id == user_id else request.user2_id
                         ),
                         status=request.status,
                         created_at=request.created_at,
@@ -204,9 +190,7 @@ class FriendService:
                     FriendResponse(
                         user_id=user_id,
                         friend_id=(
-                            request.user1_id
-                            if request.user2_id == user_id
-                            else request.user2_id
+                            request.user1_id if request.user2_id == user_id else request.user2_id
                         ),
                         status=request.status,
                         created_at=request.created_at,

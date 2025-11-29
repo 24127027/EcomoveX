@@ -1,6 +1,7 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from models.review import *
 from schemas.review_schema import *
 
@@ -9,9 +10,7 @@ class ReviewRepository:
     @staticmethod
     async def get_all_reviews_by_destination(db: AsyncSession, destination_id: str):
         try:
-            result = await db.execute(
-                select(Review).where(Review.destination_id == destination_id)
-            )
+            result = await db.execute(select(Review).where(Review.destination_id == destination_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching all reviews - {e}")
@@ -133,15 +132,11 @@ class ReviewRepository:
                 "review_count": stats.review_count,
             }
         except SQLAlchemyError as e:
-            print(
-                f"ERROR: fetching review statistics for destination {destination_id} - {e}"
-            )
+            print(f"ERROR: fetching review statistics for destination {destination_id} - {e}")
             return {"avg_rating": 0.0, "review_count": 0}
 
     @staticmethod
-    async def add_review_file(
-        db: AsyncSession, destination_id: str, user_id: int, blob_name: str
-    ):
+    async def add_review_file(db: AsyncSession, destination_id: str, user_id: int, blob_name: str):
         try:
             new_file = ReviewFile(
                 destination_id=destination_id, user_id=user_id, blob_name=blob_name
@@ -185,9 +180,7 @@ class ReviewRepository:
     @staticmethod
     async def remove_review_file(db: AsyncSession, blob_name: str):
         try:
-            result = await db.execute(
-                select(ReviewFile).where(ReviewFile.blob_name == blob_name)
-            )
+            result = await db.execute(select(ReviewFile).where(ReviewFile.blob_name == blob_name))
             file = result.scalar_one_or_none()
             if not file:
                 print(f"WARNING: Review file {blob_name} not found")

@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict, Any, List
 from datetime import datetime
-from models.message import MessageType, MessageStatus
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from models.message import MessageStatus, MessageType
 
 
 class ChatMessage(BaseModel):

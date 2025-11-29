@@ -1,18 +1,20 @@
 from typing import List, Optional
+
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     Path,
     Query,
     UploadFile,
-    File,
-    Form,
-    status,
     WebSocket,
+    status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.db import get_db
-from schemas.message_schema import MessageResponse, CommonMessageResponse
+from schemas.message_schema import CommonMessageResponse, MessageResponse
 from services.message_service import MessageService
 from utils.token.authentication_util import get_current_user
 
@@ -35,17 +37,13 @@ async def search_messages_by_keyword(
     )
 
 
-@router.get(
-    "/{message_id}", response_model=MessageResponse, status_code=status.HTTP_200_OK
-)
+@router.get("/{message_id}", response_model=MessageResponse, status_code=status.HTTP_200_OK)
 async def get_message_by_id(
     message_id: int = Path(..., gt=0),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await MessageService.get_message_by_id(
-        db, current_user["user_id"], message_id
-    )
+    return await MessageService.get_message_by_id(db, current_user["user_id"], message_id)
 
 
 @router.get(
@@ -58,14 +56,10 @@ async def get_messages_in_room(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await MessageService.get_messages_by_room(
-        db, current_user["user_id"], room_id
-    )
+    return await MessageService.get_messages_by_room(db, current_user["user_id"], room_id)
 
 
-@router.post(
-    "/{room_id}", response_model=MessageResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/{room_id}", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def send_message(
     room_id: int = Path(..., gt=0),
     content: Optional[str] = Form(None),
@@ -102,10 +96,6 @@ async def websocket_endpoint(
     token: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = await MessageService.handle_websocket_connection(
-        websocket, db, room_id, token
-    )
+    user_id = await MessageService.handle_websocket_connection(websocket, db, room_id, token)
     if user_id:
-        await MessageService.handle_websocket_message_loop(
-            websocket, db, user_id, room_id
-        )
+        await MessageService.handle_websocket_message_loop(websocket, db, user_id, room_id)

@@ -1,9 +1,11 @@
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.db import get_db
-from services.chatbot_service import ChatbotService
 from schemas.message_schema import ChatMessage
-from typing import Dict, Any
+from services.chatbot_service import ChatbotService
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 

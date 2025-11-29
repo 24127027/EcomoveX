@@ -1,26 +1,25 @@
 import torch
 import torch.nn as nn
-
 from backbones.beit import (
-    _make_pretrained_beitl16_512,
-    _make_pretrained_beitl16_384,
     _make_pretrained_beitb16_384,
-)
-from backbones.swin2 import (
-    _make_pretrained_swin2l24_384,
-    _make_pretrained_swin2b24_384,
-    _make_pretrained_swin2t16_256,
-)
-from backbones.swin import (
-    _make_pretrained_swinl12_384,
+    _make_pretrained_beitl16_384,
+    _make_pretrained_beitl16_512,
 )
 from backbones.levit import (
     _make_pretrained_levit_384,
 )
+from backbones.swin import (
+    _make_pretrained_swinl12_384,
+)
+from backbones.swin2 import (
+    _make_pretrained_swin2b24_384,
+    _make_pretrained_swin2l24_384,
+    _make_pretrained_swin2t16_256,
+)
 from backbones.vit import (
+    _make_pretrained_vitb16_384,
     _make_pretrained_vitb_rn50_384,
     _make_pretrained_vitl16_384,
-    _make_pretrained_vitb16_384,
 )
 
 
@@ -119,9 +118,7 @@ def _make_encoder(
             [256, 512, 1024, 2048], features, groups=groups, expand=expand
         )  # efficientnet_lite3
     elif backbone == "efficientnet_lite3":
-        pretrained = _make_pretrained_efficientnet_lite3(
-            use_pretrained, exportable=exportable
-        )
+        pretrained = _make_pretrained_efficientnet_lite3(use_pretrained, exportable=exportable)
         scratch = _make_scratch(
             [32, 48, 136, 384], features, groups=groups, expand=expand
         )  # efficientnet_lite3
@@ -278,13 +275,9 @@ class ResidualConvUnit(nn.Module):
         """
         super().__init__()
 
-        self.conv1 = nn.Conv2d(
-            features, features, kernel_size=3, stride=1, padding=1, bias=True
-        )
+        self.conv1 = nn.Conv2d(features, features, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv2 = nn.Conv2d(
-            features, features, kernel_size=3, stride=1, padding=1, bias=True
-        )
+        self.conv2 = nn.Conv2d(features, features, kernel_size=3, stride=1, padding=1, bias=True)
 
         self.relu = nn.ReLU(inplace=True)
 

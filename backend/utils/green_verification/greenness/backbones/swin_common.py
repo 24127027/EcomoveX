@@ -1,9 +1,8 @@
-import torch
-
-import torch.nn as nn
 import numpy as np
+import torch
+import torch.nn as nn
 
-from .utils import activations, forward_default, get_activation, Transpose
+from .utils import Transpose, activations, forward_default, get_activation
 
 
 def forward_swin(pretrained, x):
@@ -14,18 +13,10 @@ def _make_swin_backbone(model, hooks=[1, 1, 17, 1], patch_grid=[96, 96]):
     pretrained = nn.Module()
 
     pretrained.model = model
-    pretrained.model.layers[0].blocks[hooks[0]].register_forward_hook(
-        get_activation("1")
-    )
-    pretrained.model.layers[1].blocks[hooks[1]].register_forward_hook(
-        get_activation("2")
-    )
-    pretrained.model.layers[2].blocks[hooks[2]].register_forward_hook(
-        get_activation("3")
-    )
-    pretrained.model.layers[3].blocks[hooks[3]].register_forward_hook(
-        get_activation("4")
-    )
+    pretrained.model.layers[0].blocks[hooks[0]].register_forward_hook(get_activation("1"))
+    pretrained.model.layers[1].blocks[hooks[1]].register_forward_hook(get_activation("2"))
+    pretrained.model.layers[2].blocks[hooks[2]].register_forward_hook(get_activation("3"))
+    pretrained.model.layers[3].blocks[hooks[3]].register_forward_hook(get_activation("4"))
 
     pretrained.activations = activations
 

@@ -1,19 +1,16 @@
-import cv2
-import torch
 import os
 
+import cv2
+import torch
 from dpt_depth import DPTDepthModel
 from midas_net import MidasNet
 from midas_net_custom import MidasNet_small
-from transforms import Resize, NormalizeImage, PrepareForNet
-
 from torchvision.transforms import Compose
+from transforms import NormalizeImage, PrepareForNet, Resize
 
 # Get the path to the models folder relative to this file
 # Go up two levels: greenness -> green_verification, then into models
-MODELS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models"
-)
+MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
 
 default_models = {
     "dpt_beit_large_512": os.path.join(MODELS_DIR, "dpt_beit_large_512.pt"),
@@ -29,9 +26,7 @@ default_models = {
     "dpt_hybrid_384": os.path.join(MODELS_DIR, "dpt_hybrid_384.pt"),
     "midas_v21_384": os.path.join(MODELS_DIR, "midas_v21_384.pt"),
     "midas_v21_small_256": os.path.join(MODELS_DIR, "midas_v21_small_256.pt"),
-    "openvino_midas_v21_small_256": os.path.join(
-        MODELS_DIR, "openvino_midas_v21_small_256.xml"
-    ),
+    "openvino_midas_v21_small_256": os.path.join(MODELS_DIR, "openvino_midas_v21_small_256.xml"),
 }
 
 
@@ -185,9 +180,7 @@ def load_model(
         model = MidasNet(model_path, non_negative=True)
         net_w, net_h = 384, 384
         resize_mode = "upper_bound"
-        normalization = NormalizeImage(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
+        normalization = NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     elif model_type == "midas_v21_small_256":
         model = MidasNet_small(
@@ -200,9 +193,7 @@ def load_model(
         )
         net_w, net_h = 256, 256
         resize_mode = "upper_bound"
-        normalization = NormalizeImage(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
+        normalization = NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     else:
         print(f"model_type '{model_type}' not implemented, use: --model_type large")

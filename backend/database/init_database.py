@@ -1,4 +1,5 @@
 from sqlalchemy import text
+
 from database.db import Base, engine
 from models import *
 

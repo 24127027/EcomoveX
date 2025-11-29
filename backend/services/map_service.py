@@ -1,11 +1,11 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.route_schema import DirectionsResponse
+
 from integration.map_api import create_map_client
-from schemas.destination_schema import DestinationCreate
+from schemas.destination_schema import DestinationCreate, Location
 from schemas.map_schema import *
+from schemas.route_schema import DirectionsResponse
 from services.destination_service import DestinationService
-from schemas.destination_schema import Location
 
 FIELD_GROUPS = {
     PlaceDataCategory.BASIC: [
@@ -31,9 +31,7 @@ FIELD_GROUPS = {
 
 class MapService:
     @staticmethod
-    async def text_search_place(
-        db: AsyncSession, data: TextSearchRequest
-    ) -> TextSearchResponse:
+    async def text_search_place(db: AsyncSession, data: TextSearchRequest) -> TextSearchResponse:
         map_client = await create_map_client()
 
         try:
@@ -60,9 +58,7 @@ class MapService:
             await map_client.close()
 
     @staticmethod
-    async def autocomplete(
-        db: AsyncSession, data: AutocompleteRequest
-    ) -> AutocompleteResponse:
+    async def autocomplete(db: AsyncSession, data: AutocompleteRequest) -> AutocompleteResponse:
         map_client = None
         try:
             map_client = await create_map_client()

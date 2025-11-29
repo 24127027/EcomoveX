@@ -1,6 +1,7 @@
+from enum import Enum
+
 from sqlalchemy import (
     CheckConstraint,
-    Enum as SQLEnum,
     Column,
     DateTime,
     ForeignKey,
@@ -10,10 +11,13 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from database.db import Base
-from enum import Enum
 
 
 class RoomType(str, Enum):
@@ -41,21 +45,15 @@ class Room(Base):
     room_type = Column(SQLEnum(RoomType), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    messages = relationship(
-        "Message", back_populates="room", cascade="all, delete-orphan"
-    )
-    members = relationship(
-        "RoomMember", back_populates="room", cascade="all, delete-orphan"
-    )
+    messages = relationship("Message", back_populates="room", cascade="all, delete-orphan")
+    members = relationship("RoomMember", back_populates="room", cascade="all, delete-orphan")
     direct_info = relationship(
         "RoomDirect", uselist=False, back_populates="room", cascade="all, delete-orphan"
     )
     file_metadata = relationship(
         "Metadata", back_populates="rooms", foreign_keys=[avatar_blob_name]
     )
-    contexts = relationship(
-        "RoomContext", back_populates="room", cascade="all, delete-orphan"
-    )
+    contexts = relationship("RoomContext", back_populates="room", cascade="all, delete-orphan")
 
 
 class RoomDirect(Base):
@@ -66,9 +64,7 @@ class RoomDirect(Base):
         Index("ix_room_direct_users", "user1_id", "user2_id"),  # THÊM
     )
 
-    room_id = Column(
-        Integer, ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True
-    )
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True)
     user1_id = Column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -89,12 +85,8 @@ class RoomMember(Base):
         Index("ix_room_member_role", "room_id", "role"),
     )
 
-    room_id = Column(
-        Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role = Column(SQLEnum(MemberRole), default=MemberRole.member, nullable=False)
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
 

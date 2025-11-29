@@ -1,8 +1,10 @@
+from typing import List
+
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from models.room import RoomType
 from repository.room_repository import RoomRepository
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 from schemas.room_schema import *
 
 
@@ -28,9 +30,7 @@ class RoomService:
             )
 
     @staticmethod
-    async def get_all_rooms_for_user(
-        db: AsyncSession, user_id: int
-    ) -> List[RoomResponse]:
+    async def get_all_rooms_for_user(db: AsyncSession, user_id: int) -> List[RoomResponse]:
         try:
             rooms = await RoomRepository.list_rooms_for_user(db, user_id)
             room_responses = []
@@ -84,15 +84,11 @@ class RoomService:
             )
 
     @staticmethod
-    async def get_all_direct_rooms_for_user(
-        db: AsyncSession, user_id: int
-    ) -> List[RoomResponse]:
+    async def get_all_direct_rooms_for_user(db: AsyncSession, user_id: int) -> List[RoomResponse]:
         try:
             direct_rooms = await RoomRepository.list_direct_rooms_for_user(db, user_id)
             return [
-                RoomResponse(
-                    id=room.id, room_type=room.room_type, created_at=room.created_at
-                )
+                RoomResponse(id=room.id, room_type=room.room_type, created_at=room.created_at)
                 for room in direct_rooms
             ]
         except Exception as e:
@@ -102,13 +98,9 @@ class RoomService:
             )
 
     @staticmethod
-    async def is_direct_room_between_users(
-        db: AsyncSession, user1_id: int, user2_id: int
-    ) -> bool:
+    async def is_direct_room_between_users(db: AsyncSession, user1_id: int, user2_id: int) -> bool:
         try:
-            room = await RoomRepository.get_direct_room_between_users(
-                db, user1_id, user2_id
-            )
+            room = await RoomRepository.get_direct_room_between_users(db, user1_id, user2_id)
             return room is not None
         except Exception as e:
             raise HTTPException(
@@ -123,17 +115,13 @@ class RoomService:
         try:
             user1_id = min(user1_id, user2_id)
             user2_id = max(user1_id, user2_id)
-            room = await RoomRepository.get_direct_room_between_users(
-                db, user1_id, user2_id
-            )
+            room = await RoomRepository.get_direct_room_between_users(db, user1_id, user2_id)
             if not room:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Direct room between user ID {user1_id} and user ID {user2_id} not found",
                 )
-            return RoomResponse(
-                id=room.id, room_type=room.room_type, created_at=room.created_at
-            )
+            return RoomResponse(id=room.id, room_type=room.room_type, created_at=room.created_at)
         except HTTPException:
             raise
         except Exception as e:
@@ -151,9 +139,7 @@ class RoomService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Direct room ID {room_id} not found",
                 )
-            return RoomResponse(
-                id=room.id, room_type=room.room_type, created_at=room.created_at
-            )
+            return RoomResponse(id=room.id, room_type=room.room_type, created_at=room.created_at)
         except HTTPException:
             raise
         except Exception as e:
@@ -163,9 +149,7 @@ class RoomService:
             )
 
     @staticmethod
-    async def create_room(
-        db: AsyncSession, user_id: int, data: RoomCreate
-    ) -> RoomResponse:
+    async def create_room(db: AsyncSession, user_id: int, data: RoomCreate) -> RoomResponse:
         try:
             new_room = await RoomRepository.create_room(db, data)
             if not new_room:
@@ -182,9 +166,7 @@ class RoomService:
                     member_data = RoomMemberCreate(
                         user_id=member_id, room_id=new_room.id, role=MemberRole.member
                     )
-                    member = await RoomRepository.add_member(
-                        db, new_room.id, member_data
-                    )
+                    member = await RoomRepository.add_member(db, new_room.id, member_data)
                     if not member:
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -206,9 +188,7 @@ class RoomService:
             )
 
     @staticmethod
-    async def create_direct_room(
-        db: AsyncSession, user1_id: int, user2_id: int
-    ) -> RoomResponse:
+    async def create_direct_room(db: AsyncSession, user1_id: int, user2_id: int) -> RoomResponse:
         try:
             if user1_id == user2_id:
                 raise HTTPException(
@@ -219,9 +199,7 @@ class RoomService:
             u1_norm = min(user1_id, user2_id)
             u2_norm = max(user1_id, user2_id)
 
-            existing_room = await RoomRepository.get_direct_room_between_users(
-                db, u1_norm, u2_norm
-            )
+            existing_room = await RoomRepository.get_direct_room_between_users(db, u1_norm, u2_norm)
             if existing_room:
                 return RoomResponse(
                     id=existing_room.id,
@@ -260,9 +238,7 @@ class RoomService:
                     detail=f"Room ID {room_id} not found",
                 )
 
-            is_current_user_member = await RoomRepository.is_member(
-                db, current_user_id, room_id
-            )
+            is_current_user_member = await RoomRepository.is_member(db, current_user_id, room_id)
             if not is_current_user_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -272,9 +248,7 @@ class RoomService:
             for user_data in data.data:
                 if user_data.user_id <= 0:
                     continue
-                is_member = await RoomRepository.is_member(
-                    db, user_data.user_id, room_id
-                )
+                is_member = await RoomRepository.is_member(db, user_data.user_id, room_id)
                 if is_member:
                     continue
                 success = await RoomRepository.add_member(db, room_id, user_data)

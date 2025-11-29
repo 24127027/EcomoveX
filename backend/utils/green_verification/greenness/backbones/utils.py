@@ -1,5 +1,4 @@
 import torch
-
 import torch.nn as nn
 
 
@@ -130,9 +129,7 @@ def get_readout_oper(vit_features, features, use_readout, start_index=1):
     elif use_readout == "add":
         readout_oper = [AddReadout(start_index)] * len(features)
     elif use_readout == "project":
-        readout_oper = [
-            ProjectReadout(vit_features, start_index) for out_feat in features
-        ]
+        readout_oper = [ProjectReadout(vit_features, start_index) for out_feat in features]
     else:
         assert (
             False
@@ -161,9 +158,7 @@ def make_backbone_default(
 
     pretrained.activations = activations
 
-    readout_oper = get_readout_oper(
-        vit_features, features, use_readout, start_index_readout
-    )
+    readout_oper = get_readout_oper(vit_features, features, use_readout, start_index_readout)
 
     # 32, 48, 136, 384
     pretrained.act_postprocess1 = nn.Sequential(

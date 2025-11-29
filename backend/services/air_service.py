@@ -1,8 +1,9 @@
-from services.map_service import MapService
-from schemas.air_schema import AirQualityResponse
-from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 from fastapi import HTTPException, status
+
 from integration.air_api import create_air_quality_client
+from schemas.air_schema import AirQualityResponse
+from schemas.map_schema import PlaceDataCategory, PlaceDetailsRequest
+from services.map_service import MapService
 
 
 class AirService:

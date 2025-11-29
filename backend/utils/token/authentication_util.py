@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+
 from utils.config import settings
 
 SECRET_KEY = settings.SECRET_KEY

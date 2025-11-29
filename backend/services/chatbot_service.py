@@ -1,29 +1,24 @@
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from integration.text_generator_api import create_text_generator_api
+from repository.message_repository import MessageRepository
 from services.message_service import MessageService
 from services.plan_service import PlanService
-from sqlalchemy.ext.asyncio import AsyncSession
-from integration.text_generator_api import create_text_generator_api
-from fastapi import HTTPException, status
-from repository.message_repository import MessageRepository
 
 
 class ChatbotService:
     @staticmethod
-    async def process_message(
-        db: AsyncSession, user_id: int, room_id: int, user_text: str
-    ):
+    async def process_message(db: AsyncSession, user_id: int, room_id: int, user_text: str):
         try:
             text_generator_api = None
             try:
                 text_generator_api = await create_text_generator_api()
 
                 # Save user message
-                await MessageRepository.create_text_message(
-                    db, user_id, room_id, user_text
-                )
+                await MessageRepository.create_text_message(db, user_id, room_id, user_text)
 
-                planner_result = await PlanService.handle_intent(
-                    db, user_id, room_id, user_text
-                )
+                planner_result = await PlanService.handle_intent(db, user_id, room_id, user_text)
                 action = planner_result.get("action")
                 plan_data = planner_result if action else None
 
@@ -48,8 +43,7 @@ class ChatbotService:
 
                 if context.active_trip:
                     trip_info = (
-                        f"Người dùng đang có chuyến đi đến "
-                        f"{context.active_trip.destination}"
+                        f"Người dùng đang có chuyến đi đến " f"{context.active_trip.destination}"
                     )
                     messages_for_llm.insert(1, {"role": "system", "content": trip_info})
 
@@ -59,9 +53,7 @@ class ChatbotService:
                 await MessageRepository.create_text_message(db, 0, room_id, bot_reply)
 
                 # Update context with new messages
-                await MessageService.update_context_with_messages(
-                    context, user_text, bot_reply
-                )
+                await MessageService.update_context_with_messages(context, user_text, bot_reply)
 
                 return {
                     "ok": True,

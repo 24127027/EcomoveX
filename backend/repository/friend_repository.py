@@ -1,10 +1,11 @@
+from sqlalchemy import and_, delete, or_, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete, or_, and_, update
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
+
 from models.friend import *
 from models.user import User
-from sqlalchemy.orm import selectinload
 
 
 class FriendRepository:
@@ -17,9 +18,7 @@ class FriendRepository:
 
             existing = await FriendRepository.get_friendship(db, user_id, friend_id)
             if existing:
-                print(
-                    f"WARNING: Friendship already exists between {user_id} and {friend_id}"
-                )
+                print(f"WARNING: Friendship already exists between {user_id} and {friend_id}")
                 return None
 
             friendship_user = Friend(

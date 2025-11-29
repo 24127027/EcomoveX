@@ -1,26 +1,26 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
-from routers.authentication_router import router as auth_router
-from routers.user_router import router as user_router
-from routers.review_router import router as review_router
-from routers.friend_router import router as friend_router
-from routers.destination_router import router as destination_router
-from routers.storage_router import router as storage_router
-from routers.air_router import router as air_router
-from routers.weather_router import router as weather_router
-from routers.map_router import router as map_router
-from routers.route_router import router as route_router
-from routers.reward_router import router as reward_router
-from routers.room_router import router as room_router
-from routers.message_router import router as message_router
-from routers.chatbot_router import router as chatbot_router
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Import database setup
 from database.db import engine
 from database.init_database import init_db
+from routers.air_router import router as air_router
+from routers.authentication_router import router as auth_router
+from routers.chatbot_router import router as chatbot_router
+from routers.destination_router import router as destination_router
+from routers.friend_router import router as friend_router
+from routers.map_router import router as map_router
+from routers.message_router import router as message_router
+from routers.review_router import router as review_router
+from routers.reward_router import router as reward_router
+from routers.room_router import router as room_router
+from routers.route_router import router as route_router
+from routers.storage_router import router as storage_router
+from routers.user_router import router as user_router
+from routers.weather_router import router as weather_router
 from utils.config import settings
 
 

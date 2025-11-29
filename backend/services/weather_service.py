@@ -1,12 +1,13 @@
-from integration.weather_api import create_weather_client
-from schemas.weather_schema import (
-    CurrentWeatherResponse,
-    WeatherForecastResponse,
-    CurrentWeatherRequest,
-    ForecastRequest,
-)
-from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 from fastapi import HTTPException, status
+
+from integration.weather_api import create_weather_client
+from schemas.map_schema import PlaceDataCategory, PlaceDetailsRequest
+from schemas.weather_schema import (
+    CurrentWeatherRequest,
+    CurrentWeatherResponse,
+    ForecastRequest,
+    WeatherForecastResponse,
+)
 from services.map_service import MapService
 
 
@@ -48,9 +49,7 @@ class WeatherService:
             detail = await MapService.get_location_details(request_data)
             location = detail.geometry.location
             weather_client = await create_weather_client()
-            param = ForecastRequest(
-                location=location, hours=hours, unit_system=unit_system
-            )
+            param = ForecastRequest(location=location, hours=hours, unit_system=unit_system)
             return await weather_client.get_forecast_hourly(param=param)
         except HTTPException:
             raise

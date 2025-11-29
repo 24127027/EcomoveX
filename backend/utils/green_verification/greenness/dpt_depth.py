@@ -1,17 +1,16 @@
 import torch
 import torch.nn as nn
-
+from backbones.levit import stem_b4_transpose
 from base_model import BaseModel
 from blocks import (
     FeatureFusionBlock_custom,
     Interpolate,
     _make_encoder,
     forward_beit,
-    forward_swin,
     forward_levit,
+    forward_swin,
     forward_vit,
 )
-from backbones.levit import stem_b4_transpose
 from timm.models.layers import get_act_layer
 
 
@@ -100,9 +99,7 @@ class DPT(BaseModel):
         elif "levit" in backbone:
             self.forward_transformer = forward_levit
             size_refinenet3 = 7
-            self.scratch.stem_transpose = stem_b4_transpose(
-                256, 128, get_act_layer("hard_swish")
-            )
+            self.scratch.stem_transpose = stem_b4_transpose(256, 128, get_act_layer("hard_swish"))
         else:
             self.forward_transformer = forward_vit
 
@@ -134,9 +131,7 @@ class DPT(BaseModel):
             path_3 = self.scratch.refinenet3(layer_3_rn, size=layer_2_rn.shape[2:])
         else:
             path_4 = self.scratch.refinenet4(layer_4_rn, size=layer_3_rn.shape[2:])
-            path_3 = self.scratch.refinenet3(
-                path_4, layer_3_rn, size=layer_2_rn.shape[2:]
-            )
+            path_3 = self.scratch.refinenet3(path_4, layer_3_rn, size=layer_2_rn.shape[2:])
         path_2 = self.scratch.refinenet2(path_3, layer_2_rn, size=layer_1_rn.shape[2:])
         path_1 = self.scratch.refinenet1(path_2, layer_1_rn)
 
@@ -151,12 +146,8 @@ class DPT(BaseModel):
 class DPTDepthModel(DPT):
     def __init__(self, path=None, non_negative=True, **kwargs):
         features = kwargs["features"] if "features" in kwargs else 256
-        head_features_1 = (
-            kwargs["head_features_1"] if "head_features_1" in kwargs else features
-        )
-        head_features_2 = (
-            kwargs["head_features_2"] if "head_features_2" in kwargs else 32
-        )
+        head_features_1 = kwargs["head_features_1"] if "head_features_1" in kwargs else features
+        head_features_2 = kwargs["head_features_2"] if "head_features_2" in kwargs else 32
         kwargs.pop("head_features_1", None)
         kwargs.pop("head_features_2", None)
 

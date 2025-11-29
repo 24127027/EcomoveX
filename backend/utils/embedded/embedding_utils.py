@@ -1,15 +1,15 @@
-import numpy as np
 from typing import List
+
+import numpy as np
 
 
 def patch_torch_compatibility():
     try:
-        import torch.utils._pytree as pytree
         import sys
 
-        if not hasattr(pytree, "register_pytree_node") and hasattr(
-            pytree, "_register_pytree_node"
-        ):
+        import torch.utils._pytree as pytree
+
+        if not hasattr(pytree, "register_pytree_node") and hasattr(pytree, "_register_pytree_node"):
             pytree.register_pytree_node = pytree._register_pytree_node
 
         if "transformers" not in sys.modules:

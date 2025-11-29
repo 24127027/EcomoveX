@@ -1,21 +1,21 @@
 """Compute depth maps for images in the input folder."""
 
-import os
 import glob
-import torch
-import utils
+import os
+
 import cv2
 import numpy as np
-from model_loader import load_model, default_models
+import torch
+from model_loader import default_models, load_model
+
+import utils
 
 first_execution = True
 
 first_execution = True
 
 
-def process(
-    device, model, model_type, image, input_size, target_size, optimize, use_camera
-):
+def process(device, model, model_type, image, input_size, target_size, optimize, use_camera):
     """
     Run the inference and interpolate.
 
@@ -43,9 +43,7 @@ def process(
 
         sample = [np.reshape(image, (1, 3, *input_size))]
         prediction = model(sample)[model.output(0)][0]
-        prediction = cv2.resize(
-            prediction, dsize=target_size, interpolation=cv2.INTER_CUBIC
-        )
+        prediction = cv2.resize(prediction, dsize=target_size, interpolation=cv2.INTER_CUBIC)
     else:
         sample = torch.from_numpy(image).to(device).unsqueeze(0)
 
@@ -181,9 +179,7 @@ def run(
                 utils.write_depth(filename, prediction, grayscale, bits=2)
             else:
                 original_image_bgr = np.flip(original_image_rgb, 2)
-                content = create_side_by_side(
-                    original_image_bgr * 255, prediction, grayscale
-                )
+                content = create_side_by_side(original_image_bgr * 255, prediction, grayscale)
                 cv2.imwrite(filename + ".png", content)
             utils.write_pfm(filename + ".pfm", prediction.astype(np.float32))
 
