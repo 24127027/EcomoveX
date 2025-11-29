@@ -1,9 +1,11 @@
 from typing import List
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.db import get_db
-from schemas.plan_schema import *
 from schemas.message_schema import CommonMessageResponse
+from schemas.plan_schema import *
 from services.plan_service import PlanService
 from utils.token.authentication_util import get_current_user
 
@@ -33,73 +35,16 @@ async def update_plan(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await PlanService.update_plan(
-        db, current_user["user_id"], plan_id, updated_data
-    )
+    return await PlanService.update_plan(db, current_user["user_id"], plan_id, updated_data)
 
 
-@router.delete(
-    "/{plan_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK
-)
+@router.delete("/{plan_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
 async def delete_plan(
     plan_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     return await PlanService.delete_plan(db, current_user["user_id"], plan_id)
-
-
-@router.get(
-    "/{plan_id}/destinations",
-    response_model=List[PlanDestinationResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_plan_destinations(
-    plan_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await PlanService.get_plan_destinations(db, plan_id, current_user["user_id"])
-
-
-@router.post(
-    "/{plan_id}/destinations",
-    response_model=PlanDestinationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_destination_to_plan(
-    plan_id: int,
-    data: PlanDestinationCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    return await PlanService.add_destination_to_plan(db, plan_id, data)
-
-
-@router.put(
-    "/destinations/{plan_destination_id}",
-    response_model=PlanDestinationResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def update_plan_destination(
-    plan_destination_id: int,
-    updated_data: PlanDestinationUpdate,
-    db: AsyncSession = Depends(get_db),
-):
-    return await PlanService.update_plan_destination(
-        db, plan_destination_id, updated_data
-    )
-
-
-@router.delete(
-    "/destinations/{plan_destination_id}",
-    response_model=CommonMessageResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def remove_destination_from_plan(
-    plan_destination_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    return await PlanService.remove_destination_from_plan(db, plan_destination_id)
 
 
 @router.get(
@@ -139,6 +84,4 @@ async def remove_members_from_plan(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await PlanService.remove_plan_member(
-        db, current_user["user_id"], plan_id, data
-    )
+    return await PlanService.remove_plan_member(db, current_user["user_id"], plan_id, data)

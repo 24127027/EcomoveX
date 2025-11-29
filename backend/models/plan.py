@@ -1,9 +1,9 @@
 from enum import Enum
+
 from sqlalchemy import (
     Column,
     Date,
     DateTime,
-    Enum as SQLEnum,
     Float,
     ForeignKey,
     Index,
@@ -12,7 +12,11 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
+
 from database.db import Base
 
 
@@ -45,9 +49,7 @@ class Plan(Base):
     destinations = relationship(
         "PlanDestination", back_populates="plan", cascade="all, delete-orphan"
     )
-    members = relationship(
-        "PlanMember", back_populates="plan", cascade="all, delete-orphan"
-    )
+    members = relationship("PlanMember", back_populates="plan", cascade="all, delete-orphan")
 
 
 class PlanDestination(Base):
@@ -59,9 +61,7 @@ class PlanDestination(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_in_day = Column(Integer, nullable=False)
-    plan_id = Column(
-        Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False
-    )
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
     destination_id = Column(
         String(255),
         ForeignKey("destinations.place_id", ondelete="CASCADE"),

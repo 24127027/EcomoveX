@@ -1,7 +1,54 @@
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List, Dict, Any
 from datetime import date, datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from models.plan import DestinationType, PlanRole
+
+
+class PlanDestinationCreate(BaseModel):
+    destination_id: str
+    destination_type: DestinationType
+    order_in_day: int
+    visit_date: date
+    estimated_cost: Optional[float] = Field(None, ge=0)
+    url: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PlanMemberCreate(BaseModel):
+    user_id: int
+    role: PlanRole = PlanRole.member
+
+
+class PlanDestinationUpdate(BaseModel):
+    visit_date: Optional[date] = None
+    order_in_day: Optional[int] = None
+    estimated_cost: Optional[float] = Field(None, ge=0)
+    url: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PlanDestinationResponse(BaseModel):
+    id: int
+    destination_id: str
+    type: DestinationType
+    order_in_day: int
+    visit_date: date
+    estimated_cost: Optional[float] = None
+    url: Optional[str] = None
+    note: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PlanMemberDetailResponse(BaseModel):
+    user_id: int
+    plan_id: int
+    role: PlanRole
+    joined_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlanCreate(BaseModel):
@@ -9,6 +56,7 @@ class PlanCreate(BaseModel):
     start_date: date
     end_date: date
     budget_limit: Optional[float] = Field(None, gt=0)
+    destinations: List[PlanDestinationResponse] = Field(default_factory=list)
 
     @field_validator("place_name")
     @classmethod
@@ -30,6 +78,7 @@ class PlanUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     budget_limit: Optional[float] = Field(None, gt=0)
+    destinations: Optional[List[PlanDestinationResponse]] = Field(default_factory=list)
 
     @field_validator("place_name")
     @classmethod
@@ -37,47 +86,6 @@ class PlanUpdate(BaseModel):
         if v is not None and not v.strip():
             raise ValueError("Place name cannot be empty or whitespace")
         return v.strip() if v else None
-
-
-class PlanDestinationCreate(BaseModel):
-    destination_id: str
-    destination_type: DestinationType
-    visit_date: date
-    estimated_cost: Optional[float] = Field(None, ge=0)
-    url: Optional[str] = None
-    note: Optional[str] = None
-
-
-class PlanDestinationUpdate(BaseModel):
-    visit_date: Optional[date] = None
-    estimated_cost: Optional[float] = Field(None, ge=0)
-    note: Optional[str] = None
-
-
-class PlanMemberCreate(BaseModel):
-    user_id: int
-    role: PlanRole = PlanRole.member
-
-
-class PlanDestinationResponse(BaseModel):
-    id: int
-    destination_id: str
-    type: DestinationType
-    visit_date: date
-    estimated_cost: Optional[float] = None
-    url: Optional[str] = None
-    note: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PlanMemberDetailResponse(BaseModel):
-    user_id: int
-    plan_id: int
-    role: PlanRole
-    joined_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class PlanResponse(BaseModel):
@@ -92,7 +100,7 @@ class PlanResponse(BaseModel):
 
 
 class MemberCreate(BaseModel):
-    ids: List[int] = Field(..., min_length=1)
+    ids: List[PlanMemberCreate] = Field(..., min_length=1)
 
 
 class MemberDelete(BaseModel):
