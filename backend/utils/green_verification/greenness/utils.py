@@ -210,3 +210,4 @@ def load_image_from_url(url):
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     img_rgb = img_rgb.astype(np.float32) / 255.0
     return img_rgb
+
