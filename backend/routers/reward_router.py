@@ -1,7 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.utils.token.authorizer import require_roles
+from utils.token.authorizer import require_roles
 from database.db import get_db
 from schemas.reward_schema import *
 from schemas.message_schema import CommonMessageResponse
