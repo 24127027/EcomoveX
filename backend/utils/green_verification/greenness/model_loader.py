@@ -1,10 +1,10 @@
 import cv2
 import torch
 
-from midas.dpt_depth import DPTDepthModel
-from midas.midas_net import MidasNet
-from midas.midas_net_custom import MidasNet_small
-from midas.transforms import Resize, NormalizeImage, PrepareForNet
+from dpt_depth import DPTDepthModel
+from midas_net import MidasNet
+from midas_net_custom import MidasNet_small
+from transforms import Resize, NormalizeImage, PrepareForNet
 
 from torchvision.transforms import Compose
 
@@ -41,8 +41,6 @@ def load_model(device, model_path, model_type="dpt_large_384", optimize=True, he
         The loaded network, the transform which prepares images as input to the network and the dimensions of the
         network input
     """
-    if "openvino" in model_type:
-        from openvino.runtime import Core
 
     keep_aspect_ratio = not square
 
@@ -184,27 +182,9 @@ def load_model(device, model_path, model_type="dpt_large_384", optimize=True, he
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
 
-    elif model_type == "openvino_midas_v21_small_256":
-        ie = Core()
-        uncompiled_model = ie.read_model(model=model_path)
-        model = ie.compile_model(uncompiled_model, "CPU")
-        net_w, net_h = 256, 256
-        resize_mode = "upper_bound"
-        normalization = NormalizeImage(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
-
     else:
         print(f"model_type '{model_type}' not implemented, use: --model_type large")
         assert False
-
-    if not "openvino" in model_type:
-        print("Model loaded, number of parameters = {:.0f}M".format(sum(p.numel() for p in model.parameters()) / 1e6))
-    else:
-        print("Model loaded, optimized with OpenVINO")
-
-    if "openvino" in model_type:
-        keep_aspect_ratio = False
 
     if height is not None:
         net_w, net_h = height, height

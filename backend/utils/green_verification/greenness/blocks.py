@@ -1,28 +1,28 @@
 import torch
 import torch.nn as nn
 
-from .backbones.beit import (
+from backbones.beit import (
     _make_pretrained_beitl16_512,
     _make_pretrained_beitl16_384,
     _make_pretrained_beitb16_384,
     forward_beit,
 )
-from .backbones.swin_common import (
+from backbones.swin_common import (
     forward_swin,
 )
-from .backbones.swin2 import (
+from backbones.swin2 import (
     _make_pretrained_swin2l24_384,
     _make_pretrained_swin2b24_384,
     _make_pretrained_swin2t16_256,
 )
-from .backbones.swin import (
+from backbones.swin import (
     _make_pretrained_swinl12_384,
 )
-from .backbones.levit import (
+from backbones.levit import (
     _make_pretrained_levit_384,
     forward_levit,
 )
-from .backbones.vit import (
+from backbones.vit import (
     _make_pretrained_vitb_rn50_384,
     _make_pretrained_vitl16_384,
     _make_pretrained_vitb16_384,
@@ -80,12 +80,6 @@ def _make_encoder(backbone, features, use_pretrained, groups=1, expand=False, ex
         scratch = _make_scratch(
             [192, 384, 768, 1536], features, groups=groups, expand=expand
         )  # Swin-L/12 (backbone)
-    elif backbone == "next_vit_large_6m":
-        from .backbones.next_vit import _make_pretrained_next_vit_large_6m
-        pretrained = _make_pretrained_next_vit_large_6m(hooks=hooks)
-        scratch = _make_scratch(
-            in_features, features, groups=groups, expand=expand
-        )  # Next-ViT-L on ImageNet-1K-6M (backbone)
     elif backbone == "levit_384":
         pretrained = _make_pretrained_levit_384(
             use_pretrained, hooks=hooks

@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from .base_model import BaseModel
-from .blocks import (
+from base_model import BaseModel
+from blocks import (
     FeatureFusionBlock_custom,
     Interpolate,
     _make_encoder,
@@ -11,7 +11,7 @@ from .blocks import (
     forward_levit,
     forward_vit,
 )
-from .backbones.levit import stem_b4_transpose
+from backbones.levit import stem_b4_transpose
 from timm.models.layers import get_act_layer
 
 
@@ -88,9 +88,6 @@ class DPT(BaseModel):
             self.forward_transformer = forward_beit
         elif "swin" in backbone:
             self.forward_transformer = forward_swin
-        elif "next_vit" in backbone:
-            from .backbones.next_vit import forward_next_vit
-            self.forward_transformer = forward_next_vit
         elif "levit" in backbone:
             self.forward_transformer = forward_levit
             size_refinenet3 = 7

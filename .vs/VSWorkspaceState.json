@@ -3,8 +3,10 @@
     "",
     "\\backend",
     "\\backend\\.pytest_cache",
-    "\\backend\\database"
+    "\\backend\\utils",
+    "\\backend\\utils\\green_verification",
+    "\\backend\\utils\\green_verification\\greenness"
   ],
-  "SelectedNode": "\\backend\\database\\db.py",
+  "SelectedNode": "\\backend\\utils\\green_verification\\greenness\\midas_v21_small_256.pt",
   "PreviewInSolutionExplorer": false
 }

@@ -5,7 +5,7 @@ import re
 import numpy as np
 import cv2
 import torch
-
+import requests
 
 def read_pfm(path):
     """Read pfm file.
@@ -197,3 +197,16 @@ def write_depth(path, depth, grayscale, bits=1):
         cv2.imwrite(path + ".png", out.astype("uint16"))
 
     return
+
+def load_image_from_url(url):
+    """Download image → decode using cv2 → return RGB float32 in [0,1]."""
+    resp = requests.get(url)
+    data = np.frombuffer(resp.content, np.uint8)
+    img_bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+    if img_bgr is None:
+        raise Exception(f"Failed to decode image at {url}")
+
+    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    img_rgb = img_rgb.astype(np.float32) / 255.0
+    return img_rgb
