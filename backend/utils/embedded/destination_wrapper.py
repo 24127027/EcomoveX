@@ -1,6 +1,7 @@
 from models.destination import Destination
 from services.map_service import MapService
 
+
 class DestinationEmbeddingService:
     def __init__(self, encoder, google_client, model_version: str):
         self.encoder = encoder
@@ -19,16 +20,16 @@ class DestinationEmbeddingService:
             "embedding": vector,
             "model_version": self.model_version,
         }
-        
+
     def _build_text(self, place):
         name = place.name or ""
         types = ", ".join(place.types or [])
         address = place.formatted_address or ""
         rating = place.rating or "N/A"
         description = (
-            getattr(place, "editorial_summary", None) or
-            getattr(place, "editorial_summary_description", None) or
-            ""
+            getattr(place, "editorial_summary", None)
+            or getattr(place, "editorial_summary_description", None)
+            or ""
         )
 
         return (
@@ -38,7 +39,6 @@ class DestinationEmbeddingService:
             f"Rating: {rating}\n"
             f"Description: {description}\n"
         ).strip()
-        
 
     async def _encode(self, text: str):
         return await self.encoder.encode(text)
