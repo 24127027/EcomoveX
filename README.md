@@ -80,7 +80,7 @@ Make sure the following are installed:
 
 ---
 
-### **Frontend Setup**
+### **1. Frontend Setup**
 ```bash
 cd frontend
 npm install
@@ -89,7 +89,15 @@ npm run dev
 
 ---
 
-### **Backend Setup**
+### **2. Backend Setup**
+#### 1. Initialize Database:
+- Ensure your PostgreSQL service is running.
+- Run the database initialization script in virtual enviroment.
+```bash
+    cd backend
+    python database/create_all_database.py
+```
+#### 2. Start the Backend Server:
 ```bash
 cd backend
 uv venv -p 3.10
