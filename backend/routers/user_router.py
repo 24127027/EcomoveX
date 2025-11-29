@@ -114,7 +114,7 @@ async def log_user_activity(
 
 @router.get("/users", 
             dependencies=[Depends(require_roles(["Admin"]))],
-            response_model=List[UserResponse], 
+            response_model=list[UserResponse], 
             status_code=status.HTTP_200_OK)
 async def list_users(
     filters: UserFilterParams = Depends(),
