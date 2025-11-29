@@ -185,9 +185,9 @@ def run(
 
 
 if __name__ == "__main__":
-    input_path = "D:\\MyML\\green\\MiDaS\\input"
-    output_path = "D:\\MyML\\green\\MiDaS\\output"
-    model_path = None  # use default model
-    run(input_path, output_path, model_path, model_type="dpt_swin2_large_384", optimize=True, side=False, height=None,
+    input_path = "image.jpg"
+    output_path = "\\output"
+    model_path = "midas_v21_384.pt"
+    run(input_path, output_path, model_path, model_type="midas_v21_384", optimize=True, side=False, height=None,
         square=False, grayscale=False)
 

@@ -1,9 +1,10 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import asyncio
 from math import radians, cos, sin, asin, sqrt
 from sqlalchemy import text
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.cluster_repository import ClusterRepository
@@ -12,6 +13,8 @@ from schemas.destination_schema import Location, DestinationCreate
 from fastapi import HTTPException, status
 from repository.cluster_repository import ClusterRepository
 from services.cluster_service import ClusterService
+from utils.embedded.faiss_utils import is_index_ready, search_index
+from destination_service import DestinationService
 
 def blend_scores(
     similarity_items: List[Dict[str, Any]],
@@ -63,61 +66,6 @@ class RecommendationService:
         self.session = session
         if not is_index_ready():
             raise RuntimeError("FAISS index is not available.")
-    
-    @staticmethod
-    async def sort_recommendations_by_place_details(
-        db: AsyncSession,
-        recommendations: List[Dict[str, Any]],
-        sort_by: str = "rating",
-        ascending: bool = False
-    ) -> List[Dict[str, Any]]:
-        """
-        Sort recommendations by place details (rating, review_count, price_level).
-        
-        Args:
-            db: Database session
-            recommendations: List of recommendation items with destination_id
-            sort_by: Field to sort by (rating, review_count, price_level)
-            ascending: Sort order (False for descending, True for ascending)
-        """
-        try:
-            if not recommendations:
-                return []
-            
-            destination_ids = [rec['destination_id'] for rec in recommendations]
-            
-            query = text("""
-                SELECT destination_id, rating, review_count, price_level
-                FROM destinations
-                WHERE destination_id = ANY(:ids)
-            """)
-            
-            result = await db.execute(query, {"ids": destination_ids})
-            place_details = {row.destination_id: dict(row._mapping) for row in result}
-            
-            for rec in recommendations:
-                dest_id = rec['destination_id']
-                if dest_id in place_details:
-                    rec['rating'] = place_details[dest_id].get('rating', 0)
-                    rec['review_count'] = place_details[dest_id].get('review_count', 0)
-                    rec['price_level'] = place_details[dest_id].get('price_level', 0)
-                else:
-                    rec['rating'] = 0
-                    rec['review_count'] = 0
-                    rec['price_level'] = 0
-            
-            recommendations.sort(
-                key=lambda x: x.get(sort_by, 0),
-                reverse=not ascending
-            )
-            
-            return recommendations
-            
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error sorting recommendations by place details: {str(e)}"
-            )
     
     @staticmethod
     async def sort_recommendations_by_user_cluster_affinity(
@@ -341,112 +289,34 @@ class RecommendationService:
                 detail=f"Error generating hybrid recommendations for cluster {cluster_id}: {str(e)}",
             )
 
-    @staticmethod
-    async def recommend_for_cluster_similarity(
-        db: AsyncSession, cluster_id: int, k: int = 10
-    ) -> List[Dict[str, Any]]:
-        """Pure similarity-based recommendations for a cluster."""
-        try:
-            if not is_index_ready():
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="FAISS index is not available",
-                )
-
-            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
-            if cluster_vector is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not compute embedding for cluster {cluster_id}",
-                )
-
-            results = search_index(cluster_vector.tolist(), k=k)
-            return results
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating similarity recommendations for cluster {cluster_id}: {str(e)}",
-            )
-
+    
     @staticmethod
     async def recommend_for_cluster_popularity(
         db: AsyncSession,
         cluster_id: int,
     ) -> List[Dict[str, Any]]:
-        try:
+        try:            
             await ClusterService.compute_cluster_popularity(db, cluster_id)
-
-            popular_destinations_raw = await ClusterRepository.get_destinations_in_cluster(
-                db, cluster_id
-            )
-
+            
+            popular_destinations_raw = await ClusterRepository.get_destinations_in_cluster(db, cluster_id)
+            
             results = [
                 {
-                    "destination_id": dest.destination_id,
-                    "popularity_score": dest.popularity_score / 100.0,
+                    'destination_id': dest.destination_id,
+                    'popularity_score': dest.popularity_score / 100.0
                 }
                 for dest in popular_destinations_raw
             ]
-
+            
             return results
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating popularity recommendations for cluster {cluster_id}: {str(e)}",
+                detail=f"Error generating popularity recommendations for cluster {cluster_id}: {str(e)}"
             )
-
-    @staticmethod
-    async def recommend_destination_based_on_user_cluster(
-        db: AsyncSession, user_id: int, cluster_id: int, k: int = 10
-    ) -> List[str]:
-        try:
-            if not is_index_ready():
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="FAISS index is not available",
-                )
-
-            user_vector = await ClusterService.embed_preference(db, user_id)
-            if user_vector is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not generate embedding for user {user_id}",
-                )
-
-            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
-            if cluster_vector is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not compute embedding for cluster {cluster_id}",
-                )
-
-            u_vec = np.array(user_vector, dtype=np.float32)
-            c_vec = np.array(cluster_vector, dtype=np.float32)
-
-            combined_vector = (u_vec + c_vec) / 2
-
-            norm = np.linalg.norm(combined_vector)
-            if norm > 0:
-                combined_vector = combined_vector / norm
-
-            results = search_index(combined_vector.tolist(), k=k)
-
-            destination_ids = [item["destination_id"] for item in results]
-
-            return destination_ids
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating recommendations for user {user_id} and cluster {cluster_id}: {str(e)}",
-            )
+    
     
     @staticmethod
     async def recommend_nearby_by_cluster_tags(
