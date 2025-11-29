@@ -5,11 +5,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import Rank
 from repository.user_repository import UserRepository
-from schemas.user_schema import *
+from schemas.user_schema import (
+    UserActivityCreate,
+    UserActivityResponse,
+    UserCredentialUpdate,
+    UserFilterParams,
+    UserProfileUpdate,
+    UserResponse,
+    UserUpdateEcoPoint,
+)
 from services.storage_service import StorageService
 
 
 class UserService:
+    @staticmethod
+    async def list_users(db: AsyncSession, filters: UserFilterParams) -> List[UserResponse]:
+        try:
+            users = await UserRepository.list_users(db, filters)
+            user_responses = []
+            for user in users:
+                avt_url = None
+                cover_url = None
+                user_responses.append(
+                    UserResponse(
+                        id=user.id,
+                        username=user.username,
+                        email=user.email,
+                        eco_point=user.eco_point,
+                        rank=user.rank,
+                        avt_url=avt_url,
+                        cover_url=cover_url,
+                    )
+                )
+            return user_responses
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error listing users: {e}",
+            )
+
     @staticmethod
     async def get_user_by_id(db: AsyncSession, user_id: int) -> UserResponse:
         try:

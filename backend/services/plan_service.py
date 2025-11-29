@@ -1,9 +1,24 @@
+from typing import List
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models.plan import PlanRole
 from repository.plan_repository import PlanRepository
-from schemas.map_schema import *
-from schemas.plan_schema import *
+from schemas.map_schema import PlaceDetailsRequest
+from schemas.plan_schema import (
+    IntentHandlerResponse,
+    MemberCreate,
+    MemberDelete,
+    PlanCreate,
+    PlanDestinationCreate,
+    PlanDestinationResponse,
+    PlanDestinationUpdate,
+    PlanMemberCreate,
+    PlanMemberResponse,
+    PlanResponse,
+    PlanUpdate,
+)
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine

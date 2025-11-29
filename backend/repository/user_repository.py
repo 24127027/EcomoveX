@@ -11,6 +11,38 @@ from schemas.user_schema import *
 
 class UserRepository:
     @staticmethod
+    async def fetch_users(db: AsyncSession, filters: UserFilterParams) -> List[User]:
+        """
+        Fetch raw User ORM objects from DB with filters & pagination
+        """
+        try:
+            query = select(User).order_by(User.created_at.desc())
+
+            if filters.search_term:
+                search = f"%{filters.search_term}%"
+                query = query.where((User.username.ilike(search)) | (User.email.ilike(search)))
+
+            if filters.role:
+                query = query.where(User.role == filters.role)
+
+            if filters.status:
+                query = query.where(User.status == filters.status)
+
+            if filters.created_from:
+                query = query.where(User.created_at >= filters.created_from)
+
+            if filters.created_to:
+                query = query.where(User.created_at <= filters.created_to)
+
+            query = query.offset(filters.skip).limit(filters.limit)
+
+            result = await db.execute(query)
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: Failed to list users - {e}")
+            return []
+
+    @staticmethod
     async def get_user_by_id(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(select(User).where(User.id == user_id))

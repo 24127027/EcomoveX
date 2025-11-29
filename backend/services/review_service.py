@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.destination_repository import DestinationRepository
 from repository.review_repository import ReviewRepository
-from schemas.review_schema import *
+from schemas.review_schema import ReviewCreate, ReviewResponse, ReviewUpdate
 from schemas.storage_schema import FileCategory
 from services.storage_service import StorageService
 

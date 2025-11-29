@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -153,6 +153,44 @@ class PlanRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: adding destination {data.destination_id} to plan {plan_id} - {e}")
+            return None
+
+    @staticmethod
+    async def update_plan_destination(
+        db: AsyncSession, plan_id: int, destination_id: str, updated_data: PlanDestinationUpdate
+    ):
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(
+                    PlanDestination.plan_id == plan_id,
+                    PlanDestination.destination_id == destination_id,
+                )
+            )
+            plan_dest = result.scalar_one_or_none()
+            if not plan_dest:
+                print(
+                    f"WARNING: WARNING: Destination {destination_id} in plan ID {plan_id} not found"
+                )
+                return None
+
+            if updated_data.visit_date is not None:
+                plan_dest.visit_date = updated_data.visit_date
+            if updated_data.order_in_day is not None:
+                plan_dest.order_in_day = updated_data.order_in_day
+            if updated_data.estimated_cost is not None:
+                plan_dest.estimated_cost = updated_data.estimated_cost
+            if updated_data.url is not None:
+                plan_dest.url = updated_data.url
+            if updated_data.note is not None:
+                plan_dest.note = updated_data.note
+
+            db.add(plan_dest)
+            await db.commit()
+            await db.refresh(plan_dest)
+            return plan_dest
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating destination {destination_id} in plan ID {plan_id} - {e}")
             return None
 
     @staticmethod

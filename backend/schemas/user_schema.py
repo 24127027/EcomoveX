@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from models.user import *
+from models.user import Activity, Rank
 
 
 class UserCreate(BaseModel):
@@ -83,3 +83,13 @@ class UserActivityResponse(BaseModel):
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserFilterParams(BaseModel):
+    role: Optional[str] = None
+    status: Optional[str] = None
+    search: Optional[str] = None
+    created_from: Optional[date] = None
+    created_to: Optional[date] = None
+    skip: int = 0
+    limit: int = 20

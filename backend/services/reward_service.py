@@ -2,7 +2,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.mission_repository import MissionRepository
-from schemas.reward_schema import *
+from schemas.reward_schema import (
+    MissionCreate,
+    MissionResponse,
+    MissionUpdate,
+    UserRewardResponse,
+)
 
 
 class RewardService:

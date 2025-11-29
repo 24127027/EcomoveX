@@ -3,9 +3,15 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.room import RoomType
+from models.room import MemberRole, RoomType
 from repository.room_repository import RoomRepository
-from schemas.room_schema import *
+from schemas.room_schema import (
+    AddMemberRequest,
+    RemoveMemberRequest,
+    RoomCreate,
+    RoomMemberCreate,
+    RoomResponse,
+)
 
 
 class RoomService:

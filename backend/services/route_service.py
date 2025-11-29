@@ -4,8 +4,18 @@ from fastapi import HTTPException, status
 
 from integration.route_api import create_route_api_client
 from integration.text_generator_api import create_text_generator_api
-from schemas.map_schema import *
-from schemas.route_schema import *
+from schemas.route_schema import (
+    DirectionsRequest,
+    FindRoutesRequest,
+    FindRoutesResponse,
+    RecommendResponse,
+    RouteData,
+    RouteType,
+    TransitDetails,
+    TransitStep,
+    TransportMode,
+    WalkingStep,
+)
 from services.carbon_service import CarbonService
 
 
