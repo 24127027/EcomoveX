@@ -90,16 +90,3 @@ class TreeSegmenter:
         return masks_list, combined_mask
 
 
-# --------------------------
-# TEST
-# --------------------------
-if __name__ == "__main__":
-    url = "https://lh3.googleusercontent.com/p/AF1QipPS3uWXNBReKwqeqmC4fAyAejox0cemlEHA5YYQ=w203-h135-k-no"
-
-    segmenter = TreeSegmenter("best.pt")
-    masks_list, combined_mask = segmenter.process_image(url)
-
-    print(f"Detected {len(masks_list)} objects")
-    print("Combined mask shape:", combined_mask.shape)
-
-    cv2.imwrite("combined_mask.png", combined_mask)
