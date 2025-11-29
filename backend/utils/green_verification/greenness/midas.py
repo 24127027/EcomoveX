@@ -157,9 +157,9 @@ def run(input_path, output_path, model_path = None, model_type="dpt_swin2_large_
 
 
 if __name__ == "__main__":
-    input_path = "D:\\MyML\\green\\MiDaS\\input"
-    output_path = "D:\\MyML\\green\\MiDaS\\output"
-    model_path = None  # use default model
-    run(input_path, output_path, model_path, model_type="dpt_swin2_large_384", optimize=True, side=False, height=None,
+    input_path = "image.jpg"
+    output_path = "\\backend\\utils\\green_verification\\greenness\\outputs"
+    model_path = "midas_v21_small_256.pt"
+    run(input_path, output_path, model_path, model_type="midas_v21_small_256", optimize=True, side=False, height=None,
         square=False, grayscale=False)
 
