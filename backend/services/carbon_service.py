@@ -9,7 +9,7 @@ class CarbonService:
         mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
-    ):
+    ) -> float:
         carbonAPI = None
         try:
             carbonAPI = await create_carbonAPI_client()
