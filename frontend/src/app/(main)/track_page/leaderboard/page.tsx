@@ -57,12 +57,6 @@ export default function TrackPage() {
         }
     };
 
-    const handleTabChange = (tab: string) => {
-        setActiveTab(tab);
-        // In a real Next.js app, you would use router.push() here
-        // router.push(`/${tab}`);
-    };
-
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto">
             {/* Main Content */}
@@ -103,15 +97,6 @@ export default function TrackPage() {
                     View CO2 emissions by transportation type between two locations.
                 </p>
 
-                {/* Calculate Button */}
-                <button
-                    onClick={handleCalculate}
-                    disabled={!fromLocation || !toLocation}
-                    className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold mb-8 hover:bg-green-700 active:bg-green-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                    Calculate Emissions
-                </button>
-
                 {/* CO2 Saved Card */}
                 <div className="relative">
                     {/* Plant Icon Circle */}
@@ -131,19 +116,18 @@ export default function TrackPage() {
                         <div className="text-6xl font-bold mb-2">
                             {co2Saved.toFixed(1)} Kg
                         </div>
-                        <p className="text-sm opacity-75">This month</p>
                     </div>
-                </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-4 mt-6">
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-2 gap-4 mt-6">
+                      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-sm mb-1">Trips</div>
                         <div className="text-2xl font-bold text-gray-800">0</div>
-                    </div>
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                      </div>
+                      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-sm mb-1">Trees Saved</div>
                         <div className="text-2xl font-bold text-green-600">0</div>
+                      </div>
                     </div>
                 </div>
             </div>

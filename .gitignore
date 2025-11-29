@@ -83,3 +83,4 @@ service-account.json
 
 # AI models
 backend/utils/green_verification/models/
+/.vs/slnx.sqlite
