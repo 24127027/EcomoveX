@@ -1,7 +1,10 @@
-from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from models.room import MemberRole, RoomType
+
 
 class RoomCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
@@ -9,9 +12,11 @@ class RoomCreate(BaseModel):
     avatar_blob_name: Optional[str] = None
     member_ids: List[int] = Field(default_factory=list)
 
+
 class RoomUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     avatar_blob_name: Optional[str] = None
+
 
 class RoomResponse(BaseModel):
     id: int
@@ -20,9 +25,10 @@ class RoomResponse(BaseModel):
     room_type: RoomType
     created_at: datetime
     member_ids: List[int] = Field(default_factory=list)
-    
+
     model_config = ConfigDict(from_attributes=True)
-    
+
+
 class RoomDirectResponse(BaseModel):
     room_id: int
     user1_id: int
@@ -30,20 +36,20 @@ class RoomDirectResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class RoomMemberResponse(BaseModel):
-    room_id: int
-    user_id: int
     role: MemberRole
     joined_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
-class AddMemberCreate(BaseModel):
-    id: int
+
+class RoomMemberCreate(BaseModel):
+    user_id: int
     role: MemberRole = MemberRole.member
 
+
 class AddMemberRequest(BaseModel):
-    data: List[AddMemberCreate] = Field(..., min_length=1)
+    data: List[RoomMemberCreate] = Field(..., min_length=1)
+
 
 class RemoveMemberRequest(BaseModel):
     ids: List[int] = Field(..., min_length=1)

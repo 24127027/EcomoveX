@@ -1,12 +1,19 @@
+import math
+import types
+
+import timm
 import torch
 import torch.nn as nn
-import timm
-import types
-import math
 import torch.nn.functional as F
 
-from .utils import (activations, forward_adapted_unflatten, get_activation, get_readout_oper,
-                    make_backbone_default, Transpose)
+from .utils import (
+    Transpose,
+    activations,
+    forward_adapted_unflatten,
+    get_activation,
+    get_readout_oper,
+    make_backbone_default,
+)
 
 
 def forward_vit(pretrained, x):
@@ -16,7 +23,7 @@ def forward_vit(pretrained, x):
 def _resize_pos_embed(self, posemb, gs_h, gs_w):
     posemb_tok, posemb_grid = (
         posemb[:, : self.start_index],
-        posemb[0, self.start_index:],
+        posemb[0, self.start_index :],
     )
 
     gs_old = int(math.sqrt(len(posemb_grid)))
@@ -82,15 +89,21 @@ def _make_vit_b16_backbone(
     start_index=1,
     start_index_readout=1,
 ):
-    pretrained = make_backbone_default(model, features, size, hooks, vit_features, use_readout, start_index,
-                                       start_index_readout)
+    pretrained = make_backbone_default(
+        model,
+        features,
+        size,
+        hooks,
+        vit_features,
+        use_readout,
+        start_index,
+        start_index_readout,
+    )
 
     # We inject this function into the VisionTransformer instances so that
     # we can use it with interpolated position embeddings without modifying the library source.
     pretrained.model.forward_flex = types.MethodType(forward_flex, pretrained.model)
-    pretrained.model._resize_pos_embed = types.MethodType(
-        _resize_pos_embed, pretrained.model
-    )
+    pretrained.model._resize_pos_embed = types.MethodType(_resize_pos_embed, pretrained.model)
 
     return pretrained
 
@@ -98,7 +111,7 @@ def _make_vit_b16_backbone(
 def _make_pretrained_vitl16_384(pretrained, use_readout="ignore", hooks=None):
     model = timm.create_model("vit_large_patch16_384", pretrained=pretrained)
 
-    hooks = [5, 11, 17, 23] if hooks == None else hooks
+    hooks = [5, 11, 17, 23] if hooks is None else hooks
     return _make_vit_b16_backbone(
         model,
         features=[256, 512, 1024, 1024],
@@ -111,7 +124,7 @@ def _make_pretrained_vitl16_384(pretrained, use_readout="ignore", hooks=None):
 def _make_pretrained_vitb16_384(pretrained, use_readout="ignore", hooks=None):
     model = timm.create_model("vit_base_patch16_384", pretrained=pretrained)
 
-    hooks = [2, 5, 8, 11] if hooks == None else hooks
+    hooks = [2, 5, 8, 11] if hooks is None else hooks
     return _make_vit_b16_backbone(
         model, features=[96, 192, 384, 768], hooks=hooks, use_readout=use_readout
     )
@@ -146,15 +159,15 @@ def _make_vit_b_rn50_backbone(
     readout_oper = get_readout_oper(vit_features, features, use_readout, start_index)
 
     for s in range(used_number_stages):
-        value = nn.Sequential(nn.Identity(), nn.Identity(), nn.Identity())
+        nn.Sequential(nn.Identity(), nn.Identity(), nn.Identity())
         exec(f"pretrained.act_postprocess{s + 1}=value")
     for s in range(used_number_stages, 4):
         if s < number_stages:
             final_layer = nn.ConvTranspose2d(
                 in_channels=features[s],
                 out_channels=features[s],
-                kernel_size=4 // (2 ** s),
-                stride=4 // (2 ** s),
+                kernel_size=4 // (2**s),
+                stride=4 // (2**s),
                 padding=0,
                 bias=True,
                 dilation=1,
@@ -186,7 +199,7 @@ def _make_vit_b_rn50_backbone(
         if final_layer is not None:
             layers.append(final_layer)
 
-        value = nn.Sequential(*layers)
+        nn.Sequential(*layers)
         exec(f"pretrained.act_postprocess{s + 1}=value")
 
     pretrained.model.start_index = start_index
@@ -198,9 +211,7 @@ def _make_vit_b_rn50_backbone(
 
     # We inject this function into the VisionTransformer instances so that
     # we can use it with interpolated position embeddings without modifying the library source.
-    pretrained.model._resize_pos_embed = types.MethodType(
-        _resize_pos_embed, pretrained.model
-    )
+    pretrained.model._resize_pos_embed = types.MethodType(_resize_pos_embed, pretrained.model)
 
     return pretrained
 
@@ -210,7 +221,7 @@ def _make_pretrained_vitb_rn50_384(
 ):
     model = timm.create_model("vit_base_resnet50_384", pretrained=pretrained)
 
-    hooks = [0, 1, 8, 11] if hooks == None else hooks
+    hooks = [0, 1, 8, 11] if hooks is None else hooks
     return _make_vit_b_rn50_backbone(
         model,
         features=[256, 512, 768, 768],

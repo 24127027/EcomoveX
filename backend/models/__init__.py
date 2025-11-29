@@ -1,13 +1,13 @@
-from.cluster import Cluster, ClusterDestination, UserClusterAssociation, Preference
-from.destination import Destination, UserSavedDestination
-from.friend import Friend
-from.message import Message, ChatSession, ChatSessionContext
-from.mission import Mission, UserMission
-from.plan import Plan, PlanDestination, PlanMember
-from.review import Review
-from.user import User, UserActivity
-from.metadata import Metadata
-from.room import Room, RoomMember, RoomDirect
+from .cluster import Cluster, ClusterDestination, Preference, UserClusterAssociation
+from .destination import Destination, UserSavedDestination
+from .friend import Friend
+from .message import Message, RoomContext
+from .metadata import Metadata
+from .mission import Mission, UserMission
+from .plan import Plan, PlanDestination, PlanMember
+from .review import Review
+from .room import Room, RoomDirect, RoomMember
+from .user import User, UserActivity
 
 __all__ = [
     "User",
@@ -29,7 +29,6 @@ __all__ = [
     "Room",
     "RoomMember",
     "RoomDirect",
-    "ChatSession",
-    "ChatSessionContext",
+    "RoomContext",
     "Preference",
 ]

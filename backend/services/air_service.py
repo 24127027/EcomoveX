@@ -1,18 +1,18 @@
-from services.map_service import MapService
-from schemas.air_schema import AirQualityResponse
-from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 from fastapi import HTTPException, status
-from integration.air_api import create_air_quality_client 
-from schemas.destination_schema import Location
 
-class AirService:         
+from integration.air_api import create_air_quality_client
+from schemas.air_schema import AirQualityResponse
+from schemas.map_schema import PlaceDataCategory, PlaceDetailsRequest
+from services.map_service import MapService
+
+
+class AirService:
     @staticmethod
     async def get_air_quality(place_id: str) -> AirQualityResponse:
         air_client = None
         try:
             request_data = PlaceDetailsRequest(
-                place_id=place_id,
-                categories=[PlaceDataCategory.BASIC]
+                place_id=place_id, categories=[PlaceDataCategory.BASIC]
             )
             detail = await MapService.get_location_details(request_data)
             location = detail.geometry.location
@@ -23,7 +23,7 @@ class AirService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get air quality data: {str(e)}"
+                detail=f"Failed to get air quality data: {str(e)}",
             )
         finally:
             if air_client:
