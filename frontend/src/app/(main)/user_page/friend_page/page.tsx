@@ -18,7 +18,8 @@ import {
   MapPin,
   AlertTriangle,
   Send,
-  MessageCircle, // Icon chat
+  MessageCircle,
+  Route, // Icon chat
 } from "lucide-react";
 import { Jost } from "next/font/google";
 import { api, FriendResponse, ChatMessage } from "@/lib/api";
@@ -680,16 +681,24 @@ export default function FriendsPage() {
 
         {/* --- FOOTER (Giữ nguyên) --- */}
         <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
-          {/* Copy lại footer cũ của bạn */}
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
-            {/* ... Các link Home, Planning, Ecobot ... */}
             <Link
               href="/homepage"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
               <Home size={24} />
               <span className="text-xs">Home</span>
+            </Link>
+            <Link
+              href="/track_page/leaderboard"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+            >
+              {" "}
+              <Route size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Track
+              </span>
             </Link>
             <Link
               href="/planning_page/showing_plan_page"
@@ -699,7 +708,7 @@ export default function FriendsPage() {
               <span className="text-xs">Planning</span>
             </Link>
             <Link
-              href="#"
+              href="/ecobot_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
               <Bot size={24} />

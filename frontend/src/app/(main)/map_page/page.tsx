@@ -928,14 +928,14 @@ export default function MapPage() {
                 <span className="text-xs font-medium mt-0.5">Home</span>
               </a>
               <a
-                href="#"
+                href="/planning_page/showing_plan/page"
                 className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
               >
                 <MapPin className="size-6" strokeWidth={2.0} />
                 <span className="text-xs font-medium mt-0.5">Planning</span>
               </a>
               <a
-                href="#"
+                href="/ecobot_page"
                 className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
               >
                 <Bot className="size-6" strokeWidth={1.5} />

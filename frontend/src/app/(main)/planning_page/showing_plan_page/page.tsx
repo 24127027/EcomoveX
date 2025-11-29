@@ -15,6 +15,9 @@ import {
   Plus,
   Calendar,
   Clock,
+  Footprints,
+  Route,
+  Activity,
   Sunset,
   Moon,
 } from "lucide-react";
@@ -73,7 +76,6 @@ export default function PlanningPage() {
           (p) => p.activities && p.activities.length >= 2
         );
 
-
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -90,7 +92,6 @@ export default function PlanningPage() {
             : parseDate(p.date);
           return endDate < today;
         });
-
 
         if (allActiveAndFuture.length > 0) {
           allActiveAndFuture.sort(
@@ -320,12 +321,25 @@ export default function PlanningPage() {
                 Home
               </span>
             </Link>
-            <div className="flex flex-col items-center text-[#53B552]">
+
+            <Link
+              href="/track_page/leaderboard"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+            >
+              {" "}
+              <Route size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Track
+              </span>
+            </Link>
+            <Link
+            href="/planning_page/showing_plan_page"
+             className="flex flex-col items-center text-[#53B552]">
               <MapPin size={24} strokeWidth={2.5} />
               <span className={`${jost.className} text-xs font-bold mt-1`}>
                 Planning
               </span>
-            </div>
+            </Link>
             <Link
               href="#"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"

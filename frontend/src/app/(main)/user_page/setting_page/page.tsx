@@ -15,6 +15,7 @@ import {
   LogOut,
   Trash2,
   Loader2,
+  Route,
 } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
 import { api, UserProfile } from "@/lib/api";
@@ -183,6 +184,16 @@ export default function SettingPage() {
               <Home size={24} strokeWidth={2} />
               <span className={`${jost.className} text-xs font-medium mt-1`}>
                 Home
+              </span>
+            </Link>
+            <Link
+              href="/track_page/leaderboard"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+            >
+              {" "}
+              <Route size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Track
               </span>
             </Link>
             <Link

@@ -18,14 +18,10 @@ import {
   Map,
   Calendar,
   ArrowRight,
-  Wind,
-  Sun,
-  CloudRain,
-  Cloud,
-  CloudLightning,
-  Snowflake,
+
   Trophy,
   Loader2,
+  Route,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -192,6 +188,11 @@ export default function HomePage() {
     setHeart(!heart);
     try {
       if (!previousState) {
+        try {
+          await api.getPlaceDetails(TAO_DAN_PLACE_ID);
+        } catch (error) {
+          console.error("Error fetching place details:", error);
+        }
         await api.saveDestination(TAO_DAN_PLACE_ID);
         console.log("Destination saved");
       } else {
@@ -500,10 +501,10 @@ export default function HomePage() {
 
         {/* --- FOOTER --- */}
         <footer
-          className={`bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-10`}
+          className={`bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20`}
         >
-          <div className="h-0.5 bg-linear-to-r from-transparent via-green-200 to-transparent opacity-70"></div>
-          <div className="flex justify-around items-center px-2 pt-2 pb-3">
+          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
+          <div className="flex justify-around items-center py-3">
             <Link
               href="/homepage"
               className="flex flex-col items-center justify-center w-1/4 text-green-600"
@@ -511,7 +512,17 @@ export default function HomePage() {
               <Home className="size-6" strokeWidth={2.0} />
               <span className="text-[10px] font-bold mt-1">Home</span>
             </Link>
-
+            <Link
+              href="/track_page/leaderboard"
+              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+            >
+              <Route size={24} strokeWidth={1.5} />
+              <span
+                className={`${jost.className} text-[10px] font-medium mt-1`}
+              >
+                Track
+              </span>
+            </Link>
             <Link
               href="/planning_page/showing_plan_page"
               className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
