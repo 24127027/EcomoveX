@@ -27,6 +27,8 @@ class GreenCoverageOrchestrator:
         height=None,
         square=False
     ):
+        
+        
         """
         Initialize the orchestrator with segmentation and depth models.
         
@@ -181,38 +183,17 @@ class GreenCoverageOrchestrator:
                 "error": str(e)
             }
     
-    def _get_individual_masks(self, url: str) -> List[np.ndarray]:
-        """Get individual vegetation masks from YOLO segmentation."""
+    def _get_combined_masks(self, url: str) -> np.ndarray:
+        """Get combined vegetation mask from YOLO segmentation."""
         try:
-            # Load image for YOLO
-            img_rgb = utils.load_image_from_url(url)
-            img_bgr = (img_rgb * 255).astype(np.uint8)
-            import cv2
-            img_bgr = cv2.cvtColor(img_bgr, cv2.COLOR_RGB2BGR)
-            h, w = img_bgr.shape[:2]
-            
-            # Run YOLO segmentation
-            results = self.tree_segmenter.model.predict(
-                img_bgr, 
-                retina_masks=True, 
-                conf=0.1, 
-                verbose=False
-            )[0]
-            
-            individual_masks = []
-            if results.masks is not None:
-                raw_masks = results.masks.data.cpu().numpy()
-                for m in raw_masks:
-                    import cv2
-                    m_resized = cv2.resize(m, (w, h))
-                    mask_uint8 = (m_resized * 255).astype(np.uint8)
-                    individual_masks.append(mask_uint8)
-            
-            return individual_masks
-            
+            # 1. Use TreeSegmenter to get combined mask
+            combined_mask, _ = self.tree_segmenter.process_image(url)
+
+            return combined_mask
+
         except Exception as e:
-            print(f"Error getting individual masks: {str(e)}")
-            return []
+            print(f"Error getting combined mask: {str(e)}")
+            return np.array([], dtype=np.uint8)
     
     def _get_depth_map(self, image_rgb: np.ndarray) -> np.ndarray:
         """Get depth map from RGB image using MiDaS."""
