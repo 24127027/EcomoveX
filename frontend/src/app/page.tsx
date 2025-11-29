@@ -178,65 +178,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* --- APP PREVIEW (Visual) --- */}
-        <section className="py-12 px-6 bg-white">
-          <div className="text-center mb-8">
-            <h2
-              className={`${jost.className} text-2xl font-bold text-gray-800`}
-            >
-              Explore HCMC
-            </h2>
-            <p className={`${poppins.className} text-gray-500 text-sm`}>
-              Top rated green destinations
-            </p>
-          </div>
-
-          {/* Card Slider Simulation */}
-          <div className="flex gap-4 overflow-x-auto pb-4 snap-x scrollbar-hide">
-            {/* Card 1 */}
-            <div className="min-w-[260px] h-80 bg-gray-100 rounded-2xl overflow-hidden relative snap-center shadow-md group">
-              <Image
-                src="https://images.unsplash.com/photo-1596263576925-48c581d6a90a?q=80&w=600&auto=format&fit=crop"
-                alt="Tao Dan Park"
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <h3
-                  className={`${jost.className} text-white font-bold text-lg`}
-                >
-                  Tao Dan Park
-                </h3>
-                <div className="flex items-center gap-1 text-green-300 text-xs mt-1">
-                  <Map className="size-3" /> 2km away
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2 */}
-            <div className="min-w-[260px] h-80 bg-gray-100 rounded-2xl overflow-hidden relative snap-center shadow-md">
-              <Image
-                src="https://images.unsplash.com/photo-1586607629629-632e53709572?q=80&w=600&auto=format&fit=crop"
-                alt="Can Gio"
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <h3
-                  className={`${jost.className} text-white font-bold text-lg`}
-                >
-                  Can Gio Forest
-                </h3>
-                <div className="flex items-center gap-1 text-green-300 text-xs mt-1">
-                  <Map className="size-3" /> 15km away
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* --- FOOTER --- */}
         <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
