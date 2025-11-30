@@ -267,3 +267,22 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: updating role for user {user_id} in plan {plan_id} - {e}")
             return None
+        
+    @staticmethod
+    async def remove_destination_from_plan(db: AsyncSession, plan_destination_id: int) -> bool:
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            dest = result.scalar_one_or_none()
+            if not dest:
+                print(f"WARNING: PlanDestination ID {plan_destination_id} not found")
+                return False
+
+            await db.delete(dest)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: deleting plan destination ID {plan_destination_id} - {e}")
+            return False
