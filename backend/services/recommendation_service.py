@@ -1,14 +1,23 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
+import asyncio
+from math import radians, cos, sin, asin, sqrt
+from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from repository.destination_repository import DestinationRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
+from schemas.destination_schema import Location, DestinationCreate
+from fastapi import HTTPException, status
+from repository.cluster_repository import ClusterRepository
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
-
+from destination_service import DestinationService
+from services.map_service import MapService
+from schemas.map_schema import TextSearchRequest
 
 def blend_scores(
     similarity_items: List[Dict[str, Any]],
@@ -60,7 +69,71 @@ class RecommendationService:
         self.session = session
         if not is_index_ready():
             raise RuntimeError("FAISS index is not available.")
-
+    
+    @staticmethod
+    async def sort_recommendations_by_user_cluster_affinity(
+        db: AsyncSession,
+        user_id: int,
+        recommendations: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Sort recommendations by how well they match the user's cluster preferences.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            recommendations: List of recommendation items with destination_id
+            
+        Returns:
+            Sorted list of recommendations with cluster_affinity scores
+        """
+        try:
+            if not recommendations:
+                return []
+            
+            # Get user's latest cluster using repository
+            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
+            
+            if user_cluster is None:
+                return recommendations
+            
+            # Get cluster embedding using service layer
+            cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
+            if cluster_vector is None:
+                return recommendations
+            
+            # Get embeddings for all recommended destinations using repository
+            destination_ids = [rec['destination_id'] for rec in recommendations]
+            dest_embeddings = await DestinationRepository.get_embeddings_by_ids(
+                db, destination_ids
+            )
+            
+            # Calculate affinity scores
+            cluster_vec = np.array(cluster_vector, dtype=np.float32)
+            
+            for rec in recommendations:
+                dest_id = rec['destination_id']
+                if dest_id in dest_embeddings:
+                    dest_vec = np.array(dest_embeddings[dest_id], dtype=np.float32)
+                    # Cosine similarity
+                    affinity = np.dot(cluster_vec, dest_vec) / (
+                        np.linalg.norm(cluster_vec) * np.linalg.norm(dest_vec) + 1e-8
+                    )
+                    rec['cluster_affinity'] = float(affinity)
+                else:
+                    rec['cluster_affinity'] = 0.0
+            
+            # Sort by cluster affinity (descending)
+            recommendations.sort(key=lambda x: x.get('cluster_affinity', 0), reverse=True)
+            
+            return recommendations
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error sorting recommendations by user cluster: {str(e)}"
+            )
+    
     @staticmethod
     async def recommend_for_user(
         db: AsyncSession, user_id: int, k: int = 10, use_hybrid: bool = False
@@ -152,109 +225,166 @@ class RecommendationService:
                 detail=f"Error generating hybrid recommendations for cluster {cluster_id}: {str(e)}",
             )
 
+    
     @staticmethod
-    async def recommend_for_cluster_similarity(
-        db: AsyncSession, cluster_id: int, k: int = 10
-    ) -> List[Dict[str, Any]]:
-        """Pure similarity-based recommendations for a cluster."""
-        try:
-            if not is_index_ready():
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="FAISS index is not available",
-                )
-
-            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
-            if cluster_vector is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not compute embedding for cluster {cluster_id}",
-                )
-
-            results = search_index(cluster_vector.tolist(), k=k)
-            return results
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating similarity recommendations for cluster {cluster_id}: {str(e)}",
-            )
-
-    @staticmethod
-    async def recommend_for_cluster_popularity(
+    async def recommend_nearby_by_cluster_tags(
         db: AsyncSession,
-        cluster_id: int,
+        user_id: int,
+        current_location: Location,
+        radius_km: float = 5.0,
+        k: int = 10
     ) -> List[Dict[str, Any]]:
+        """
+        Recommend nearby destinations using text search with cluster-based tags.
+        
+        Args:
+            db: Database session
+            user_id: User ID to get cluster preferences
+            current_location: Current GPS location
+            radius_km: Search radius in kilometers
+            k: Number of recommendations to return
+        
+        Returns:
+            List of recommended destinations with scores and details
+        """
         try:
-            await ClusterService.compute_cluster_popularity(db, cluster_id)
-
-            popular_destinations_raw = await ClusterRepository.get_destinations_in_cluster(
-                db, cluster_id
+            # Get user's latest cluster using repository
+            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
+            
+            if user_cluster is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No cluster found for user {user_id}"
+                )
+            
+            # Get cluster's preferred categories using repository
+            cluster_categories = await ClusterRepository.get_cluster_preferred_categories(
+                db, user_cluster, limit=5
             )
+            
+            if not cluster_categories:
+                # Fallback to common categories
+                cluster_categories = ["tourist_attraction", "restaurant", "park", "museum", "shopping_mall"]
 
-            results = [
-                {
-                    "destination_id": dest.destination_id,
-                    "popularity_score": dest.popularity_score / 100.0,
-                }
-                for dest in popular_destinations_raw
-            ]
-
-            return results
+            # Perform text searches for each category
+            all_places = []
+            search_tasks = []
+            
+            # Convert radius to meters for Google Places API
+            radius_meters = int(radius_km * 1000)
+            
+            for category in cluster_categories[:3]:  # Limit to top 3 categories
+                search_request = TextSearchRequest(
+                    query=category,
+                    location=current_location,
+                    radius=radius_meters
+                )
+                search_tasks.append(
+                    MapService.text_search_place(db, search_request)
+                )
+            
+            # Execute all searches concurrently
+            search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
+            
+            # Process results
+            place_scores = {}
+            
+            for idx, result in enumerate(search_results):
+                if isinstance(result, Exception):
+                    continue
+                
+                category_weight = 1.0 - (idx * 0.2)  # Higher weight for top categories
+                
+                for place in result.results:
+                    place_id = place.place_id
+                    
+                    # Calculate distance from current location
+                    place_lat = place.geometry.location.lat
+                    place_lng = place.geometry.location.lng
+                    
+                    # Haversine distance calculation
+                    lat1, lon1 = radians(current_location.lat), radians(current_location.lng)
+                    lat2, lon2 = radians(place_lat), radians(place_lng)
+                    
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * asin(sqrt(a))
+                    distance_km = 6371 * c
+                    
+                    # Skip if outside radius
+                    if distance_km > radius_km:
+                        continue
+                    
+                    # Calculate proximity score (closer = higher)
+                    proximity_score = max(0, 1.0 - (distance_km / radius_km))
+                    
+                    # Calculate rating score
+                    rating_score = (place.rating or 3.0) / 5.0 if hasattr(place, 'rating') else 0.6
+                    
+                    # Calculate review count score (normalized)
+                    review_count = place.user_ratings_total or 0 if hasattr(place, 'user_ratings_total') else 0
+                    review_score = min(1.0, review_count / 100.0)
+                    
+                    # Combined score with category weight
+                    combined_score = (
+                        proximity_score * 0.4 +
+                        rating_score * 0.3 +
+                        review_score * 0.15 +
+                        category_weight * 0.15
+                    )
+                    
+                    # Keep highest score if place appears in multiple searches
+                    if place_id not in place_scores or combined_score > place_scores[place_id]['combined_score']:
+                        place_scores[place_id] = {
+                            'place_id': place_id,
+                            'name': place.name,
+                            'formatted_address': place.formatted_address,
+                            'latitude': place_lat,
+                            'longitude': place_lng,
+                            'distance_km': round(distance_km, 2),
+                            'rating': place.rating if hasattr(place, 'rating') else None,
+                            'review_count': review_count,
+                            'types': place.types if hasattr(place, 'types') else [],
+                            'proximity_score': round(proximity_score, 3),
+                            'rating_score': round(rating_score, 3),
+                            'review_score': round(review_score, 3),
+                            'category_weight': round(category_weight, 3),
+                            'combined_score': round(combined_score, 3)
+                        }
+            
+            # Sort by combined score
+            recommendations = sorted(
+                place_scores.values(),
+                key=lambda x: x['combined_score'],
+                reverse=True
+            )
+            
+            # Get or create destinations using repository
+            place_ids = [rec['place_id'] for rec in recommendations[:k]]
+            existing_destinations = await DestinationRepository.get_destination_ids_by_place_ids(
+                db, place_ids
+            )
+            
+            for rec in recommendations[:k]:
+                place_id = rec['place_id']
+                
+                if place_id in existing_destinations:
+                    rec['destination_id'] = existing_destinations[place_id]
+                else:
+                    # Create new destination using repository
+                    new_dest = await DestinationRepository.get_or_create_destination(db, place_id)
+                    if new_dest:
+                        rec['destination_id'] = new_dest.destination_id
+                    else:
+                        rec['destination_id'] = None
+            
+            return recommendations[:k]
+            
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating popularity recommendations for cluster {cluster_id}: {str(e)}",
-            )
-
-    @staticmethod
-    async def recommend_destination_based_on_user_cluster(
-        db: AsyncSession, user_id: int, cluster_id: int, k: int = 10
-    ) -> List[str]:
-        try:
-            if not is_index_ready():
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="FAISS index is not available",
-                )
-
-            user_vector = await ClusterService.embed_preference(db, user_id)
-            if user_vector is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not generate embedding for user {user_id}",
-                )
-
-            cluster_vector = await ClusterService.compute_cluster_embedding(db, cluster_id)
-            if cluster_vector is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not compute embedding for cluster {cluster_id}",
-                )
-
-            u_vec = np.array(user_vector, dtype=np.float32)
-            c_vec = np.array(cluster_vector, dtype=np.float32)
-
-            combined_vector = (u_vec + c_vec) / 2
-
-            norm = np.linalg.norm(combined_vector)
-            if norm > 0:
-                combined_vector = combined_vector / norm
-
-            results = search_index(combined_vector.tolist(), k=k)
-
-            destination_ids = [item["destination_id"] for item in results]
-
-            return destination_ids
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating recommendations for user {user_id} and cluster {cluster_id}: {str(e)}",
+                detail=f"Error recommending nearby destinations by cluster tags: {str(e)}"
             )

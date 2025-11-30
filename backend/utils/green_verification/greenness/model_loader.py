@@ -1,43 +1,32 @@
-import os
-
 import cv2
 import torch
+
 from dpt_depth import DPTDepthModel
 from midas_net import MidasNet
 from midas_net_custom import MidasNet_small
-from torchvision.transforms import Compose
-from transforms import NormalizeImage, PrepareForNet, Resize
+from transforms import Resize, NormalizeImage, PrepareForNet
 
-# Get the path to the models folder relative to this file
-# Go up two levels: greenness -> green_verification, then into models
-MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+from torchvision.transforms import Compose
 
 default_models = {
-    "dpt_beit_large_512": os.path.join(MODELS_DIR, "dpt_beit_large_512.pt"),
-    "dpt_beit_large_384": os.path.join(MODELS_DIR, "dpt_beit_large_384.pt"),
-    "dpt_beit_base_384": os.path.join(MODELS_DIR, "dpt_beit_base_384.pt"),
-    "dpt_swin2_large_384": os.path.join(MODELS_DIR, "dpt_swin2_large_384.pt"),
-    "dpt_swin2_base_384": os.path.join(MODELS_DIR, "dpt_swin2_base_384.pt"),
-    "dpt_swin2_tiny_256": os.path.join(MODELS_DIR, "dpt_swin2_tiny_256.pt"),
-    "dpt_swin_large_384": os.path.join(MODELS_DIR, "dpt_swin_large_384.pt"),
-    "dpt_next_vit_large_384": os.path.join(MODELS_DIR, "dpt_next_vit_large_384.pt"),
-    "dpt_levit_224": os.path.join(MODELS_DIR, "dpt_levit_224.pt"),
-    "dpt_large_384": os.path.join(MODELS_DIR, "dpt_large_384.pt"),
-    "dpt_hybrid_384": os.path.join(MODELS_DIR, "dpt_hybrid_384.pt"),
-    "midas_v21_384": os.path.join(MODELS_DIR, "midas_v21_384.pt"),
-    "midas_v21_small_256": os.path.join(MODELS_DIR, "midas_v21_small_256.pt"),
-    "openvino_midas_v21_small_256": os.path.join(MODELS_DIR, "openvino_midas_v21_small_256.xml"),
+    "dpt_beit_large_512": "weights/dpt_beit_large_512.pt",
+    "dpt_beit_large_384": "weights/dpt_beit_large_384.pt",
+    "dpt_beit_base_384": "weights/dpt_beit_base_384.pt",
+    "dpt_swin2_large_384": "weights/dpt_swin2_large_384.pt",
+    "dpt_swin2_base_384": "weights/dpt_swin2_base_384.pt",
+    "dpt_swin2_tiny_256": "weights/dpt_swin2_tiny_256.pt",
+    "dpt_swin_large_384": "weights/dpt_swin_large_384.pt",
+    "dpt_next_vit_large_384": "weights/dpt_next_vit_large_384.pt",
+    "dpt_levit_224": "weights/dpt_levit_224.pt",
+    "dpt_large_384": "weights/dpt_large_384.pt",
+    "dpt_hybrid_384": "weights/dpt_hybrid_384.pt",
+    "midas_v21_384": "weights/midas_v21_384.pt",
+    "midas_v21_small_256": "weights/midas_v21_small_256.pt",
+    "openvino_midas_v21_small_256": "weights/openvino_midas_v21_small_256.xml",
 }
 
 
-def load_model(
-    device,
-    model_path,
-    model_type="dpt_large_384",
-    optimize=True,
-    height=None,
-    square=False,
-):
+def load_model(device, model_path, model_type="dpt_large_384", optimize=True, height=None, square=False):
     """Load the specified network.
 
     Args:
@@ -180,36 +169,22 @@ def load_model(
         model = MidasNet(model_path, non_negative=True)
         net_w, net_h = 384, 384
         resize_mode = "upper_bound"
-        normalization = NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        normalization = NormalizeImage(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        )
 
     elif model_type == "midas_v21_small_256":
-        model = MidasNet_small(
-            model_path,
-            features=64,
-            backbone="efficientnet_lite3",
-            exportable=True,
-            non_negative=True,
-            blocks={"expand": True},
-        )
+        model = MidasNet_small(model_path, features=64, backbone="efficientnet_lite3", exportable=True,
+                               non_negative=True, blocks={'expand': True})
         net_w, net_h = 256, 256
         resize_mode = "upper_bound"
-        normalization = NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        normalization = NormalizeImage(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        )
 
     else:
         print(f"model_type '{model_type}' not implemented, use: --model_type large")
         assert False
-
-    if "openvino" not in model_type:
-        print(
-            "Model loaded, number of parameters = {:.0f}M".format(
-                sum(p.numel() for p in model.parameters()) / 1e6
-            )
-        )
-    else:
-        print("Model loaded, optimized with OpenVINO")
-
-    if "openvino" in model_type:
-        keep_aspect_ratio = False
 
     if height is not None:
         net_w, net_h = height, height
@@ -230,20 +205,18 @@ def load_model(
         ]
     )
 
-    if "openvino" not in model_type:
+    if not "openvino" in model_type:
         model.eval()
 
     if optimize and (device == torch.device("cuda")):
-        if "openvino" not in model_type:
+        if not "openvino" in model_type:
             model = model.to(memory_format=torch.channels_last)
             model = model.half()
         else:
-            print(
-                "Error: OpenVINO models are already optimized. No optimization to half-float possible."
-            )
+            print("Error: OpenVINO models are already optimized. No optimization to half-float possible.")
             exit()
 
-    if "openvino" not in model_type:
+    if not "openvino" in model_type:
         model.to(device)
 
     return model, transform, net_w, net_h
