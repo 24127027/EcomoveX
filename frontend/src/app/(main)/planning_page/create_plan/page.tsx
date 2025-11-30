@@ -1,43 +1,90 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { Jost, Abhaya_Libre, Roboto } from "next/font/google";
-import { api } from "@/lib/api";
+import { useRouter } from "next/navigation"; // Import router để chuyển trang
+import { ChevronLeft, ChevronRight, MapPin, Loader2 } from "lucide-react"; // Thêm icon Loader2
+import { Jost, Abhaya_Libre } from "next/font/google";
+import { api } from "@/lib/api"; // Import API client từ thư mục lib
 
-// --- FONTS ---
-const roboto = Roboto({
-  subsets: ["vietnamese"],
-  weight: ["400", "500", "700"],
-});
-const jost = Jost({
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600", "700"],
-});
+const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 const abhaya_libre = Abhaya_Libre({
-  subsets: ["latin", "latin-ext"],
+  subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
+
+const LOCATIONS = [
+  {
+    city: "Ho Chi Minh City",
+    districts: [
+      "District 1",
+      "District 2",
+      "District 3",
+      "District 4",
+      "District 5",
+      "District 6",
+      "District 7",
+      "District 8",
+      "District 10",
+      "District 11",
+      "District 12",
+      "Binh Thanh District",
+      "Binh Tan District",
+      "Tan Binh District",
+      "Tan Phu District",
+      "Go Vap District",
+      "Phu Nhuan District",
+      "Thu Duc City",
+      "Cu Chi District",
+      "Hoc Mon District",
+      "Binh Chanh District",
+      "Nha Be District",
+      "Can Gio District",
+    ],
+  },
+];
+
+const STORAGE_KEY_INFO = "temp_plan_info";
 
 export default function CreatePlanPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-
-  // --- FORM STATE ---
-  const [placeName, setPlaceName] = useState<string>("");
+  const router = useRouter(); // Khởi tạo router
   const [budget, setBudget] = useState<number>(100000);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [destination, setDestination] = useState<string>("");
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
-  // --- CALENDAR STATE ---
+  // Thêm state loading để chặn click nhiều lần
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // --- 1. DROPDOWN LOGIC ---
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectLocation = (district: string) => {
+    setDestination(`${district}, ${LOCATIONS[0].city}`);
+    setShowDropdown(false);
+  };
+
   const [displayDate, setDisplayDate] = useState(new Date());
-
   const [selectedRange, setSelectedRange] = useState<{
     start: Date | null;
     end: Date | null;
   }>({
-    start: new Date(),
+    start: null,
     end: null,
   });
 
@@ -46,7 +93,6 @@ export default function CreatePlanPage() {
   const month = displayDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   const monthNames = [
     "January",
     "February",
@@ -65,25 +111,17 @@ export default function CreatePlanPage() {
   const handlePrevMonth = () => setDisplayDate(new Date(year, month - 1, 1));
   const handleNextMonth = () => setDisplayDate(new Date(year, month + 1, 1));
 
-  const isSameDay = (d1: Date, d2: Date) => {
-    return (
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate()
-    );
-  };
-
   const handleDateClick = (day: number) => {
     const clickedDate = new Date(year, month, day);
     clickedDate.setHours(0, 0, 0, 0);
 
+    if (clickedDate < today) return;
+
     if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
       setSelectedRange({ start: clickedDate, end: null });
     } else {
-      if (clickedDate < selectedRange.start) {
-        setSelectedRange({ start: clickedDate, end: selectedRange.start });
-      } else if (isSameDay(clickedDate, selectedRange.start)) {
-        setSelectedRange({ start: null, end: null });
+      if (clickedDate.getTime() < selectedRange.start.getTime()) {
+        setSelectedRange({ start: clickedDate, end: null });
       } else {
         setSelectedRange({ ...selectedRange, end: clickedDate });
       }
@@ -91,81 +129,82 @@ export default function CreatePlanPage() {
   };
 
   const getDayStatus = (day: number) => {
-    if (!selectedRange.start) return "none";
+    const currentDayDate = new Date(year, month, day);
+    currentDayDate.setHours(0, 0, 0, 0);
+    const currentTime = currentDayDate.getTime();
 
-    const currentCellDate = new Date(year, month, day);
-    currentCellDate.setHours(0, 0, 0, 0);
-    const start = selectedRange.start;
-    const end = selectedRange.end;
+    if (currentDayDate < today) return "disabled";
 
-    // Reset giờ cho start/end để so sánh
-    const sTime = new Date(start).setHours(0, 0, 0, 0);
-    const cTime = currentCellDate.getTime();
+    const startTime = selectedRange.start
+      ? selectedRange.start.getTime()
+      : null;
+    const endTime = selectedRange.end ? selectedRange.end.getTime() : null;
 
-    if (end) {
-      const eTime = new Date(end).setHours(0, 0, 0, 0);
-      if (cTime === sTime || cTime === eTime) return "selected";
-      if (cTime > sTime && cTime < eTime) return "in-range";
-    } else {
-      if (cTime === sTime) return "selected";
+    if (currentTime === startTime || currentTime === endTime) return "selected";
+    if (
+      startTime &&
+      endTime &&
+      currentTime > startTime &&
+      currentTime < endTime
+    ) {
+      return "in-range";
     }
-
-    return "none";
-  };
-
-  const toggleTag = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter((t) => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
+    return "normal";
   };
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     if (val >= 0) setBudget(val);
-    else if (val < 0) setBudget(0);
   };
 
-  const handlePeopleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
-    if (val <= 0) {
-      e.target.value = "1";
-    }
+  const formatDate = (date: Date) => {
+    return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  };
+  const formatDateForAPI = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0"); // Tháng bắt đầu từ 0 nên phải +1
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
-  const handleCreatePlan = async () => {
-    if (!placeName.trim()) {
-      alert("Please enter where you want to go!");
-      return;
-    }
-    if (!selectedRange.start) {
-      alert("Please select at least one date for your trip!");
-      return;
-    }
+  // --- XỬ LÝ SỰ KIỆN TẠO PLAN ---
+  const handleCreatePlan = () => {
+    // Bỏ async vì không gọi API nữa
+    // Validate dữ liệu cơ bản
+    if (!destination || !selectedRange.start) return;
+
+    setIsLoading(true); // Vẫn có thể để loading nhẹ để UX mượt hơn
 
     try {
-      setIsLoading(true);
-
-      const startDate = selectedRange.start;
-      const endDate = selectedRange.end ? selectedRange.end : startDate;
-
-      const formatDateLocal = (date: Date) => {
-        const offset = date.getTimezoneOffset();
-        const localDate = new Date(date.getTime() - offset * 60 * 1000);
-        return localDate.toISOString().split("T")[0];
+      // 1. CHUẨN BỊ DỮ LIỆU
+      const planInfo = {
+        name: `Trip to ${destination.split(",")[0]}`, // Tên mặc định: "Trip to District 1"
+        destination: destination,
+        // Format ngày chuẩn để sau này gửi API
+        start_date: formatDateForAPI(selectedRange.start),
+        end_date: selectedRange.end
+          ? formatDateForAPI(selectedRange.end)
+          : formatDateForAPI(selectedRange.start),
+        budget: budget,
       };
 
-      const newPlan = await api.createPlan({
-        place_name: placeName,
-        start_date: formatDateLocal(startDate),
-        end_date: formatDateLocal(endDate),
-        budget_limit: budget,
-      });
-      router.push(`/planning_page/${newPlan.id}`);
+      // 2. LƯU VÀO SESSION STORAGE (Thay vì gọi API)
+      sessionStorage.setItem(STORAGE_KEY_INFO, JSON.stringify(planInfo));
+
+      // Lưu ý: Có thể cần xóa dữ liệu cũ của các bước sau để tránh bị trộn lẫn plan cũ
+      sessionStorage.removeItem("temp_plan_destinations");
+      sessionStorage.removeItem("current_plan_activities");
+      sessionStorage.removeItem("has_shown_ai_gen");
+
+      // 3. CHUYỂN HƯỚNG
+      console.log(
+        "Saved info to storage, moving to Add Destinations:",
+        planInfo
+      );
+      router.push("/planning_page/add_destinations");
     } catch (error) {
-      console.error("Error creating plan:", error);
-      alert("There was an error creating your plan. Please try again.");
+      console.error("Error:", error);
+      alert("There was an error while creating the plan. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -174,9 +213,9 @@ export default function CreatePlanPage() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* --- HEADER --- */}
+        {/* HEADER */}
         <div className="bg-white px-4 pt-8 pb-4 shadow-sm z-10 flex items-center gap-4">
-          <Link href="/homepage">
+          <Link href="/planning_page/showing_plan_page">
             <ChevronLeft
               className="text-[#53B552] cursor-pointer"
               size={32}
@@ -190,20 +229,40 @@ export default function CreatePlanPage() {
           </h1>
         </div>
 
-        {/* --- SCROLLABLE FORM --- */}
+        {/* SCROLLABLE FORM */}
         <main className="flex-1 overflow-y-auto px-5 py-6 space-y-6 pb-32">
-          {/* 1. Where to? */}
-          <div className="bg-white border border-[#53B552] rounded-xl p-4 shadow-sm">
-            <input
-              type="text"
-              placeholder="Where to?"
-              value={placeName}
-              onChange={(e) => setPlaceName(e.target.value)}
-              className={`${roboto.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552] bg-transparent text-lg`}
-            />
+          {/* 1. WHERE TO */}
+          <div className="relative" ref={dropdownRef}>
+            <div
+              className="bg-white border border-[#53B552] rounded-xl p-4 shadow-sm cursor-pointer flex items-center justify-between"
+              onClick={() => setShowDropdown(!showDropdown)}
+            >
+              <input
+                type="text"
+                readOnly
+                value={destination}
+                placeholder="Where to in Ho Chi Minh City?"
+                className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552]/70 bg-transparent text-lg cursor-pointer`}
+              />
+              <MapPin size={20} className="text-[#53B552]" />
+            </div>
+
+            {showDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50">
+                {LOCATIONS[0].districts.map((district, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleSelectLocation(district)}
+                    className={`${jost.className} px-4 py-3 hover:bg-green-50 text-[#53B552] font-medium cursor-pointer border-b last:border-0 border-gray-100 transition-colors`}
+                  >
+                    {district}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* 2. When to? (Calendar) */}
+          {/* 2. CALENDAR */}
           <div className="bg-white border border-[#53B552] rounded-xl p-5 shadow-sm">
             <h3
               className={`${jost.className} text-[#53B552] font-bold mb-4 text-lg`}
@@ -231,7 +290,6 @@ export default function CreatePlanPage() {
               </div>
               <div className="h-px bg-gray-300 w-full mb-4"></div>
 
-              {/* Calendar Grid */}
               <div className="grid grid-cols-7 mb-2 text-center">
                 {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
                   <span
@@ -247,38 +305,33 @@ export default function CreatePlanPage() {
                 {Array.from({ length: firstDayOfMonth }).map((_, index) => (
                   <div key={`empty-${index}`} />
                 ))}
+
                 {Array.from({ length: daysInMonth }).map((_, index) => {
                   const day = index + 1;
-
-                  const dateToCheck = new Date(year, month, day);
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const isPast = dateToCheck < today;
-
                   const status = getDayStatus(day);
+
+                  let className = `${jost.className} w-8 h-8 flex items-center justify-center rounded-full text-sm transition-all `;
+
+                  if (status === "disabled") {
+                    className += "text-gray-300 cursor-not-allowed";
+                  } else if (status === "selected") {
+                    className +=
+                      "bg-[#53B552] text-white font-bold shadow-md scale-110 cursor-pointer";
+                  } else if (status === "in-range") {
+                    className +=
+                      "bg-[#E3F1E4] text-[#53B552] font-bold cursor-pointer";
+                  } else {
+                    className +=
+                      "text-gray-800 hover:bg-green-100 cursor-pointer";
+                  }
 
                   return (
                     <div key={day} className="flex justify-center items-center">
                       <div
-                        onClick={() => !isPast && handleDateClick(day)}
-                        className={`${
-                          jost.className
-                        } w-8 h-8 flex items-center justify-center rounded-full text-sm transition-all 
-                        ${
-                          isPast
-                            ? "text-gray-300 cursor-not-allowed"
-                            : "cursor-pointer text-gray-800 hover:bg-green-100"
+                        onClick={() =>
+                          status !== "disabled" && handleDateClick(day)
                         }
-                        ${
-                          status === "selected" && !isPast
-                            ? "bg-[#53B552] text-white font-bold shadow-md scale-110 hover:bg-[#53B552]"
-                            : ""
-                        }
-                        ${
-                          status === "in-range" && !isPast
-                            ? "bg-[#E3F1E4] text-[#53B552] font-semibold"
-                            : ""
-                        }`}
+                        className={className}
                       >
                         {day}
                       </div>
@@ -287,20 +340,27 @@ export default function CreatePlanPage() {
                 })}
               </div>
             </div>
+
+            {selectedRange.start && (
+              <div
+                className={`${jost.className} mt-4 text-center text-[#53B552] font-medium`}
+              >
+                Selected: {formatDate(selectedRange.start)}
+                {selectedRange.end ? ` - ${formatDate(selectedRange.end)}` : ""}
+              </div>
+            )}
           </div>
 
-          {/* 3. People count */}
+          {/* 3. PEOPLE COUNT */}
           <div className="bg-white border border-[#53B552] rounded-xl p-4 shadow-sm">
             <input
               type="number"
-              onChange={handlePeopleCountChange}
-              min={1}
               placeholder="How many people joining this trip?"
-              className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552] bg-transparent text-sm`}
+              className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552]/70 bg-transparent text-sm`}
             />
           </div>
 
-          {/* 4. Budget Slider & Input */}
+          {/* 4. BUDGET */}
           <div className="bg-white border border-[#53B552] rounded-xl p-5 shadow-sm">
             <div className="flex justify-between items-center mb-2">
               <span
@@ -308,7 +368,6 @@ export default function CreatePlanPage() {
               >
                 Budget
               </span>
-
               <div className="flex items-center justify-end gap-1 w-1/2">
                 <input
                   type="number"
@@ -325,57 +384,50 @@ export default function CreatePlanPage() {
             </div>
           </div>
 
-          {/* 5. Category Tags */}
+          {/* 5. TAGS */}
           <div className="flex flex-wrap gap-3">
             {[
               "AdventureTravel",
               "BeachLover",
               "CulturalTravel",
               "Backpacking",
-              "Foodie",
-              "Relaxation",
-              "NatureExplorer",
-              "LuxuryTravel",
-              "FamilyTrip",
-              "SoloTravel",
-            ].map((tag, idx) => {
-              const isActive = selectedTags.includes(tag);
-              return (
-                <span
-                  key={idx}
-                  onClick={() => toggleTag(tag)}
-                  className={`${
-                    jost.className
-                  } px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-colors border select-none
-                    ${
-                      isActive
-                        ? "bg-[#E3F1E4] text-[#53B552] border-[#53B552]"
-                        : "bg-gray-100 text-gray-500 border-transparent hover:bg-green-50"
-                    }`}
-                >
-                  {tag}
-                </span>
-              );
-            })}
+            ].map((tag, idx) => (
+              <span
+                key={idx}
+                className={`${
+                  jost.className
+                } px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-colors
+                  ${
+                    tag === "CulturalTravel" || tag === "BeachLover"
+                      ? "bg-[#E3F1E4] text-[#53B552] border border-[#53B552]"
+                      : "bg-gray-100 text-gray-500 hover:bg-green-50"
+                  }`}
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         </main>
 
-        {/* --- BOTTOM BUTTON --- */}
-        <div className="absolute bottom-0 left-0 right-0 px-5 bg-[#F5F7F5] pt-4 pb-8 z-30">
+        {/* BOTTOM BUTTON */}
+        <div className="absolute bottom-20 left-0 right-0 px-5 bg-linear-to-t from-[#F5F7F5] via-[#F5F7F5] to-transparent pt-4 pb-2">
           <button
-            onClick={handleCreatePlan}
-            disabled={isLoading}
-            className={`${jost.className} w-full bg-[#53B552] text-white text-xl font-bold py-3.5 rounded-xl shadow-lg hover:bg-green-600 transition-all flex justify-center items-center gap-2`}
+            onClick={handleCreatePlan} // Gắn sự kiện click
+            disabled={!destination || !selectedRange.start || isLoading} // Disable khi đang load
+            className={`${jost.className} w-full bg-[#53B552] text-white text-xl font-bold py-3.5 rounded-xl shadow-lg 
+            hover:bg-green-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
           >
             {isLoading ? (
-              <Loader2 className="animate-spin" />
+              <>
+                <Loader2 className="animate-spin" /> Creating...
+              </>
             ) : (
               "Create New Plan"
             )}
           </button>
         </div>
 
-        {/* --- FOOTER --- */}
+        {/* FOOTER */}
         <div className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20 shrink-0 h-[60px]"></div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 
 from repository.plan_repository import PlanRepository
 from schemas.map_schema import *
@@ -43,7 +44,8 @@ class PlanService:
                     PlanDestinationResponse(
                         id=dest.id,
                         destination_id=dest.destination_id,
-                        type=dest.type,
+                        destination_type=dest.type,
+                        type=dest.type,             
                         visit_date=dest.visit_date,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
@@ -72,22 +74,36 @@ class PlanService:
     @staticmethod
     async def create_plan(db: AsyncSession, user_id: int, plan_data: PlanCreate) -> PlanResponse:
         try:
+            # 1. Tạo Plan
             new_plan = await PlanRepository.create_plan(db, plan_data)
             if not new_plan:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create plan",
-                )
+                raise HTTPException(status_code=500, detail="Failed to create plan")
 
+            # 2. Add Owner
             await PlanRepository.add_plan_member(
-                db,
-                new_plan.id,
-                PlanMemberCreate(user_id=user_id, role=PlanRole.owner),
+                db, new_plan.id, PlanMemberCreate(user_id=user_id, role=PlanRole.owner)
             )
 
+            # 3. Add Destinations (CÓ GỌI MAP SERVICE ĐỂ FIX LỖI FK)
             for dest_data in plan_data.destinations:
+                try:
+                    # Gọi MapService lấy thông tin để tạo Destination trong DB trước
+                    place_info = await MapService.get_location_details(
+                        PlaceDetailsRequest(place_id=dest_data.destination_id)
+                    )
+                    await PlanRepository.ensure_destination(db, place_info)
+                    
+                    # Update URL ảnh nếu thiếu
+                    if not dest_data.url and place_info.photos:
+                        dest_data.url = place_info.photos[0].photo_url
+                except Exception as e:
+                    print(f"Warning syncing destination {dest_data.destination_id}: {e}")
+                
+                # Sau đó mới thêm vào Plan
                 await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
 
+            # 4. Return
+            saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -99,49 +115,43 @@ class PlanService:
                     PlanDestinationResponse(
                         id=dest.id,
                         destination_id=dest.destination_id,
-                        type=dest.type,
+                        destination_type=dest.type,
+                        type=dest.type,             
                         visit_date=dest.visit_date,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
+                        order_in_day=dest.order_in_day or 0,
                     )
-                    for dest in await PlanRepository.get_plan_destinations(db, new_plan.id)
+                    for dest in saved_destinations
                 ],
             )
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error creating plan: {e}",
-            )
+            raise HTTPException(status_code=500, detail=f"Error creating plan: {e}")
 
     @staticmethod
     async def update_plan(db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate):
         try:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
-            if plans is None:
-                plans = []
-
-            plan_exists = any(plan.id == plan_id for plan in plans)
-            if not plan_exists:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Plan with ID {plan_id} not found or does not belong to user",
-                )
+            if not plans or not any(p.id == plan_id for p in plans):
+                raise HTTPException(status_code=404, detail="Plan not found")
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
-            if not updated_plan:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Plan with ID {plan_id} not found",
-                )
-
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
             for dest_data in updated_data.destinations or []:
+                try:
+                    place_info = await MapService.get_location_details(
+                        PlaceDetailsRequest(place_id=dest_data.destination_id)
+                    )
+                    await PlanRepository.ensure_destination(db, place_info)
+                except Exception:
+                    pass
                 await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
 
+            saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
             return PlanResponse(
                 id=updated_plan.id,
                 user_id=user_id,
@@ -153,54 +163,40 @@ class PlanService:
                     PlanDestinationResponse(
                         id=dest.id,
                         destination_id=dest.destination_id,
+                        destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
+                        order_in_day=dest.order_in_day or 0,
                     )
-                    for dest in await PlanRepository.get_plan_destinations(db, updated_plan.id)
+                    for dest in saved_destinations
                 ],
             )
-        except HTTPException:
-            raise
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error updating plan ID {plan_id}: {e}",
-            )
+            raise HTTPException(status_code=500, detail=f"Error: {e}")
 
     @staticmethod
     async def delete_plan(db: AsyncSession, user_id: int, plan_id: int):
         try:
             plan = await PlanRepository.get_plan_by_id(db, plan_id)
             if not plan:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Plan with ID {plan_id} not found",
-                )
+                raise HTTPException(status_code=404, detail="Plan not found")
 
             is_owner = await PlanRepository.is_plan_owner(db, user_id, plan_id)
             if not is_owner:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the owner can delete the plan",
-                )
+                raise HTTPException(status_code=403, detail="Only owner can delete")
 
             success = await PlanRepository.delete_plan(db, plan_id)
             if not success:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to delete plan with ID {plan_id}",
-                )
-            return {"detail": "Plan deleted successfully"}
+                raise HTTPException(status_code=500, detail="Failed to delete")
+            
+            return {"message": "Plan deleted successfully"} 
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error deleting plan ID {plan_id}: {e}",
-            )
+            raise HTTPException(status_code=500, detail=f"Error deleting: {e}")
 
     @staticmethod
     async def get_plan_destinations(
@@ -226,6 +222,7 @@ class PlanService:
                 PlanDestinationResponse(
                     id=dest.id,
                     destination_id=dest.destination_id,
+                    destination_type=dest.type,
                     type=dest.type,
                     order_in_day=dest.order_in_day,
                     visit_date=dest.visit_date,
@@ -285,6 +282,7 @@ class PlanService:
             return PlanDestinationResponse(
                 id=plan_dest.id,
                 destination_id=plan_dest.destination_id,
+                destination_type=plan_dest.type,
                 type=plan_dest.type,
                 visit_date=plan_dest.visit_date,
                 estimated_cost=plan_dest.estimated_cost,
@@ -541,5 +539,3 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error handling plan intent: {str(e)}",
             )
-
-

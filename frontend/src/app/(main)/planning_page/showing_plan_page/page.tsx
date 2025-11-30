@@ -15,11 +15,10 @@ import {
   Plus,
   Calendar,
   Clock,
-  Footprints,
   Route,
-  Activity,
   Sunset,
   Moon,
+  Trash2, // Import thêm icon thùng rác
 } from "lucide-react";
 import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
 import { api, TravelPlan, PlanActivity } from "@/lib/api";
@@ -32,21 +31,15 @@ const abhaya_libre = Abhaya_Libre({
   weight: ["400", "500", "600", "800"],
 });
 
-// [FIX 1] Hàm parseDate hỗ trợ cả "YYYY-MM-DD" (Backend) và "DD/MM/YYYY"
 const parseDate = (dateStr: string) => {
-  if (!dateStr) return new Date(0); // Trả về ngày rất cũ nếu null
-
-  // Trường hợp 1: YYYY-MM-DD (Từ Backend Python trả về)
+  if (!dateStr) return new Date(0);
   if (dateStr.includes("-")) {
     return new Date(dateStr);
   }
-
-  // Trường hợp 2: DD/MM/YYYY (Nếu có)
   if (dateStr.includes("/")) {
     const [day, month, year] = dateStr.split("/").map(Number);
     return new Date(year, month - 1, day);
   }
-
   return new Date(dateStr);
 };
 
@@ -54,79 +47,108 @@ export default function PlanningPage() {
   const [activeTab, setActiveTab] = useState<
     "Incoming" | "Future" | "Previous"
   >("Incoming");
+
+  // State quản lý danh sách
   const [incomingPlan, setIncomingPlan] = useState<TravelPlan | null>(null);
+  const [futurePlans, setFuturePlans] = useState<TravelPlan[]>([]); // Future là những plan sau Incoming
   const [previousPlans, setPreviousPlans] = useState<TravelPlan[]>([]);
-  const [futurePlans, setFuturePlans] = useState<TravelPlan[]>([]);
+
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const initData = async () => {
-      try {
-        setLoading(true);
+  // Hàm load dữ liệu (Tách ra để tái sử dụng khi delete)
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      const allPlans = await api.getPlans();
 
-        const allPlans = await api.getPlans();
-
-        if (!allPlans || allPlans.length === 0) {
-          // ... (set null hết)
-          return;
-        }
-
-        const validPlans = allPlans.filter(
-          (p) => p.activities && p.activities.length >= 2
-        );
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const allActiveAndFuture = validPlans.filter((p) => {
-          const endDate = p.end_date
-            ? parseDate(p.end_date)
-            : parseDate(p.date);
-          return endDate >= today;
-        });
-
-        const allPast = validPlans.filter((p) => {
-          const endDate = p.end_date
-            ? parseDate(p.end_date)
-            : parseDate(p.date);
-          return endDate < today;
-        });
-
-        if (allActiveAndFuture.length > 0) {
-          allActiveAndFuture.sort(
-            (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
-          );
-          setIncomingPlan(allActiveAndFuture[0]);
-          setFuturePlans(allActiveAndFuture.slice(1));
-        } else {
-          setIncomingPlan(null);
-          setFuturePlans([]);
-        }
-
-        allPast.sort(
-          (a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime()
-        );
-        setPreviousPlans(allPast);
-      } catch (error) {
-        console.error("Failed to fetch plans:", error);
-      } finally {
-        setLoading(false);
+      if (!allPlans || allPlans.length === 0) {
+        setIncomingPlan(null);
+        setFuturePlans([]);
+        setPreviousPlans([]);
+        return;
       }
-    };
 
-    initData();
+      const validPlans = allPlans.filter(
+        (p) => p.activities && p.activities.length >= 2
+      );
+
+      if (validPlans.length === 0) {
+        setIncomingPlan(null);
+        setFuturePlans([]);
+        setPreviousPlans([]);
+        return;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const allActiveAndFuture = validPlans.filter((p) => {
+        const checkDate = p.end_date
+          ? parseDate(p.end_date)
+          : parseDate(p.date);
+        return checkDate >= today;
+      });
+
+      const allPast = validPlans.filter((p) => {
+        const checkDate = p.end_date
+          ? parseDate(p.end_date)
+          : parseDate(p.date);
+        return checkDate < today;
+      });
+
+      // Logic Incoming: Lấy plan gần nhất trong tương lai
+      if (allActiveAndFuture.length > 0) {
+        allActiveAndFuture.sort(
+          (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
+        );
+
+        setIncomingPlan(allActiveAndFuture[0]);
+        setFuturePlans(allActiveAndFuture.slice(1)); // Các plan còn lại đưa vào Future tab
+      } else {
+        setIncomingPlan(null);
+        setFuturePlans([]);
+      }
+
+      allPast.sort(
+        (a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime()
+      );
+      setPreviousPlans(allPast);
+    } catch (error) {
+      console.error("Failed to fetch plans:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
   }, []);
 
   const handleTogglePlan = (id: number) => {
     setExpandedPlanId(expandedPlanId === id ? null : id);
   };
 
+  // --- HÀM XỬ LÝ XÓA PLAN ---
+  const handleDeletePlan = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this plan?")) return;
+
+    try {
+      await api.deletePlan(id);
+
+      // Sau khi xóa API thành công, ta cập nhật lại State cục bộ ngay lập tức
+      // để tạo hiệu ứng "tự động đẩy plan" mà không cần gọi lại API getPlans (hoặc gọi lại cũng được)
+
+      // Cách 1: Gọi lại refreshData() để đồng bộ chuẩn nhất với Backend
+      refreshData();
+    } catch (error) {
+      console.error("Error deleting plan:", error);
+      alert("Failed to delete plan.");
+    }
+  };
+
   const getActivitiesByTime = (activities: PlanActivity[], slot: string) => {
     if (!activities) return [];
-
     const filtered = activities.filter((a) => a.time_slot === slot);
-
     return filtered.sort(
       (a, b) => (a.order_in_day || 0) - (b.order_in_day || 0)
     );
@@ -177,7 +199,7 @@ export default function PlanningPage() {
               {activeTab === "Incoming" &&
                 (incomingPlan ? (
                   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-4">
-                    {/* Header Card */}
+                    {/* Header Card Incoming */}
                     <div className="bg-white rounded-full px-4 py-3 flex justify-between items-center shadow-sm mb-2 cursor-pointer hover:bg-gray-50 transition-colors border border-green-100">
                       <div className="flex items-center gap-2 text-gray-800">
                         <MapPin
@@ -192,9 +214,23 @@ export default function PlanningPage() {
                           {incomingPlan.destination}
                         </span>
                       </div>
-                      <Link href={`/planning_page/${incomingPlan.id}/details`}>
-                        <ChevronRight size={20} className="text-gray-400" />
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        {/* Nút xóa cho Incoming Plan */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDeletePlan(incomingPlan.id);
+                          }}
+                          className="p-2 bg-red-50 text-red-400 rounded-full hover:bg-red-100 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                        <Link
+                          href={`/planning_page/${incomingPlan.id}/details`}
+                        >
+                          <ChevronRight size={20} className="text-gray-400" />
+                        </Link>
+                      </div>
                     </div>
 
                     <div className="flex justify-end items-center gap-1 mb-6 pr-2">
@@ -215,7 +251,7 @@ export default function PlanningPage() {
                       Schedule
                     </span>
 
-                    {/* Morning Section */}
+                    {/* Morning Section - Truyền prop showTime={false} */}
                     <TimeSection
                       title="Morning"
                       icon={
@@ -228,9 +264,10 @@ export default function PlanningPage() {
                         incomingPlan.activities,
                         "Morning"
                       )}
+                      showTime={false}
                     />
 
-                    {/* Afternoon Section */}
+                    {/* Afternoon Section - Truyền prop showTime={false} */}
                     <TimeSection
                       title="Afternoon"
                       icon={<Sunset size={18} className="text-orange-500" />}
@@ -238,9 +275,10 @@ export default function PlanningPage() {
                         incomingPlan.activities,
                         "Afternoon"
                       )}
+                      showTime={false}
                     />
 
-                    {/* Evening Section (Code cũ bị thiếu cái này) */}
+                    {/* Evening Section - Truyền prop showTime={false} */}
                     <TimeSection
                       title="Evening"
                       icon={<Moon size={18} className="text-purple-500" />}
@@ -248,6 +286,7 @@ export default function PlanningPage() {
                         incomingPlan.activities,
                         "Evening"
                       )}
+                      showTime={false}
                     />
 
                     <div className="flex flex-col gap-3 mt-6">
@@ -276,12 +315,13 @@ export default function PlanningPage() {
                         plan={plan}
                         expandedId={expandedPlanId}
                         onToggle={handleTogglePlan}
+                        onDelete={() => handleDeletePlan(plan.id)} // Truyền hàm delete
                         type="future"
                       />
                     ))}
                   </div>
                 ) : (
-                  <EmptyState message="No future trips." />
+                  <EmptyState message="No other future trips." />
                 ))}
 
               {activeTab === "Previous" &&
@@ -293,6 +333,7 @@ export default function PlanningPage() {
                         plan={plan}
                         expandedId={expandedPlanId}
                         onToggle={handleTogglePlan}
+                        onDelete={() => handleDeletePlan(plan.id)} // Truyền hàm delete
                         type="past"
                       />
                     ))}
@@ -302,6 +343,7 @@ export default function PlanningPage() {
                 ))}
             </>
           )}
+
           <Link href="/planning_page/create_plan">
             <button
               className="absolute bottom-24 right-6 bg-[#53B552] text-white p-4 rounded-full shadow-xl hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 z-30 flex items-center justify-center group"
@@ -314,6 +356,7 @@ export default function PlanningPage() {
         </main>
 
         <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20 shrink-0">
+          {/* Giữ nguyên footer của bạn */}
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
             <Link
@@ -325,12 +368,10 @@ export default function PlanningPage() {
                 Home
               </span>
             </Link>
-
             <Link
               href="/track_page/leaderboard"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
-              {" "}
               <Route size={24} strokeWidth={2} />
               <span className={`${jost.className} text-xs font-medium mt-1`}>
                 Track
@@ -370,15 +411,18 @@ export default function PlanningPage() {
   );
 }
 
-// --- Component phụ hiển thị từng buổi ---
+// --- SUB-COMPONENTS ---
+
 function TimeSection({
   title,
   icon,
   activities,
+  showTime = true, // [NEW PROP] Mặc định là hiện, ở Incoming sẽ truyền false
 }: {
   title: string;
   icon: React.ReactNode;
   activities: PlanActivity[];
+  showTime?: boolean;
 }) {
   return (
     <div className="mb-4">
@@ -392,7 +436,9 @@ function TimeSection({
       </div>
       <div className="space-y-3">
         {activities.length > 0 ? (
-          activities.map((item) => <ActivityCard key={item.id} item={item} />)
+          activities.map((item) => (
+            <ActivityCard key={item.id} item={item} showTime={showTime} />
+          ))
         ) : (
           <div className="border border-dashed border-gray-300 rounded-xl p-3 text-center">
             <p className={`${jost.className} text-gray-400 text-xs italic`}>
@@ -412,6 +458,7 @@ function EmptyState({
   message: string;
   showCreateButton?: boolean;
 }) {
+  // (Giữ nguyên component này)
   return (
     <div className="h-full flex flex-col items-center justify-center text-center opacity-80 -mt-10">
       <div className="bg-white p-6 rounded-full shadow-sm mb-6">
@@ -445,9 +492,11 @@ function EmptyState({
 function ActivityCard({
   item,
   isSmall = false,
+  showTime = true,
 }: {
   item: PlanActivity;
   isSmall?: boolean;
+  showTime?: boolean;
 }) {
   return (
     <div
@@ -463,11 +512,14 @@ function ActivityCard({
         >
           {item.title}
         </h4>
-        {item.time && (
+
+        {/* [UPDATE] Chỉ hiển thị giờ nếu showTime = true */}
+        {showTime && item.time && (
           <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md ml-2">
             {item.time}
           </span>
         )}
+
         <p
           className={`${jost.className} text-gray-500 text-[10px] sm:text-xs mt-1 line-clamp-1 leading-relaxed`}
         >
@@ -500,23 +552,25 @@ function PlanSummaryCard({
   plan,
   expandedId,
   onToggle,
+  onDelete, // [NEW] Nhận hàm delete
   type,
 }: {
   plan: TravelPlan;
   expandedId: number | null;
   onToggle: (id: number) => void;
+  onDelete: () => void;
   type: "future" | "past";
 }) {
   const isExpanded = expandedId === plan.id;
-  const dateObj = parseDate(plan.date); // Sử dụng hàm parseDate mới
+  const dateObj = parseDate(plan.date);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 border border-gray-100">
-      <div
-        onClick={() => onToggle(plan.id)}
-        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 select-none"
-      >
-        <div className="flex items-center gap-3">
+      <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 select-none">
+        <div
+          className="flex items-center gap-3 flex-1"
+          onClick={() => onToggle(plan.id)}
+        >
           <div
             className={`p-2 rounded-full ${
               type === "future" ? "bg-blue-50" : "bg-red-50"
@@ -541,16 +595,30 @@ function PlanSummaryCard({
             </div>
           </div>
         </div>
-        <ChevronRight
-          size={20}
-          className={`text-gray-400 transition-transform duration-300 ${
-            isExpanded ? "rotate-90" : ""
-          }`}
-        />
+
+        <div className="flex items-center gap-3">
+          {/* [NEW] Nút Delete */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // Chặn sự kiện toggle mở rộng
+              onDelete();
+            }}
+            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+          >
+            <Trash2 size={18} />
+          </button>
+          <ChevronRight
+            size={20}
+            onClick={() => onToggle(plan.id)}
+            className={`text-gray-400 transition-transform duration-300 ${
+              isExpanded ? "rotate-90" : ""
+            }`}
+          />
+        </div>
       </div>
+
       {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t border-gray-100 animate-in slide-in-from-top-2">
-          {/* Nội dung mở rộng giữ nguyên */}
           <div className="mt-3 flex justify-end">
             <Link href={`/planning_page/${plan.id}/details`}>
               <button

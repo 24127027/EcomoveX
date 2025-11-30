@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.plan import *
 from schemas.plan_schema import *
+from models.destination import Destination
+from schemas.map_schema import PlaceDetailsResponse
 
 
 class PlanRepository:
@@ -286,3 +288,29 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: deleting plan destination ID {plan_destination_id} - {e}")
             return False
+        
+    @staticmethod
+    async def ensure_destination(db: AsyncSession, place_details: PlaceDetailsResponse):
+        """Kiểm tra và tạo destination nếu chưa có để tránh lỗi Foreign Key"""
+        try:
+            # 1. Check tồn tại
+            result = await db.execute(select(Destination).where(Destination.place_id == place_details.place_id))
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing
+
+            # 2. Tạo mới
+            new_dest = Destination(
+                place_id=place_details.place_id,
+                # Các trường này có thể null trong model destination.py của bạn không?
+                # Dựa vào file bạn gửi, model Destination CHỈ CÓ place_id và green_verified
+                # Nếu database thực tế có cột name, address... thì thêm vào đây.
+                # Nếu chỉ có place_id thì chỉ cần dòng dưới:
+            )
+            db.add(new_dest)
+            await db.commit()
+            return new_dest
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: ensuring destination {place_details.place_id} - {e}")
+            return None

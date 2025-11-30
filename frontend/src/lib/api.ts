@@ -306,11 +306,22 @@ export interface TravelPlan {
   activities: PlanActivity[];
 }
 
+export interface PlanDestinationCreate {
+  id: number;
+  destination_id: string;
+  destination_type: string;
+  order_in_day: number;
+  visit_date: string;
+  estimated_cost?: number;
+  url?: string;
+  note?: string;
+}
 export interface CreatePlanRequest {
   place_name: string;
   start_date: string;
   end_date?: string;
   budget_limit: number;
+  destinations?: PlanDestinationCreate[];
 }
 
 export interface DestinationCard {
@@ -504,6 +515,11 @@ class ApiClient {
     return this.request<PlanResponse>("/plans/", {
       method: "POST",
       body: JSON.stringify(request),
+    });
+  }
+  async deletePlan(planId: number): Promise<void> {
+    return this.request(`/plans/${planId}`, {
+      method: "DELETE",
     });
   }
 
@@ -792,25 +808,18 @@ class ApiClient {
     );
   }
 
-  // Tạo review mới (có upload ảnh)
   async createReview(
     destinationId: string,
     data: { rating: number; content: string },
     files: File[] = []
   ): Promise<ReviewResponse> {
     const formData = new FormData();
-
-    // Backend dùng Depends(ReviewCreate.as_form), nên gửi dữ liệu dạng form field
     formData.append("rating", String(data.rating));
     formData.append("content", data.content);
 
-    // Append từng file vào key "files" (khớp với endpoint: files: List[UploadFile])
     files.forEach((file) => {
       formData.append("files", file);
     });
-
-    // Lưu ý: Khi body là FormData, hàm request() phía trên sẽ tự động bỏ header Content-Type JSON
-    // để trình duyệt tự set boundary multipart/form-data.
     return this.request<ReviewResponse>(`/reviews/${destinationId}`, {
       method: "POST",
       body: formData,
