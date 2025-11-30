@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import and_, delete, func, select, update
+from sqlalchemy import and_, delete, func, select, text, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -509,3 +509,54 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching all preferences - {e}")
             return []
+
+    @staticmethod
+    async def get_user_latest_cluster(db: AsyncSession, user_id: int) -> Optional[int]:
+        """Get the most recent cluster_id for a user."""
+        try:
+            query = select(UserClusterAssociation.cluster_id).where(
+                UserClusterAssociation.user_id == user_id
+            ).order_by(UserClusterAssociation.created_at.desc()).limit(1)
+            
+            result = await db.execute(query)
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching latest cluster for user {user_id} - {e}")
+            return None
+
+    @staticmethod
+    async def get_cluster_preferred_categories(
+        db: AsyncSession, 
+        cluster_id: int, 
+        limit: int = 5
+    ) -> List[str]:
+        """Get most frequent categories visited by users in a cluster."""
+        try:
+            query = text("""
+                SELECT DISTINCT d.category, COUNT(*) as frequency
+                FROM visits v
+                JOIN destinations d ON v.destination_id = d.destination_id
+                JOIN user_clusters uc ON v.user_id = uc.user_id
+                WHERE uc.cluster_id = :cluster_id AND d.category IS NOT NULL
+                GROUP BY d.category
+                ORDER BY frequency DESC
+                LIMIT :limit
+            """)
+            result = await db.execute(query, {"cluster_id": cluster_id, "limit": limit})
+            return [row.category for row in result]
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching preferred categories for cluster {cluster_id} - {e}")
+            return []
+
+    @staticmethod
+    async def get_cluster_embedding(db: AsyncSession, cluster_id: int) -> Optional[List[float]]:
+        """Get cluster embedding vector."""
+        try:
+            result = await db.execute(
+                select(Cluster.embedding).where(Cluster.id == cluster_id)
+            )
+            embedding = result.scalar_one_or_none()
+            return embedding if embedding else None
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching cluster embedding for cluster {cluster_id} - {e}")
+            return None

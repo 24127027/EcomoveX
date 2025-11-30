@@ -7,6 +7,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from repository.destination_repository import DestinationRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
 from schemas.destination_schema import Location, DestinationCreate
@@ -15,6 +16,8 @@ from repository.cluster_repository import ClusterRepository
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
 from destination_service import DestinationService
+from services.map_service import MapService
+from schemas.map_schema import TextSearchRequest
 
 def blend_scores(
     similarity_items: List[Dict[str, Any]],
@@ -80,38 +83,30 @@ class RecommendationService:
             db: Database session
             user_id: User ID
             recommendations: List of recommendation items with destination_id
+            
+        Returns:
+            Sorted list of recommendations with cluster_affinity scores
         """
         try:
             if not recommendations:
                 return []
             
-            # Get user's cluster
-            query = text("""
-                SELECT cluster_id FROM user_clusters
-                WHERE user_id = :user_id
-                ORDER BY created_at DESC
-                LIMIT 1
-            """)
-            result = await db.execute(query, {"user_id": user_id})
-            user_cluster = result.scalar_one_or_none()
+            # Get user's latest cluster using repository
+            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
             
             if user_cluster is None:
                 return recommendations
             
-            # Get cluster embedding
+            # Get cluster embedding using service layer
             cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
             if cluster_vector is None:
                 return recommendations
             
-            # Get embeddings for all recommended destinations
+            # Get embeddings for all recommended destinations using repository
             destination_ids = [rec['destination_id'] for rec in recommendations]
-            query = text("""
-                SELECT destination_id, embedding
-                FROM destinations
-                WHERE destination_id = ANY(:ids) AND embedding IS NOT NULL
-            """)
-            result = await db.execute(query, {"ids": destination_ids})
-            dest_embeddings = {row.destination_id: row.embedding for row in result}
+            dest_embeddings = await DestinationRepository.get_embeddings_by_ids(
+                db, destination_ids
+            )
             
             # Calculate affinity scores
             cluster_vec = np.array(cluster_vector, dtype=np.float32)
@@ -128,6 +123,7 @@ class RecommendationService:
                 else:
                     rec['cluster_affinity'] = 0.0
             
+            # Sort by cluster affinity (descending)
             recommendations.sort(key=lambda x: x.get('cluster_affinity', 0), reverse=True)
             
             return recommendations
@@ -136,66 +132,6 @@ class RecommendationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sorting recommendations by user cluster: {str(e)}"
-            )
-    
-    @staticmethod
-    async def sort_recommendations_by_popularity(
-        db: AsyncSession,
-        recommendations: List[Dict[str, Any]],
-        cluster_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Sort recommendations by popularity score.
-        
-        Args:
-            db: Database session
-            recommendations: List of recommendation items with destination_id
-            cluster_id: Optional cluster ID to get cluster-specific popularity
-        """
-        try:
-            if not recommendations:
-                return []
-            
-            destination_ids = [rec['destination_id'] for rec in recommendations]
-            
-            if cluster_id:
-                # Get cluster-specific popularity
-                query = text("""
-                    SELECT destination_id, popularity_score
-                    FROM cluster_destinations
-                    WHERE cluster_id = :cluster_id AND destination_id = ANY(:ids)
-                """)
-                result = await db.execute(query, {"cluster_id": cluster_id, "ids": destination_ids})
-            else:
-                # Get global popularity (based on visit count and rating)
-                query = text("""
-                    SELECT d.destination_id, 
-                           (COALESCE(v.visit_count, 0) * 0.6 + COALESCE(d.rating, 0) * 20 * 0.4) as popularity_score
-                    FROM destinations d
-                    LEFT JOIN (
-                        SELECT destination_id, COUNT(*) as visit_count
-                        FROM visits
-                        WHERE destination_id = ANY(:ids)
-                        GROUP BY destination_id
-                    ) v ON d.destination_id = v.destination_id
-                    WHERE d.destination_id = ANY(:ids)
-                """)
-                result = await db.execute(query, {"ids": destination_ids})
-            
-            popularity_scores = {row.destination_id: row.popularity_score for row in result}
-            
-            for rec in recommendations:
-                dest_id = rec['destination_id']
-                rec['popularity_score'] = popularity_scores.get(dest_id, 0.0)
-            
-            recommendations.sort(key=lambda x: x.get('popularity_score', 0), reverse=True)
-            
-            return recommendations
-            
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error sorting recommendations by popularity: {str(e)}"
             )
     
     @staticmethod
@@ -291,34 +227,6 @@ class RecommendationService:
 
     
     @staticmethod
-    async def recommend_for_cluster_popularity(
-        db: AsyncSession,
-        cluster_id: int,
-    ) -> List[Dict[str, Any]]:
-        try:            
-            await ClusterService.compute_cluster_popularity(db, cluster_id)
-            
-            popular_destinations_raw = await ClusterRepository.get_destinations_in_cluster(db, cluster_id)
-            
-            results = [
-                {
-                    'destination_id': dest.destination_id,
-                    'popularity_score': dest.popularity_score / 100.0
-                }
-                for dest in popular_destinations_raw
-            ]
-            
-            return results
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating popularity recommendations for cluster {cluster_id}: {str(e)}"
-            )
-    
-    
-    @staticmethod
     async def recommend_nearby_by_cluster_tags(
         db: AsyncSession,
         user_id: int,
@@ -340,15 +248,8 @@ class RecommendationService:
             List of recommended destinations with scores and details
         """
         try:
-            # Get user's cluster
-            query = text("""
-                SELECT cluster_id FROM user_clusters
-                WHERE user_id = :user_id
-                ORDER BY created_at DESC
-                LIMIT 1
-            """)
-            result = await db.execute(query, {"user_id": user_id})
-            user_cluster = result.scalar_one_or_none()
+            # Get user's latest cluster using repository
+            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
             
             if user_cluster is None:
                 raise HTTPException(
@@ -356,28 +257,15 @@ class RecommendationService:
                     detail=f"No cluster found for user {user_id}"
                 )
             
-            # Get cluster's preferred tags/categories
-            query = text("""
-                SELECT DISTINCT d.category, COUNT(*) as frequency
-                FROM visits v
-                JOIN destinations d ON v.destination_id = d.destination_id
-                JOIN user_clusters uc ON v.user_id = uc.user_id
-                WHERE uc.cluster_id = :cluster_id
-                GROUP BY d.category
-                ORDER BY frequency DESC
-                LIMIT 5
-            """)
-            result = await db.execute(query, {"cluster_id": user_cluster})
-            cluster_categories = [row.category for row in result if row.category]
+            # Get cluster's preferred categories using repository
+            cluster_categories = await ClusterRepository.get_cluster_preferred_categories(
+                db, user_cluster, limit=5
+            )
             
             if not cluster_categories:
                 # Fallback to common categories
                 cluster_categories = ["tourist_attraction", "restaurant", "park", "museum", "shopping_mall"]
-            
-            # Import MapService to use text_search
-            from services.map_service import MapService
-            from schemas.map_schema import TextSearchRequest
-            
+
             # Perform text searches for each category
             all_places = []
             search_tasks = []
@@ -415,8 +303,6 @@ class RecommendationService:
                     place_lng = place.geometry.location.lng
                     
                     # Haversine distance calculation
-                    from math import radians, cos, sin, asin, sqrt
-                    
                     lat1, lon1 = radians(current_location.lat), radians(current_location.lng)
                     lat2, lon2 = radians(place_lat), radians(place_lng)
                     
@@ -474,29 +360,24 @@ class RecommendationService:
                 reverse=True
             )
             
-            # Get or create destinations in database
+            # Get or create destinations using repository
+            place_ids = [rec['place_id'] for rec in recommendations[:k]]
+            existing_destinations = await DestinationRepository.get_destination_ids_by_place_ids(
+                db, place_ids
+            )
+            
             for rec in recommendations[:k]:
-                try:
-                    # Check if destination exists
-                    dest_query = text("""
-                        SELECT destination_id FROM destinations
-                        WHERE place_id = :place_id
-                    """)
-                    dest_result = await db.execute(dest_query, {"place_id": rec['place_id']})
-                    dest_id = dest_result.scalar_one_or_none()
-                    
-                    if dest_id:
-                        rec['destination_id'] = dest_id
-                    else:
-                        # Create new destination
-                        new_dest = await DestinationService.create_destination(
-                            db,
-                            DestinationCreate(place_id=rec['place_id'])
-                        )
+                place_id = rec['place_id']
+                
+                if place_id in existing_destinations:
+                    rec['destination_id'] = existing_destinations[place_id]
+                else:
+                    # Create new destination using repository
+                    new_dest = await DestinationRepository.get_or_create_destination(db, place_id)
+                    if new_dest:
                         rec['destination_id'] = new_dest.destination_id
-                        
-                except Exception:
-                    rec['destination_id'] = None
+                    else:
+                        rec['destination_id'] = None
             
             return recommendations[:k]
             
