@@ -73,6 +73,19 @@ export interface PhotoInfo {
   size: [number, number]; // Tuple matching Python's Tuple[int, int]
 }
 
+export interface GreenPlaceRecommendation {
+  place_id: string;
+  destination_id?: string | null;
+  name: string;
+  formatted_address: string;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  rating?: number;
+  combined_score?: number;
+  photo_url?: string;
+}
+
 export interface PlaceSearchResult {
   id: string; //  sends "id"
   displayName: LocalizedText; //  sends "displayName"
@@ -842,6 +855,20 @@ class ApiClient {
     return this.request<void>(`/reviews/${destinationId}`, {
       method: "DELETE",
     });
+  }
+
+  // --- RECOMMENDATION ENDPOINTS ---
+
+  async getNearbyGreenPlaces(
+    lat: number,
+    lng: number,
+    radiusKm: number = 5,
+    k: number = 10
+  ): Promise<GreenPlaceRecommendation[]> {
+    return this.request<GreenPlaceRecommendation[]>(
+      `/recommendations/user/me/nearby-by-cluster?latitude=${lat}&longitude=${lng}&radius_km=${radiusKm}&k=${k}`,
+      { method: "GET" }
+    );
   }
 }
 
