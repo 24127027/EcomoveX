@@ -35,8 +35,7 @@ import {
   Moon,
   Plus,
   Loader2,
-  BrainCircuit, // Thêm icon Brain cho sinh động
-  CheckCircle2,
+  BrainCircuit, 
 } from "lucide-react";
 import { Jost, Roboto } from "next/font/google";
 import { api, PlanActivity } from "@/lib/api";

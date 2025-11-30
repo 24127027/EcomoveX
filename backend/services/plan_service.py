@@ -48,6 +48,7 @@ class PlanService:
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
+                        order_in_day=dest.order_in_day or 0,
                     )
                     for dest in destinations
                 ]
@@ -289,6 +290,7 @@ class PlanService:
                 estimated_cost=plan_dest.estimated_cost,
                 url=plan_dest.url,
                 note=plan_dest.note,
+                order_in_day=plan_dest.order_in_day,
             )
         except HTTPException:
             raise
@@ -477,7 +479,7 @@ class PlanService:
                 update_data = PlanDestinationUpdate(
                     visit_date=visit_date, order_in_day=order_in_day
                 )
-                updated = await PlanRepository.update_plan_destination(db, dest_id, update_data)
+                updated = await PlanRepository.update_plan(db, dest_id, update_data)
                 if not updated:
                     return IntentHandlerResponse(
                         ok=False, message="Không cập nhật được destination."
@@ -539,3 +541,5 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error handling plan intent: {str(e)}",
             )
+
+

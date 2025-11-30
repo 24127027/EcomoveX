@@ -104,7 +104,7 @@ export default function SigninPage() {
       localStorage.setItem("access_token", response.access_token);
       localStorage.setItem("user_id", response.user_id.toString());
 
-      router.push("/admin");
+      router.push("/allow_permission/location_permission");
     } catch (err: any) {
       console.error("Login error:", err);
 

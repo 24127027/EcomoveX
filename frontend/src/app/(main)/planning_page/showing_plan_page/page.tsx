@@ -125,7 +125,11 @@ export default function PlanningPage() {
   const getActivitiesByTime = (activities: PlanActivity[], slot: string) => {
     if (!activities) return [];
 
-    return activities.filter((a) => a.time_slot === slot);
+    const filtered = activities.filter((a) => a.time_slot === slot);
+
+    return filtered.sort(
+      (a, b) => (a.order_in_day || 0) - (b.order_in_day || 0)
+    );
   };
 
   return (
@@ -333,8 +337,9 @@ export default function PlanningPage() {
               </span>
             </Link>
             <Link
-            href="/planning_page/showing_plan_page"
-             className="flex flex-col items-center text-[#53B552]">
+              href="/planning_page/showing_plan_page"
+              className="flex flex-col items-center text-[#53B552]"
+            >
               <MapPin size={24} strokeWidth={2.5} />
               <span className={`${jost.className} text-xs font-bold mt-1`}>
                 Planning
@@ -458,6 +463,11 @@ function ActivityCard({
         >
           {item.title}
         </h4>
+        {item.time && (
+          <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md ml-2">
+            {item.time}
+          </span>
+        )}
         <p
           className={`${jost.className} text-gray-500 text-[10px] sm:text-xs mt-1 line-clamp-1 leading-relaxed`}
         >

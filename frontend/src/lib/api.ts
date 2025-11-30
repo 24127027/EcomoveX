@@ -272,6 +272,8 @@ export interface PlanDestination {
   destination_type: string;
   visit_date: string;
   note?: string;
+  url?: string;
+  order_in_day?: number;
 }
 
 export interface PlanResponse {
@@ -292,6 +294,8 @@ export interface PlanActivity {
   time_slot: "Morning" | "Afternoon" | "Evening";
   date?: string;
   type?: string;
+  order_in_day?: number;
+  time?: string;
 }
 
 export interface TravelPlan {
@@ -551,30 +555,50 @@ class ApiClient {
     const plans = await this.request<PlanResponse[]>("/plans/", {
       method: "GET",
     });
-    return plans.map((p) => ({
-      id: p.id,
-      destination: p.place_name,
-      date: p.start_date,
-      end_date: p.end_date,
-      activities: p.destinations.map((d, index) => {
-        let slot = "Morning";
-        const hour = new Date(d.visit_date).getHours();
+    return plans.map((p) => {
+      const activities = p.destinations.map((d, index) => {
+        const dateObj = new Date(d.visit_date);
+        const hour = dateObj.getHours();
 
+        let slot = "Morning";
         if (hour >= 12 && hour < 18) slot = "Afternoon";
         if (hour >= 18) slot = "Evening";
+
+        const timeString = dateObj.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
 
         return {
           id: `${d.destination_id}-${index}`,
           original_id: d.id,
           title: d.note || "Destination",
           address: "",
-          image_url: "",
+          image_url: d.url || "",
           time_slot: slot as "Morning" | "Afternoon" | "Evening",
           date: d.visit_date,
+          time: timeString,
           type: d.destination_type,
+          order_in_day: d.order_in_day || 0,
         };
-      }),
-    }));
+      });
+
+      activities.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+
+        return (a.order_in_day || 0) - (b.order_in_day || 0);
+      });
+
+      return {
+        id: p.id,
+        destination: p.place_name,
+        date: p.start_date,
+        end_date: p.end_date,
+        activities: activities,
+      };
+    });
   }
 
   // --- FRIEND ENDPOINTS ---

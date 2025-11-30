@@ -461,13 +461,17 @@ export default function AddDestinationsPage() {
 
     try {
       setLoading(true);
-      for (const card of validCards) {
+      for (let i = 0; i < validCards.length; i++) {
+        const card = validCards[i];
+
         await api.addDestinationToPlan(planId, {
           id: card.tempId,
           destination_id: card.destinationId,
           destination_type: card.type.toLowerCase(),
           visit_date: card.visitDate,
           note: card.name,
+
+          order_in_day: i + 1,
         });
       }
       if (existingActivities.length === 0) {
