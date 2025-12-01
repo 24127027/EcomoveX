@@ -516,7 +516,7 @@ class ClusterRepository:
         try:
             query = select(UserClusterAssociation.cluster_id).where(
                 UserClusterAssociation.user_id == user_id
-            ).order_by(UserClusterAssociation.created_at.desc()).limit(1)
+            ).order_by(UserClusterAssociation.assigned_at.desc()).limit(1)
             
             result = await db.execute(query)
             return result.scalar_one_or_none()

@@ -2,9 +2,8 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from schemas.map_schema import Location
 from database.db import get_db
-from schemas.recommendation_schema import RecommendationResponse
 from services.recommendation_service import RecommendationService
 from utils.token.authentication_util import get_current_user
 
