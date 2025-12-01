@@ -1,17 +1,17 @@
 "use client";
-import {Knewave, Josefin_Sans, Abhaya_Libre, Poppins } from "next/font/google";
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { FiMail } from 'react-icons/fi'
+import { Knewave, Josefin_Sans, Abhaya_Libre, Poppins } from "next/font/google";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { FiMail } from "react-icons/fi";
 const knewave = Knewave({
   subsets: ["latin"],
   weight: ["400"],
 });
 
-export  const poppins = Poppins({
+export const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["300"]
+  weight: ["300"],
 });
 const abhaya_libre = Abhaya_Libre({
   subsets: ["latin"],
@@ -25,35 +25,35 @@ const josefin_sans = Josefin_Sans({
 
 export default function ForgetPassword() {
   const [form, setForm] = useState({
-      username : "",
-      password: "",
-      authorize: "",
-      email: "",
-    });
-  const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+    username: "",
+    password: "",
+    authorize: "",
+    email: "",
+  });
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      // Here you would typically make an API call to your backend
+      // Here you would typically make an API call to your
       // For now, we'll just simulate the process
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       // Show success message and redirect to login
-      alert('Password reset link has been sent to your email')
-      router.push('/login')
+      alert("Password reset link has been sent to your email");
+      router.push("/login");
     } catch (err) {
-      setError('Failed to send reset link. Please try again.')
+      setError("Failed to send reset link. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -63,7 +63,8 @@ export default function ForgetPassword() {
             Forgot your password?
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we'll send you a link to reset your
+            password.
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -84,9 +85,7 @@ export default function ForgetPassword() {
           </div>
 
           {error && (
-            <div className="text-red-500 text-sm text-center">
-              {error}
-            </div>
+            <div className="text-red-500 text-sm text-center">{error}</div>
           )}
 
           <div>
@@ -95,11 +94,11 @@ export default function ForgetPassword() {
               disabled={loading}
               className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
                 loading
-                  ? 'bg-blue-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  ? "bg-blue-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               }`}
             >
-              {loading ? 'Sending...' : 'Send reset link'}
+              {loading ? "Sending..." : "Send reset link"}
             </button>
           </div>
         </form>
@@ -114,5 +113,5 @@ export default function ForgetPassword() {
         </div>
       </div>
     </div>
-  )
+  );
 }

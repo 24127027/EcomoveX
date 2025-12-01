@@ -12,11 +12,21 @@ import {
   Bot,
   User,
   Loader2,
+  Trash2,
+  Navigation,
+  ArrowRight,
+  Route,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
-import { api, UserProfile, SavedDestination, PlaceDetails } from "@/lib/api";
+import {
+  api,
+  UserProfile,
+  SavedDestination,
+  PlaceDetails,
+  Position,
+} from "@/lib/api";
 
 interface EnrichedSavedDestination extends SavedDestination {
   details?: PlaceDetails;
@@ -36,6 +46,8 @@ export default function ProfilePage() {
     []
   );
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<Position | null>(null);
+  const [unsavingId, setUnsavingId] = useState<string | null>(null);
   const router = useRouter();
   const handleViewProfileButton = () => {
     router.push("/user_page/profile_page");
@@ -44,6 +56,69 @@ export default function ProfilePage() {
     "profile"
   );
 
+  const handleViewDetails = (placeId: string) => {
+    router.push(`/place_detail_page?place_id=${placeId}`);
+  };
+
+  const handleUnsave = async (placeId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Ngăn chặn click vào card (tránh mở trang detail)
+    if (unsavingId) return; // Đang xử lý cái khác thì bỏ qua
+
+    const confirm = window.confirm(
+      "Are you sure you want to unsave this place?"
+    );
+    if (!confirm) return;
+
+    try {
+      setUnsavingId(placeId);
+      await api.unsaveDestination(placeId);
+
+      // Cập nhật UI ngay lập tức: Xóa item khỏi danh sách
+      setSavedPlaces((prev) =>
+        prev.filter((item) => item.destination_id !== placeId)
+      );
+    } catch (error) {
+      console.error("Failed to unsave:", error);
+      alert("Failed to unsave. Please try again.");
+    } finally {
+      setUnsavingId(null);
+    }
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(1);
+  };
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+        }
+      );
+    }
+  }, []);
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -55,12 +130,11 @@ export default function ProfilePage() {
         const places = await api.getSavedDestinations();
 
         if (places) {
-          setSavedPlaces(places);
+          setSavedPlaces(places as any);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
-        setLoading(false);
       }
     };
 
@@ -89,9 +163,7 @@ export default function ProfilePage() {
         setLoading(false);
       }
     };
-    if (activeTab === "saved") {
-      fetchSavedPlaces();
-    }
+    fetchSavedPlaces();
   }, [activeTab]);
 
   return (
@@ -182,15 +254,32 @@ export default function ProfilePage() {
           ) : (
             <div className="grid grid-cols-2 gap-4">
               {savedPlaces.map((place) => {
-                // Lấy ảnh từ Google (nếu có) hoặc ảnh mặc định
-                const photoRef = place.details?.photos?.[0]?.photo_reference;
-                const imageUrl = photoRef
-                  ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-                  : "/images/placeholder-place.png";
+                const photoData = place.details?.photos?.[0];
+                let imageUrl = "/images/placeholder-place.png";
+
+                if (photoData?.photo_url) {
+                  if (photoData.photo_url.startsWith("http")) {
+                    imageUrl = photoData.photo_url;
+                  } else {
+                    imageUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoData.photo_url}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
+                  }
+                }
+
+                // 2. XỬ LÝ KHOẢNG CÁCH
+                let distanceText = "";
+                if (userLocation && place.details?.geometry?.location) {
+                  const dist = calculateDistance(
+                    userLocation.lat,
+                    userLocation.lng,
+                    place.details.geometry.location.lat,
+                    place.details.geometry.location.lng
+                  );
+                  distanceText = `${dist} km`;
+                }
 
                 return (
                   <div
-                    key={place.destination_id} 
+                    key={place.destination_id}
                     className="bg-white rounded-xl p-2 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full"
                   >
                     <div className="relative w-full h-32 rounded-lg overflow-hidden mb-2 bg-gray-100">
@@ -200,15 +289,42 @@ export default function ProfilePage() {
                         fill
                         className="object-cover"
                       />
+                      {distanceText && (
+                        <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Navigation size={10} className="text-[#53B552]" />
+                          {distanceText}
+                        </div>
+                      )}
+                      <button
+                        onClick={(e) => handleUnsave(place.destination_id, e)}
+                        className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full text-red-500 hover:bg-white transition-colors z-10"
+                        title="Unsave"
+                      >
+                        {unsavingId === place.destination_id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
+                      </button>
                     </div>
 
-                    <h3 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1">
-                      {place.details ? place.details.name : "Loading..."}
-                    </h3>
+                    <div className="p-3 flex flex-col flex-1">
+                      <h3 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1 flex-1">
+                        {place.details ? place.details.name : "Loading..."}
+                      </h3>
 
-                    <p className="text-xs text-gray-500 line-clamp-1">
-                      {place.details?.formatted_address || place.destination_id}
-                    </p>
+                      <p className="text-xs text-gray-500 line-clamp-1 mb-3">
+                        {place.details?.formatted_address || "Unknown address"}
+                      </p>
+
+                      {/* Nút View Details */}
+                      <button
+                        onClick={() => handleViewDetails(place.destination_id)}
+                        className="w-full mt-auto bg-[#E3F1E4] text-[#53B552] text-xs font-bold py-1.5 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-1"
+                      >
+                        View Details <ArrowRight size={12} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -230,6 +346,16 @@ export default function ProfilePage() {
               </span>
             </Link>
             <Link
+              href="/track_page/leaderboard"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+            >
+              {" "}
+              <Route size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Track
+              </span>
+            </Link>
+            <Link
               href="/planning_page/showing_plan_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
@@ -239,7 +365,7 @@ export default function ProfilePage() {
               </span>
             </Link>
             <Link
-              href="#"
+              href="ecobot_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
             >
               <Bot size={24} strokeWidth={2} />
@@ -247,12 +373,15 @@ export default function ProfilePage() {
                 Ecobot
               </span>
             </Link>
-            <div className="flex flex-col items-center text-[#53B552]">
+            <Link
+              href="main_page"
+              className="flex flex-col items-center text-[#53B552]"
+            >
               <User size={24} strokeWidth={2.5} />
               <span className={`${jost.className} text-xs font-bold mt-1`}>
                 User
               </span>
-            </div>
+            </Link>
           </div>
         </footer>
       </div>

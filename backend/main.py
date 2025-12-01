@@ -19,6 +19,8 @@ from routers.reward_router import router as reward_router
 from routers.room_router import router as room_router
 from routers.route_router import router as route_router
 from routers.storage_router import router as storage_router
+from routers.plan_router import router as plan_router
+
 from routers.user_router import router as user_router
 from routers.weather_router import router as weather_router
 from utils.config import settings
@@ -84,6 +86,7 @@ app.include_router(route_router)
 app.include_router(reward_router)
 app.include_router(room_router)
 app.include_router(message_router)
+app.include_router(plan_router)
 app.include_router(chatbot_router)
 
 

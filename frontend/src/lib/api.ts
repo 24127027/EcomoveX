@@ -27,10 +27,6 @@ interface AuthResponse {
   email: string;
 }
 
-interface ApiError {
-  detail: string;
-}
-
 interface ValidationError {
   loc: (string | number)[];
   msg: string;
@@ -77,10 +73,23 @@ export interface PhotoInfo {
   size: [number, number]; // Tuple matching Python's Tuple[int, int]
 }
 
+export interface GreenPlaceRecommendation {
+  place_id: string;
+  destination_id?: string | null;
+  name: string;
+  formatted_address: string;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  rating?: number;
+  combined_score?: number;
+  photo_url?: string;
+}
+
 export interface PlaceSearchResult {
-  id: string; // Backend sends "id"
-  displayName: LocalizedText; // Backend sends "displayName"
-  formattedAddress?: string; // Backend sends "formattedAddress"
+  id: string; //  sends "id"
+  displayName: LocalizedText; //  sends "displayName"
+  formattedAddress?: string; //  sends "formattedAddress"
   location?: Position;
   types: string[];
   photos?: PhotoInfo | null;
@@ -95,11 +104,11 @@ export interface TextSearchRequest {
 }
 
 export interface TextSearchResponse {
-  places: PlaceSearchResult[]; // Backend sends "places"
+  places: PlaceSearchResult[]; //  sends "places"
 }
 // --- NEW TEXT SEARCH TYPES END ---
 
-export type PlaceDataCategory = 'basic' | 'contact' | 'atmosphere';
+export type PlaceDataCategory = "basic" | "contact" | "atmosphere";
 
 export interface AutocompleteRequest {
   query: string;
@@ -187,21 +196,6 @@ export interface UploadResponse {
   filename: string;
 }
 
-export interface PlanActivity {
-  id: number;
-  title: string;
-  address: string;
-  image_url: string;
-  time_slot: "Morning" | "Afternoon" | "Evening";
-}
-
-export interface TravelPlan {
-  id: number;
-  destination: string;
-  date: string;
-  activities: PlanActivity[];
-}
-
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
@@ -283,6 +277,90 @@ export interface UserRewardResponse {
   mission: Mission[];
   total_points: number;
 }
+
+//PLAN DESTINATION TYPES
+export interface PlanDestination {
+  id: number;
+  destination_id: string;
+  destination_type: string;
+  visit_date: string;
+  note?: string;
+  url?: string;
+  order_in_day?: number;
+}
+
+export interface PlanResponse {
+  id: number;
+  place_name: string;
+  start_date: string;
+  end_date: string;
+  budget_limit: number;
+  destinations: PlanDestination[];
+}
+
+export interface PlanActivity {
+  id: number | string;
+  original_id?: number;
+  title: string;
+  address: string;
+  image_url: string;
+  time_slot: "Morning" | "Afternoon" | "Evening";
+  date?: string;
+  type?: string;
+  order_in_day?: number;
+  time?: string;
+}
+
+export interface TravelPlan {
+  id: number;
+  destination: string;
+  date: string;
+  end_date?: string;
+  activities: PlanActivity[];
+}
+
+export interface PlanDestinationCreate {
+  id: number;
+  destination_id: string;
+  destination_type: string;
+  order_in_day: number;
+  visit_date: string;
+  estimated_cost?: number;
+  url?: string;
+  note?: string;
+}
+export interface CreatePlanRequest {
+  place_name: string;
+  start_date: string;
+  end_date?: string;
+  budget_limit: number;
+  destinations?: PlanDestinationCreate[];
+}
+
+export interface DestinationCard {
+  tempId: number;
+  destinationId: string;
+  name: string;
+  visitDate: string;
+  type: string;
+}
+
+//--- REVIEW TYPES ---
+export interface ReviewResponse {
+  destination_id: string;
+  rating: number;
+  content: string;
+  user_id: number;
+  created_at: string;
+  files_urls: string[];
+}
+
+export interface ReviewStatisticsResponse {
+  average_rating: number;
+  total_reviews: number;
+  rating_distribution: Record<string, number>;
+}
+
 // --- API CLIENT CLASS ---
 
 class ApiClient {
@@ -445,38 +523,111 @@ class ApiClient {
       body: formData,
     });
   }
+  // --- PLAN ENDPOINTS ---
+  async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
+    return this.request<PlanResponse>("/plans/", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+  async deletePlan(planId: number): Promise<void> {
+    return this.request(`/plans/${planId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async addDestinationToPlan(
+    planId: number,
+    data: PlanDestination
+  ): Promise<any> {
+    return this.request(`/plans/${planId}/destinations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  async updatePlanDestination(
+    destinationId: string | number,
+    planId: number,
+    data: { note?: string; visit_date?: string }
+  ): Promise<any> {
+    return this.request(
+      `/plans/destinations/${destinationId}?plan_id=${planId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+  async deletePlanDestination(
+    planDestinationId: number,
+    planId: number
+  ): Promise<void> {
+    return this.request(
+      `/plans/destinations/${planDestinationId}?plan_id=${planId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
+  async updatePlan(
+    planId: number,
+    data: { place_name?: string; start_date?: string; end_date?: string }
+  ): Promise<PlanResponse> {
+    return this.request<PlanResponse>(`/plans/${planId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
 
   async getPlans(): Promise<TravelPlan[]> {
-    // Mock data
-    return [
-      {
-        id: 201,
-        destination: "Ho Chi Minh City (Upcoming)",
-        date: "30/11/2025",
-        activities: [
-          {
-            id: 1,
-            title: "Thảo Cầm Viên",
-            address: "2 Nguyen Binh Khiem, D1",
-            image_url:
-              "https://images.unsplash.com/photo-1596263576925-48c581d6a90a?q=80&w=200",
-            time_slot: "Morning",
-          },
-        ],
-      },
-      {
-        id: 101,
-        destination: "District 1 (Past)",
-        date: "04/01/2026",
-        activities: [],
-      },
-      {
-        id: 102,
-        destination: "District 5 (Past)",
-        date: "01/01/2023",
-        activities: [],
-      },
-    ];
+    const plans = await this.request<PlanResponse[]>("/plans/", {
+      method: "GET",
+    });
+    return plans.map((p) => {
+      const activities = p.destinations.map((d, index) => {
+        const dateObj = new Date(d.visit_date);
+        const hour = dateObj.getHours();
+
+        let slot = "Morning";
+        if (hour >= 12 && hour < 18) slot = "Afternoon";
+        if (hour >= 18) slot = "Evening";
+
+        const timeString = dateObj.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        return {
+          id: `${d.destination_id}-${index}`,
+          original_id: d.id,
+          title: d.note || "Destination",
+          address: "",
+          image_url: d.url || "",
+          time_slot: slot as "Morning" | "Afternoon" | "Evening",
+          date: d.visit_date,
+          time: timeString,
+          type: d.destination_type,
+          order_in_day: d.order_in_day || 0,
+        };
+      });
+
+      activities.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+
+        return (a.order_in_day || 0) - (b.order_in_day || 0);
+      });
+
+      return {
+        id: p.id,
+        destination: p.place_name,
+        date: p.start_date,
+        end_date: p.end_date,
+        activities: activities,
+      };
+    });
   }
 
   // --- FRIEND ENDPOINTS ---
@@ -519,22 +670,31 @@ class ApiClient {
   // --- MAP ENDPOINTS ---
 
   // Integrated Text Search Function
-  async textSearchPlace(request: TextSearchRequest): Promise<TextSearchResponse> {
-    const response = await this.request<TextSearchResponse>("/map/text-search", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+  async textSearchPlace(
+    request: TextSearchRequest
+  ): Promise<TextSearchResponse> {
+    const response = await this.request<TextSearchResponse>(
+      "/map/text-search",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
     return response;
   }
 
-  async autocomplete(request: AutocompleteRequest): 
-    Promise<AutocompleteResponse> {
-      const response = await this.request<AutocompleteResponse>("/map/autocomplete", {
+  async autocomplete(
+    request: AutocompleteRequest
+  ): Promise<AutocompleteResponse> {
+    const response = await this.request<AutocompleteResponse>(
+      "/map/autocomplete",
+      {
         method: "POST",
         body: JSON.stringify(request),
-      });
-      return response;
-    }
+      }
+    );
+    return response;
+  }
   // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
@@ -583,26 +743,25 @@ class ApiClient {
   }
 
   async getPlaceDetails(
-      placeId: string,
-      sessionToken?: string | null,
-      categories?: PlaceDataCategory[] 
-    ): Promise<PlaceDetails> {
-      
-      const params = new URLSearchParams();
+    placeId: string,
+    sessionToken?: string | null,
+    categories?: PlaceDataCategory[]
+  ): Promise<PlaceDetails> {
+    const params = new URLSearchParams();
 
-      if (sessionToken) {
-        params.append("session_token", sessionToken);
-      }
-
-      if (categories && categories.length > 0) {
-        categories.forEach((cat) => params.append("categories", cat));
-      }
-
-      const queryString = params.toString();
-      const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
-
-      return this.request<PlaceDetails>(path, { method: "GET" });
+    if (sessionToken) {
+      params.append("session_token", sessionToken);
     }
+
+    if (categories && categories.length > 0) {
+      categories.forEach((cat) => params.append("categories", cat));
+    }
+
+    const queryString = params.toString();
+    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PlaceDetails>(path, { method: "GET" });
+  }
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
     return this.request<ReverseGeocodeResponse>("/map/geocode", {
@@ -630,9 +789,7 @@ class ApiClient {
     );
   }
 
-  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc cho hàm này
   async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
-    // Gọi endpoint /air/air-quality
     return this.request<AirQualityResponse>(
       `/air/air-quality?lat=${lat}&lng=${lng}`,
       { method: "GET" }
@@ -648,6 +805,70 @@ class ApiClient {
     return this.request<UserRewardResponse>("/rewards/me/missions", {
       method: "GET",
     });
+  }
+
+  // --- REVIEW ENDPOINTS ---
+
+  // Lấy danh sách review theo địa điểm
+  async getReviewsByDestination(
+    destinationId: string
+  ): Promise<ReviewResponse[]> {
+    return this.request<ReviewResponse[]>(
+      `/reviews/destination/${destinationId}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  async createReview(
+    destinationId: string,
+    data: { rating: number; content: string },
+    files: File[] = []
+  ): Promise<ReviewResponse> {
+    const formData = new FormData();
+    formData.append("rating", String(data.rating));
+    formData.append("content", data.content);
+
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    return this.request<ReviewResponse>(`/reviews/${destinationId}`, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async getReviewStatistics(
+    destinationId: string
+  ): Promise<ReviewStatisticsResponse> {
+    return this.request<ReviewStatisticsResponse>(
+      `/reviews/destination/${destinationId}/statistics`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  // Xóa review
+  async deleteReview(destinationId: string): Promise<void> {
+    return this.request<void>(`/reviews/${destinationId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // --- RECOMMENDATION ENDPOINTS ---
+
+  async getNearbyGreenPlaces(
+    lat: number,
+    lng: number,
+    radiusKm: number = 5,
+    k: number = 10
+  ): Promise<GreenPlaceRecommendation[]> {
+    return this.request<GreenPlaceRecommendation[]>(
+      `/recommendations/user/me/nearby-by-cluster?latitude=${lat}&longitude=${lng}&radius_km=${radiusKm}&k=${k}`,
+      { method: "GET" }
+    );
   }
 }
 
