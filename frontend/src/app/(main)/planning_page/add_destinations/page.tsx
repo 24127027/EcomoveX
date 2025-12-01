@@ -26,6 +26,10 @@ const STORAGE_KEY = "temp_plan_destinations";
 const CURRENT_VIEWING_KEY = "current_viewing_place";
 
 export default function AddDestinationPage() {
+  const [showWelcome, setShowWelcome] = useState(true); // [NEW] Hiện modal hướng dẫn
+  const [initialSuggestions, setInitialSuggestions] = useState<
+    AutocompletePrediction[]
+  >([]);
   const router = useRouter();
   const { isLoaded } = useGoogleMaps();
 
@@ -63,7 +67,23 @@ export default function AddDestinationPage() {
     const storedList = sessionStorage.getItem(STORAGE_KEY);
     if (storedList) {
       try {
-        setAddedDestinations(JSON.parse(storedList));
+        const parsed = JSON.parse(storedList);
+        // ✅ Clean up place_id by removing suffix like "-0", "-1", "-2"
+        const cleaned = parsed.map((dest: PlaceDetails) => {
+          let placeId = dest.place_id;
+          const lastDashIndex = placeId.lastIndexOf("-");
+          if (lastDashIndex !== -1) {
+            const suffix = placeId.substring(lastDashIndex + 1);
+            if (!isNaN(Number(suffix))) {
+              placeId = placeId.substring(0, lastDashIndex);
+            }
+          }
+          return {
+            ...dest,
+            place_id: placeId,
+          };
+        });
+        setAddedDestinations(cleaned);
       } catch (e) {
         console.error(e);
       }
@@ -89,6 +109,33 @@ export default function AddDestinationPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!userLocation || !sessionTokenRef.current) return;
+
+    const fetchGreenSuggestions = async () => {
+      try {
+        // Tìm kiếm các từ khóa liên quan đến du lịch xanh
+        const res = await api.autocomplete({
+          query: "Green tourism nature", // Hoặc "Du lịch sinh thái"
+          user_location: userLocation,
+          radius: 10000, // Tìm rộng hơn chút (10km)
+          session_token: sessionTokenRef.current,
+        });
+
+        if (res && res.predictions) {
+          setInitialSuggestions(res.predictions.slice(0, 5));
+          // Nếu chưa nhập gì thì gán luôn vào predictions để hiển thị ngay
+          if (!searchQuery) {
+            setPredictions(res.predictions.slice(0, 5));
+          }
+        }
+      } catch (error) {
+        console.error("Initial Green Search Error:", error);
+      }
+    };
+
+    fetchGreenSuggestions();
+  }, [userLocation]);
   // --- MAP SETUP ---
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
@@ -113,7 +160,12 @@ export default function AddDestinationPage() {
 
   // Marker Logic (Tự động pan/zoom khi selectedLocation thay đổi)
   useEffect(() => {
-    if (!googleMapRef.current || !selectedLocation) return;
+    if (
+      !googleMapRef.current ||
+      !selectedLocation ||
+      !selectedLocation.geometry?.location
+    )
+      return;
 
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
@@ -197,13 +249,26 @@ export default function AddDestinationPage() {
   };
 
   const handleAddLocation = () => {
-    if (!selectedLocation) return;
+    if (!selectedLocation) {
+      console.log("❌ No selected location");
+      return;
+    }
+
+    console.log(`🔍 Checking if ${selectedLocation.place_id} already added...`);
+    console.log(
+      `   Current list:`,
+      addedDestinations.map((d) => d.place_id)
+    );
 
     const exists = addedDestinations.find(
       (d) => d.place_id === selectedLocation.place_id
     );
-    if (exists) return;
+    if (exists) {
+      console.log(`⚠️ Already exists! Skipping.`);
+      return;
+    }
 
+    console.log(`✅ Adding ${selectedLocation.name}`);
     const newList = [...addedDestinations, selectedLocation];
     setAddedDestinations(newList);
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
@@ -233,12 +298,42 @@ export default function AddDestinationPage() {
       );
       return;
     }
-    router.push("/planning_page/review_plan");
+
+    // ✅ Get planId from sessionStorage to check if EDIT or CREATE mode
+    const planId = sessionStorage.getItem("EDITING_PLAN_ID");
+
+    if (planId) {
+      // ✅ EDIT MODE: Keep destinations in storage for review_plan to merge with API data
+      // Storage will be cleared AFTER save in review_plan
+      console.log(
+        `📎 EDIT MODE: Returning to review_plan with planId: ${planId}`
+      );
+      router.push(`/planning_page/review_plan?id=${planId}`);
+    } else {
+      // ✅ CREATE MODE: Keep destinations in storage for review_plan to use
+      console.log(`📝 CREATE MODE: Keeping destinations in storage`);
+      router.push("/planning_page/review_plan");
+    }
   };
 
   const isAlreadyAdded =
     selectedLocation &&
     addedDestinations.some((d) => d.place_id === selectedLocation.place_id);
+
+  // ✅ Debug: Log only when selectedLocation changes
+  useEffect(() => {
+    if (selectedLocation) {
+      const isAdded = addedDestinations.some(
+        (d) => d.place_id === selectedLocation.place_id
+      );
+      console.log(`🔎 isAlreadyAdded check for ${selectedLocation.place_id}:`);
+      console.log(`   - Result: ${isAdded}`);
+      console.log(
+        `   - Added list:`,
+        addedDestinations.map((d) => d.place_id)
+      );
+    }
+  }, [selectedLocation, addedDestinations]);
 
   return (
     <div className="min-h-screen w-full bg-gray-200 flex justify-center items-center sm:py-0">
@@ -276,16 +371,31 @@ export default function AddDestinationPage() {
             </div>
 
             {/* Prediction Dropdown */}
-            {predictions.length > 0 && (
+            {(predictions.length > 0 ||
+              (searchQuery === "" && initialSuggestions.length > 0)) && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl z-50 overflow-hidden border border-gray-100 max-h-64 overflow-y-auto">
-                {predictions.map((p) => (
+                {/* [NEW] Header nhỏ để phân biệt gợi ý hay kết quả tìm kiếm */}
+                <div className="bg-gray-50 px-3 py-2 border-b border-gray-100">
+                  <p
+                    className={`${jost.className} text-xs font-bold text-green-600 uppercase tracking-wide`}
+                  >
+                    {searchQuery ? "Search Results" : "🌿 Green Places Nearby"}
+                  </p>
+                </div>
+
+                {(searchQuery ? predictions : initialSuggestions).map((p) => (
                   <div
                     key={p.place_id}
                     onClick={() => handleSelectPrediction(p)}
                     className="p-3 hover:bg-green-50 active:bg-green-100 cursor-pointer border-b border-gray-50 last:border-0 flex items-start gap-3 transition-colors"
                   >
                     <div className="bg-gray-100 p-1.5 rounded-full shrink-0">
-                      <MapPin size={16} className="text-gray-500" />
+                      {/* Đổi icon lá cây nếu là gợi ý ban đầu */}
+                      {!searchQuery ? (
+                        <MapPin size={16} className="text-green-500" />
+                      ) : (
+                        <MapPin size={16} className="text-gray-500" />
+                      )}
                     </div>
                     <div>
                       <p
@@ -308,18 +418,25 @@ export default function AddDestinationPage() {
           <div className="relative">
             <button
               onClick={() => setShowSelectedList(!showSelectedList)}
-              className={`p-2.5 rounded-full transition-colors relative ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full transition-all shadow-sm border ${
                 showSelectedList
-                  ? "bg-green-100 text-green-600"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  ? "bg-green-100 text-green-700 border-green-200 ring-2 ring-green-100"
+                  : "bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-600"
               }`}
             >
-              <List size={20} />
-              {addedDestinations.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-sm">
-                  {addedDestinations.length}
-                </span>
-              )}
+              <div className="relative">
+                <List size={20} />
+                {addedDestinations.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-sm">
+                    {addedDestinations.length}
+                  </span>
+                )}
+              </div>
+              <span
+                className={`${jost.className} text-sm font-bold hidden sm:block`}
+              >
+                Your List
+              </span>
             </button>
 
             {/* Selected List Dropdown */}
@@ -481,7 +598,7 @@ export default function AddDestinationPage() {
 
                     <button
                       onClick={handleAddLocation}
-                      disabled={isAlreadyAdded || !isAlreadyAdded === null}
+                      disabled={isAlreadyAdded || false}
                       className={`${
                         jost.className
                       } flex-1 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all flex justify-center items-center gap-2
@@ -523,6 +640,47 @@ export default function AddDestinationPage() {
             )
           )}
         </div>
+        {showWelcome && (
+          <div className="absolute inset-0 z-60 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative animate-in zoom-in-95 duration-300">
+              <button
+                onClick={() => setShowWelcome(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <MapPin size={24} className="text-green-600" />
+              </div>
+
+              <h2
+                className={`${jost.className} text-xl font-bold text-gray-800 mb-2`}
+              >
+                Let's plan your trip!
+              </h2>
+              <p
+                className={`${jost.className} text-gray-500 text-sm mb-6 leading-relaxed`}
+              >
+                Start by searching for locations. We have suggested some{" "}
+                <span className="text-green-600 font-bold">
+                  Green Destinations
+                </span>{" "}
+                nearby for you.
+                <br />
+                <br />
+                Add at least <strong>2 places</strong> to create your route.
+              </p>
+
+              <button
+                onClick={() => setShowWelcome(false)}
+                className={`${jost.className} w-full bg-[#53B552] hover:bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95`}
+              >
+                Got it, let's go!
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

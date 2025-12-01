@@ -9,17 +9,31 @@ class PlanDestinationCreate(BaseModel):
     destination_id: str
     destination_type: DestinationType
     order_in_day: int
-    visit_date: date
+    visit_date: datetime
+    time: Optional[str] = None  # ✅ Thêm time_slot (format: "HH:MM")
     estimated_cost: Optional[float] = Field(0, ge=0)
     url: Optional[str] = None
     note: Optional[str] = None
+    @field_validator('visit_date')
+    @classmethod
+    def remove_timezone(cls, v: datetime) -> datetime:
+        if v.tzinfo is not None:
+            return v.replace(tzinfo=None)
+        return v
 
 class PlanDestinationUpdate(BaseModel):
-    visit_date: Optional[date] = None
+    visit_date: Optional[datetime] = None
     order_in_day: Optional[int] = None
+    time: Optional[str] = None  # ✅ Thêm time_slot
     estimated_cost: Optional[float] = Field(None, ge=0)
     url: Optional[str] = None
     note: Optional[str] = None
+    @field_validator('visit_date')
+    @classmethod
+    def remove_timezone(cls, v: Optional[datetime]) -> Optional[datetime]:
+        if v and v.tzinfo is not None:
+            return v.replace(tzinfo=None)
+        return v
 
 class PlanMemberCreate(BaseModel):
     user_id: int
@@ -32,7 +46,8 @@ class PlanDestinationResponse(BaseModel):
     destination_type: DestinationType 
     type: DestinationType             
     order_in_day: int
-    visit_date: date
+    visit_date: datetime
+    time: Optional[str] = None  # ✅ Thêm time_slot
     estimated_cost: Optional[float] = None
     url: Optional[str] = None
     note: Optional[str] = None

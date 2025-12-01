@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -138,12 +140,23 @@ class PlanRepository:
     @staticmethod
     async def add_destination_to_plan(db: AsyncSession, plan_id: int, data: PlanDestinationCreate):
         try:
+            time_value = None
+            if getattr(data, "time", None):
+                try:
+                    time_value = datetime.strptime(data.time, "%H:%M").time()
+                    print(f"  ⏰ Parsed time '{data.time}' to {time_value}")
+                except ValueError as e:
+                    print(
+                        f"WARNING: Invalid time format '{data.time}' for destination {data.destination_id}; defaulting to None - {e}"
+                    )
+
             new_plan_dest = PlanDestination(
                 plan_id=plan_id,
                 destination_id=data.destination_id,
                 type=data.destination_type,
                 order_in_day=data.order_in_day,
                 visit_date=data.visit_date,
+                time=time_value,
                 estimated_cost=data.estimated_cost,
                 url=data.url,
                 note=data.note,
@@ -151,6 +164,8 @@ class PlanRepository:
             db.add(new_plan_dest)
             await db.commit()
             await db.refresh(new_plan_dest)
+            print(f"  ✅ DB: Added destination {new_plan_dest.id} to plan {plan_id}")
+            return new_plan_dest
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()

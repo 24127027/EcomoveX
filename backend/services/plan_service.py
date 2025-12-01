@@ -47,6 +47,7 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,             
                         visit_date=dest.visit_date,
+                        time=dest.time.strftime("%H:%M") if dest.time else None,  # ✅ Chuyển time về format "HH:MM"
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
@@ -116,8 +117,9 @@ class PlanService:
                         id=dest.id,
                         destination_id=dest.destination_id,
                         destination_type=dest.type,
-                        type=dest.type,             
+                        type=dest.type,
                         visit_date=dest.visit_date,
+                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
@@ -139,19 +141,30 @@ class PlanService:
                 raise HTTPException(status_code=404, detail="Plan not found")
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
+            
+            # ✅ DELETE OLD DESTINATIONS FIRST
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
-            for dest_data in updated_data.destinations or []:
+            print(f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations")
+            
+            # ✅ ADD NEW DESTINATIONS
+            for i, dest_data in enumerate(updated_data.destinations or []):
                 try:
+                    print(f"  📍 Adding destination {i+1}: {dest_data.destination_id}")
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
                     await PlanRepository.ensure_destination(db, place_info)
-                except Exception:
+                except Exception as e:
+                    print(f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}")
                     pass
-                await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
+                
+                result = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
+                print(f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}")
 
             saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
+            print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
+            
             return PlanResponse(
                 id=updated_plan.id,
                 user_id=user_id,
@@ -166,6 +179,7 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
+                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,

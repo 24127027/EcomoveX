@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import {
   DndContext,
   closestCenter,
@@ -309,10 +310,89 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
 }
 
 // ==========================================
-// 4. MAIN PAGE
+// 4. MAIN PAGE (Inner Component)
 // ==========================================
-export default function ReviewPlanPage() {
+function ReviewPlanContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Store planId in state to persist across renders
+  const [planId, setPlanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Try to get from URL first
+    const id = searchParams.get("id");
+    console.log("🔍 Review Plan - useEffect running");
+    console.log("   searchParams:", searchParams?.toString());
+    console.log("   id from URL:", id);
+
+    let finalId = id;
+
+    // If no ID in URL, try to get from sessionStorage
+    if (!id) {
+      const storedId = sessionStorage.getItem("EDITING_PLAN_ID");
+      console.log("   id from sessionStorage:", storedId);
+      finalId = storedId;
+    }
+
+    // Update planId in state and sessionStorage
+    if (finalId && finalId !== planId) {
+      console.log("   ✅ Setting planId to:", finalId);
+      setPlanId(finalId);
+      sessionStorage.setItem("EDITING_PLAN_ID", finalId);
+    } else if (!finalId && planId) {
+      console.log("   ❌ Clearing planId");
+      setPlanId(null);
+      sessionStorage.removeItem("EDITING_PLAN_ID");
+    }
+  }, [searchParams, planId]);
+
+  const toLocalISOString = (dateInput: string | Date) => {
+    const date = new Date(dateInput);
+    const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+    const localDate = new Date(date.getTime() - offsetMs);
+    return localDate.toISOString().slice(0, 19); // Cắt bỏ phần milliseconds và chữ Z
+  };
+
+  // --- HELPER: Phân bố activities trên các ngày trong trip ---
+  const distributeActivitiesAcrossDays = (
+    activities: PlanActivity[],
+    startDateStr: string,
+    endDateStr?: string
+  ): PlanActivity[] => {
+    if (activities.length === 0) return activities;
+
+    const startDate = new Date(startDateStr);
+    const endDate = endDateStr ? new Date(endDateStr) : new Date(startDateStr);
+
+    // Tính số ngày trong trip
+    const daysInTrip =
+      Math.floor(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+      ) + 1;
+
+    // Phân bố activities - chỉ điều chỉnh ngày, GIỮ NGUYÊN time slot
+    return activities.map((activity, index) => {
+      // Xác định ngày (phân bố đều)
+      const dayOffset = Math.min(index % daysInTrip, daysInTrip - 1);
+      const activityDate = new Date(startDate);
+      activityDate.setDate(activityDate.getDate() + dayOffset);
+
+      // Giữ nguyên time slot từ activity gốc
+      const timeSlot = activity.time_slot || "Morning";
+
+      // Set giờ ảo dựa trên time slot gốc để dễ sort sau này
+      if (timeSlot === "Morning") activityDate.setHours(9, 0, 0);
+      else if (timeSlot === "Afternoon") activityDate.setHours(14, 0, 0);
+      else activityDate.setHours(19, 0, 0);
+
+      return {
+        ...activity,
+        date: toLocalISOString(activityDate),
+        time_slot: timeSlot,
+      };
+    });
+  };
 
   // --- STATE ---
   const [isAiProcessing, setIsAiProcessing] = useState(false);
@@ -327,6 +407,7 @@ export default function ReviewPlanPage() {
     name: "My Awesome Trip",
     date: new Date().toISOString(),
     end_date: new Date().toISOString(),
+    budget: 0,
   });
   const [isEditingHeader, setIsEditingHeader] = useState(false);
 
@@ -339,31 +420,222 @@ export default function ReviewPlanPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+  const getTimeSlot = (dateString?: string, timeStr?: string) => {
+    // ✅ Ưu tiên dùng time field từ backend, nếu không thì tính từ dateString
+    if (timeStr) {
+      const hour = parseInt(timeStr.split(":")[0]);
+      if (hour >= 18) return "Evening";
+      if (hour >= 12) return "Afternoon";
+      return "Morning";
+    }
+
+    if (!dateString) return "Morning"; // Mặc định
+    const date = new Date(dateString);
+    const hour = date.getHours();
+
+    if (hour >= 18) return "Evening";
+    if (hour >= 12) return "Afternoon";
+    return "Morning";
+  };
 
   // --- INIT DATA ---
   useEffect(() => {
-    const storedInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
-    if (storedInfo) {
+    const loadPlanDetail = async (id: string) => {
       try {
-        const parsed = JSON.parse(storedInfo);
-        setPlanInfo({
-          name: parsed.name || "My Trip",
-          date: parsed.start_date,
-          end_date: parsed.end_date,
-        });
-      } catch (e) {
-        console.error(e);
+        setIsAiProcessing(true);
+
+        // 1. Gọi API lấy danh sách
+        const allPlans = await api.getPlans();
+        const currentPlan = allPlans.find((p) => p.id === Number(id));
+
+        if (currentPlan) {
+          console.log(`📋 Loaded plan ${id}:`, currentPlan);
+          console.log(`   - Destinations: ${currentPlan.activities?.length}`);
+          currentPlan.activities?.forEach((act, idx) => {
+            console.log(
+              `     ${idx + 1}. ${act.title} | Date: ${
+                act.date?.split("T")[0]
+              } | Slot: ${act.time_slot}`
+            );
+          });
+
+          // Map dữ liệu cơ bản
+          const apiPlanInfo = {
+            name: currentPlan.destination,
+            date: currentPlan.date,
+            end_date: currentPlan.end_date || currentPlan.date,
+            budget: currentPlan.budget || 0,
+          };
+
+          let apiActivities = currentPlan.activities;
+
+          // 2. CHECK SESSION: Gộp địa điểm mới thêm (nếu có)
+          const rawData = sessionStorage.getItem(STORAGE_KEY_RAW);
+          if (rawData) {
+            try {
+              // --- FIX LỖI TẠI ĐÂY ---
+              // Khai báo kiểu dữ liệu mở rộng có thêm visit_date
+              type StoredPlace = PlaceDetails & { visit_date?: string };
+
+              const rawList: StoredPlace[] = JSON.parse(rawData);
+              // -----------------------
+
+              console.log(`🔍 Checking for new destinations...`);
+              console.log(`   - rawList count: ${rawList.length}`);
+              console.log(`   - apiActivities count: ${apiActivities.length}`);
+
+              // Lọc địa điểm mới chưa có trong list cũ
+              const newItems = rawList.filter((raw) => {
+                const isNew = !apiActivities.some((act) => {
+                  // ✅ Extract place_id from act.id (remove suffix like "-0", "-1")
+                  let actPlaceId = String(act.id);
+                  const lastDashIndex = actPlaceId.lastIndexOf("-");
+                  if (lastDashIndex !== -1) {
+                    const suffix = actPlaceId.substring(lastDashIndex + 1);
+                    if (!isNaN(Number(suffix))) {
+                      actPlaceId = actPlaceId.substring(0, lastDashIndex);
+                    }
+                  }
+                  const match = actPlaceId === raw.place_id;
+                  if (match) {
+                    console.log(
+                      `     ⏭️ Skipping ${raw.name} (already exists)`
+                    );
+                  }
+                  return match;
+                });
+                if (isNew) {
+                  console.log(`     ➕ Found new: ${raw.name}`);
+                }
+                return isNew;
+              });
+
+              console.log(`   ✅ New items to add: ${newItems.length}`);
+
+              // ✅ Đọc slot đã chọn từ sessionStorage (nếu có)
+              let selectedDate = apiPlanInfo.date;
+              let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" =
+                "Morning";
+
+              const selectedSlotData =
+                sessionStorage.getItem("selected_add_slot");
+              if (selectedSlotData) {
+                try {
+                  const slot = JSON.parse(selectedSlotData);
+                  if (slot.date) selectedDate = slot.date;
+                  if (slot.time_slot) selectedTimeSlot = slot.time_slot;
+                  console.log(
+                    `✅ Using selected slot: ${selectedDate} ${selectedTimeSlot}`
+                  );
+                } catch (e) {
+                  console.error("Error parsing selected_add_slot:", e);
+                }
+              }
+
+              // --- SỬA ĐOẠN MAP NÀY ---
+              const newActivitiesList = newItems.map((place) => {
+                // ✅ Dùng slot đã chọn thay vì default
+                let assignedSlot = selectedTimeSlot;
+                let assignedDate = toLocalISOString(new Date(selectedDate)); // ← Convert to ISO
+
+                // Nếu place có visit_date riêng (từ backend), ưu tiên dùng nó
+                if (place.visit_date) {
+                  assignedDate = place.visit_date;
+                  assignedSlot = getTimeSlot(place.visit_date) as
+                    | "Morning"
+                    | "Afternoon"
+                    | "Evening";
+                }
+
+                console.log(
+                  `   📍 New activity: ${place.name} → Date: ${
+                    assignedDate.split("T")[0]
+                  } | Slot: ${assignedSlot}`
+                );
+
+                return {
+                  id: place.place_id,
+                  title: place.name,
+                  address: place.formatted_address,
+                  image_url: place.photos?.[0]?.photo_url || "",
+                  time_slot: assignedSlot,
+                  date: assignedDate,
+                  type: place.types?.[0] || "place",
+                  order_in_day: 999,
+                };
+              });
+              // ------------------------
+
+              if (newActivitiesList.length > 0) {
+                // ❌ KHÔNG distribute activities mới - chỉ set mặc định vào Day 1 Morning
+                // Người dùng sẽ kéo thả để arrange theo ý
+                apiActivities = [...apiActivities, ...newActivitiesList];
+
+                // ✅ Xóa selected_add_slot sau khi đã merge xong
+                sessionStorage.removeItem("selected_add_slot");
+              }
+            } catch (e) {
+              console.error("Error merging raw data:", e);
+            }
+          }
+
+          // Cập nhật State
+          setPlanInfo(apiPlanInfo);
+          setActivities(apiActivities);
+
+          // Lưu ngược lại Session để giữ đồng bộ
+          sessionStorage.setItem(
+            STORAGE_KEY_INFO,
+            JSON.stringify({
+              name: apiPlanInfo.name,
+              start_date: apiPlanInfo.date,
+              end_date: apiPlanInfo.end_date,
+              budget: apiPlanInfo.budget,
+            })
+          );
+          sessionStorage.setItem(
+            STORAGE_KEY_STRUCTURED,
+            JSON.stringify(apiActivities)
+          );
+        }
+      } catch (error) {
+        console.error("Error loading plan:", error);
+      } finally {
+        setIsAiProcessing(false);
+      }
+    };
+
+    // === LOGIC ĐIỀU HƯỚNG CHÍNH ===
+    if (planId) {
+      // EDIT MODE
+      loadPlanDetail(planId);
+    } else {
+      // CREATE MODE
+      const storedInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
+      if (storedInfo) {
+        try {
+          const parsed = JSON.parse(storedInfo);
+          setPlanInfo({
+            name: parsed.name || "My Trip",
+            date: parsed.start_date,
+            end_date: parsed.end_date,
+            budget: parsed.budget || 0,
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
+      const storedRaw = sessionStorage.getItem(STORAGE_KEY_RAW);
+
+      if (!hasShownAI && storedRaw) {
+        runAiSimulation();
+      } else {
+        loadDataFromStorage();
       }
     }
-    const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
-    const storedRaw = sessionStorage.getItem(STORAGE_KEY_RAW);
-
-    if (!hasShownAI && storedRaw) {
-      runAiSimulation();
-    } else {
-      loadDataFromStorage();
-    }
-  }, []);
+  }, [planId]);
 
   const runAiSimulation = () => {
     setIsAiProcessing(true);
@@ -384,48 +656,111 @@ export default function ReviewPlanPage() {
   const loadDataFromStorage = () => {
     const rawData = sessionStorage.getItem(STORAGE_KEY_RAW);
     const storedActivities = sessionStorage.getItem(STORAGE_KEY_STRUCTURED);
+    const storedInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
+    const selectedSlot = sessionStorage.getItem("selected_add_slot");
+
+    // Lấy thông tin plan để biết date range
+    let planStartDate = planInfo.date;
+    let planEndDate = planInfo.end_date;
+
+    // Lấy slot được chọn (nếu có)
+    let selectedDate = planStartDate;
+    let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" = "Morning";
+
+    if (selectedSlot) {
+      try {
+        const slot = JSON.parse(selectedSlot);
+        selectedDate = slot.date;
+        selectedTimeSlot = slot.time_slot;
+        // ⚠️ KHÔNG xóa ngay - để logic merge trong useEffect load plan cũng đọc được
+        // sessionStorage.removeItem("selected_add_slot");
+      } catch (e) {
+        console.error("Error parsing selected slot:", e);
+      }
+    }
+
+    if (storedInfo) {
+      try {
+        const info = JSON.parse(storedInfo);
+        planStartDate = info.start_date || planInfo.date;
+        planEndDate = info.end_date || planInfo.end_date;
+      } catch (e) {
+        console.error("Error parsing stored info:", e);
+      }
+    }
 
     if (storedActivities) {
+      // ✅ Load từ STORAGE_KEY_STRUCTURED (activities đã arrange với date/time_slot)
       let currentList: PlanActivity[] = JSON.parse(storedActivities);
+
+      // Nhưng cần check xem có new items từ add_destinations không
       if (rawData) {
         const rawList: PlaceDetails[] = JSON.parse(rawData);
-        const newItems = rawList.filter(
-          (raw) => !currentList.some((act) => act.id === raw.place_id)
-        );
+        const newItems = rawList.filter((raw) => {
+          return !currentList.some((act) => {
+            // ✅ Extract place_id from act.id (remove suffix like "-0", "-1")
+            let actPlaceId = String(act.id);
+            const lastDashIndex = actPlaceId.lastIndexOf("-");
+            if (lastDashIndex !== -1) {
+              const suffix = actPlaceId.substring(lastDashIndex + 1);
+              if (!isNaN(Number(suffix))) {
+                actPlaceId = actPlaceId.substring(0, lastDashIndex);
+              }
+            }
+            return actPlaceId === raw.place_id;
+          });
+        });
 
-        const newActivities = newItems.map((place) => ({
-          id: place.place_id,
-          title: place.name,
-          address: place.formatted_address,
-          image_url: place.photos?.[0]?.photo_url || "",
-          time_slot: "Morning" as const,
-          date: new Date().toISOString(),
-          type: place.types?.[0] || "place",
-          order_in_day: 999,
-        }));
+        // Thêm new items vào currentList với date/time_slot được chọn
+        if (newItems.length > 0) {
+          const newActivities = newItems.map((place) => ({
+            id: place.place_id,
+            title: place.name,
+            address: place.formatted_address,
+            image_url: place.photos?.[0]?.photo_url || "",
+            time_slot: selectedTimeSlot, // ✅ Dùng slot được chọn
+            date: toLocalISOString(new Date(selectedDate)), // ✅ Dùng ngày được chọn
+            type: place.types?.[0] || "place",
+            order_in_day: 999,
+          }));
 
-        if (newActivities.length > 0) {
           currentList = [...currentList, ...newActivities];
+          // ✅ Update lại STORAGE_KEY_STRUCTURED với new items
+          sessionStorage.setItem(
+            STORAGE_KEY_STRUCTURED,
+            JSON.stringify(currentList)
+          );
         }
       }
+
       setActivities(currentList);
     } else if (rawData) {
+      // Fallback: nếu không có structured, tạo từ raw (lần đầu)
       const rawList: PlaceDetails[] = JSON.parse(rawData);
-      const initialActivities = rawList.map((place, idx) => ({
+      const initialActivities = rawList.map((place) => ({
         id: place.place_id,
         title: place.name,
         address: place.formatted_address,
         image_url: place.photos?.[0]?.photo_url || "",
-        time_slot: (idx % 3 === 0
-          ? "Morning"
-          : idx % 3 === 1
-          ? "Afternoon"
-          : "Evening") as "Morning" | "Afternoon" | "Evening",
-        date: new Date().toISOString(),
+        time_slot: "Morning" as const,
+        date: toLocalISOString(planStartDate),
         type: place.types?.[0] || "place",
-        order_in_day: idx,
+        order_in_day: 0,
       }));
-      setActivities(initialActivities);
+      // Distribute activities across days (lần đầu tiên - CHỈ khi AI simulation)
+      // ⚠️ CHỈ distribute nếu đây là lần đầu tạo plan (AI_SHOWN_KEY chưa set)
+      const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
+      if (!hasShownAI) {
+        const distributedList = distributeActivitiesAcrossDays(
+          initialActivities,
+          planStartDate,
+          planEndDate
+        );
+        setActivities(distributedList);
+      } else {
+        // Nếu đã distribute rồi, chỉ set như bình thường
+        setActivities(initialActivities);
+      }
     }
   };
 
@@ -436,12 +771,24 @@ export default function ReviewPlanPage() {
         JSON.stringify(activities)
       );
 
-      const rawListForMap = activities.map((act) => ({
-        place_id: act.id,
-        name: act.title,
-        formatted_address: act.address,
-        photos: [{ photo_url: act.image_url }],
-      }));
+      const rawListForMap = activities.map((act) => {
+        // ✅ Extract original place_id (remove suffix like "-0", "-1", etc.)
+        let placeId = String(act.id);
+        const lastDashIndex = placeId.lastIndexOf("-");
+        if (lastDashIndex !== -1) {
+          const suffix = placeId.substring(lastDashIndex + 1);
+          if (!isNaN(Number(suffix))) {
+            placeId = placeId.substring(0, lastDashIndex);
+          }
+        }
+
+        return {
+          place_id: placeId,
+          name: act.title,
+          formatted_address: act.address,
+          photos: [{ photo_url: act.image_url }],
+        };
+      });
       sessionStorage.setItem(STORAGE_KEY_RAW, JSON.stringify(rawListForMap));
     }
   }, [activities]);
@@ -489,7 +836,20 @@ export default function ReviewPlanPage() {
   };
 
   // --- DND LOGIC ---
-  const planDays = [planInfo.date];
+  const getDaysArray = (start: string, end: string) => {
+    const arr = [];
+    const dt = new Date(start);
+    const endDt = new Date(end);
+
+    while (dt <= endDt) {
+      arr.push(new Date(dt).toISOString());
+      dt.setDate(dt.getDate() + 1);
+    }
+
+    if (arr.length === 0) return [start];
+    return arr;
+  };
+  const planDays = getDaysArray(planInfo.date, planInfo.end_date);
 
   const findContainer = (id: string | number) => {
     if (String(id).includes("_")) return id;
@@ -557,13 +917,45 @@ export default function ReviewPlanPage() {
     }
   };
 
-  const handleAddPlaceToSlot = () => {
-    router.push("/planning_page/add_destinations");
+  const handleAddPlaceToSlot = (dayStr?: string, timeSlot?: string) => {
+    // ✅ Lưu ngày/buổi được chọn vào storage để add_destinations biết
+    if (dayStr && timeSlot) {
+      sessionStorage.setItem(
+        "selected_add_slot",
+        JSON.stringify({ date: dayStr, time_slot: timeSlot })
+      );
+    }
+
+    // ✅ Also save planId so add_destinations knows which plan to add to
+    if (planId) {
+      sessionStorage.setItem("EDITING_PLAN_ID", planId);
+      console.log(`📎 Navigating to add_destinations with planId: ${planId}`);
+      router.push(`/planning_page/add_destinations?id=${planId}`);
+    } else {
+      router.push("/planning_page/add_destinations");
+    }
   };
 
   // src/app/(main)/planning_page/review_plan/page.tsx
 
   const handleSaveToBackend = async () => {
+    // ✅ Validate tối thiểu 2 địa điểm
+    if (activities.length < 2) {
+      alert(
+        `You need at least 2 destinations in your plan! (Current: ${activities.length})`
+      );
+      return;
+    }
+
+    console.log("📊 Current activities state before save:");
+    activities.forEach((act, idx) => {
+      console.log(
+        `   ${idx + 1}. ${act.title} | Date: ${
+          act.date?.split("T")[0]
+        } | Slot: ${act.time_slot}`
+      );
+    });
+
     setIsSaving(true);
     try {
       // 1. Lấy Budget
@@ -574,6 +966,7 @@ export default function ReviewPlanPage() {
       const destinationsPayload = activities.map((act, index) => {
         let validType = "attraction";
         const typeLower = (act.type || "").toLowerCase();
+
         if (typeLower.includes("restaurant") || typeLower.includes("food"))
           validType = "restaurant";
         else if (typeLower.includes("hotel") || typeLower.includes("lodging"))
@@ -581,42 +974,102 @@ export default function ReviewPlanPage() {
         else if (typeLower.includes("transit") || typeLower.includes("station"))
           validType = "transport";
 
-        return {
-          id: 0, // [QUAN TRỌNG] Gửi số 0 để vượt qua validator "int_parsing"
-          destination_id: String(act.id), // [QUAN TRỌNG] Đây mới là ID Google Place
-          destination_type: validType, // Gửi cả 2 field type để chắc chắn
+        let realDestinationId = String(act.id);
+        const lastDashIndex = realDestinationId.lastIndexOf("-");
+        if (lastDashIndex !== -1) {
+          const suffix = realDestinationId.substring(lastDashIndex + 1);
+          if (!isNaN(Number(suffix))) {
+            realDestinationId = realDestinationId.substring(0, lastDashIndex);
+          }
+        }
+
+        // ✅ Chuyển time_slot thành time format "HH:MM"
+        let timeStr = "09:00"; // Default Morning
+        if (act.time_slot === "Afternoon") timeStr = "14:00";
+        else if (act.time_slot === "Evening") timeStr = "18:00";
+
+        const visitDate = act.date
+          ? toLocalISOString(act.date)
+          : toLocalISOString(new Date(planInfo.date));
+
+        const payload = {
+          id: 0,
+          destination_id: realDestinationId,
+          destination_type: validType,
           type: validType,
-          visit_date: act.date
-            ? act.date.split("T")[0]
-            : planInfo.date.split("T")[0],
+          visit_date: visitDate,
+          time: timeStr, // ✅ Thêm time field
           order_in_day: index + 1,
           note: act.title,
           url: act.image_url,
           estimated_cost: 0,
         };
+
+        console.log(
+          `📤 Activity ${index + 1}: ${
+            act.title
+          } | Date: ${visitDate} | Time: ${timeStr} | Slot: ${act.time_slot}`
+        );
+
+        return payload;
       });
 
-      // 3. Gọi API
+      console.log("📦 Total destinations to save:", destinationsPayload.length);
+
+      // 3. Chuẩn bị dữ liệu để gửi
       const requestData = {
         place_name: planInfo.name,
         start_date: planInfo.date,
         end_date: planInfo.end_date,
-        budget_limit: Number(budget),
+        budget_limit: Number(budget) > 0 ? Number(budget) : 1,
         destinations: destinationsPayload,
       };
 
-      console.log("Sending Plan Data:", requestData);
+      // === LOGIC XỬ LÝ ===
+      if (planId) {
+        // --- CHẾ ĐỘ EDIT ---
+        console.log(`💾 EDITING PLAN ${planId}`);
+        console.log(`   ✅ planId exists: "${planId}"`);
+        console.log(`   - Activities to save: ${activities.length}`);
+        activities.forEach((act, idx) => {
+          console.log(
+            `     ${idx + 1}. ${act.title} | Date: ${
+              act.date?.split("T")[0]
+            } | Slot: ${act.time_slot}`
+          );
+        });
 
-      await api.createPlan(requestData);
+        console.log(`📤 Calling updatePlan API...`);
+        await api.updatePlan(Number(planId), {
+          place_name: requestData.place_name,
+          start_date: requestData.start_date,
+          end_date: requestData.end_date,
+          budget_limit: requestData.budget_limit,
+          destinations: requestData.destinations,
+        });
+        console.log(`✅ updatePlan API returned successfully`);
 
-      alert("Plan saved successfully!");
+        alert("Plan updated successfully!");
+      } else {
+        // --- CHẾ ĐỘ CREATE MỚI ---
+        console.log(`📝 CREATING NEW PLAN`);
+        console.log(`   ❌ planId is null/undefined`);
+        console.log("Creating new plan...");
+        await api.createPlan(requestData);
+        console.log(`✅ createPlan API returned successfully`);
+        alert("Plan created successfully!");
+      }
 
+      // 4. Dọn dẹp và chuyển hướng
       sessionStorage.removeItem(STORAGE_KEY_RAW);
       sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
       sessionStorage.removeItem(AI_SHOWN_KEY);
       sessionStorage.removeItem(STORAGE_KEY_INFO);
+      sessionStorage.removeItem("selected_add_slot");
+      sessionStorage.removeItem("EDITING_PLAN_ID"); // ← Clear planId after save
 
-      router.push("/planning_page/showing_plan_page");
+      // ✅ Navigate và trigger refresh bằng cách thêm timestamp
+      router.push(`/planning_page/showing_plan_page?refresh=${Date.now()}`);
     } catch (e) {
       console.error("Save Error:", e);
       alert("Failed to save plan. Please check console for details.");
@@ -668,9 +1121,9 @@ export default function ReviewPlanPage() {
           {/* HEADER */}
           <div className="bg-white px-4 py-4 shadow-sm z-10 flex justify-between items-center shrink-0">
             <div className="flex items-center gap-2">
-              <Link href="/planning_page/add_destinations">
+              <button onClick={() => router.back()}>
                 <ChevronLeft className="text-gray-400" />
-              </Link>
+              </button>
               <h1
                 className={`${jost.className} text-gray-800 font-bold text-lg`}
               >
@@ -679,8 +1132,17 @@ export default function ReviewPlanPage() {
             </div>
             <button
               onClick={handleSaveToBackend}
-              disabled={isSaving}
-              className="flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full text-[#53B552] bg-[#E3F1E4] hover:bg-green-100"
+              disabled={isSaving || activities.length < 2}
+              className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
+                activities.length < 2 || isSaving
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "text-[#53B552] bg-[#E3F1E4] hover:bg-green-100"
+              }`}
+              title={
+                activities.length < 2
+                  ? `Add at least ${2 - activities.length} more destination(s)`
+                  : "Save plan"
+              }
             >
               {isSaving ? (
                 "Saving..."
@@ -718,11 +1180,32 @@ export default function ReviewPlanPage() {
                   )}
                   <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
                     <CalendarDays size={16} />{" "}
-                    {new Date(planInfo.date).toLocaleDateString()}
+                    <span>
+                      {new Date(planInfo.date).toLocaleDateString()}
+                      <span className="mx-2 text-gray-300">→</span>
+                      {new Date(planInfo.end_date).toLocaleDateString()}
+                    </span>
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* ⚠️ WARNING: Ít hơn 2 địa điểm */}
+            {activities.length < 2 && (
+              <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                <p
+                  className={`${jost.className} text-red-700 font-bold text-sm`}
+                >
+                  ⚠️ Minimum 2 destinations required
+                </p>
+                <p className="text-red-600 text-xs mt-1">
+                  You currently have {activities.length} destination
+                  {activities.length !== 1 ? "s" : ""}. Please add at least{" "}
+                  <strong>{2 - activities.length}</strong> more to save your
+                  plan.
+                </p>
+              </div>
+            )}
 
             <DndContext
               sensors={sensors}
@@ -752,39 +1235,55 @@ export default function ReviewPlanPage() {
                           title="Morning"
                           icon={<Sun size={18} className="text-orange-400" />}
                           items={activities.filter(
-                            (a) => a.time_slot === "Morning"
+                            (a) =>
+                              a.time_slot === "Morning" &&
+                              (a.date?.split("T")[0] === dayStr ||
+                                (!a.date &&
+                                  dayStr === planDays[0].split("T")[0]))
                           )}
                           onDelete={handleDeleteActivity}
-                          onAddPlace={handleAddPlaceToSlot}
+                          onAddPlace={() =>
+                            handleAddPlaceToSlot(dayStr, "Morning")
+                          }
                         />
                         <TimeSlotContainer
                           id={`${dayStr}_Afternoon`}
                           title="Afternoon"
                           icon={<Sunset size={18} className="text-red-400" />}
                           items={activities.filter(
-                            (a) => a.time_slot === "Afternoon"
+                            (a) =>
+                              a.time_slot === "Afternoon" &&
+                              (a.date?.split("T")[0] === dayStr ||
+                                (!a.date &&
+                                  dayStr === planDays[0].split("T")[0]))
                           )}
                           onDelete={handleDeleteActivity}
-                          onAddPlace={handleAddPlaceToSlot}
+                          onAddPlace={() =>
+                            handleAddPlaceToSlot(dayStr, "Afternoon")
+                          }
                         />
                         <TimeSlotContainer
                           id={`${dayStr}_Evening`}
                           title="Evening"
                           icon={<Moon size={18} className="text-purple-400" />}
                           items={activities.filter(
-                            (a) => a.time_slot === "Evening"
+                            (a) =>
+                              a.time_slot === "Evening" &&
+                              (a.date?.split("T")[0] === dayStr ||
+                                (!a.date &&
+                                  dayStr === planDays[0].split("T")[0]))
                           )}
                           onDelete={handleDeleteActivity}
-                          onAddPlace={handleAddPlaceToSlot}
+                          onAddPlace={() =>
+                            handleAddPlaceToSlot(dayStr, "Evening")
+                          }
                         />
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <DragOverlay
-                dropAnimation={dropAnimationConfig} // [FIX] Đã thay thế phần lỗi bằng object config
-              >
+              <DragOverlay dropAnimation={dropAnimationConfig}>
                 {activeId ? (
                   <div className="bg-white p-4 rounded-xl shadow-xl border-2 border-[#53B552]">
                     {activities.find((a) => a.id === activeId)?.title}
@@ -823,5 +1322,22 @@ export default function ReviewPlanPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// ==========================================
+// WRAPPER WITH SUSPENSE
+// ==========================================
+export default function ReviewPlanPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center w-full h-screen">
+          Loading...
+        </div>
+      }
+    >
+      <ReviewPlanContent />
+    </Suspense>
   );
 }

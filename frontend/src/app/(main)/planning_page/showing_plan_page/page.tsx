@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Home,
   MapPin,
@@ -44,6 +45,8 @@ const parseDate = (dateStr: string) => {
 };
 
 export default function PlanningPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<
     "Incoming" | "Future" | "Previous"
   >("Incoming");
@@ -55,12 +58,24 @@ export default function PlanningPage() {
 
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const getPlanDays = (startDate: string, endDate?: string) => {
+    const start = parseDate(startDate);
+    const end = endDate ? parseDate(endDate) : parseDate(startDate);
+    const days = [];
 
+    // Tạo vòng lặp theo ngày
+    for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+      days.push(new Date(dt));
+    }
+    return days;
+  };
   // Hàm load dữ liệu (Tách ra để tái sử dụng khi delete)
   const refreshData = async () => {
     try {
       setLoading(true);
+      console.log("🔄 Fetching plans from API...");
       const allPlans = await api.getPlans();
+      console.log("📦 Received plans:", allPlans.length, allPlans);
 
       if (!allPlans || allPlans.length === 0) {
         setIncomingPlan(null);
@@ -72,6 +87,7 @@ export default function PlanningPage() {
       const validPlans = allPlans.filter(
         (p) => p.activities && p.activities.length >= 2
       );
+      console.log("✅ Valid plans (>= 2 activities):", validPlans.length);
 
       if (validPlans.length === 0) {
         setIncomingPlan(null);
@@ -102,6 +118,7 @@ export default function PlanningPage() {
           (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
         );
 
+        console.log("📍 Setting incoming plan:", allActiveAndFuture[0]);
         setIncomingPlan(allActiveAndFuture[0]);
         setFuturePlans(allActiveAndFuture.slice(1)); // Các plan còn lại đưa vào Future tab
       } else {
@@ -122,6 +139,36 @@ export default function PlanningPage() {
 
   useEffect(() => {
     refreshData();
+  }, []);
+
+  // ✅ THÊM: Refresh khi có query param refresh (từ review_plan sau khi save)
+  useEffect(() => {
+    const refreshParam = searchParams.get("refresh");
+    if (refreshParam) {
+      console.log("🔄 Detected refresh param, reloading data...");
+      setTimeout(() => {
+        refreshData();
+        // Clear query param để không refresh liên tục
+        router.replace("/planning_page/showing_plan_page", { scroll: false });
+      }, 100); // Small delay để ensure state đã được clear
+    }
+  }, [searchParams, router]);
+
+  // ✅ THÊM: Tự động refresh khi quay lại trang (visibility change hoặc focus)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log("Page visible, refreshing data...");
+        refreshData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const handleTogglePlan = (id: number) => {
@@ -146,12 +193,32 @@ export default function PlanningPage() {
     }
   };
 
-  const getActivitiesByTime = (activities: PlanActivity[], slot: string) => {
+  const getActivitiesByDayAndTime = (
+    activities: PlanActivity[],
+    targetDate: Date,
+    slot: string
+  ) => {
     if (!activities) return [];
-    const filtered = activities.filter((a) => a.time_slot === slot);
-    return filtered.sort(
-      (a, b) => (a.order_in_day || 0) - (b.order_in_day || 0)
-    );
+    // Chuyển targetDate thành chuỗi ngày để so sánh
+    const targetDateStr = targetDate.toISOString().split("T")[0];
+    return activities
+      .filter((a) => {
+        // Lọc theo ngày thực tế (từ date field) và buổi
+        if (!a.date && !a.day) return false;
+
+        let activityDateStr: string | null = null;
+        if (a.date) {
+          // Nếu có date field, lấy phần ngày từ đó
+          activityDateStr = a.date.split("T")[0];
+        } else if (a.day) {
+          // Fallback: nếu chỉ có day index, tính toán từ plan start date
+          // Nhưng cách này có thể không chính xác, nên prioritize date field
+          return false;
+        }
+
+        return activityDateStr === targetDateStr && a.time_slot === slot;
+      })
+      .sort((a, b) => (a.order_in_day || 0) - (b.order_in_day || 0));
   };
 
   return (
@@ -251,52 +318,88 @@ export default function PlanningPage() {
                       Schedule
                     </span>
 
-                    {/* Morning Section - Truyền prop showTime={false} */}
-                    <TimeSection
-                      title="Morning"
-                      icon={
-                        <Sun
-                          size={18}
-                          className="text-yellow-500 fill-yellow-500"
-                        />
+                    {getPlanDays(incomingPlan.date, incomingPlan.end_date).map(
+                      (dayDate, index) => {
+                        const dayIndex = index + 1; // Ngày 1, Ngày 2...
+                        return (
+                          <div
+                            key={index}
+                            className="mb-8 border-b last:border-0 border-gray-200 pb-4 last:pb-0"
+                          >
+                            {/* Header của từng ngày */}
+                            <div className="flex items-center gap-2 mb-4">
+                              <div className="bg-green-100 text-green-700 font-bold px-3 py-1 rounded-full text-xs">
+                                Day {dayIndex}
+                              </div>
+                              <p
+                                className={`${jost.className} font-semibold text-gray-600`}
+                              >
+                                {dayDate.toLocaleDateString("vi-VN")}{" "}
+                                {/* Hoặc format tùy ý */}
+                              </p>
+                            </div>
+
+                            {/* Các buổi trong ngày đó */}
+                            <TimeSection
+                              title="Morning"
+                              icon={
+                                <Sun
+                                  size={18}
+                                  className="text-yellow-500 fill-yellow-500"
+                                />
+                              }
+                              activities={getActivitiesByDayAndTime(
+                                incomingPlan.activities,
+                                dayDate,
+                                "Morning"
+                              )}
+                              showTime={false}
+                            />
+
+                            <TimeSection
+                              title="Afternoon"
+                              icon={
+                                <Sunset size={18} className="text-orange-500" />
+                              }
+                              activities={getActivitiesByDayAndTime(
+                                incomingPlan.activities,
+                                dayDate,
+                                "Afternoon"
+                              )}
+                              showTime={false}
+                            />
+
+                            <TimeSection
+                              title="Evening"
+                              icon={
+                                <Moon size={18} className="text-purple-500" />
+                              }
+                              activities={getActivitiesByDayAndTime(
+                                incomingPlan.activities,
+                                dayDate,
+                                "Evening"
+                              )}
+                              showTime={false}
+                            />
+                          </div>
+                        );
                       }
-                      activities={getActivitiesByTime(
-                        incomingPlan.activities,
-                        "Morning"
-                      )}
-                      showTime={false}
-                    />
-
-                    {/* Afternoon Section - Truyền prop showTime={false} */}
-                    <TimeSection
-                      title="Afternoon"
-                      icon={<Sunset size={18} className="text-orange-500" />}
-                      activities={getActivitiesByTime(
-                        incomingPlan.activities,
-                        "Afternoon"
-                      )}
-                      showTime={false}
-                    />
-
-                    {/* Evening Section - Truyền prop showTime={false} */}
-                    <TimeSection
-                      title="Evening"
-                      icon={<Moon size={18} className="text-purple-500" />}
-                      activities={getActivitiesByTime(
-                        incomingPlan.activities,
-                        "Evening"
-                      )}
-                      showTime={false}
-                    />
+                    )}
 
                     <div className="flex flex-col gap-3 mt-6">
-                      <Link href={`/planning_page/${incomingPlan.id}/details`}>
-                        <button
-                          className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-white hover:bg-green-50 transition-all text-lg font-bold py-3 rounded-full shadow-sm`}
-                        >
-                          Edit Schedule
-                        </button>
-                      </Link>
+                      <button
+                        onClick={() => {
+                          console.log(
+                            `📎 Navigating to edit plan ${incomingPlan.id}`
+                          );
+                          router.push(
+                            `/planning_page/review_plan?id=${incomingPlan.id}`
+                          );
+                        }}
+                        className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-white hover:bg-green-50 transition-all text-lg font-bold py-3 rounded-full shadow-sm`}
+                      >
+                        Edit Schedule
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -620,7 +723,8 @@ function PlanSummaryCard({
       {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t border-gray-100 animate-in slide-in-from-top-2">
           <div className="mt-3 flex justify-end">
-            <Link href={`/planning_page/${plan.id}/details`}>
+            <Link href={`/planning_page/review_plan?id=${plan.id}`}>
+              {" "}
               <button
                 className={`${jost.className} text-xs text-[#53B552] font-bold hover:underline`}
               >

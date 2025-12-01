@@ -284,6 +284,7 @@ export interface PlanDestination {
   destination_id: string;
   destination_type: string;
   visit_date: string;
+  time?: string; // ✅ Thêm time_slot (format "HH:MM")
   note?: string;
   url?: string;
   order_in_day?: number;
@@ -309,6 +310,7 @@ export interface PlanActivity {
   type?: string;
   order_in_day?: number;
   time?: string;
+  day?: number;
 }
 
 export interface TravelPlan {
@@ -317,6 +319,7 @@ export interface TravelPlan {
   date: string;
   end_date?: string;
   activities: PlanActivity[];
+  budget?: number;
 }
 
 export interface PlanDestinationCreate {
@@ -325,6 +328,7 @@ export interface PlanDestinationCreate {
   destination_type: string;
   order_in_day: number;
   visit_date: string;
+  time?: string; // ✅ Thêm time_slot (format "HH:MM")
   estimated_cost?: number;
   url?: string;
   note?: string;
@@ -334,6 +338,14 @@ export interface CreatePlanRequest {
   start_date: string;
   end_date?: string;
   budget_limit: number;
+  destinations?: PlanDestinationCreate[];
+}
+
+export interface UpdatePlanRequest {
+  place_name?: string;
+  start_date?: string;
+  end_date?: string;
+  budget_limit?: number;
   destinations?: PlanDestinationCreate[];
 }
 
@@ -406,6 +418,7 @@ class ApiClient {
     const fetchOptions: RequestInit = {
       ...options,
       headers: options.body instanceof FormData ? headers : headers,
+      cache: "no-store", // ✅ Disable cache để luôn lấy data mới nhất
     };
 
     const response = await fetch(`${this.baseURL}${endpoint}`, fetchOptions);
@@ -572,7 +585,7 @@ class ApiClient {
 
   async updatePlan(
     planId: number,
-    data: { place_name?: string; start_date?: string; end_date?: string }
+    data: UpdatePlanRequest
   ): Promise<PlanResponse> {
     return this.request<PlanResponse>(`/plans/${planId}`, {
       method: "PUT",
@@ -584,19 +597,44 @@ class ApiClient {
     const plans = await this.request<PlanResponse[]>("/plans/", {
       method: "GET",
     });
+
     return plans.map((p) => {
+      // Chuẩn hóa ngày bắt đầu chuyến đi về 00:00:00 để tính toán chính xác
+      const planStartDate = new Date(`${p.start_date}T00:00:00`);
+
       const activities = p.destinations.map((d, index) => {
         const dateObj = new Date(d.visit_date);
-        const hour = dateObj.getHours();
 
+        // ✅ Ưu tiên lấy time_slot từ trường 'time' của backend
+        // Nếu không có, fallback tính từ hour của visit_date
         let slot = "Morning";
-        if (hour >= 12 && hour < 18) slot = "Afternoon";
-        if (hour >= 18) slot = "Evening";
+        if (d.time) {
+          // Backend trả về time format "HH:MM"
+          const [hours] = d.time.split(":").map(Number);
+          if (hours >= 12 && hours < 18) slot = "Afternoon";
+          else if (hours >= 18) slot = "Evening";
+        } else {
+          // Fallback: tính từ visit_date hour
+          const hour = dateObj.getHours();
+          if (hour >= 12 && hour < 18) slot = "Afternoon";
+          if (hour >= 18) slot = "Evening";
+        }
 
         const timeString = dateObj.toLocaleTimeString("en-GB", {
           hour: "2-digit",
           minute: "2-digit",
         });
+
+        // [MỚI] Logic tính thứ tự ngày (Day 1, Day 2...)
+        const actDateOnly = new Date(dateObj);
+        actDateOnly.setHours(0, 0, 0, 0);
+        planStartDate.setHours(0, 0, 0, 0);
+
+        const diffTime = actDateOnly.getTime() - planStartDate.getTime();
+        // Dùng Math.round để xử lý sai số mili-giây nếu có
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        const dayIndex = diffDays + 1;
 
         return {
           id: `${d.destination_id}-${index}`,
@@ -609,12 +647,13 @@ class ApiClient {
           time: timeString,
           type: d.destination_type,
           order_in_day: d.order_in_day || 0,
+          day: dayIndex >= 1 ? dayIndex : 1,
         };
       });
 
       activities.sort((a, b) => {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
+        const dateA = new Date(a.date!).getTime();
+        const dateB = new Date(b.date!).getTime();
         if (dateA !== dateB) return dateA - dateB;
 
         return (a.order_in_day || 0) - (b.order_in_day || 0);
