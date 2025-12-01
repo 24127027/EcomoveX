@@ -422,7 +422,8 @@ class ApiClient {
     };
 
     const response = await fetch(`${this.baseURL}${endpoint}`, fetchOptions);
-
+    console.log("BASE URL:", this.baseURL);
+    console.log("ENDPOINT:", endpoint);
     if (!response.ok) {
       try {
         const errorData = await response.json();

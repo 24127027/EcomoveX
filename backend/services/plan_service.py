@@ -421,7 +421,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error removing user from plan: {e}",
             )
-
+            
     @staticmethod
     async def handle_intent(
         db: AsyncSession, user_id: int, room_id: int, user_text: str
@@ -438,7 +438,14 @@ class PlanService:
 
             plan = plans[0]
 
+            # -----------------------------
+            # ADD intent
+            # -----------------------------
             if intent == Intent.ADD:
+                # FIX: đảm bảo user là member của plan trước khi add
+                if not await PlanRepository.is_member(db, user_id, plan.id):
+                    return IntentHandlerResponse(ok=False, message="Bạn không có quyền chỉnh sửa plan này.")
+
                 destination_id = ent.get("destination_id")
                 if not destination_id:
                     return IntentHandlerResponse(ok=False, message="Cần destination_id để thêm.")
@@ -459,6 +466,20 @@ class PlanService:
                 if not new_dest:
                     return IntentHandlerResponse(ok=False, message="Không thể thêm destination.")
 
+                # FIX: trả về full plan destinations để caller (ChatbotService) có dữ liệu cập nhật
+                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
+                out = [
+                    {
+                        "id": dest.id,
+                        "destination_id": dest.destination_id,
+                        "type": dest.type,
+                        "order_in_day": dest.order_in_day,
+                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
+                        "note": dest.note,
+                    }
+                    for dest in destinations
+                ]
+
                 return IntentHandlerResponse(
                     ok=True,
                     action="add",
@@ -468,45 +489,88 @@ class PlanService:
                         "order_in_day": new_dest.order_in_day,
                         "note": new_dest.note,
                     },
+                    data={"plan_id": plan.id, "destinations": out},
                 )
 
+            # -----------------------------
+            # REMOVE intent
+            # -----------------------------
             if intent == Intent.REMOVE:
+                # dest_id ở đây phải là plan_destination_id (primary key của PlanDestination)
                 dest_id = ent.get("item_id") or ent.get("destination_id")
                 if dest_id:
+                    # FIX: kiểm quyền: user phải là member để xóa
+                    if not await PlanRepository.is_member(db, user_id, plan.id):
+                        return IntentHandlerResponse(ok=False, message="Bạn không có quyền xóa destination trong plan này.")
+
                     ok = await PlanRepository.remove_destination_from_plan(db, dest_id)
-                    return IntentHandlerResponse(ok=ok, action="remove", item_id=dest_id)
+                    if not ok:
+                        return IntentHandlerResponse(ok=False, message="Không tìm thấy hoặc không xóa được destination.")
+                    # FIX: trả về danh sách destinations sau khi xóa
+                    destinations = await PlanRepository.get_plan_destinations(db, plan.id)
+                    out = [
+                        {
+                            "id": dest.id,
+                            "destination_id": dest.destination_id,
+                            "type": dest.type,
+                            "order_in_day": dest.order_in_day,
+                            "visit_date": str(dest.visit_date) if dest.visit_date else None,
+                            "note": dest.note,
+                        }
+                        for dest in destinations
+                    ]
+                    return IntentHandlerResponse(ok=True, action="remove", item_id=dest_id, data={"plan_id": plan.id, "destinations": out})
 
                 return IntentHandlerResponse(ok=False, message="Cần id của destination để xóa.")
 
+            # -----------------------------
+            # MODIFY_TIME intent
+            # -----------------------------
             if intent == Intent.MODIFY_TIME:
                 dest_id = ent.get("item_id") or ent.get("destination_id")
                 visit_date = ent.get("visit_date")
                 order_in_day = ent.get("order_in_day")
 
                 if not dest_id:
-                    return IntentHandlerResponse(
-                        ok=False, message="Cần id của destination để đổi thời gian."
-                    )
+                    return IntentHandlerResponse(ok=False, message="Cần id của destination để đổi thời gian.")
 
+                # FIX: chuẩn hóa update payload cho PlanDestination
                 update_data = PlanDestinationUpdate(
                     visit_date=visit_date, order_in_day=order_in_day
                 )
-                updated = await PlanRepository.update_plan(db, dest_id, update_data)
-                if not updated:
-                    return IntentHandlerResponse(
-                        ok=False, message="Không cập nhật được destination."
-                    )
 
+                # FIX: gọi đúng hàm update_plan_destination (đã thêm ở repository)
+                updated = await PlanRepository.update_plan_destination(db, dest_id, update_data)
+                if not updated:
+                    return IntentHandlerResponse(ok=False, message="Không cập nhật được destination.")
+
+                # FIX: trả về danh sách destinations sau cập nhật
+                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
+                out = [
+                    {
+                        "id": dest.id,
+                        "destination_id": dest.destination_id,
+                        "type": dest.type,
+                        "order_in_day": dest.order_in_day,
+                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
+                        "note": dest.note,
+                    }
+                    for dest in destinations
+                ]
                 return IntentHandlerResponse(
                     ok=True,
                     action="modify_time",
                     item={
                         "id": updated.id,
-                        "visit_date": str(updated.visit_date),
+                        "visit_date": str(updated.visit_date) if updated.visit_date else None,
                         "order_in_day": updated.order_in_day,
                     },
+                    data={"plan_id": plan.id, "destinations": out},
                 )
 
+            # -----------------------------
+            # CHANGE_BUDGET intent (giữ nguyên)
+            # -----------------------------
             if intent == Intent.CHANGE_BUDGET:
                 budget = ent.get("budget")
                 update_data = PlanUpdate(budget_limit=budget)
@@ -514,8 +578,25 @@ class PlanService:
                 if not updated_plan:
                     return IntentHandlerResponse(ok=False, message="Không cập nhật được budget.")
 
-                return IntentHandlerResponse(ok=True, action="change_budget", budget=budget)
+                # FIX: lấy lại destinations để trả về data (consistent)
+                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
+                out = [
+                    {
+                        "id": dest.id,
+                        "destination_id": dest.destination_id,
+                        "type": dest.type,
+                        "order_in_day": dest.order_in_day,
+                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
+                        "note": dest.note,
+                    }
+                    for dest in destinations
+                ]
 
+                return IntentHandlerResponse(ok=True, action="change_budget", budget=budget, data={"plan_id": plan.id, "destinations": out})
+
+            # -----------------------------
+            # VIEW_PLAN (giữ nguyên, trả plan)
+            # -----------------------------
             if intent == Intent.VIEW_PLAN:
                 destinations = await PlanRepository.get_plan_destinations(db, plan.id)
                 out = [
@@ -539,17 +620,19 @@ class PlanService:
                     },
                 )
 
+            # -----------------------------
+            # SUGGEST (giữ nguyên)
+            # -----------------------------
             if intent == Intent.SUGGEST:
                 suggestions = await RecommendationService.recommend_for_cluster_hybrid(db, user_id)
                 return IntentHandlerResponse(ok=True, action="suggest", suggestions=suggestions)
 
-            return IntentHandlerResponse(
-                ok=False,
-                message="Mình không hiểu yêu cầu, bạn nói lại được không?",
-            )
+            return IntentHandlerResponse(ok=False, message="Mình không hiểu yêu cầu, bạn nói lại được không?")
 
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error handling plan intent: {str(e)}",
             )
+            
+   
