@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from repository.cluster_repository import ClusterRepository
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
-from destination_service import DestinationService
+from services.destination_service import DestinationService
 from services.map_service import MapService
 from schemas.map_schema import TextSearchRequest
 
