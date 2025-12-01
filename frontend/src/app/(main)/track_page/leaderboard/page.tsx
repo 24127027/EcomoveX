@@ -25,7 +25,7 @@ const jost = Jost({
 
 const abhayaLibre = Abhaya_Libre({
     subsets: ["latin"],
-    weight: ["700"],
+    weight: ["400"],
     display: 'swap'
 });
 
@@ -72,10 +72,10 @@ export default function TrackPage() {
                     <div className="relative">
                         <input
                             type="text"
-                            placeholder="From location"
+                            placeholder="From location?"
                             value={fromLocation}
                             onChange={(e) => setFromLocation(e.target.value)}
-                            className="w-full px-4 py-3 pl-11 border-2 border-green-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base"
+                            className="w-full px-4 py-3 pl-11 text-green-600 border-2 border-green-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base"
                         />
                         <MapPin className="absolute left-3 top-3.5 text-green-600" size={20} />
                     </div>
@@ -83,17 +83,24 @@ export default function TrackPage() {
                     <div className="relative">
                         <input
                             type="text"
-                            placeholder="Where to?"
+                            placeholder="To location?"
                             value={toLocation}
                             onChange={(e) => setToLocation(e.target.value)}
-                            className="w-full px-4 py-3 pl-11 border-2 border-green-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base"
+                            className="w-full px-4 py-3 pl-11 text-green-600 border-2 border-green-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base"
                         />
                         <Search className="absolute left-3 top-3.5 text-green-600" size={20} />
                     </div>
+
+                    <button
+                        className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                        onClick={handleCalculate}
+                    >
+                        Calculate CO2 Emissions
+                    </button>
                 </div>
 
                 {/* Helper Text */}
-                <p className="text-sm text-green-600 mb-8">
+                <p className={`${abhayaLibre.className} text-xs text-green-600 mb-8`}>
                     View CO2 emissions by transportation type between two locations.
                 </p>
 
@@ -110,8 +117,8 @@ export default function TrackPage() {
                     {/* Green Card */}
                     <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-8 pt-16 text-center text-white shadow-lg">
                         <h2 className="text-2xl font-semibold mb-2">CO2 Saved</h2>
-                        <p className="text-base mb-6 opacity-90">
-                            Your contribution towards<br />staying green
+                        <p className="text-base mb-6 opacity-90 whitespace-nowrap">
+                            Your contribution towards staying green
                         </p>
                         <div className="text-6xl font-bold mb-2">
                             {co2Saved.toFixed(1)} Kg
@@ -132,54 +139,46 @@ export default function TrackPage() {
                 </div>
             </div>
 
-            <footer
-                className={`bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20`}
-            >
+            <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
                 <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
                 <div className="flex justify-around items-center py-3">
                     <Link
                         href="/homepage"
-                        className="flex flex-col items-center justify-center w-1/4 text-green-600"
-                    >
-                        <Home className="size-6" strokeWidth={2.0} />
-                        <span className="text-[10px] font-bold mt-1">Home</span>
-                    </Link>
-                    <Link
-                        href="/track_page/leaderboard"
                         className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
                     >
-                        <Route size={24} strokeWidth={1.5} />
-                        <span
-                            className={`${jost.className} text-[10px] font-medium mt-1`}
-                        >
-                            Track
-                        </span>
+                        <Home className="size-6" strokeWidth={1.5} />
+                        <span className={`${jost.className} text-[10px] mt-1`}>Home</span>
                     </Link>
+
+                    <div className="flex flex-col items-center justify-center w-1/4 text-green-600">
+                        <Route className="size-6" strokeWidth={2.0} />
+                        <span className={`${jost.className} text-[10px] mt-1`}>
+                            User
+                        </span>
+                    </div>
+
                     <Link
                         href="/planning_page/showing_plan_page"
                         className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
                     >
                         <MapPin className="size-6" strokeWidth={1.5} />
-                        <span className="text-[10px] font-medium mt-1">Planning</span>
+                        <span className={`${jost.className} text-[10px] mt-1`}>Planning</span>
                     </Link>
-
                     <Link
                         href="#"
                         className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
                     >
                         <Bot className="size-6" strokeWidth={1.5} />
-                        <span className="text-[10px] font-medium mt-1">Ecobot</span>
+                        <span className={`${jost.className} text-[10px] mt-1`}>Ecobot</span>
                     </Link>
-
                     <Link
-                        href="user_page/main_page"
+                        href="/user_page/main_page"
                         className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors relative"
                     >
                         <div className="relative">
                             <User className="size-6" strokeWidth={1.5} />
-
                         </div>
-                        <span className="text-[10px] font-medium mt-1">User</span>
+                        <span className={`${jost.className} text-[10px] mt-1`}>User</span>
                     </Link>
                 </div>
             </footer>

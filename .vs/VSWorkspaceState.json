@@ -1,16 +1,15 @@
 {
   "ExpandedNodes": [
     "",
+    "\\backend",
+    "\\backend\\database",
+    "\\backend\\integration",
     "\\frontend",
     "\\frontend\\src",
     "\\frontend\\src\\app",
     "\\frontend\\src\\app\\(main)",
-    "\\frontend\\src\\app\\(main)\\homepage",
-    "\\frontend\\src\\app\\(main)\\planning_page",
     "\\frontend\\src\\app\\(main)\\track_page",
-    "\\frontend\\src\\app\\(main)\\track_page\\leaderboard",
-    "\\frontend\\src\\app\\(main)\\user_page"
+    "\\frontend\\src\\app\\(main)\\track_page\\transport_options"
   ],
-  "SelectedNode": "\\frontend\\package.json",
   "PreviewInSolutionExplorer": false
 }

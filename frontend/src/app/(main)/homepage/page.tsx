@@ -26,6 +26,7 @@ import {
   Snowflake,
   Trophy,
   Loader2,
+  Route,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -511,6 +512,14 @@ export default function HomePage() {
             >
               <Home className="size-6" strokeWidth={2.0} />
               <span className="text-[10px] font-bold mt-1">Home</span>
+            </Link>
+
+            <Link
+                href="/track_page/transport_options"
+                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
+            >
+                <Route className="size-6" strokeWidth={2.0} />
+                <span className="text-[10px] font-bold mt-1">Track</span>
             </Link>
 
             <Link
