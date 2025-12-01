@@ -314,3 +314,42 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: ensuring destination {place_details.place_id} - {e}")
             return None
+
+    @staticmethod
+    async def update_plan_destination(db: AsyncSession, plan_destination_id: int, update_data: PlanDestinationUpdate):
+        """
+        FIX: Thêm hàm để cập nhật một PlanDestination theo id.
+        - Vì trong PlanService trước đây gọi nhầm update_plan với dest_id,
+          cần 1 hàm chuyên biệt để cập nhật PlanDestination.
+        """
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            dest = result.scalar_one_or_none()
+            if not dest:
+                print(f"WARNING: PlanDestination ID {plan_destination_id} not found")
+                return None
+
+            # Áp dụng các trường update nếu có
+            if getattr(update_data, "visit_date", None) is not None:
+                dest.visit_date = update_data.visit_date
+            if getattr(update_data, "order_in_day", None) is not None:
+                dest.order_in_day = update_data.order_in_day
+            if getattr(update_data, "estimated_cost", None) is not None:
+                dest.estimated_cost = update_data.estimated_cost
+            if getattr(update_data, "note", None) is not None:
+                dest.note = update_data.note
+            if getattr(update_data, "url", None) is not None:
+                dest.url = update_data.url
+            if getattr(update_data, "type", None) is not None:
+                dest.type = update_data.type
+
+            db.add(dest)
+            await db.commit()
+            await db.refresh(dest)
+            return dest
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating PlanDestination ID {plan_destination_id} - {e}")
+            return None

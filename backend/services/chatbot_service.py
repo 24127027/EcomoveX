@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from repository.plan_repository import PlanRepository
 from integration.text_generator_api import create_text_generator_api
 from repository.message_repository import MessageRepository
 from services.message_service import MessageService
@@ -29,9 +29,12 @@ class ChatbotService:
             # Lấy thông tin action (add/remove/modify...)
             # Nếu là object Pydantic thì dùng planner_result.action, nếu dict thì .get()
             action = planner_result.get("action") if isinstance(planner_result, dict) else getattr(planner_result, "action", None)
-            
+            # Lấy plan_id nếu có
+            plan_id = planner_result.get("plan_id") if isinstance(planner_result, dict) else getattr(planner_result, "plan_id", None)
             # Dữ liệu plan để trả về frontend (Nên là Full List Destinations)
-            plan_data = planner_result.get("data") if isinstance(planner_result, dict) else getattr(planner_result, "data", None)
+            if action == "add" or action == "remove" or action == "modify_time":
+            # Lấy full plan bằng repository để update
+                plan_data = await PlanRepository.get_plan_destinations(db, plan_id)
 
             # 3. Logic tạo System Prompt
             base_system_prompt = (
@@ -42,7 +45,7 @@ class ChatbotService:
             system_notes: List[str] = []
 
             # --- LOGIC QUAN TRỌNG: CHỈ TÍNH TOÁN KHI CÓ ACTION LIÊN QUAN PLAN ---
-            if action and plan_data: 
+            if action in ["add", "remove", "modify_time"] and plan_data is not None: 
                 # a. Tính toán quãng đường (Chỉ chạy khi có plan)
                 route_metrics = await RouteService.calculate_trip_metrics(plan_data)
                 if route_metrics.get("total_distance_km", 0) > 0:

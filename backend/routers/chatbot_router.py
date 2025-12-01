@@ -38,4 +38,4 @@ async def verify_green_transportation(
         "timestamp": "2025-11-28T10:30:00"
     }
     """
-    return await ChatbotMessageService.verify_green_transportation(db, data)
+    return await ChatbotService.verify_green_transportation(db, data)
