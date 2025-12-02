@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Time,
     func,
 )
 from sqlalchemy import (
@@ -69,7 +70,8 @@ class PlanDestination(Base):
     )
     type = Column(SQLEnum(DestinationType), nullable=False, index=True)
     estimated_cost = Column(Float, nullable=True)
-    visit_date = Column(Date, nullable=False)
+    visit_date = Column(DateTime, nullable=False)
+    time = Column(Time, nullable=True)  # ✅ Thêm trường lưu thời gian buổi
     url = Column(String(512), nullable=True)
     note = Column(Text, nullable=True)
 

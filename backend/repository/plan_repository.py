@@ -1,9 +1,12 @@
+from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.plan import *
 from schemas.plan_schema import *
+from models.destination import Destination
+from schemas.map_schema import PlaceDetailsResponse
 
 
 class PlanRepository:
@@ -136,12 +139,23 @@ class PlanRepository:
     @staticmethod
     async def add_destination_to_plan(db: AsyncSession, plan_id: int, data: PlanDestinationCreate):
         try:
+            time_value = None
+            if getattr(data, "time", None):
+                try:
+                    time_value = datetime.strptime(data.time, "%H:%M").time()
+                    print(f"  ⏰ Parsed time '{data.time}' to {time_value}")
+                except ValueError as e:
+                    print(
+                        f"WARNING: Invalid time format '{data.time}' for destination {data.destination_id}; defaulting to None - {e}"
+                    )
+
             new_plan_dest = PlanDestination(
                 plan_id=plan_id,
                 destination_id=data.destination_id,
                 type=data.destination_type,
                 order_in_day=data.order_in_day,
                 visit_date=data.visit_date,
+                time=time_value,
                 estimated_cost=data.estimated_cost,
                 url=data.url,
                 note=data.note,
@@ -149,6 +163,8 @@ class PlanRepository:
             db.add(new_plan_dest)
             await db.commit()
             await db.refresh(new_plan_dest)
+            print(f"  ✅ DB: Added destination {new_plan_dest.id} to plan {plan_id}")
+            return new_plan_dest
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
@@ -304,4 +320,49 @@ class PlanRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: updating role for user {user_id} in plan {plan_id} - {e}")
+            return None
+        
+    @staticmethod
+    async def remove_destination_from_plan(db: AsyncSession, plan_destination_id: int) -> bool:
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            dest = result.scalar_one_or_none()
+            if not dest:
+                print(f"WARNING: PlanDestination ID {plan_destination_id} not found")
+                return False
+
+            await db.delete(dest)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: deleting plan destination ID {plan_destination_id} - {e}")
+            return False
+        
+    @staticmethod
+    async def ensure_destination(db: AsyncSession, place_details: PlaceDetailsResponse):
+        """Kiểm tra và tạo destination nếu chưa có để tránh lỗi Foreign Key"""
+        try:
+            # 1. Check tồn tại
+            result = await db.execute(select(Destination).where(Destination.place_id == place_details.place_id))
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing
+
+            # 2. Tạo mới
+            new_dest = Destination(
+                place_id=place_details.place_id,
+                # Các trường này có thể null trong model destination.py của bạn không?
+                # Dựa vào file bạn gửi, model Destination CHỈ CÓ place_id và green_verified
+                # Nếu database thực tế có cột name, address... thì thêm vào đây.
+                # Nếu chỉ có place_id thì chỉ cần dòng dưới:
+            )
+            db.add(new_dest)
+            await db.commit()
+            return new_dest
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: ensuring destination {place_details.place_id} - {e}")
             return None

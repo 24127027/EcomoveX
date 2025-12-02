@@ -18,6 +18,9 @@ __pycache__/
 # Node.js
 node_modules/
 .DS_Store
+ #testing
+# Dependencies
+/node_modules
 /.pnp
 .pnp.js
 
@@ -82,4 +85,4 @@ Thumbs.db
 service-account.json
 
 # AI models
-backend/utils/green_verification/models/
+/utils/green_verification/models/
