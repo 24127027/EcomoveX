@@ -1,15 +1,16 @@
 {
   "ExpandedNodes": [
     "",
-    "\\backend",
-    "\\backend\\database",
-    "\\backend\\integration",
     "\\frontend",
     "\\frontend\\src",
     "\\frontend\\src\\app",
     "\\frontend\\src\\app\\(main)",
     "\\frontend\\src\\app\\(main)\\track_page",
-    "\\frontend\\src\\app\\(main)\\track_page\\transport_options"
+    "\\frontend\\src\\app\\(main)\\track_page\\result",
+    "\\frontend\\src\\app\\(main)\\user_page",
+    "\\frontend\\src\\app\\(main)\\user_page\\friend_page",
+    "\\frontend\\src\\app\\(main)\\user_page\\main_page"
   ],
+  "SelectedNode": "\\frontend\\src\\app\\(main)\\user_page\\main_page\\page.tsx",
   "PreviewInSolutionExplorer": false
 }
