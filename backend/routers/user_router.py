@@ -70,10 +70,9 @@ async def delete_user(
         return {"message": "User deleted successfully"}
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-
-@router.delete(
-    "/{user_id}", dependencies=[Depends(require_roles(["Admin"]))], status_code=status.HTTP_200_OK
-)
+@router.delete("/{user_id}", 
+               dependencies=[Depends(require_roles(["Admin"]))],
+                status_code=status.HTTP_200_OK)
 async def admin_delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
@@ -84,12 +83,10 @@ async def admin_delete_user(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
 
-@router.post(
-    "/{user_id}/eco_point/add",
-    dependencies=[Depends(require_roles(["Admin"]))],
-    response_model=UserResponse,
-    status_code=status.HTTP_200_OK,
-)
+@router.post("/{user_id}/eco_point/add", 
+             dependencies=[Depends(require_roles(["Admin"]))],
+             response_model=UserResponse, 
+             status_code=status.HTTP_200_OK)
 async def add_eco_point(
     user_id: int,
     point: int = Query(..., gt=0),
@@ -98,13 +95,10 @@ async def add_eco_point(
 ):
     return await UserService.add_eco_point(db, user_id, point)
 
-
-@router.post(
-    "/{user_id}/activity",
-    dependencies=[Depends(require_roles(["Admin"]))],
-    response_model=UserActivityResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/{user_id}/activity", 
+             dependencies=[Depends(require_roles(["Admin"]))],
+             response_model=UserActivityResponse, 
+             status_code=status.HTTP_201_CREATED)
 async def log_user_activity(
     user_id: int,
     activity_data: UserActivityCreate,
@@ -112,3 +106,13 @@ async def log_user_activity(
     current_user: dict = Depends(get_current_user),
 ):
     return await UserActivityService.log_user_activity(db, user_id, activity_data)
+
+@router.get("/users", 
+            dependencies=[Depends(require_roles(["Admin"]))],
+            response_model=list[UserResponse], 
+            status_code=status.HTTP_200_OK)
+async def list_users(
+    filters: UserFilterParams = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    return await UserService.list_users(db, filters)

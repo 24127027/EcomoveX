@@ -85,6 +85,7 @@ class UserActivityResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+
 class UserFilterParams(BaseModel):
     role: Optional[str] = None
     status: Optional[str] = None

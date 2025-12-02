@@ -4,7 +4,7 @@ from models.user import User
 from utils.token.authentication_util import get_current_user
 
 
-async def require_roles(allowed_roles: list[str]):
+def require_roles(allowed_roles: list[str]):
     async def inner(user: User = Depends(get_current_user)):
         if user.role not in allowed_roles:
             raise HTTPException(
@@ -13,3 +13,4 @@ async def require_roles(allowed_roles: list[str]):
         return user
 
     return inner
+
