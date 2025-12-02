@@ -63,9 +63,8 @@ class Room(Base):
     contexts = relationship(
         "RoomContext", back_populates="room", cascade="all, delete-orphan"
     )
-    plan = relationship(
-        "Plan", back_populates="room", uselist=False
-    )
+    plan = relationship("Plan", back_populates="room", uselist=False)
+
 
 class RoomDirect(Base):
     __tablename__ = "room_direct"

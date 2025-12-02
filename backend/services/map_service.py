@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +44,27 @@ FIELD_GROUPS = {
 
 
 class MapService:
+    @staticmethod
+    async def get_coordinates(place_id: str) -> Optional[Dict[str, float]]:
+        map_client = None
+        try:
+            map_client = await create_map_client()
+            response = await map_client.get_place_details(
+                place_id=place_id,
+                fields=["geometry/location"],
+            )
+            if response and response.geometry and response.geometry.location:
+                return {
+                    "lat": response.geometry.location.lat,
+                    "lng": response.geometry.location.lng,
+                }
+            return None
+        except Exception:
+            return None
+        finally:
+            if map_client:
+                await map_client.close()
+
     @staticmethod
     async def text_search_place(
         db: AsyncSession, data: TextSearchRequest

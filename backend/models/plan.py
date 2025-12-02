@@ -10,7 +10,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    Time,
     func,
 )
 from sqlalchemy import (
@@ -31,12 +30,12 @@ class DestinationType(str, Enum):
 class PlanRole(str, Enum):
     owner = "owner"
     member = "member"
-    
+
 
 class TimeSlot(str, Enum):
-    morning = "morning" # 6am - 12am
-    afternoon = "afternoon" # 12am - 6pm
-    evening = "evening" # 6pm - 11pm
+    morning = "morning"  # 6am - 12am
+    afternoon = "afternoon"  # 12am - 6pm
+    evening = "evening"  # 6pm - 11pm
 
 
 class Plan(Base):
@@ -59,9 +58,7 @@ class Plan(Base):
     members = relationship(
         "PlanMember", back_populates="plan", cascade="all, delete-orphan"
     )
-    room = relationship(
-        "Room", back_populates="plan", uselist=False
-    )
+    room = relationship("Room", back_populates="plan", uselist=False)
 
 
 class PlanDestination(Base):

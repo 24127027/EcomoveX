@@ -5,8 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.plan import PlanRole, DestinationType, TimeSlot
 from repository.plan_repository import PlanRepository
-from repository.room_repository import RoomRepository
-from repository.message_repository import MessageRepository
 from schemas.map_schema import PlaceDetailsRequest
 from schemas.plan_schema import (
     IntentHandlerResponse,
@@ -22,12 +20,9 @@ from schemas.plan_schema import (
     PlanResponse,
     PlanUpdate,
 )
-from schemas.room_schema import RoomCreate, RoomMemberCreate
-from schemas.message_schema import RoomContextCreate
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
-from models.room import RoomType, MemberRole
 
 
 class PlanService:
@@ -60,9 +55,7 @@ class PlanService:
             list_plan_responses = []
             for plan in plans:
                 members = await PlanRepository.get_plan_members(db, plan.id)
-                owner = next(
-                    (m for m in members if m.role == PlanRole.owner), None
-                )
+                owner = next((m for m in members if m.role == PlanRole.owner), None)
                 destinations = await PlanRepository.get_plan_destinations(db, plan.id)
                 dest_infos = [
                     PlanDestinationResponse(
@@ -192,9 +185,7 @@ class PlanService:
                         detail=f"Error syncing destination {dest_data.destination_id}: {e}",
                     )
 
-                await PlanRepository.add_destination_to_plan(
-                    db, plan_id, dest_data
-                )
+                await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
 
             saved_destinations = await PlanRepository.get_plan_destinations(
                 db, updated_plan.id
@@ -224,6 +215,8 @@ class PlanService:
                     for dest in saved_destinations
                 ],
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error: {e}")
 
@@ -376,6 +369,7 @@ class PlanService:
                 members=[
                     PlanMemberDetailResponse(
                         user_id=member.user_id,
+                        plan_id=plan_id,
                         role=member.role,
                         joined_at=member.joined_at,
                     )
@@ -410,14 +404,14 @@ class PlanService:
                 )
 
             duplicates = []
-            for id in data.ids:
-                if await PlanService.is_member(db, id, plan_id):
-                    duplicates.append(id)
+            for member in data.ids:
+                if await PlanService.is_member(db, member.user_id, plan_id):
+                    duplicates.append(member.user_id)
                     continue
                 await PlanRepository.add_plan_member(
                     db,
                     plan_id,
-                    PlanMemberCreate(user_id=id, role=PlanRole.member),
+                    PlanMemberCreate(user_id=member.user_id, role=member.role),
                 )
             users = await PlanRepository.get_plan_members(db, plan_id)
             return PlanMemberResponse(
@@ -425,6 +419,7 @@ class PlanService:
                 members=[
                     PlanMemberDetailResponse(
                         user_id=user.user_id,
+                        plan_id=plan_id,
                         role=user.role,
                         joined_at=user.joined_at,
                     )
@@ -475,6 +470,7 @@ class PlanService:
                 members=[
                     PlanMemberDetailResponse(
                         user_id=user.user_id,
+                        plan_id=plan_id,
                         role=user.role,
                         joined_at=user.joined_at,
                     )
@@ -488,32 +484,50 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error removing user from plan: {e}",
             )
-            
 
     @staticmethod
     async def handle_intent(
-        db: AsyncSession, user_id: int, room_id: int, user_text: str
+        db: AsyncSession,
+        user_id: int,
+        room_id: int,
+        user_text: str,
     ) -> IntentHandlerResponse:
         try:
+            # Import here to avoid circular import
+            from services.message_service import MessageService
+
             rule_engine = RuleEngine()
             parse = rule_engine.classify(user_text)
             intent = parse.intent
             ent = parse.entities
 
-            # Lấy plans của user
-            plans = await PlanRepository.get_plan_by_user_id(db, user_id)
-            if not plans:
-                return IntentHandlerResponse(
-                    ok=False, message="Không có plan nào để chỉnh sửa."
+            # Load context from room_id
+            context = await MessageService.load_context(db, user_id, room_id)
+
+            # Extract context data
+            llm_context = context.llm_context if context else None
+            conversation_state = llm_context.conversation_state if llm_context else None
+            active_plan_context = llm_context.active_plan if llm_context else None
+
+            # Try to get plan from context first, then fallback to query
+            plan = None
+            if active_plan_context:
+                plan = await PlanRepository.get_plan_by_id(
+                    db, active_plan_context.plan_id
                 )
 
-            plan = plans[0]
+            if not plan:
+                plans = await PlanRepository.get_plan_by_user_id(db, user_id)
+                if not plans:
+                    return IntentHandlerResponse(
+                        ok=False, message="No plan available to edit."
+                    )
+                plan = plans[0]
 
-            # Kiểm tra membership
             is_member = await PlanService.is_member(db, user_id, plan.id)
             if not is_member:
                 return IntentHandlerResponse(
-                    ok=False, message="Bạn không có quyền chỉnh sửa plan này."
+                    ok=False, message="You do not have permission to edit this plan."
                 )
 
             # -----------------------------
@@ -521,15 +535,45 @@ class PlanService:
             # -----------------------------
             if intent == Intent.ADD:
                 destination_id = ent.get("destination_id")
+
+                # Try to get destination_id from context if not in entities
+                if not destination_id and conversation_state:
+                    if conversation_state.last_mentioned_destination:
+                        destination_id = (
+                            conversation_state.last_mentioned_destination.destination_id
+                        )
+
                 if not destination_id:
+                    # Update conversation state to track missing params
+                    await MessageService.update_conversation_state(
+                        db,
+                        room_id,
+                        current_intent="ADD",
+                        missing_params=["destination_id"],
+                    )
                     return IntentHandlerResponse(
-                        ok=False, message="Cần destination_id để thêm địa điểm."
+                        ok=False,
+                        message="destination_id is required to add a destination.",
                     )
 
                 visit_date = ent.get("visit_date")
+
+                # Try to get visit_date from context if not in entities
+                if not visit_date and conversation_state:
+                    if conversation_state.last_mentioned_date:
+                        visit_date = conversation_state.last_mentioned_date
+
                 if not visit_date:
+                    # Update conversation state to track missing params
+                    await MessageService.update_conversation_state(
+                        db,
+                        room_id,
+                        current_intent="ADD",
+                        last_destination={"destination_id": destination_id},
+                        missing_params=["visit_date"],
+                    )
                     return IntentHandlerResponse(
-                        ok=False, message="Cần ngày tham quan (visit_date)."
+                        ok=False, message="visit_date is required."
                     )
 
                 order_in_day = ent.get("order_in_day", 1)
@@ -539,7 +583,6 @@ class PlanService:
                 url = ent.get("url")
                 time_slot = ent.get("time_slot", TimeSlot.morning)
 
-                # Tạo destination data với đầy đủ fields
                 dest_data = PlanDestinationCreate(
                     destination_id=destination_id,
                     destination_type=dest_type,
@@ -551,20 +594,17 @@ class PlanService:
                     time_slot=time_slot,
                 )
 
-                # Ensure destination exists để tránh FK error
                 try:
-                    await MapService.get_place_details(
+                    await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=destination_id)
                     )
                 except Exception:
                     await PlanRepository.ensure_destination(db, destination_id)
 
-                # Thêm destination vào plan
                 new_dest = await PlanService.add_destination_to_plan(
                     db, user_id, plan.id, dest_data
                 )
 
-                # Lấy danh sách destinations để trả về
                 destinations = await PlanService.get_plan_destinations(
                     db, user_id, plan.id
                 )
@@ -609,24 +649,44 @@ class PlanService:
             # REMOVE intent
             # -----------------------------
             if intent == Intent.REMOVE:
-                # plan_destination_id (PlanDestination.id)
                 plan_dest_id = ent.get("item_id")
+
+                # Try to get item_id from context if not in entities
+                if not plan_dest_id and conversation_state:
+                    if conversation_state.last_mentioned_destination:
+                        # Find plan destination by destination_id
+                        dest_id = (
+                            conversation_state.last_mentioned_destination.destination_id
+                        )
+                        if dest_id:
+                            destinations = await PlanRepository.get_plan_destinations(
+                                db, plan.id
+                            )
+                            for dest in destinations:
+                                if dest.destination_id == dest_id:
+                                    plan_dest_id = dest.id
+                                    break
+
                 if not plan_dest_id:
+                    await MessageService.update_conversation_state(
+                        db,
+                        room_id,
+                        current_intent="REMOVE",
+                        missing_params=["item_id"],
+                    )
                     return IntentHandlerResponse(
-                        ok=False, message="Cần id của địa điểm trong plan để xóa."
+                        ok=False, message="item_id is required to remove a destination."
                     )
 
-                # Xóa destination khỏi plan
                 success = await PlanRepository.remove_destination_from_plan(
                     db, plan_dest_id
                 )
                 if not success:
                     return IntentHandlerResponse(
                         ok=False,
-                        message="Không tìm thấy hoặc không xóa được địa điểm.",
+                        message="Destination not found or could not be removed.",
                     )
 
-                # Lấy lại danh sách destinations sau khi xóa
                 destinations = await PlanService.get_plan_destinations(
                     db, user_id, plan.id
                 )
@@ -662,34 +722,51 @@ class PlanService:
             # MODIFY_TIME intent
             # -----------------------------
             if intent == Intent.MODIFY_TIME:
-                # Cần destination_id (place_id) và plan_id để tìm PlanDestination
                 destination_id = ent.get("destination_id")
+
+                # Try to get destination_id from context if not in entities
+                if not destination_id and conversation_state:
+                    if conversation_state.last_mentioned_destination:
+                        destination_id = (
+                            conversation_state.last_mentioned_destination.destination_id
+                        )
+
                 if not destination_id:
+                    await MessageService.update_conversation_state(
+                        db,
+                        room_id,
+                        current_intent="MODIFY_TIME",
+                        missing_params=["destination_id"],
+                    )
                     return IntentHandlerResponse(
-                        ok=False, message="Cần destination_id để đổi thời gian."
+                        ok=False, message="destination_id is required to modify time."
                     )
 
                 visit_date = ent.get("visit_date")
                 order_in_day = ent.get("order_in_day")
                 time_slot = ent.get("time_slot")
 
-                # Tạo update data
+                # Try to get time info from context if not in entities
+                if conversation_state:
+                    if not visit_date and conversation_state.last_mentioned_date:
+                        visit_date = conversation_state.last_mentioned_date
+                    if not time_slot and conversation_state.last_mentioned_time_slot:
+                        time_slot = conversation_state.last_mentioned_time_slot
+
                 update_data = PlanDestinationUpdate(
                     visit_date=visit_date,
                     order_in_day=order_in_day,
                     time_slot=time_slot,
                 )
 
-                # Gọi repository update (nhận plan_id, destination_id, update_data)
                 updated = await PlanRepository.update_plan_destination(
                     db, plan.id, destination_id, update_data
                 )
                 if not updated:
                     return IntentHandlerResponse(
-                        ok=False, message="Không cập nhật được địa điểm."
+                        ok=False, message="Could not update destination."
                     )
 
-                # Lấy lại destinations
                 destinations = await PlanService.get_plan_destinations(
                     db, user_id, plan.id
                 )
@@ -734,14 +811,13 @@ class PlanService:
                 budget = ent.get("budget")
                 if budget is None:
                     return IntentHandlerResponse(
-                        ok=False, message="Cần giá trị budget mới."
+                        ok=False, message="New budget value is required."
                     )
 
-                # Chỉ owner mới được đổi budget
                 is_owner = await PlanService.is_plan_owner(db, user_id, plan.id)
                 if not is_owner:
                     return IntentHandlerResponse(
-                        ok=False, message="Chỉ chủ plan mới có thể thay đổi budget."
+                        ok=False, message="Only the plan owner can change the budget."
                     )
 
                 update_data = PlanUpdate(budget_limit=budget)
@@ -750,10 +826,9 @@ class PlanService:
                 )
                 if not updated_plan:
                     return IntentHandlerResponse(
-                        ok=False, message="Không cập nhật được budget."
+                        ok=False, message="Could not update budget."
                     )
 
-                # Lấy lại destinations
                 destinations = await PlanService.get_plan_destinations(
                     db, user_id, plan.id
                 )
@@ -830,9 +905,8 @@ class PlanService:
                     ok=True, action="suggest", suggestions=suggestions
                 )
 
-            # Intent không được nhận diện
             return IntentHandlerResponse(
-                ok=False, message="Mình không hiểu yêu cầu, bạn nói lại được không?"
+                ok=False, message="I don't understand the request, please try again."
             )
 
         except Exception as e:

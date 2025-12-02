@@ -22,7 +22,7 @@ from schemas.user_schema import (
     UserActivityCreate,
 )
 from services.map_service import MapService
-from services.user_service import UserActivityService
+from services.user_service import UserService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/map", tags=["Map & Navigation"])
@@ -68,9 +68,7 @@ async def get_place_details(
     activity_data = UserActivityCreate(
         activity=Activity.search_destination, destination_id=place_id
     )
-    await UserActivityService.log_user_activity(
-        user_db, current_user["user_id"], activity_data
-    )
+    await UserService.log_user_activity(user_db, current_user["user_id"], activity_data)
 
     return result
 

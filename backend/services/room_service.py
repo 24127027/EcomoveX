@@ -129,15 +129,15 @@ class RoomService:
         db: AsyncSession, user1_id: int, user2_id: int
     ) -> RoomResponse:
         try:
-            user1_id = min(user1_id, user2_id)
-            user2_id = max(user1_id, user2_id)
+            u1_norm = min(user1_id, user2_id)
+            u2_norm = max(user1_id, user2_id)
             room = await RoomRepository.get_direct_room_between_users(
-                db, user1_id, user2_id
+                db, u1_norm, u2_norm
             )
             if not room:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Direct room between user ID {user1_id} and user ID {user2_id} not found",
+                    detail=f"Direct room between user ID {u1_norm} and user ID {u2_norm} not found",
                 )
             return RoomResponse(
                 id=room.id, room_type=room.room_type, created_at=room.created_at
@@ -147,7 +147,7 @@ class RoomService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error retrieving direct room between user ID {user1_id} and user ID {user2_id}: {e}",
+                detail=f"Unexpected error retrieving direct room between user ID {u1_norm} and user ID {u2_norm}: {e}",
             )
 
     @staticmethod
