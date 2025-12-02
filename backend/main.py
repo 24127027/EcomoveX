@@ -24,6 +24,7 @@ from routers.recommendation_router import router as recommendation_router
 
 from routers.user_router import router as user_router
 from routers.weather_router import router as weather_router
+from routers.carbon_router import router as carbon_router
 from utils.config import settings
 
 
@@ -90,6 +91,8 @@ app.include_router(message_router)
 app.include_router(plan_router)
 app.include_router(chatbot_router)
 app.include_router(recommendation_router)
+app.include_router(carbon_router)
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():

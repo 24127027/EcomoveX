@@ -1,7 +1,6 @@
 from typing import Optional
 
 import httpx
-import requests
 
 from schemas.route_schema import *
 from utils.config import settings
@@ -13,8 +12,7 @@ class CarbonAPI:
         if not self.api_key:
             raise ValueError("CLIMATIQ_API_KEY not found in environment variables")
 
-        self.travel_base_url = "https://preview.api.carbonAPI.io/travel/v1-preview3"
-        self.basic_base_url = "https://api.carbonAPI.io/data/v1"
+        self.basic_base_url = "https://api.climatiq.io/data/v1"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -24,20 +22,21 @@ class CarbonAPI:
     async def close(self):
         await self.client.aclose()
 
-    async def estimate_car(
-        self,
-        distance_km: float,
-        passengers: int = 1,
-    ) -> float:
+    async def estimate_car(self, distance_km: float, passengers: int = 1) -> float:
         url = f"{self.basic_base_url}/estimate"
-        activity_id = "passenger_vehicle-vehicle_type_car-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na"
+        activity_id = (
+            "passenger_vehicle-vehicle_type_car-fuel_source_petrol-engine_size_na-vehicle_age_na-vehicle_weight_na"
+            )
         params = {
-            "emission_factor": {"activity_id": activity_id, "data_version": "^27"},
+            "emission_factor": {
+                "activity_id": activity_id,
+                "data_version": "^27",
+            },
             "parameters": {"distance": distance_km, "distance_unit": "km"},
         }
 
         try:
-            res = requests.post(url, headers=self.headers, json=params)
+            res = await self.client.post(url, json=params)
 
             if res.status_code != 200:
                 raise ValueError(f"Error estimating car emissions: HTTP {res.status_code}")
@@ -48,22 +47,23 @@ class CarbonAPI:
 
             return data["co2e"] / passengers if passengers > 1 else data["co2e"]
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             raise Exception(f"Car estimation failed: {e}")
+
 
     async def estimate_electric_bus(self, distance_km: float = 100, passenger: int = 1) -> float:
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
-                "activity_id": (
+                "activity_id": 
                     "passenger_vehicle-vehicle_type_bus-fuel_source_bev-engine_size_na-vehicle_age_na-vehicle_weight_gte_12t"
-                ),
+                ,
                 "data_version": "^27",
             },
             "parameters": {"distance": distance_km, "distance_unit": "km"},
         }
         try:
-            response = requests.post(url, headers=self.headers, json=params)
+            response = await self.client.post(url, json=params)
 
             if response.status_code != 200:
                 raise ValueError(
@@ -75,23 +75,23 @@ class CarbonAPI:
                 raise ValueError(f"Error in electric bus emissions response: {data.get('error')}")
 
             return data["co2e"] * passenger / 30
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             raise Exception(f"Electric bus estimation failed: {e}")
 
     async def estimate_motorbike(self, distance_km: float = 100) -> float:
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
-                "activity_id": (
+                "activity_id": 
                     "passenger_vehicle-vehicle_type_motorbike-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na"
-                ),
+                ,
                 "data_version": "^27",
             },
             "parameters": {"distance": distance_km, "distance_unit": "km"},
         }
 
         try:
-            response = requests.post(url, headers=self.headers, json=params)
+            response = await self.client.post(url, json=params)
 
             if response.status_code != 200:
                 raise ValueError(
@@ -103,7 +103,7 @@ class CarbonAPI:
                 raise ValueError(f"Error in motorbike emissions response: {data.get('error')}")
 
             return data["co2e"]
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             raise Exception(f"Motorbike estimation failed: {e}")
 
     async def estimate_transport(

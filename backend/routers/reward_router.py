@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from utils.token.authorizer import require_roles
 from database.db import get_db
 from schemas.message_schema import CommonMessageResponse
 from schemas.reward_schema import *
@@ -27,8 +27,10 @@ async def get_mission_by_id(
 ):
     return await RewardService.get_mission_by_id(user_db, mission_id)
 
-
-@router.post("/missions", response_model=MissionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/missions", 
+             dependencies=[Depends(require_roles(["Admin"]))],
+             response_model=MissionResponse, 
+             status_code=status.HTTP_201_CREATED)
 async def create_mission(
     mission_data: MissionCreate,
     user_db: AsyncSession = Depends(get_db),
@@ -41,12 +43,10 @@ async def create_mission(
         )
     return await RewardService.create_mission(user_db, mission_data)
 
-
-@router.put(
-    "/missions/{mission_id}",
-    response_model=MissionResponse,
-    status_code=status.HTTP_200_OK,
-)
+@router.put("/missions/{mission_id}",
+            dependencies=[Depends(require_roles(["Admin"]))], 
+            response_model=MissionResponse, 
+            status_code=status.HTTP_200_OK)
 async def update_mission(
     mission_id: int = Path(..., gt=0),
     updated_data: MissionUpdate = ...,
