@@ -14,6 +14,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
+from models.message import MessageType
 from schemas.message_schema import CommonMessageResponse, MessageResponse
 from services.message_service import MessageService
 from utils.token.authentication_util import get_current_user
@@ -72,6 +73,8 @@ async def send_message(
     room_id: int = Path(..., gt=0),
     content: Optional[str] = Form(None),
     message_file: Optional[UploadFile] = File(None),
+    plan_id: Optional[int] = Form(None),
+    message_type: MessageType = Form(MessageType.text),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -81,6 +84,8 @@ async def send_message(
         room_id=room_id,
         message_text=content if content else None,
         message_file=message_file if message_file else None,
+        plan_id=plan_id,
+        message_type=message_type,
     )
 
 
@@ -95,6 +100,21 @@ async def delete_message(
     current_user: dict = Depends(get_current_user),
 ):
     return await MessageService.delete_message(db, current_user["user_id"], message_id)
+
+
+@router.put(
+    "/{message_id}/decline",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def decline_invitation(
+    message_id: int = Path(..., gt=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return await MessageService.decline_invitation(
+        db, current_user["user_id"], message_id
+    )
 
 
 @router.websocket("/ws/{room_id}")

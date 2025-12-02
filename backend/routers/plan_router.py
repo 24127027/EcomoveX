@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from schemas.plan_schema import (
     PlanDestinationCreate,
     PlanDestinationResponse,
     PlanDestinationUpdate,
+    PlanMemberCreate,
     PlanMemberResponse,
     PlanResponse,
     PlanUpdate,
@@ -107,27 +108,6 @@ async def update_plan_destination(
     )
 
 
-@router.delete(
-    "/destinations/{plan_destination_id}",
-    response_model=CommonMessageResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def remove_destination_from_plan(
-    plan_destination_id: int,
-    plan_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await PlanService.remove_destination_from_plan(
-        db, current_user["user_id"], plan_id, plan_destination_id
-    )
-
-
-@router.get(
-    "/{plan_id}/members",
-    response_model=PlanMemberResponse,
-    status_code=status.HTTP_200_OK,
-)
 @router.get(
     "/{plan_id}/members",
     response_model=PlanMemberResponse,
@@ -168,3 +148,17 @@ async def remove_members_from_plan(
     return await PlanService.remove_plan_member(
         db, current_user["user_id"], plan_id, data
     )
+    
+    
+@router.post(
+    "/{plan_id}/members/join",
+    response_model=CommonMessageResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def join_plan(
+    user_id: int,
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return await PlanService.add_plan_member(db, user_id, plan_id, MemberCreate(PlanMemberCreate(current_user["user_id"])))

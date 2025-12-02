@@ -195,6 +195,7 @@ export default function CreatePlanPage() {
       sessionStorage.removeItem("temp_plan_destinations");
       sessionStorage.removeItem("current_plan_activities");
       sessionStorage.removeItem("has_shown_ai_gen");
+      sessionStorage.removeItem("EDITING_PLAN_ID"); // ✅ Clear old plan ID to ensure CREATE mode
 
       // 3. CHUYỂN HƯỚNG
       console.log(

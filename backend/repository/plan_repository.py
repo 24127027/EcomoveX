@@ -20,6 +20,9 @@ from models.destination import Destination
 from schemas.map_schema import PlaceDetailsResponse
 
 
+from sqlalchemy.orm import selectinload
+
+
 class PlanRepository:
     @staticmethod
     async def is_plan_owner(db: AsyncSession, user_id: int, plan_id: int) -> bool:
@@ -60,7 +63,10 @@ class PlanRepository:
     async def get_plan_by_user_id(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(
-                select(Plan).join(PlanMember).where(PlanMember.user_id == user_id)
+                select(Plan)
+                .join(PlanMember)
+                .where(PlanMember.user_id == user_id)
+                .options(selectinload(Plan.members))
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
@@ -154,32 +160,21 @@ class PlanRepository:
         db: AsyncSession, plan_id: int, data: PlanDestinationCreate
     ):
         try:
-            time_value = None
-            if getattr(data, "time", None):
-                try:
-                    time_value = datetime.strptime(data.time, "%H:%M").time()
-                    print(f"  ⏰ Parsed time '{data.time}' to {time_value}")
-                except ValueError as e:
-                    print(
-                        f"WARNING: Invalid time format '{data.time}' for destination {data.destination_id}; defaulting to None - {e}"
-                    )
-
             new_plan_dest = PlanDestination(
                 plan_id=plan_id,
                 destination_id=data.destination_id,
                 type=data.destination_type,
                 order_in_day=data.order_in_day,
                 visit_date=data.visit_date,
-                time=time_value,
                 estimated_cost=data.estimated_cost,
                 url=data.url,
                 note=data.note,
+                time_slot=data.time_slot,
             )
             db.add(new_plan_dest)
             await db.commit()
             await db.refresh(new_plan_dest)
             print(f"  ✅ DB: Added destination {new_plan_dest.id} to plan {plan_id}")
-            return new_plan_dest
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
@@ -376,13 +371,13 @@ class PlanRepository:
             return False
 
     @staticmethod
-    async def ensure_destination(db: AsyncSession, place_details: PlaceDetailsResponse):
+    async def ensure_destination(db: AsyncSession, place_id: str):
         """Kiểm tra và tạo destination nếu chưa có để tránh lỗi Foreign Key"""
         try:
             # 1. Check tồn tại
             result = await db.execute(
                 select(Destination).where(
-                    Destination.place_id == place_details.place_id
+                    Destination.place_id == place_id
                 )
             )
             existing = result.scalar_one_or_none()
@@ -391,7 +386,7 @@ class PlanRepository:
 
             # 2. Tạo mới
             new_dest = Destination(
-                place_id=place_details.place_id,
+                place_id=place_id,
                 # Các trường này có thể null trong model destination.py của bạn không?
                 # Dựa vào file bạn gửi, model Destination CHỈ CÓ place_id và green_verified
                 # Nếu database thực tế có cột name, address... thì thêm vào đây.
@@ -402,5 +397,5 @@ class PlanRepository:
             return new_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: ensuring destination {place_details.place_id} - {e}")
+            print(f"ERROR: ensuring destination {place_id} - {e}")
             return None

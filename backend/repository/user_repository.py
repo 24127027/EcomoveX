@@ -3,6 +3,7 @@ from typing import List
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models.user import Rank, User, UserActivity
 from schemas.user_schema import (
@@ -22,19 +23,24 @@ class UserRepository:
         Fetch raw User ORM objects from DB with filters & pagination
         """
         try:
-            query = select(User).order_by(User.created_at.desc())
+            query = (
+                select(User)
+                .options(
+                    selectinload(User.rooms),
+                    selectinload(User.reviews),
+                    selectinload(User.missions),
+                )
+                .order_by(User.created_at.desc())
+            )
 
-            if filters.search_term:
-                search = f"%{filters.search_term}%"
+            if filters.search:
+                search = f"%{filters.search}%"
                 query = query.where(
                     (User.username.ilike(search)) | (User.email.ilike(search))
                 )
 
             if filters.role:
                 query = query.where(User.role == filters.role)
-
-            if filters.status:
-                query = query.where(User.status == filters.status)
 
             if filters.created_from:
                 query = query.where(User.created_at >= filters.created_from)
@@ -70,25 +76,6 @@ class UserRepository:
             print(f"ERROR: Failed to retrieve users by IDs - {e}")
             return []
 
-    @staticmethod
-    async def get_user_by_email(db: AsyncSession, email: str):
-        try:
-            result = await db.execute(select(User).where(User.email == email))
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
-            return None
-
-    @staticmethod
-    async def get_user_by_username(db: AsyncSession, username: str):
-        try:
-            result = await db.execute(select(User).where(User.username == username))
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Failed to retrieve user by username {username} - {e}")
-            return None
 
     @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate):
@@ -240,23 +227,17 @@ class UserRepository:
             return []
 
     @staticmethod
-    async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
-        try:
-            result = await db.execute(
-                select(User).order_by(User.created_at.desc()).offset(skip).limit(limit)
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Failed to retrieve all users - {e}")
-            return []
-
-    @staticmethod
     async def search_users(
         db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50
     ):
         try:
             result = await db.execute(
                 select(User)
+                .options(
+                    selectinload(User.rooms),
+                    selectinload(User.reviews),
+                    selectinload(User.missions),
+                )
                 .where(
                     (User.username.ilike(f"%{search_term}%"))
                     | (User.email.ilike(f"%{search_term}%"))

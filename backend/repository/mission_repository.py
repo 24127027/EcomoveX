@@ -28,18 +28,7 @@ class MissionRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching mission with id {mission_id} - {e}")
             return None
-
-    @staticmethod
-    async def get_mission_by_name(db: AsyncSession, name: str):
-        try:
-            result = await db.execute(
-                select(Mission).where(func.lower(Mission.name) == name.lower())
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching mission with name {name} - {e}")
-            return None
-
+        
     @staticmethod
     async def create_mission(db: AsyncSession, mission_data: MissionCreate):
         try:

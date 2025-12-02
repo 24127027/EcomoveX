@@ -31,6 +31,12 @@ class DestinationType(str, Enum):
 class PlanRole(str, Enum):
     owner = "owner"
     member = "member"
+    
+
+class TimeSlot(str, Enum):
+    morning = "morning" # 6am - 12am
+    afternoon = "afternoon" # 12am - 6pm
+    evening = "evening" # 6pm - 11pm
 
 
 class Plan(Base):
@@ -52,6 +58,9 @@ class Plan(Base):
     )
     members = relationship(
         "PlanMember", back_populates="plan", cascade="all, delete-orphan"
+    )
+    room = relationship(
+        "Room", back_populates="plan", uselist=False
     )
 
 
@@ -75,9 +84,9 @@ class PlanDestination(Base):
     type = Column(SQLEnum(DestinationType), nullable=False, index=True)
     estimated_cost = Column(Float, nullable=True)
     visit_date = Column(DateTime, nullable=False)
-    time = Column(Time, nullable=True)  # ✅ Thêm trường lưu thời gian buổi
     url = Column(String(512), nullable=True)
     note = Column(Text, nullable=True)
+    time_slot = Column(SQLEnum(TimeSlot), nullable=False, index=True)
 
     plan = relationship("Plan", back_populates="destinations")
     destination = relationship("Destination", back_populates="plan_destinations")

@@ -215,11 +215,15 @@ class RecommendationService:
             cluster_categories = []
 
             if user_cluster:
-                cluster_categories = (
-                    await ClusterRepository.get_cluster_preferred_categories(
-                        db, user_cluster, limit=5
-                    )
+                raise HTTPException(
+                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                    detail="Cluster preferred categories retrieval not implemented.",
                 )
+                # cluster_categories = (
+                #     await ClusterRepository.get_cluster_preferred_categories(
+                #         db, user_cluster, limit=5
+                #     )
+                # )
 
             if not cluster_categories:
                 cluster_categories = ["park", "garden", "tourist_attraction", "museum"]

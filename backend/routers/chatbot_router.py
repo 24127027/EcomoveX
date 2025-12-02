@@ -39,4 +39,4 @@ async def verify_green_transportation(
         "timestamp": "2025-11-28T10:30:00"
     }
     """
-    return {"error": "This endpoint is not yet implemented"}
+    return await ChatbotService.verify_green_transportation(db, data)

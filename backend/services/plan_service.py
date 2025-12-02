@@ -3,8 +3,10 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.plan import PlanRole
+from models.plan import PlanRole, DestinationType, TimeSlot
 from repository.plan_repository import PlanRepository
+from repository.room_repository import RoomRepository
+from repository.message_repository import MessageRepository
 from schemas.map_schema import PlaceDetailsRequest
 from schemas.plan_schema import (
     IntentHandlerResponse,
@@ -15,13 +17,17 @@ from schemas.plan_schema import (
     PlanDestinationResponse,
     PlanDestinationUpdate,
     PlanMemberCreate,
+    PlanMemberDetailResponse,
     PlanMemberResponse,
     PlanResponse,
     PlanUpdate,
 )
+from schemas.room_schema import RoomCreate, RoomMemberCreate
+from schemas.message_schema import RoomContextCreate
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
+from models.room import RoomType, MemberRole
 
 
 class PlanService:
@@ -53,6 +59,10 @@ class PlanService:
                 return []
             list_plan_responses = []
             for plan in plans:
+                members = await PlanRepository.get_plan_members(db, plan.id)
+                owner = next(
+                    (m for m in members if m.role == PlanRole.owner), None
+                )
                 destinations = await PlanRepository.get_plan_destinations(db, plan.id)
                 dest_infos = [
                     PlanDestinationResponse(
@@ -61,19 +71,17 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=(
-                            dest.time.strftime("%H:%M") if dest.time else None
-                        ),  # ✅ Chuyển time về format "HH:MM"
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in destinations
                 ]
                 plan_response = PlanResponse(
                     id=plan.id,
-                    user_id=user_id,
+                    user_id=owner.user_id if owner else None,
                     place_name=plan.place_name,
                     start_date=plan.start_date,
                     end_date=plan.end_date,
@@ -113,7 +121,7 @@ class PlanService:
                     await PlanRepository.ensure_destination(db, place_info)
 
                     # Update URL ảnh nếu thiếu
-                    if not dest_data.url and place_info.photos:
+                    if place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
                     print(
@@ -141,11 +149,11 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in saved_destinations
                 ],
@@ -169,29 +177,23 @@ class PlanService:
             # ✅ DELETE OLD DESTINATIONS FIRST
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
-            print(
-                f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations"
-            )
-
             # ✅ ADD NEW DESTINATIONS
-            for i, dest_data in enumerate(updated_data.destinations or []):
+            for dest_data in updated_data.destinations:
                 try:
-                    print(f"  📍 Adding destination {i+1}: {dest_data.destination_id}")
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info)
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
+                    if place_info.photos:
+                        dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
-                    print(
-                        f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}"
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Error syncing destination {dest_data.destination_id}: {e}",
                     )
-                    pass
 
-                result = await PlanRepository.add_destination_to_plan(
+                await PlanRepository.add_destination_to_plan(
                     db, plan_id, dest_data
-                )
-                print(
-                    f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}"
                 )
 
             saved_destinations = await PlanRepository.get_plan_destinations(
@@ -213,11 +215,11 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in saved_destinations
                 ],
@@ -277,6 +279,7 @@ class PlanService:
                     estimated_cost=dest.estimated_cost,
                     url=dest.url,
                     note=dest.note,
+                    time_slot=dest.time_slot,
                 )
                 for dest in destinations
             ]
@@ -337,6 +340,7 @@ class PlanService:
                 url=plan_dest.url,
                 note=plan_dest.note,
                 order_in_day=plan_dest.order_in_day,
+                time_slot=plan_dest.time_slot,
             )
         except HTTPException:
             raise
@@ -367,8 +371,17 @@ class PlanService:
                     detail=f"Plan with ID {plan_id} not found",
                 )
             user_plans = await PlanRepository.get_plan_members(db, plan_id)
-            list_ids = [user_plan.user_id for user_plan in user_plans]
-            return PlanMemberResponse(plan_id=plan_id, ids=list_ids)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=member.user_id,
+                        role=member.role,
+                        joined_at=member.joined_at,
+                    )
+                    for member in user_plans
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -407,8 +420,17 @@ class PlanService:
                     PlanMemberCreate(user_id=id, role=PlanRole.member),
                 )
             users = await PlanRepository.get_plan_members(db, plan_id)
-            list_ids = [user.user_id for user in users]
-            return PlanMemberResponse(plan_id=plan_id, ids=list_ids)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=user.user_id,
+                        role=user.role,
+                        joined_at=user.joined_at,
+                    )
+                    for user in users
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -447,9 +469,18 @@ class PlanService:
                     ids_not_in_plan.append(member_id)
                     continue
                 await PlanRepository.remove_plan_member(db, plan_id, member_id)
-            list = await PlanService.get_plan_members(db, plan_id)
-            ids = list.ids
-            return PlanMemberResponse(plan_id=plan_id, ids=ids)
+            users = await PlanService.get_plan_members(db, plan_id)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=user.user_id,
+                        role=user.role,
+                        joined_at=user.joined_at,
+                    )
+                    for user in users.members
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -457,6 +488,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error removing user from plan: {e}",
             )
+            
 
     @staticmethod
     async def handle_intent(
@@ -468,6 +500,7 @@ class PlanService:
             intent = parse.intent
             ent = parse.entities
 
+            # Lấy plans của user
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if not plans:
                 return IntentHandlerResponse(
@@ -476,32 +509,65 @@ class PlanService:
 
             plan = plans[0]
 
+            # Kiểm tra membership
+            is_member = await PlanService.is_member(db, user_id, plan.id)
+            if not is_member:
+                return IntentHandlerResponse(
+                    ok=False, message="Bạn không có quyền chỉnh sửa plan này."
+                )
+
+            # -----------------------------
+            # ADD intent
+            # -----------------------------
             if intent == Intent.ADD:
                 destination_id = ent.get("destination_id")
                 if not destination_id:
                     return IntentHandlerResponse(
-                        ok=False, message="Cần destination_id để thêm."
+                        ok=False, message="Cần destination_id để thêm địa điểm."
                     )
 
                 visit_date = ent.get("visit_date")
-                order_in_day = ent.get("order_in_day", 1)
-                note = ent.get("note") or ent.get("title") or "Hoạt động mới"
-                dest_type = ent.get("type", "attraction")
+                if not visit_date:
+                    return IntentHandlerResponse(
+                        ok=False, message="Cần ngày tham quan (visit_date)."
+                    )
 
+                order_in_day = ent.get("order_in_day", 1)
+                note = ent.get("note") or ent.get("title") or ""
+                dest_type = ent.get("type", DestinationType.attraction)
+                estimated_cost = ent.get("estimated_cost")
+                url = ent.get("url")
+                time_slot = ent.get("time_slot", TimeSlot.morning)
+
+                # Tạo destination data với đầy đủ fields
                 dest_data = PlanDestinationCreate(
                     destination_id=destination_id,
                     destination_type=dest_type,
                     order_in_day=order_in_day,
                     visit_date=visit_date,
+                    estimated_cost=estimated_cost,
+                    url=url,
                     note=note,
+                    time_slot=time_slot,
                 )
-                new_dest = await PlanRepository.add_destination_to_plan(
-                    db, plan.id, dest_data
-                )
-                if not new_dest:
-                    return IntentHandlerResponse(
-                        ok=False, message="Không thể thêm destination."
+
+                # Ensure destination exists để tránh FK error
+                try:
+                    await MapService.get_place_details(
+                        PlaceDetailsRequest(place_id=destination_id)
                     )
+                except Exception:
+                    await PlanRepository.ensure_destination(db, destination_id)
+
+                # Thêm destination vào plan
+                new_dest = await PlanService.add_destination_to_plan(
+                    db, user_id, plan.id, dest_data
+                )
+
+                # Lấy danh sách destinations để trả về
+                destinations = await PlanService.get_plan_destinations(
+                    db, user_id, plan.id
+                )
 
                 return IntentHandlerResponse(
                     ok=True,
@@ -509,54 +575,175 @@ class PlanService:
                     item={
                         "id": new_dest.id,
                         "destination_id": new_dest.destination_id,
+                        "type": new_dest.type.value,
                         "order_in_day": new_dest.order_in_day,
+                        "visit_date": str(new_dest.visit_date),
+                        "estimated_cost": new_dest.estimated_cost,
                         "note": new_dest.note,
+                        "time_slot": new_dest.time_slot.value,
+                    },
+                    plan={
+                        "id": plan.id,
+                        "place_name": plan.place_name,
+                        "start_date": str(plan.start_date),
+                        "end_date": str(plan.end_date),
+                        "budget_limit": plan.budget_limit,
+                        "destinations": [
+                            {
+                                "id": d.id,
+                                "destination_id": d.destination_id,
+                                "type": d.type.value,
+                                "order_in_day": d.order_in_day,
+                                "visit_date": str(d.visit_date),
+                                "estimated_cost": d.estimated_cost,
+                                "url": d.url,
+                                "note": d.note,
+                                "time_slot": d.time_slot.value,
+                            }
+                            for d in destinations
+                        ],
                     },
                 )
 
+            # -----------------------------
+            # REMOVE intent
+            # -----------------------------
             if intent == Intent.REMOVE:
-                dest_id = ent.get("item_id") or ent.get("destination_id")
-                if dest_id:
-                    ok = await PlanRepository.remove_destination_from_plan(db, dest_id)
+                # plan_destination_id (PlanDestination.id)
+                plan_dest_id = ent.get("item_id")
+                if not plan_dest_id:
                     return IntentHandlerResponse(
-                        ok=ok, action="remove", item_id=dest_id
+                        ok=False, message="Cần id của địa điểm trong plan để xóa."
                     )
+
+                # Xóa destination khỏi plan
+                success = await PlanRepository.remove_destination_from_plan(
+                    db, plan_dest_id
+                )
+                if not success:
+                    return IntentHandlerResponse(
+                        ok=False,
+                        message="Không tìm thấy hoặc không xóa được địa điểm.",
+                    )
+
+                # Lấy lại danh sách destinations sau khi xóa
+                destinations = await PlanService.get_plan_destinations(
+                    db, user_id, plan.id
+                )
 
                 return IntentHandlerResponse(
-                    ok=False, message="Cần id của destination để xóa."
+                    ok=True,
+                    action="remove",
+                    item_id=plan_dest_id,
+                    plan={
+                        "id": plan.id,
+                        "place_name": plan.place_name,
+                        "start_date": str(plan.start_date),
+                        "end_date": str(plan.end_date),
+                        "budget_limit": plan.budget_limit,
+                        "destinations": [
+                            {
+                                "id": d.id,
+                                "destination_id": d.destination_id,
+                                "type": d.type.value,
+                                "order_in_day": d.order_in_day,
+                                "visit_date": str(d.visit_date),
+                                "estimated_cost": d.estimated_cost,
+                                "url": d.url,
+                                "note": d.note,
+                                "time_slot": d.time_slot.value,
+                            }
+                            for d in destinations
+                        ],
+                    },
                 )
 
+            # -----------------------------
+            # MODIFY_TIME intent
+            # -----------------------------
             if intent == Intent.MODIFY_TIME:
-                dest_id = ent.get("item_id") or ent.get("destination_id")
+                # Cần destination_id (place_id) và plan_id để tìm PlanDestination
+                destination_id = ent.get("destination_id")
+                if not destination_id:
+                    return IntentHandlerResponse(
+                        ok=False, message="Cần destination_id để đổi thời gian."
+                    )
+
                 visit_date = ent.get("visit_date")
                 order_in_day = ent.get("order_in_day")
+                time_slot = ent.get("time_slot")
 
-                if not dest_id:
-                    return IntentHandlerResponse(
-                        ok=False, message="Cần id của destination để đổi thời gian."
-                    )
-
+                # Tạo update data
                 update_data = PlanDestinationUpdate(
-                    visit_date=visit_date, order_in_day=order_in_day
+                    visit_date=visit_date,
+                    order_in_day=order_in_day,
+                    time_slot=time_slot,
                 )
-                updated = await PlanRepository.update_plan(db, dest_id, update_data)
+
+                # Gọi repository update (nhận plan_id, destination_id, update_data)
+                updated = await PlanRepository.update_plan_destination(
+                    db, plan.id, destination_id, update_data
+                )
                 if not updated:
                     return IntentHandlerResponse(
-                        ok=False, message="Không cập nhật được destination."
+                        ok=False, message="Không cập nhật được địa điểm."
                     )
+
+                # Lấy lại destinations
+                destinations = await PlanService.get_plan_destinations(
+                    db, user_id, plan.id
+                )
 
                 return IntentHandlerResponse(
                     ok=True,
                     action="modify_time",
                     item={
                         "id": updated.id,
+                        "destination_id": updated.destination_id,
                         "visit_date": str(updated.visit_date),
                         "order_in_day": updated.order_in_day,
+                        "time_slot": updated.time_slot.value,
+                    },
+                    plan={
+                        "id": plan.id,
+                        "place_name": plan.place_name,
+                        "start_date": str(plan.start_date),
+                        "end_date": str(plan.end_date),
+                        "budget_limit": plan.budget_limit,
+                        "destinations": [
+                            {
+                                "id": d.id,
+                                "destination_id": d.destination_id,
+                                "type": d.type.value,
+                                "order_in_day": d.order_in_day,
+                                "visit_date": str(d.visit_date),
+                                "estimated_cost": d.estimated_cost,
+                                "url": d.url,
+                                "note": d.note,
+                                "time_slot": d.time_slot.value,
+                            }
+                            for d in destinations
+                        ],
                     },
                 )
 
+            # -----------------------------
+            # CHANGE_BUDGET intent
+            # -----------------------------
             if intent == Intent.CHANGE_BUDGET:
                 budget = ent.get("budget")
+                if budget is None:
+                    return IntentHandlerResponse(
+                        ok=False, message="Cần giá trị budget mới."
+                    )
+
+                # Chỉ owner mới được đổi budget
+                is_owner = await PlanService.is_plan_owner(db, user_id, plan.id)
+                if not is_owner:
+                    return IntentHandlerResponse(
+                        ok=False, message="Chỉ chủ plan mới có thể thay đổi budget."
+                    )
+
                 update_data = PlanUpdate(budget_limit=budget)
                 updated_plan = await PlanRepository.update_plan(
                     db, plan.id, update_data
@@ -566,33 +753,75 @@ class PlanService:
                         ok=False, message="Không cập nhật được budget."
                     )
 
-                return IntentHandlerResponse(
-                    ok=True, action="change_budget", budget=budget
+                # Lấy lại destinations
+                destinations = await PlanService.get_plan_destinations(
+                    db, user_id, plan.id
                 )
 
+                return IntentHandlerResponse(
+                    ok=True,
+                    action="change_budget",
+                    budget=budget,
+                    plan={
+                        "id": updated_plan.id,
+                        "place_name": updated_plan.place_name,
+                        "start_date": str(updated_plan.start_date),
+                        "end_date": str(updated_plan.end_date),
+                        "budget_limit": updated_plan.budget_limit,
+                        "destinations": [
+                            {
+                                "id": d.id,
+                                "destination_id": d.destination_id,
+                                "type": d.type.value,
+                                "order_in_day": d.order_in_day,
+                                "visit_date": str(d.visit_date),
+                                "estimated_cost": d.estimated_cost,
+                                "url": d.url,
+                                "note": d.note,
+                                "time_slot": d.time_slot.value,
+                            }
+                            for d in destinations
+                        ],
+                    },
+                )
+
+            # -----------------------------
+            # VIEW_PLAN intent
+            # -----------------------------
             if intent == Intent.VIEW_PLAN:
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                out = [
-                    {
-                        "id": dest.id,
-                        "destination_id": dest.destination_id,
-                        "type": dest.type,
-                        "order_in_day": dest.order_in_day,
-                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
-                        "note": dest.note,
-                    }
-                    for dest in destinations
-                ]
+                destinations = await PlanService.get_plan_destinations(
+                    db, user_id, plan.id
+                )
+
                 return IntentHandlerResponse(
                     ok=True,
                     action="view_plan",
                     plan={
                         "id": plan.id,
                         "place_name": plan.place_name,
-                        "destinations": out,
+                        "start_date": str(plan.start_date),
+                        "end_date": str(plan.end_date),
+                        "budget_limit": plan.budget_limit,
+                        "destinations": [
+                            {
+                                "id": d.id,
+                                "destination_id": d.destination_id,
+                                "type": d.type.value,
+                                "order_in_day": d.order_in_day,
+                                "visit_date": str(d.visit_date),
+                                "estimated_cost": d.estimated_cost,
+                                "url": d.url,
+                                "note": d.note,
+                                "time_slot": d.time_slot.value,
+                            }
+                            for d in destinations
+                        ],
                     },
                 )
 
+            # -----------------------------
+            # SUGGEST intent
+            # -----------------------------
             if intent == Intent.SUGGEST:
                 suggestions = await RecommendationService.recommend_for_cluster_hybrid(
                     db, user_id
@@ -601,9 +830,9 @@ class PlanService:
                     ok=True, action="suggest", suggestions=suggestions
                 )
 
+            # Intent không được nhận diện
             return IntentHandlerResponse(
-                ok=False,
-                message="Mình không hiểu yêu cầu, bạn nói lại được không?",
+                ok=False, message="Mình không hiểu yêu cầu, bạn nói lại được không?"
             )
 
         except Exception as e:

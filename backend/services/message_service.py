@@ -18,11 +18,15 @@ from schemas.message_schema import (
     SessionContextResponse,
     StoredContextData,
 )
+from models.message import MessageType
 from schemas.storage_schema import FileCategory
 from services.room_service import RoomService
 from services.socket_service import socket
 from services.storage_service import StorageService
 from utils.token.authentication_util import decode_access_token
+
+
+from fastapi.encoders import jsonable_encoder
 
 
 class MessageService:
@@ -48,6 +52,7 @@ class MessageService:
                 id=message.id,
                 sender_id=message.sender_id,
                 room_id=message.room_id,
+                plan_id=message.plan_id,
                 content=message.content,
                 message_type=message.message_type,
                 status=message.status,
@@ -123,6 +128,7 @@ class MessageService:
                     id=msg.id,
                     sender_id=msg.sender_id,
                     room_id=msg.room_id,
+                    plan_id=msg.plan_id,
                     content=msg.content,
                     message_type=msg.message_type,
                     status=msg.status,
@@ -146,6 +152,8 @@ class MessageService:
         room_id: int,
         message_text: Optional[str] = None,
         message_file: Optional[UploadFile] = None,
+        plan_id: Optional[int] = None,
+        message_type: MessageType = MessageType.text,
     ) -> MessageResponse:
         try:
             is_member = await RoomService.is_member(db, sender_id, room_id)
@@ -155,13 +163,30 @@ class MessageService:
                     detail=f"User ID {sender_id} is not a member of room ID {room_id}",
                 )
 
-            if not message_text and not message_file:
+            if (
+                not message_text
+                and not message_file
+                and message_type != MessageType.invitation
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Either message text or message file must be provided",
                 )
 
-            if message_file:
+            if message_type == MessageType.invitation:
+                if not plan_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Plan ID is required for invitation messages",
+                    )
+                saved_msg = await MessageRepository.create_invitation_message(
+                    db,
+                    sender_id,
+                    room_id,
+                    plan_id,
+                    message_text or "Invitation to join plan",
+                )
+            elif message_file:
                 file = await StorageService.upload_file(
                     db=db,
                     file=message_file,
@@ -182,15 +207,21 @@ class MessageService:
                     detail="Failed to create message",
                 )
 
-            return MessageResponse(
+            response = MessageResponse(
                 id=saved_msg.id,
                 content=saved_msg.content,
                 sender_id=saved_msg.sender_id,
                 room_id=room_id,
+                plan_id=saved_msg.plan_id,
                 message_type=saved_msg.message_type,
                 status=saved_msg.status,
                 timestamp=saved_msg.created_at,
             )
+
+            # Broadcast to room
+            await socket.broadcast(jsonable_encoder(response), room_id)
+
+            return response
         except HTTPException:
             raise
         except Exception as e:
@@ -608,4 +639,60 @@ class MessageService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error removing active trip context: {str(e)}",
+            )
+
+    @staticmethod
+    async def decline_invitation(
+        db: AsyncSession, user_id: int, message_id: int
+    ) -> MessageResponse:
+        try:
+            message = await MessageRepository.get_message_by_id(db, message_id)
+            if not message:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Message ID {message_id} not found",
+                )
+
+            is_member = await RoomService.is_member(db, user_id, message.room_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"User ID {user_id} is not a member of room ID {message.room_id}",
+                )
+
+            if message.message_type != MessageType.invitation:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Message is not an invitation",
+                )
+
+            # Update content to indicate declined
+            message.content = "Invitation Declined"
+            # We might want to clear plan_id so the button disappears or stays as history
+            # message.plan_id = None
+
+            await db.commit()
+            await db.refresh(message)
+
+            response = MessageResponse(
+                id=message.id,
+                content=message.content,
+                sender_id=message.sender_id,
+                room_id=message.room_id,
+                plan_id=message.plan_id,
+                message_type=message.message_type,
+                status=message.status,
+                timestamp=message.created_at,
+            )
+
+            # Broadcast update
+            await socket.broadcast(jsonable_encoder(response), message.room_id)
+
+            return response
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error declining invitation {message_id}: {e}",
             )

@@ -44,6 +44,9 @@ class Room(Base):
     )
     room_type = Column(SQLEnum(RoomType), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    plan_id = Column(
+        Integer, ForeignKey("plans.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     messages = relationship(
         "Message", back_populates="room", cascade="all, delete-orphan"
@@ -60,7 +63,9 @@ class Room(Base):
     contexts = relationship(
         "RoomContext", back_populates="room", cascade="all, delete-orphan"
     )
-
+    plan = relationship(
+        "Plan", back_populates="room", uselist=False
+    )
 
 class RoomDirect(Base):
     __tablename__ = "room_direct"

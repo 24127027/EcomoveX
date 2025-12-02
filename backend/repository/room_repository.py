@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models.room import MemberRole, Room, RoomDirect, RoomMember, RoomType
 from schemas.room_schema import (
@@ -279,14 +280,16 @@ class RoomRepository:
                 f"ERROR: updating member role for user {user_id} in room {room_id} - {e}"
             )
             return None
-
+        
     @staticmethod
-    async def get_room_direct_info(db: AsyncSession, room_id: int):
+    async def search_rooms_by_name(db: AsyncSession, name_query: str):
         try:
             result = await db.execute(
-                select(RoomDirect).where(RoomDirect.room_id == room_id)
+                select(Room)
+                .options(selectinload(Room.members))  # Eager load members nếu cần
+                .where(Room.name.ilike(f"%{name_query}%"))
             )
-            return result.scalar_one_or_none()
+            return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"ERROR: getting direct room info for room {room_id} - {e}")
-            return None
+            print(f"ERROR: searching rooms by name '{name_query}' - {e}")
+            return []

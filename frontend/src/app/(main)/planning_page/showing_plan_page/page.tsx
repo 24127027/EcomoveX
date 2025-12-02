@@ -499,7 +499,7 @@ export default function PlanningPage() {
               </span>
             </Link>
             <Link
-              href="/user_page/profile_page"
+              href="/user_page/main_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
               <User size={24} strokeWidth={2} />

@@ -22,7 +22,13 @@ import {
   Route, // Icon chat
 } from "lucide-react";
 import { Jost } from "next/font/google";
-import { api, FriendResponse, ChatMessage } from "@/lib/api";
+import {
+  api,
+  FriendResponse,
+  ChatMessage,
+  UserProfile,
+  TravelPlan,
+} from "@/lib/api";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
@@ -34,9 +40,12 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<FriendResponse[]>([]);
   const [requests, setRequests] = useState<FriendResponse[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendResponse[]>([]);
+  const [userProfiles, setUserProfiles] = useState<Record<number, UserProfile>>(
+    {}
+  );
 
   const [loading, setLoading] = useState(true);
-  const [inputFriendId, setInputFriendId] = useState("");
+  const [inputUsername, setInputUsername] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{
@@ -48,10 +57,22 @@ export default function FriendsPage() {
   // --- STATE CHO CHAT (MỚI) ---
   const [activeChatFriend, setActiveChatFriend] =
     useState<FriendResponse | null>(null);
+  const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null); // Để auto scroll
+
+  // --- STATE CHO PLAN INVITATION ---
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [myPlans, setMyPlans] = useState<TravelPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [processingMessageId, setProcessingMessageId] = useState<number | null>(
+    null
+  );
+  const [joinedMessageIds, setJoinedMessageIds] = useState<Set<number>>(
+    new Set()
+  );
 
   // --- 1. FETCH DATA BAN ĐẦU ---
   const fetchData = async () => {
@@ -69,6 +90,26 @@ export default function FriendsPage() {
       setFriends(friendsData);
       setRequests(requestsData);
       setSentRequests(sentData);
+
+      // Fetch profiles for all lists
+      const profiles: Record<number, UserProfile> = {};
+      const idsToFetch = new Set<number>();
+
+      [...friendsData, ...requestsData, ...sentData].forEach((item) => {
+        idsToFetch.add(item.friend_id);
+      });
+
+      await Promise.all(
+        Array.from(idsToFetch).map(async (id) => {
+          try {
+            const user = await api.getUserById(id);
+            profiles[id] = user;
+          } catch (e) {
+            console.error(`Failed to load user ${id}`, e);
+          }
+        })
+      );
+      setUserProfiles(profiles);
     } catch (error) {
       console.error("Error loading friends:", error);
     } finally {
@@ -116,6 +157,8 @@ export default function FriendsPage() {
         const newRoom = await api.createGroupRoom("Private Chat", [friendId]);
         roomId = newRoom.id;
       }
+
+      setActiveRoomId(roomId);
 
       // BƯỚC 2: Lấy lịch sử & Kết nối Socket (Giữ nguyên)
       const history = await api.getChatHistory(roomId);
@@ -184,6 +227,7 @@ export default function FriendsPage() {
   };
   const closeChat = () => {
     setActiveChatFriend(null);
+    setActiveRoomId(null);
     if (socketRef.current) {
       socketRef.current.close();
       socketRef.current = null;
@@ -191,48 +235,69 @@ export default function FriendsPage() {
   };
 
   // --- 4. LOGIC QUẢN LÝ BẠN BÈ (CŨ) ---
+  // --- 4. LOGIC QUẢN LÝ BẠN BÈ (MỚI - DÙNG USERNAME) ---
   const handleSendRequest = async () => {
     setFeedback(null);
-    if (!inputFriendId.trim()) {
-      setFeedback({ text: "Please enter a User ID", type: "error" });
-      return;
-    }
-    const idToSend = parseInt(inputFriendId);
-    if (isNaN(idToSend)) {
-      setFeedback({ text: "User ID must be a number", type: "error" });
-      return;
-    }
-    if (currentUserId && idToSend === currentUserId) {
-      setFeedback({ text: "You cannot add yourself", type: "error" });
-      return;
-    }
-
-    const isAlreadySent = sentRequests.some(
-      (req) => req.friend_id === idToSend
-    );
-    if (isAlreadySent) {
-      setFeedback({ text: "Request already sent!", type: "error" });
-      return;
-    }
-
-    const isAlreadyFriend = friends.some((f) => {
-      const displayId = currentUserId === f.user_id ? f.friend_id : f.user_id;
-      return displayId === idToSend;
-    });
-
-    if (isAlreadyFriend) {
-      setFeedback({ text: "Already your friend", type: "error" });
+    if (!inputUsername.trim()) {
+      setFeedback({ text: "Please enter a username", type: "error" });
       return;
     }
 
     try {
       setAddLoading(true);
+
+      // 1. Tìm user ID từ username
+      let targetUser;
+      try {
+        targetUser = await api.getUserByUsername(inputUsername.trim());
+      } catch (error) {
+        setFeedback({ text: "User not found", type: "error" });
+        setAddLoading(false);
+        return;
+      }
+
+      if (!targetUser) {
+        setFeedback({ text: "User not found", type: "error" });
+        setAddLoading(false);
+        return;
+      }
+
+      const idToSend = targetUser.id;
+
+      // 2. Kiểm tra các điều kiện
+      if (currentUserId && idToSend === currentUserId) {
+        setFeedback({ text: "You cannot add yourself", type: "error" });
+        setAddLoading(false);
+        return;
+      }
+
+      const isAlreadySent = sentRequests.some(
+        (req) => req.friend_id === idToSend
+      );
+      if (isAlreadySent) {
+        setFeedback({ text: "Request already sent!", type: "error" });
+        setAddLoading(false);
+        return;
+      }
+
+      const isAlreadyFriend = friends.some((f) => {
+        const displayId = currentUserId === f.user_id ? f.friend_id : f.user_id;
+        return displayId === idToSend;
+      });
+
+      if (isAlreadyFriend) {
+        setFeedback({ text: "Already your friend", type: "error" });
+        setAddLoading(false);
+        return;
+      }
+
+      // 3. Gửi lời mời
       await api.sendFriendRequest(idToSend);
       setFeedback({ text: "Request sent successfully", type: "success" });
-      setInputFriendId("");
+      setInputUsername("");
       fetchData();
     } catch (error: any) {
-      // ... (Giữ nguyên logic handle error cũ của bạn)
+      console.error("Send request error:", error);
       setFeedback({ text: "Failed to send request", type: "error" });
     } finally {
       setAddLoading(false);
@@ -281,6 +346,64 @@ export default function FriendsPage() {
     return item.user_id === currentUserId ? item.friend_id : item.user_id;
   };
 
+  // --- PLAN INVITATION HANDLERS ---
+  const handleOpenPlanModal = async () => {
+    try {
+      const plans = await api.getPlans();
+      // Filter valid plans (at least 2 destinations AND user is owner)
+      const validPlans = plans.filter(
+        (plan) =>
+          plan.activities &&
+          plan.activities.length >= 2 &&
+          plan.user_id === currentUserId
+      );
+      setMyPlans(validPlans);
+      setShowPlanModal(true);
+    } catch (error) {
+      console.error("Failed to fetch plans:", error);
+    }
+  };
+
+  const handleSendInvitation = async () => {
+    if (!selectedPlanId || !activeRoomId) return;
+    try {
+      await api.sendPlanInvitation(activeRoomId, selectedPlanId);
+      setShowPlanModal(false);
+      setSelectedPlanId(null);
+      // Message will be received via websocket
+    } catch (error) {
+      console.error("Failed to send invitation:", error);
+      setFeedback({ text: "Failed to send invitation", type: "error" });
+    }
+  };
+
+  const handleJoinPlan = async (planId: number, messageId: number) => {
+    setProcessingMessageId(messageId);
+    try {
+      await api.joinPlan(planId);
+      setFeedback({ text: "Joined plan successfully!", type: "success" });
+      setJoinedMessageIds((prev) => new Set(prev).add(messageId));
+    } catch (error) {
+      console.error("Failed to join plan:", error);
+      setFeedback({ text: "Failed to join plan", type: "error" });
+    } finally {
+      setProcessingMessageId(null);
+    }
+  };
+
+  const handleDeclineInvitation = async (messageId: number) => {
+    setProcessingMessageId(messageId);
+    try {
+      await api.declineInvitation(messageId);
+      // Message update will be received via websocket
+    } catch (error) {
+      console.error("Failed to decline invitation:", error);
+      setFeedback({ text: "Failed to decline invitation", type: "error" });
+    } finally {
+      setProcessingMessageId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
@@ -320,32 +443,42 @@ export default function FriendsPage() {
         {activeChatFriend && (
           <div className="absolute inset-0 z-40 bg-[#F5F7F5] flex flex-col animate-in slide-in-from-right duration-300">
             {/* Chat Header */}
-            <div className="bg-[#E3F1E4] p-4 pt-8 flex items-center shadow-sm shrink-0">
-              <button
-                onClick={closeChat}
-                className="p-2 bg-white rounded-full text-green-700 mr-3 hover:bg-green-50"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white relative overflow-hidden border-2 border-green-200">
-                  <Image
-                    src="/images/default-avatar.png"
-                    alt="Avt"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div>
-                  <h3 className={`${jost.className} font-bold text-gray-800`}>
-                    User {getDisplayId(activeChatFriend)}
-                  </h3>
-                  <span className="text-xs text-green-600 flex items-center gap-1">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>{" "}
-                    Online
-                  </span>
+            <div className="bg-[#E3F1E4] p-4 pt-8 flex items-center justify-between shadow-sm shrink-0">
+              <div className="flex items-center">
+                <button
+                  onClick={closeChat}
+                  className="p-2 bg-white rounded-full text-green-700 mr-3 hover:bg-green-50"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white relative overflow-hidden border-2 border-green-200">
+                    <Image
+                      src="/images/default-avatar.png"
+                      alt="Avt"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div>
+                    <h3 className={`${jost.className} font-bold text-gray-800`}>
+                      {userProfiles[getDisplayId(activeChatFriend)]?.username ||
+                        `User ${getDisplayId(activeChatFriend)}`}
+                    </h3>
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>{" "}
+                      Online
+                    </span>
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={handleOpenPlanModal}
+                className="p-2 bg-white rounded-full text-green-700 hover:bg-green-50 shadow-sm"
+                title="Invite to Plan"
+              >
+                <Route size={20} />
+              </button>
             </div>
 
             {/* Chat Messages Area */}
@@ -357,6 +490,98 @@ export default function FriendsPage() {
               ) : (
                 messages.map((msg, index) => {
                   const isMe = msg.sender_id === currentUserId;
+
+                  if (msg.message_type === "invitation") {
+                    return (
+                      <div
+                        key={index}
+                        className={`flex ${
+                          isMe ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[75%] p-3 rounded-2xl text-sm shadow-md ${
+                            isMe
+                              ? "bg-green-50 border border-green-200"
+                              : "bg-white border border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2 border-b border-gray-200 pb-2">
+                            <Route size={16} className="text-green-600" />
+                            <p className="font-bold text-green-800">
+                              Plan Invitation
+                            </p>
+                          </div>
+                          <p className="text-gray-700 mb-3">
+                            {msg.content === "Invitation Declined" ? (
+                              <span className="text-red-500 italic">
+                                Invitation Declined
+                              </span>
+                            ) : (
+                              msg.content
+                            )}
+                          </p>
+                          {!isMe &&
+                            msg.plan_id &&
+                            msg.content !== "Invitation Declined" && (
+                              <>
+                                {joinedMessageIds.has(msg.id) ? (
+                                  <div className="text-center text-green-600 font-bold py-2 bg-green-50 rounded-lg border border-green-100">
+                                    Joined ✅
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-2">
+                                    <button
+                                      onClick={() =>
+                                        handleJoinPlan(msg.plan_id!, msg.id)
+                                      }
+                                      disabled={processingMessageId === msg.id}
+                                      className="w-full bg-[#53B552] text-white py-2 rounded-lg font-bold hover:bg-green-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                      {processingMessageId === msg.id ? (
+                                        <Loader2
+                                          size={16}
+                                          className="animate-spin"
+                                        />
+                                      ) : (
+                                        <>
+                                          <Check size={16} /> Accept
+                                        </>
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleDeclineInvitation(msg.id)
+                                      }
+                                      disabled={processingMessageId === msg.id}
+                                      className="w-full bg-gray-100 text-gray-600 py-2 rounded-lg font-bold hover:bg-gray-200 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                      {processingMessageId === msg.id ? (
+                                        <Loader2
+                                          size={16}
+                                          className="animate-spin"
+                                        />
+                                      ) : (
+                                        <>
+                                          <X size={16} /> Decline
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          <div className="text-[10px] mt-2 text-right text-gray-400">
+                            {new Date(msg.timestamp).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={index}
@@ -437,10 +662,10 @@ export default function FriendsPage() {
           <div className="relative flex flex-col gap-1">
             <div className="relative w-full">
               <input
-                type="number"
-                placeholder="Enter User ID..."
-                value={inputFriendId}
-                onChange={(e) => setInputFriendId(e.target.value)}
+                type="text"
+                placeholder="Enter Username..."
+                value={inputUsername}
+                onChange={(e) => setInputUsername(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendRequest()}
                 className={`${jost.className} w-full pl-10 pr-12 py-3 rounded-2xl border-none shadow-md outline-none`}
               />
@@ -450,7 +675,7 @@ export default function FriendsPage() {
               />
               <button
                 onClick={handleSendRequest}
-                disabled={addLoading || !inputFriendId}
+                disabled={addLoading || !inputUsername}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#53B552] p-1.5 rounded-xl text-white hover:bg-green-600 disabled:opacity-50"
               >
                 {addLoading ? (
@@ -559,7 +784,8 @@ export default function FriendsPage() {
                             <h3
                               className={`${jost.className} font-bold text-gray-800`}
                             >
-                              User ID: {displayId}
+                              {userProfiles[displayId]?.username ||
+                                `User ID: ${displayId}`}
                             </h3>
                             <p className="text-xs text-green-600">Connected</p>
                           </div>
@@ -613,7 +839,8 @@ export default function FriendsPage() {
                           <h3
                             className={`${jost.className} font-bold text-gray-800`}
                           >
-                            User ID: {req.friend_id}
+                            {userProfiles[req.friend_id]?.username ||
+                              `User ID: ${req.friend_id}`}
                           </h3>
                           <p className="text-xs text-gray-400">Requesting...</p>
                         </div>
@@ -661,7 +888,8 @@ export default function FriendsPage() {
                           <h3
                             className={`${jost.className} font-bold text-gray-800`}
                           >
-                            User ID: {req.friend_id}
+                            {userProfiles[req.friend_id]?.username ||
+                              `User ID: ${req.friend_id}`}
                           </h3>
                           <p className="text-xs text-orange-400">Waiting...</p>
                         </div>
@@ -722,6 +950,62 @@ export default function FriendsPage() {
             </div>
           </div>
         </footer>
+
+        {/* PLAN SELECTION MODAL */}
+        {showPlanModal && (
+          <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-xl animate-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3
+                  className={`${jost.className} text-xl font-bold text-gray-800`}
+                >
+                  Select Plan to Invite
+                </h3>
+                <button
+                  onClick={() => setShowPlanModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto space-y-3 mb-4">
+                {myPlans.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">
+                    You don't have any plans yet.
+                  </p>
+                ) : (
+                  myPlans.map((plan) => (
+                    <div
+                      key={plan.id}
+                      onClick={() => setSelectedPlanId(plan.id)}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        selectedPlanId === plan.id
+                          ? "border-[#53B552] bg-green-50"
+                          : "border-gray-100 hover:border-green-200"
+                      }`}
+                    >
+                      <h4 className="font-bold text-gray-800">
+                        {plan.destination}
+                      </h4>
+                      <p className="text-sm text-gray-500">
+                        {new Date(plan.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <button
+                onClick={handleSendInvitation}
+                disabled={!selectedPlanId}
+                className="w-full bg-[#53B552] text-white py-3 rounded-xl font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                Send Invitation
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

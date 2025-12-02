@@ -268,28 +268,3 @@ class MessageRepository:
             await db.rollback()
             print(f"ERROR: Clearing context for room {room_id} - {e}")
             return False
-
-    @staticmethod
-    async def get_message_count_by_room(db: AsyncSession, room_id: int):
-        try:
-            result = await db.execute(
-                select(func.count(Message.id)).where(Message.room_id == room_id)
-            )
-            return result.scalar() or 0
-        except SQLAlchemyError as e:
-            print(f"ERROR: counting messages for room {room_id} - {e}")
-            return 0
-
-    @staticmethod
-    async def get_latest_message_by_room(db: AsyncSession, room_id: int):
-        try:
-            result = await db.execute(
-                select(Message)
-                .where(Message.room_id == room_id)
-                .order_by(Message.created_at.desc())
-                .limit(1)
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: getting latest message for room {room_id} - {e}")
-            return None

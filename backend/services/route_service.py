@@ -17,6 +17,9 @@ from schemas.route_schema import (
     WalkingStep,
 )
 from services.carbon_service import CarbonService
+from services.map_service import MapService
+from models.plan import PlanDestination
+import math
 
 
 class RouteService:
@@ -448,3 +451,90 @@ Provide a concise recommendation that balances environmental impact and convenie
             return RecommendResponse(
                 route="fastest", recommendation="Optimal balance of time and efficiency"
             )
+
+    @staticmethod
+    def _haversine_distance(
+        lat1: float, lon1: float, lat2: float, lon2: float
+    ) -> float:
+        """
+        Tính khoảng cách đường chim bay giữa 2 điểm (đơn vị: km)
+        """
+        R = 6371  # Bán kính trái đất (km)
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2) * math.sin(dlat / 2) + math.cos(
+            math.radians(lat1)
+        ) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) * math.sin(dlon / 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = R * c
+        return distance
+
+    @staticmethod
+    async def calculate_trip_metrics(destinations: List[PlanDestination]) -> dict:
+        """
+        Ước lượng quãng đường và thời gian mà KHÔNG dùng Google Maps API.
+        """
+        if len(destinations) < 2:
+            return {"total_distance_km": 0, "total_duration_min": 0, "details": []}
+
+        # Sắp xếp theo thứ tự
+        sorted_dests = sorted(destinations, key=lambda x: x.order_in_day)
+
+        total_distance = 0
+        total_duration = 0
+        route_details = []
+
+        # CẤU HÌNH ƯỚC LƯỢNG
+        # Hệ số quy đổi từ đường chim bay sang đường bộ (thường đường bộ dài hơn 1.3 - 1.5 lần)
+        ROAD_FACTOR = 1.4
+        # Tốc độ trung bình trong phố (km/h) -> Dùng để tính thời gian
+        AVG_SPEED_KMH = 30
+
+        for i in range(len(sorted_dests) - 1):
+            start_node = sorted_dests[i]
+            end_node = sorted_dests[i + 1]
+
+            # Lấy tọa độ từ DB/Service (Giả sử bạn đã lưu lat/lng trong bảng destinations hoặc cache)
+            # Lưu ý: MapService ở đây chỉ nên query DB lấy tọa độ đã lưu, tránh gọi API Google
+            start_coords = await MapService.get_coordinates(start_node.destination_id)
+            end_coords = await MapService.get_coordinates(end_node.destination_id)
+
+            if not start_coords or not end_coords:
+                continue
+
+            # 1. Tính khoảng cách đường chim bay
+            air_distance = RouteService._haversine_distance(
+                start_coords["lat"],
+                start_coords["lng"],
+                end_coords["lat"],
+                end_coords["lng"],
+            )
+
+            # 2. Ước lượng đường bộ
+            estimated_km = air_distance * ROAD_FACTOR
+
+            # 3. Ước lượng thời gian (Phút) = (Quãng đường / Tốc độ) * 60
+            estimated_min = (estimated_km / AVG_SPEED_KMH) * 60
+
+            # Logic phụ: Nếu khoảng cách quá gần (< 1km), giả sử đi bộ hoặc đi chậm
+            if estimated_km < 1.0:
+                estimated_min = (estimated_km / 5) * 60  # Tốc độ đi bộ 5km/h
+
+            total_distance += estimated_km
+            total_duration += estimated_min
+
+            route_details.append(
+                {
+                    "from": start_node.destination_id,
+                    "to": end_node.destination_id,
+                    "km": round(estimated_km, 2),
+                    "min": round(estimated_min, 0),
+                }
+            )
+
+        return {
+            "total_distance_km": round(total_distance, 2),
+            "total_duration_min": round(total_duration, 0),
+            "details": route_details,
+            "note": "calculated_by_heuristic",  # Đánh dấu để biết đây là số ước lượng
+        }
