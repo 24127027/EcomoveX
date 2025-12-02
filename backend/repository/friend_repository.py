@@ -121,7 +121,10 @@ class FriendRepository:
                 and_(
                     Friend.user1_id == user1_id,
                     Friend.user2_id == user2_id,
-                    Friend.status == FriendStatus.friend,
+                    or_(
+                        Friend.status == FriendStatus.friend,
+                        Friend.status == FriendStatus.pending,
+                    ),
                 )
             )
             result = await db.execute(stmt)

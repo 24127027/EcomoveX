@@ -10,6 +10,8 @@ from models.destination import Destination
 from schemas.map_schema import PlaceDetailsResponse
 
 
+from sqlalchemy.orm import selectinload
+
 class PlanRepository:
     @staticmethod
     async def is_plan_owner(db: AsyncSession, user_id: int, plan_id: int) -> bool:
@@ -48,7 +50,10 @@ class PlanRepository:
     async def get_plan_by_user_id(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(
-                select(Plan).join(PlanMember).where(PlanMember.user_id == user_id)
+                select(Plan)
+                .join(PlanMember)
+                .where(PlanMember.user_id == user_id)
+                .options(selectinload(Plan.members))
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
@@ -367,4 +372,17 @@ class PlanRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: updating PlanDestination ID {plan_destination_id} - {e}")
+            return None
+    
+    @staticmethod
+    async def add_member(db: AsyncSession, plan_id: int, user_id: int, role: PlanRole = PlanRole.member):
+        try:
+            new_member = PlanMember(plan_id=plan_id, user_id=user_id, role=role)
+            db.add(new_member)
+            await db.commit()
+            await db.refresh(new_member)
+            return new_member
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: adding member {user_id} to plan {plan_id} - {e}")
             return None

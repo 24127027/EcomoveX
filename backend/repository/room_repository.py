@@ -264,3 +264,12 @@ class RoomRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: getting direct room info for room {room_id} - {e}")
             return None
+
+    @staticmethod
+    async def get_room_by_name(db: AsyncSession, name: str):
+        try:
+            result = await db.execute(select(Room).where(Room.name == name))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving room by name '{name}' - {e}")
+            return None

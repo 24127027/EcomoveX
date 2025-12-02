@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,6 +128,24 @@ async def remove_members_from_plan(
     current_user: dict = Depends(get_current_user),
 ):
     return await PlanService.remove_plan_member(db, current_user["user_id"], plan_id, data)
+
+@router.post("/{plan_id}/join", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
+async def join_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    await PlanService.join_plan(db, current_user["user_id"], plan_id)
+    return CommonMessageResponse(message="Joined plan successfully")
+
+@router.get("/{plan_id}/chat-room", response_model=Dict[str, int], status_code=status.HTTP_200_OK)
+async def get_plan_chat_room(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    room_id = await PlanService.get_or_create_plan_chat_room(db, current_user["user_id"], plan_id)
+    return {"room_id": room_id}
 
 
 

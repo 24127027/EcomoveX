@@ -3,11 +3,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from repository.plan_repository import PlanRepository
+from repository.room_repository import RoomRepository
+from repository.message_repository import MessageRepository
 from schemas.map_schema import *
 from schemas.plan_schema import *
+from schemas.room_schema import RoomCreate, RoomMemberCreate
+from schemas.message_schema import RoomContextCreate
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
+from models.room import RoomType, MemberRole
 
 
 class PlanService:
@@ -57,7 +62,7 @@ class PlanService:
                 ]
                 plan_response = PlanResponse(
                     id=plan.id,
-                    user_id=user_id,
+                    user_id=next((m.user_id for m in plan.members if m.role == PlanRole.owner), user_id),
                     place_name=plan.place_name,
                     start_date=plan.start_date,
                     end_date=plan.end_date,
@@ -634,5 +639,73 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error handling plan intent: {str(e)}",
             )
+
+    @staticmethod
+    async def join_plan(db: AsyncSession, user_id: int, plan_id: int) -> bool:
+        try:
+            # Check if plan exists
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
             
-   
+            # Check if already member
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if is_member:
+                return True # Already joined
+            
+            result = await PlanRepository.add_member(db, plan_id, user_id)
+            if not result:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to join plan")
+            return True
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error joining plan: {e}")
+
+    @staticmethod
+    async def get_or_create_plan_chat_room(db: AsyncSession, user_id: int, plan_id: int) -> int:
+        try:
+            # 1. Check if user is member of plan
+            if not await PlanRepository.is_member(db, user_id, plan_id):
+                raise HTTPException(status_code=403, detail="User is not a member of this plan")
+
+            room_name = f"PLAN_{plan_id}"
+            
+            # 2. Find room
+            room = await RoomRepository.get_room_by_name(db, room_name)
+            
+            if room:
+                # Ensure user is member
+                if not await RoomRepository.is_member(db, user_id, room.id):
+                    await RoomRepository.add_member(
+                        db, room.id, RoomMemberCreate(user_id=user_id, role=MemberRole.member)
+                    )
+                return room.id
+            
+            # 3. Create room
+            new_room = await RoomRepository.create_room(
+                db, RoomCreate(name=room_name, room_type=RoomType.group)
+            )
+            if not new_room:
+                raise HTTPException(status_code=500, detail="Failed to create chat room")
+                
+            # 4. Add user as admin
+            await RoomRepository.add_member(
+                db, new_room.id, RoomMemberCreate(user_id=user_id, role=MemberRole.admin)
+            )
+            
+            # 5. Set Context
+            await MessageRepository.save_room_context(
+                db, RoomContextCreate(room_id=new_room.id, key="active_trip_id", value=plan_id)
+            )
+            
+            return new_room.id
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error getting plan chat room: {e}",
+            )
+

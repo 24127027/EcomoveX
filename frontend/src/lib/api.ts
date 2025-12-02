@@ -254,6 +254,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   message_type: string;
+  plan_id?: number;
 }
 
 export interface RoomResponse {
@@ -292,11 +293,28 @@ export interface PlanDestination {
 
 export interface PlanResponse {
   id: number;
+  user_id: number; // Owner ID for permission checking
   place_name: string;
   start_date: string;
   end_date: string;
   budget_limit: number;
   destinations: PlanDestination[];
+}
+
+// Member management interfaces
+export interface PlanMember {
+  id: number;
+  email: string;
+  display_name?: string;
+}
+
+export interface PlanMemberResponse {
+  plan_id: number;
+  ids: number[];
+}
+
+export interface AddMemberRequest {
+  ids: number[];
 }
 
 export interface PlanActivity {
@@ -315,6 +333,7 @@ export interface PlanActivity {
 
 export interface TravelPlan {
   id: number;
+  user_id?: number; // Owner ID
   destination: string;
   date: string;
   end_date?: string;
@@ -508,6 +527,30 @@ class ApiClient {
     return this.request<UserProfile>("/users/me", { method: "GET" });
   }
 
+  async getUserByEmail(email: string): Promise<UserProfile> {
+    return this.request<UserProfile>(
+      `/users/email/${encodeURIComponent(email)}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  async getUserByUsername(username: string): Promise<UserProfile> {
+    return this.request<UserProfile>(
+      `/users/username/${encodeURIComponent(username)}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  async getUserById(userId: number): Promise<UserProfile> {
+    return this.request<UserProfile>(`/users/id/${userId}`, {
+      method: "GET",
+    });
+  }
+
   async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
     return this.request<UserProfile>("/users/me/profile", {
       method: "PUT",
@@ -594,6 +637,57 @@ class ApiClient {
     });
   }
 
+  async joinPlan(planId: number): Promise<void> {
+    await this.request(`/plans/${planId}/join`, {
+      method: "POST",
+    });
+  }
+
+  async sendPlanInvitation(
+    roomId: number,
+    planId: number
+  ): Promise<ChatMessage> {
+    const formData = new FormData();
+    formData.append("plan_id", planId.toString());
+    formData.append("message_type", "invitation");
+    formData.append("content", "Invitation to join plan");
+
+    return this.request<ChatMessage>(`/messages/${roomId}`, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async declineInvitation(messageId: number): Promise<void> {
+    await this.request(`/messages/${messageId}/decline`, {
+      method: "PUT",
+    });
+  }
+
+  // --- PLAN MEMBER ENDPOINTS ---
+  async getPlanMembers(planId: number): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "GET",
+    });
+  }
+
+  async addPlanMembers(
+    planId: number,
+    memberIds: number[]
+  ): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ ids: memberIds }),
+    });
+  }
+
+  async removePlanMembers(planId: number, memberIds: number[]): Promise<void> {
+    return this.request(`/plans/${planId}/members`, {
+      method: "DELETE",
+      body: JSON.stringify({ ids: memberIds }),
+    });
+  }
+
   async getPlans(): Promise<TravelPlan[]> {
     const plans = await this.request<PlanResponse[]>("/plans/", {
       method: "GET",
@@ -662,6 +756,7 @@ class ApiClient {
 
       return {
         id: p.id,
+        user_id: p.user_id, // Map owner ID
         destination: p.place_name,
         date: p.start_date,
         end_date: p.end_date,
@@ -776,7 +871,7 @@ class ApiClient {
     return this.request<RoomResponse>("/rooms/rooms", {
       method: "POST",
       body: JSON.stringify({
-        room_name: name,
+        name: name,
         member_ids: memberIds,
       }),
     });
@@ -909,6 +1004,23 @@ class ApiClient {
       `/recommendations/user/me/nearby-by-cluster?latitude=${lat}&longitude=${lng}&radius_km=${radiusKm}&k=${k}`,
       { method: "GET" }
     );
+  }
+
+  async getPlanChatRoom(planId: number): Promise<{ room_id: number }> {
+    return this.request<{ room_id: number }>(`/plans/${planId}/chat-room`, {
+      method: "GET",
+    });
+  }
+
+  async sendBotMessage(
+    userId: number,
+    roomId: number,
+    message: string
+  ): Promise<any> {
+    return this.request<any>("/chatbot/message", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
+    });
   }
 }
 

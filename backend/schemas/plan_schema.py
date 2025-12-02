@@ -87,6 +87,7 @@ class PlanUpdate(BaseModel):
 
 class PlanResponse(BaseModel):
     id: int
+    user_id: int  # ← Owner ID
     place_name: str
     start_date: date
     end_date: date

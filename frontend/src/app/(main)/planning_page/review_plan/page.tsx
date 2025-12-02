@@ -41,9 +41,11 @@ import {
   Trash2,
   Send,
   ArrowRight,
+  Users,
+  User,
 } from "lucide-react";
 import { Jost } from "next/font/google";
-import { api, PlanActivity, PlaceDetails } from "@/lib/api";
+import { api, PlanActivity, PlaceDetails, UserProfile } from "@/lib/api";
 import Link from "next/link";
 
 // --- FONTS ---
@@ -220,37 +222,101 @@ function TimeSlotContainer({
 // ==========================================
 // 3. CHATBOT COMPONENT
 // ==========================================
-function ChatWindow({ onClose }: { onClose: () => void }) {
+function ChatWindow({
+  onClose,
+  planId,
+}: {
+  onClose: () => void;
+  planId: number | null;
+}) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
-  >([
-    {
-      role: "bot",
-      text: "Hello! I'm your travel assistant. How can I help you adjust your plan?",
-    },
-  ]);
+  >([]);
   const [input, setInput] = useState("");
+  const [roomId, setRoomId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  // 1. Fetch Room ID
+  useEffect(() => {
+    if (!planId) return;
+    const fetchRoom = async () => {
+      try {
+        const res = await api.getPlanChatRoom(planId);
+        setRoomId(res.room_id);
+      } catch (error) {
+        console.error("Failed to get plan chat room:", error);
+      }
+    };
+    fetchRoom();
+  }, [planId]);
+
+  // 2. Fetch History
+  useEffect(() => {
+    if (!roomId) return;
+    const fetchHistory = async () => {
+      try {
+        const history = await api.getChatHistory(roomId);
+        // Assuming sender_id === 0 is bot (SYSTEM_BOT_ID)
+        const formatted = history
+          .sort(
+            (a, b) =>
+              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          )
+          .map((msg) => ({
+            role: msg.sender_id === 0 ? "bot" : "user",
+            text: msg.content || "",
+          })) as { role: "user" | "bot"; text: string }[];
+
+        if (formatted.length === 0) {
+          setMessages([
+            {
+              role: "bot",
+              text: "Hello! I'm your travel assistant. How can I help you adjust your plan?",
+            },
+          ]);
+        } else {
+          setMessages(formatted);
+        }
+      } catch (error) {
+        console.error("Failed to fetch history:", error);
+      }
+    };
+    fetchHistory();
+  }, [roomId]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !roomId) return;
     const userMsg = input;
     setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
     setInput("");
+    setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const storedUser = localStorage.getItem("user_info");
+      let userId = 0;
+      if (storedUser) {
+        userId = JSON.parse(storedUser).id;
+      }
+
+      const res = await api.sendBotMessage(userId, roomId, userMsg);
+
+      if (res.ok && res.message) {
+        setMessages((prev) => [...prev, { role: "bot", text: res.message }]);
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "bot",
-          text: `I received: "${userMsg}". (API integration pending)`,
-        },
+        { role: "bot", text: "Sorry, I encountered an error." },
       ]);
-    }, 1000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -286,6 +352,13 @@ function ChatWindow({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-white text-gray-500 p-3 rounded-2xl rounded-tl-none shadow-sm text-sm italic">
+              Thinking...
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -411,6 +484,14 @@ function ReviewPlanContent() {
   });
   const [isEditingHeader, setIsEditingHeader] = useState(false);
 
+  // Member Management State
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [planOwnerId, setPlanOwnerId] = useState<number | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberIds, setMemberIds] = useState<number[]>([]);
+  const [memberEmail, setMemberEmail] = useState("");
+
   // Split Screen State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [planHeightPercent, setPlanHeightPercent] = useState(100);
@@ -420,6 +501,35 @@ function ReviewPlanContent() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Load current user
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await api.getUserProfile();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("Failed to load user profile:", error);
+      }
+    };
+    loadUser();
+  }, []);
+
+  // Check ownership when user or plan owner changes
+  useEffect(() => {
+    // ✅ If creating new plan (no planId), user is always owner
+    if (!planId) {
+      setIsOwner(true);
+      return;
+    }
+
+    if (currentUser && planOwnerId) {
+      const isUserOwner = currentUser.id === planOwnerId;
+      setIsOwner(isUserOwner);
+      console.log(`🔐 Permission check: ${isUserOwner ? "OWNER" : "MEMBER"}`);
+    }
+  }, [currentUser, planOwnerId, planId]);
+
   const getTimeSlot = (dateString?: string, timeStr?: string) => {
     // ✅ Ưu tiên dùng time field từ backend, nếu không thì tính từ dateString
     if (timeStr) {
@@ -458,6 +568,12 @@ function ReviewPlanContent() {
               } | Slot: ${act.time_slot}`
             );
           });
+
+          // Set owner ID and check permission
+          if (currentPlan.user_id) {
+            setPlanOwnerId(currentPlan.user_id);
+            console.log(`👤 Plan owner ID: ${currentPlan.user_id}`);
+          }
 
           // Map dữ liệu cơ bản
           const apiPlanInfo = {
@@ -597,6 +713,15 @@ function ReviewPlanContent() {
             STORAGE_KEY_STRUCTURED,
             JSON.stringify(apiActivities)
           );
+
+          // Load plan members
+          try {
+            const members = await api.getPlanMembers(Number(id));
+            setMemberIds(members.ids);
+            console.log(`👥 Loaded ${members.ids.length} member(s)`);
+          } catch (error) {
+            console.error("Failed to load members:", error);
+          }
         }
       } catch (error) {
         console.error("Error loading plan:", error);
@@ -912,12 +1037,20 @@ function ReviewPlanContent() {
 
   // --- ACTIONS ---
   const handleDeleteActivity = (id: string | number) => {
+    if (!isOwner) {
+      alert("Only plan owner can delete destinations");
+      return;
+    }
     if (confirm("Remove this place from plan?")) {
       setActivities((prev) => prev.filter((a) => a.id !== id));
     }
   };
 
   const handleAddPlaceToSlot = (dayStr?: string, timeSlot?: string) => {
+    if (!isOwner && planId) {
+      alert("Only plan owner can add destinations");
+      return;
+    }
     // ✅ Lưu ngày/buổi được chọn vào storage để add_destinations biết
     if (dayStr && timeSlot) {
       sessionStorage.setItem(
@@ -1129,29 +1262,61 @@ function ReviewPlanContent() {
               >
                 Review Plan
               </h1>
-            </div>
-            <button
-              onClick={handleSaveToBackend}
-              disabled={isSaving || activities.length < 2}
-              className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
-                activities.length < 2 || isSaving
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "text-[#53B552] bg-[#E3F1E4] hover:bg-green-100"
-              }`}
-              title={
-                activities.length < 2
-                  ? `Add at least ${2 - activities.length} more destination(s)`
-                  : "Save plan"
-              }
-            >
-              {isSaving ? (
-                "Saving..."
-              ) : (
-                <>
-                  <Save size={16} /> Save
-                </>
+              {!isOwner && planId && (
+                <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                  View Only
+                </span>
               )}
-            </button>
+            </div>
+            <div className="flex items-center gap-2">
+              {planId && (
+                <button
+                  onClick={() => setShowMemberModal(true)}
+                  className="flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    />
+                  </svg>
+                  Members
+                </button>
+              )}
+              <button
+                onClick={handleSaveToBackend}
+                disabled={!isOwner || isSaving || activities.length < 2}
+                className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
+                  !isOwner || activities.length < 2 || isSaving
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "text-[#53B552] bg-[#E3F1E4] hover:bg-green-100"
+                }`}
+                title={
+                  !isOwner
+                    ? "Only plan owner can save changes"
+                    : activities.length < 2
+                    ? `Add at least ${
+                        2 - activities.length
+                      } more destination(s)`
+                    : "Save plan"
+                }
+              >
+                {isSaving ? (
+                  "Saving..."
+                ) : (
+                  <>
+                    <Save size={16} /> Save
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* SCROLLABLE CONTENT */}
@@ -1171,11 +1336,17 @@ function ReviewPlanContent() {
                     />
                   ) : (
                     <h2
-                      onClick={() => setIsEditingHeader(true)}
-                      className={`${jost.className} text-2xl font-bold text-gray-800 cursor-pointer hover:text-green-600`}
+                      onClick={() => isOwner && setIsEditingHeader(true)}
+                      className={`${
+                        jost.className
+                      } text-2xl font-bold text-gray-800 ${
+                        isOwner ? "cursor-pointer hover:text-green-600" : ""
+                      }`}
                     >
                       {planInfo.name}{" "}
-                      <Pencil size={14} className="inline text-gray-300" />
+                      {isOwner && (
+                        <Pencil size={14} className="inline text-gray-300" />
+                      )}
                     </h2>
                   )}
                   <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
@@ -1317,7 +1488,173 @@ function ReviewPlanContent() {
         {/* === CHATBOT === */}
         {isChatOpen && (
           <div className="flex-1 min-h-0 relative">
-            <ChatWindow onClose={handleToggleChat} />
+            <ChatWindow
+              onClose={handleToggleChat}
+              planId={planId ? Number(planId) : null}
+            />
+          </div>
+        )}
+
+        {/* === MEMBER MANAGEMENT MODAL === */}
+        {showMemberModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl transform transition-all scale-100">
+              <div className="flex justify-between items-center mb-6">
+                <h2
+                  className={`${jost.className} text-2xl font-bold text-gray-800`}
+                >
+                  Plan Members
+                </h2>
+                <button
+                  onClick={() => setShowMemberModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={24} className="text-gray-500" />
+                </button>
+              </div>
+
+              {!isOwner && (
+                <div className="mb-6 p-4 bg-[#E3F1E4] rounded-2xl border border-[#53B552]/20 flex gap-3 items-start">
+                  <div className="p-2 bg-white rounded-full shrink-0">
+                    <Users size={16} className="text-[#53B552]" />
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    You are viewing this plan as a member. Only the owner can
+                    manage members.
+                  </p>
+                </div>
+              )}
+
+              {isOwner && (
+                <div className="mb-6">
+                  <label
+                    className={`${jost.className} block text-sm font-bold text-gray-700 mb-2 ml-1`}
+                  >
+                    Add Member by Email
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="email"
+                        value={memberEmail}
+                        onChange={(e) => setMemberEmail(e.target.value)}
+                        placeholder="friend@example.com"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-[#53B552]/50 outline-none transition-all"
+                      />
+                      <User
+                        size={18}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!memberEmail || !planId) return;
+                        try {
+                          const user = await api.getUserByEmail(memberEmail);
+                          await api.addPlanMembers(Number(planId), [user.id]);
+                          const members = await api.getPlanMembers(
+                            Number(planId)
+                          );
+                          setMemberIds(members.ids);
+                          setMemberEmail("");
+                          alert(`Added ${user.username || user.email} to plan`);
+                        } catch (error) {
+                          console.error("Failed to add member:", error);
+                          alert("Failed to add member. Please check email.");
+                        }
+                      }}
+                      disabled={!memberEmail.includes("@")}
+                      className="px-6 py-3 bg-[#53B552] text-white rounded-xl hover:bg-[#46a045] disabled:opacity-50 disabled:cursor-not-allowed font-bold transition-all shadow-sm active:scale-95"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h3
+                  className={`${jost.className} text-sm font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2`}
+                >
+                  Current Members{" "}
+                  <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                    {memberIds.length}
+                  </span>
+                </h3>
+
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                  {memberIds.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                      <Users size={32} className="mx-auto text-gray-300 mb-2" />
+                      <p className="text-sm text-gray-400">
+                        No members added yet
+                      </p>
+                    </div>
+                  ) : (
+                    memberIds.map((id) => (
+                      <div
+                        key={id}
+                        className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                            <span
+                              className={`${jost.className} font-bold text-gray-500`}
+                            >
+                              {id.toString().slice(0, 2)}
+                            </span>
+                          </div>
+                          <div>
+                            <p
+                              className={`${jost.className} font-bold text-gray-800 text-sm`}
+                            >
+                              User #{id}
+                            </p>
+                            {id === planOwnerId ? (
+                              <span className="text-[10px] font-bold text-[#53B552] bg-[#E3F1E4] px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                Owner
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-gray-400">
+                                Member
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isOwner && id !== planOwnerId && (
+                          <button
+                            onClick={async () => {
+                              if (!planId) return;
+                              if (!confirm("Remove this member?")) return;
+                              try {
+                                await api.removePlanMembers(Number(planId), [
+                                  id,
+                                ]);
+                                const members = await api.getPlanMembers(
+                                  Number(planId)
+                                );
+                                setMemberIds(members.ids);
+                              } catch (error) {
+                                console.error(
+                                  "Failed to remove member:",
+                                  error
+                                );
+                                alert("Failed to remove member");
+                              }
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                            title="Remove member"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
