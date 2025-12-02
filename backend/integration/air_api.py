@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import httpx
 
-from schemas.air_schema import *
+from schemas.air_schema import AirQualityIndex, AirQualityResponse, HealthRecommendation
 from schemas.destination_schema import Location
 from utils.config import settings
 

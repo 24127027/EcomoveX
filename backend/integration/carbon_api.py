@@ -2,7 +2,7 @@ from typing import Optional
 
 import httpx
 
-from schemas.route_schema import *
+from schemas.route_schema import TransportMode
 from utils.config import settings
 
 
@@ -115,7 +115,6 @@ class CarbonAPI:
         distance_km: float,
         passengers: int = 1,
     ) -> float:
-
         if mode == TransportMode.walking:
             return 0.0
 

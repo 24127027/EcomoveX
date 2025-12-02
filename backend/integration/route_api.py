@@ -4,8 +4,14 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from schemas.destination_schema import Bounds, Location
-from schemas.map_schema import *
-from schemas.route_schema import *
+from schemas.route_schema import (
+    DirectionsRequest,
+    DirectionsResponse,
+    Leg,
+    Route,
+    Step,
+    TransportMode,
+)
 from utils.config import settings
 
 TRANSPORT_MODE_TO_ROUTES_API = {

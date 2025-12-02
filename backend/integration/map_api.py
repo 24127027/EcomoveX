@@ -1,10 +1,28 @@
-﻿from typing import Optional
+from typing import Optional
 
 import httpx
 
 from schemas.destination_schema import Bounds, Location
-from schemas.map_schema import *
-from schemas.route_schema import *
+from schemas.map_schema import (
+    AddressComponent,
+    AutocompleteRequest,
+    AutocompleteResponse,
+    GeocodingResponse,
+    GeocodingResult,
+    Geometry,
+    NearbyPlaceRequest,
+    NearbyPlaceSimple,
+    NearbyPlacesResponse,
+    OpeningHours,
+    PhotoInfo,
+    PlaceDetailsResponse,
+    PlaceSearchDisplay,
+    Review,
+    SearchAlongRouteResponse,
+    TextSearchRequest,
+    TextSearchResponse,
+)
+from schemas.route_schema import DirectionsResponse
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 
@@ -566,7 +584,6 @@ class MapAPI:
     ) -> str:
         try:
             if photo_reference.startswith("places/"):
-
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
 
                 params = {
