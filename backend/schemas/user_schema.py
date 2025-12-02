@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from models.user import Activity, Rank
+from models.user import Activity, Rank, Role
 
 
 class UserCreate(BaseModel):
@@ -62,8 +62,8 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
     eco_point: int
-    rank: str
-    role: str
+    rank: Rank
+    role: Role
     avt_url: Optional[str] = None
     cover_url: Optional[str] = None
 

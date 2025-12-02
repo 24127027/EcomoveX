@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from models.friend import *
+from models.friend import Friend, FriendStatus
 from models.user import User
 
 
@@ -224,7 +224,6 @@ class FriendRepository:
         db: AsyncSession, user_id: int, search_term: str, skip: int = 0, limit: int = 50
     ):
         try:
-
             query = (
                 select(Friend)
                 .join(

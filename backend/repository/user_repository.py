@@ -76,7 +76,6 @@ class UserRepository:
             print(f"ERROR: Failed to retrieve users by IDs - {e}")
             return []
 
-
     @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate):
         try:

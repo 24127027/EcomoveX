@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
@@ -218,22 +218,18 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def get_room_context(
-        db: AsyncSession, room_id: int, key: str
-    ) -> Optional[Any]:
+    async def get_room_context(db: AsyncSession, room_id: int):
         try:
-            query = select(RoomContext).where(
-                and_(RoomContext.room_id == room_id, RoomContext.key == key)
-            )
+            query = select(RoomContext).where(RoomContext.room_id == room_id)
             result = await db.execute(query)
-            context = result.scalars().first()
-            return context.value if context else None
+            contexts = result.scalars().all()
+            return contexts
         except SQLAlchemyError as e:
-            print(f"ERROR: Getting context for room {room_id}, key {key} - {e}")
-            return None
+            print(f"ERROR: Getting context for room {room_id} - {e}")
+            return []
 
     @staticmethod
-    async def load_room_context(db: AsyncSession, room_id: int) -> Dict[str, Any]:
+    async def load_room_context(db: AsyncSession, room_id: int):
         try:
             query = select(RoomContext).where(RoomContext.room_id == room_id)
             result = await db.execute(query)
@@ -254,7 +250,7 @@ class MessageRepository:
             return result.rowcount > 0
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Deleting context for room {room_id}, key {key} - {e}")
+            print(f"ERROR: Deleting context for room {room_id} - {e}")
             return False
 
     @staticmethod

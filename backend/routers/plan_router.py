@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +9,6 @@ from schemas.plan_schema import (
     MemberCreate,
     MemberDelete,
     PlanCreate,
-    PlanDestinationCreate,
-    PlanDestinationResponse,
-    PlanDestinationUpdate,
     PlanMemberCreate,
     PlanMemberResponse,
     PlanResponse,
@@ -63,52 +60,6 @@ async def delete_plan(
 
 
 @router.get(
-    "/{plan_id}/destinations",
-    response_model=List[PlanDestinationResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_plan_destinations(
-    plan_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await PlanService.get_plan_destinations(db, plan_id, current_user["user_id"])
-
-
-@router.post(
-    "/{plan_id}/destinations",
-    response_model=PlanDestinationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_destination_to_plan(
-    plan_id: int,
-    data: PlanDestinationCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await PlanService.add_destination_to_plan(
-        db, current_user["user_id"], plan_id, data
-    )
-
-
-@router.put(
-    "/destinations/{plan_destination_id}",
-    response_model=PlanDestinationResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def update_plan_destination(
-    plan_destination_id: int,
-    updated_data: PlanDestinationUpdate,
-    plan_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await PlanService.update_plan_destination(
-        db, current_user["user_id"], plan_id, plan_destination_id, updated_data
-    )
-
-
-@router.get(
     "/{plan_id}/members",
     response_model=PlanMemberResponse,
     status_code=status.HTTP_200_OK,
@@ -148,8 +99,8 @@ async def remove_members_from_plan(
     return await PlanService.remove_plan_member(
         db, current_user["user_id"], plan_id, data
     )
-    
-    
+
+
 @router.post(
     "/{plan_id}/members/join",
     response_model=CommonMessageResponse,
@@ -161,4 +112,6 @@ async def join_plan(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await PlanService.add_plan_member(db, user_id, plan_id, MemberCreate(PlanMemberCreate(current_user["user_id"])))
+    return await PlanService.add_plan_member(
+        db, user_id, plan_id, MemberCreate(PlanMemberCreate(current_user["user_id"]))
+    )

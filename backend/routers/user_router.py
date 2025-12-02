@@ -1,17 +1,16 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
 from schemas.message_schema import CommonMessageResponse
 from schemas.user_schema import (
-    UserActivityCreate,
-    UserActivityResponse,
     UserCredentialUpdate,
     UserFilterParams,
     UserProfileUpdate,
     UserResponse,
 )
-from services.user_service import UserActivityService, UserService
+from services.user_service import UserService
 from utils.token.authentication_util import get_current_user
 from utils.token.authorizer import require_roles
 
@@ -36,23 +35,13 @@ async def get_user_profile(
 
 
 @router.get(
-    "/username/{username}", response_model=UserResponse, status_code=status.HTTP_200_OK
+    "/search/", response_model=List[UserResponse], status_code=status.HTTP_200_OK
 )
-async def get_user_by_username(
-    username: str,
+async def search_users(
+    query: str = Query(..., min_length=1),
     db: AsyncSession = Depends(get_db),
 ):
-    return await UserService.get_user_by_username(db, username)
-
-
-@router.get(
-    "/email/{email}", response_model=UserResponse, status_code=status.HTTP_200_OK
-)
-async def get_user_by_email(
-    email: str,
-    db: AsyncSession = Depends(get_db),
-):
-    return await UserService.get_user_by_email(db, email)
+    return await UserService.search_users(db, query)
 
 
 @router.put(
@@ -119,21 +108,6 @@ async def add_eco_point(
     current_user: dict = Depends(get_current_user),
 ):
     return await UserService.add_eco_point(db, user_id, point)
-
-
-@router.post(
-    "/{user_id}/activity",
-    dependencies=[Depends(require_roles(["Admin"]))],
-    response_model=UserActivityResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def log_user_activity(
-    user_id: int,
-    activity_data: UserActivityCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await UserActivityService.log_user_activity(db, user_id, activity_data)
 
 
 @router.get(

@@ -1,11 +1,20 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.destination import *
-from schemas.destination_schema import *
+from models.destination import (
+    Destination,
+    DestinationEmbedding,
+    GreenVerifiedStatus,
+    UserSavedDestination,
+)
+from schemas.destination_schema import (
+    DestinationCreate,
+    DestinationEmbeddingCreate,
+    DestinationUpdate,
+)
 
 
 class DestinationRepository:
@@ -299,15 +308,12 @@ class DestinationRepository:
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(
-                f"ERROR: Failed to retrieve destinations by green status "
-                f"{status} - {e}"
+                f"ERROR: Failed to retrieve destinations by green status {status} - {e}"
             )
             return []
 
     @staticmethod
-    async def get_embeddings_by_ids(
-        db: AsyncSession, destination_ids: List[str]
-    ):
+    async def get_embeddings_by_ids(db: AsyncSession, destination_ids: List[str]):
         """
         Get embeddings for multiple destinations.
 

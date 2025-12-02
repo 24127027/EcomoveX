@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import and_, delete, func, select, text, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,7 +12,7 @@ from models.cluster import (
     UserClusterAssociation,
 )
 from models.user import User
-from schemas.cluster_schema import *
+from schemas.cluster_schema import ClusterCreate, ClusterUpdate
 
 
 class ClusterRepository:
@@ -552,7 +552,7 @@ class ClusterRepository:
     #     """Get most frequent categories visited by users in a cluster."""
     #     try:
     #         from models.destination import Destination, Visit
-            
+
     #         query = (
     #             select(
     #                 Destination.category,
@@ -572,7 +572,7 @@ class ClusterRepository:
     #             .limit(limit)
     #             .distinct()
     #         )
-            
+
     #         result = await db.execute(query)
     #         return [row.category for row in result]
     #     except SQLAlchemyError as e:

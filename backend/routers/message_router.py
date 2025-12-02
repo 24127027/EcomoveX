@@ -102,21 +102,6 @@ async def delete_message(
     return await MessageService.delete_message(db, current_user["user_id"], message_id)
 
 
-@router.put(
-    "/{message_id}/decline",
-    response_model=MessageResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def decline_invitation(
-    message_id: int = Path(..., gt=0),
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    return await MessageService.decline_invitation(
-        db, current_user["user_id"], message_id
-    )
-
-
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket,

@@ -280,7 +280,7 @@ class RoomRepository:
                 f"ERROR: updating member role for user {user_id} in room {room_id} - {e}"
             )
             return None
-        
+
     @staticmethod
     async def search_rooms_by_name(db: AsyncSession, name_query: str):
         try:

@@ -1,4 +1,3 @@
-from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +16,6 @@ from schemas.plan_schema import (
     PlanUpdate,
 )
 from models.destination import Destination
-from schemas.map_schema import PlaceDetailsResponse
 
 
 from sqlalchemy.orm import selectinload
@@ -325,6 +323,17 @@ class PlanRepository:
             return None
 
     @staticmethod
+    async def get_plan_destination_by_id(db: AsyncSession, plan_destination_id: int):
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving plan destination ID {plan_destination_id} - {e}")
+            return None
+
+    @staticmethod
     async def update_plan_member_role(
         db: AsyncSession, plan_id: int, user_id: int, new_role: PlanRole
     ):
@@ -376,9 +385,7 @@ class PlanRepository:
         try:
             # 1. Check tồn tại
             result = await db.execute(
-                select(Destination).where(
-                    Destination.place_id == place_id
-                )
+                select(Destination).where(Destination.place_id == place_id)
             )
             existing = result.scalar_one_or_none()
             if existing:

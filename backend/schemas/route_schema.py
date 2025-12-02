@@ -161,3 +161,9 @@ class DirectionsResponse(BaseModel):
     travel_mode: Optional[TransportMode] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TripMetricsResponse(BaseModel):
+    total_distance_km: float = Field(default=0.0)
+    total_duration_min: float = Field(default=0.0)
+    details: List[Dict[str, Any]] = Field(default_factory=list)
