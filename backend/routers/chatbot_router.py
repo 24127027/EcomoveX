@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
 from schemas.message_schema import ChatMessage
-from services.chatbot_service import ChatbotService
+from backend.services.agents.chatbot_service import ChatbotService
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 
