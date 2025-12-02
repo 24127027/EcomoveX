@@ -19,10 +19,13 @@ from schemas.plan_schema import (
     PlanMemberResponse,
     PlanResponse,
     PlanUpdate,
+    ActionResult
 )
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
+from services.route_service import RouteService
+from repository.plan_repository import PlanDestination
 
 
 class PlanService:
@@ -914,3 +917,85 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error handling plan intent: {str(e)}",
             )
+            
+   # hàm sắp xếp destinations dự theo đánh giá của plan_validator.py
+    async def build_itinerary(destinations: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp lịch trình hợp lý dựa trên:
+        - Ngày đi (visit_date)
+        - Loại điểm đến (attraction > restaurant > accommodation > transport)
+        - Sắp xếp tiếp theo khoảng cách tối ưu (RouteService)
+        """
+
+        if not destinations:
+            return []
+
+        # ------------------------------------------------------------
+        # 1. Sắp xếp theo ngày
+        # ------------------------------------------------------------
+        destinations.sort(key=lambda d: d.visit_date)
+
+        # ------------------------------------------------------------
+        # 2. Group theo ngày
+        # ------------------------------------------------------------
+        result = []
+        current_day = None
+        group = []
+
+        for d in destinations:
+            if current_day is None:
+                current_day = d.visit_date
+
+            if d.visit_date != current_day:
+                sorted_day = await PlanService._sort_single_day(group)
+                result.extend(sorted_day)
+                group = []
+                current_day = d.visit_date
+
+            group.append(d)
+
+        # cuối cùng
+        if group:
+            sorted_day = await PlanService._sort_single_day(group)
+            result.extend(sorted_day)
+
+        return result
+
+    @staticmethod
+    async def _sort_single_day(day_list: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp trong 1 ngày:
+        1. attraction
+        2. restaurant
+        3. accommodation
+        4. transport
+        5. tối ưu khoảng cách bằng RouteService
+        """
+
+        priority = {
+            DestinationType.attraction: 1,
+            DestinationType.restaurant: 2,
+            DestinationType.accommodation: 3,
+            DestinationType.transport: 4,
+        }
+
+        # sort theo priority
+        day_list.sort(key=lambda d: priority[d.type])
+
+        # sắp xếp tối ưu khoảng cách
+        try:
+            ordered = await RouteService._haversine_distance(day_list)
+            return ordered
+        except Exception:
+            return day_list  # fallback
+    
+    @staticmethod
+    async def extract_action(user_msg: str) -> ActionResult:
+        rule_engine = RuleEngine()
+        parse_result = rule_engine.classify(user_msg)
+        return ActionResult(
+            intent=parse_result.intent,
+            entities=parse_result.entities,
+            confidence=parse_result.confidence,
+            # plan_id / action có thể set sau khi xác định plan
+        )

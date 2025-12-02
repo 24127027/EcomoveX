@@ -128,3 +128,11 @@ class IntentHandlerResponse(BaseModel):
     suggestions: Optional[List[Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ActionResult(BaseModel):
+    intent: str
+    entities: Dict[str, Any]
+    confidence: float
+    plan_id: int = None
+    action: str = None
