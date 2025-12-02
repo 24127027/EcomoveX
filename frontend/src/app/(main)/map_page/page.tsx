@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
 import { api, AutocompletePrediction, PlaceDetails, Position } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -355,6 +355,7 @@ export default function MapPage() {
   }, [isDragging, startY, startHeight]);
 
   return (
+    <Suspense>
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-gray-50 h-screen shadow-2xl relative flex flex-col overflow-hidden">
         {/* Map Container */}
@@ -559,5 +560,6 @@ export default function MapPage() {
         </footer>
       </div>
     </div>
+  </Suspense>
   );
 }
