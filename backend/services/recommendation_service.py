@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from math import radians, cos, sin, asin, sqrt
@@ -8,10 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repository.destination_repository import DestinationRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
+from schemas.destination_schema import DestinationCreate
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
 from services.map_service import MapService
-from schemas.map_schema import TextSearchRequest, Location
+from schemas.map_schema import (
+    TextSearchRequest,
+    Location,
+    PlaceSearchResult,
+    TextSearchResponse,
+)
+from models.destination import DestinationEmbedding
 
 
 def blend_scores(
@@ -86,9 +93,16 @@ class RecommendationService:
                 return recommendations
 
             destination_ids = [rec["destination_id"] for rec in recommendations]
-            dest_embeddings = await DestinationRepository.get_embeddings_by_ids(
-                db, destination_ids
+            embeddings_list: Union[List[DestinationEmbedding], Dict[str, Any]] = (
+                await DestinationRepository.get_embeddings_by_ids(db, destination_ids)
             )
+
+            dest_embeddings: Dict[str, List[float]] = {}
+            if isinstance(embeddings_list, list):
+                for emb in embeddings_list:
+                    dest_embeddings[emb.destination_id] = emb.get_vector()
+            elif isinstance(embeddings_list, dict):
+                dest_embeddings = embeddings_list
 
             cluster_vec = np.array(cluster_vector, dtype=np.float32)
 
@@ -96,10 +110,14 @@ class RecommendationService:
                 dest_id = rec["destination_id"]
                 if dest_id in dest_embeddings:
                     dest_vec = np.array(dest_embeddings[dest_id], dtype=np.float32)
-                    affinity = np.dot(cluster_vec, dest_vec) / (
-                        np.linalg.norm(cluster_vec) * np.linalg.norm(dest_vec) + 1e-8
+                    affinity = float(
+                        np.dot(cluster_vec, dest_vec)
+                        / (
+                            np.linalg.norm(cluster_vec) * np.linalg.norm(dest_vec)
+                            + 1e-8
+                        )
                     )
-                    rec["cluster_affinity"] = float(affinity)
+                    rec["cluster_affinity"] = affinity
                 else:
                     rec["cluster_affinity"] = 0.0
 
@@ -172,14 +190,14 @@ class RecommendationService:
 
             await ClusterService.compute_cluster_popularity(db, cluster_id)
 
-            popular_destinations_raw = await ClusterRepository.get_cluster_destinations(
-                db, cluster_id
+            popular_destinations_raw = (
+                await ClusterRepository.get_destinations_in_cluster(db, cluster_id)
             )
 
-            popular_destinations = [
+            popular_destinations: List[Dict[str, Any]] = [
                 {
                     "destination_id": dest.destination_id,
-                    "popularity_score": dest.popularity_score / 100.0,
+                    "popularity_score": (dest.popularity_score or 0) / 100.0,
                 }
                 for dest in popular_destinations_raw
             ]
@@ -212,24 +230,20 @@ class RecommendationService:
     ) -> List[Dict[str, Any]]:
         try:
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
-            cluster_categories = []
+            cluster_categories: List[str] = []
 
-            if user_cluster:
-                raise HTTPException(
-                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                    detail="Cluster preferred categories retrieval not implemented.",
+            if user_cluster is not None:
+                cluster_prefs = await ClusterRepository.get_preference_by_user_id(
+                    db, user_id
                 )
-                # cluster_categories = (
-                #     await ClusterRepository.get_cluster_preferred_categories(
-                #         db, user_cluster, limit=5
-                #     )
-                # )
+                if cluster_prefs and cluster_prefs.attraction_types:
+                    cluster_categories = cluster_prefs.attraction_types[:5]
 
             if not cluster_categories:
                 cluster_categories = ["park", "garden", "tourist_attraction", "museum"]
 
-            search_results = []
-            radius_meters = int(radius_km * 1000)
+            search_results: List[TextSearchResponse] = []
+            radius_meters: int = int(radius_km * 1000)
 
             for category in cluster_categories[:3]:
                 try:
@@ -237,59 +251,65 @@ class RecommendationService:
                         query=category, location=current_location, radius=radius_meters
                     )
                     result = await MapService.text_search_place(db, search_request)
-                    search_results.append(result)
+                    if result:
+                        search_results.append(result)
                 except Exception as e:
                     print(f"Search failed for category {category}: {e}")
                     continue
 
-            place_scores = {}
+            place_scores: Dict[str, Dict[str, Any]] = {}
 
             for idx, result in enumerate(search_results):
-                if not result or not result.results:
+                if not result.results:
                     continue
 
-                category_weight = 1.0 - (idx * 0.2)
+                category_weight: float = 1.0 - (idx * 0.2)
 
+                place: PlaceSearchResult
                 for place in result.results:
                     place_id = place.place_id
 
                     if not place.location:
                         continue
 
-                    place_lat = place.location.latitude
-                    place_lng = place.location.longitude
+                    place_lat: float = place.location.latitude
+                    place_lng: float = place.location.longitude
 
-                    curr_lat = current_location.latitude
-                    curr_lng = current_location.longitude
+                    curr_lat: float = current_location.latitude
+                    curr_lng: float = current_location.longitude
 
                     lat1, lon1 = radians(curr_lat), radians(curr_lng)
                     lat2, lon2 = radians(place_lat), radians(place_lng)
 
-                    dlat = lat2 - lat1
-                    dlon = lon2 - lon1
-                    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-                    c = 2 * asin(sqrt(a))
-                    distance_km = 6371 * c
+                    dlat: float = lat2 - lat1
+                    dlon: float = lon2 - lon1
+                    a: float = (
+                        sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+                    )
+                    c: float = 2 * asin(sqrt(a))
+                    distance_km: float = 6371 * c
 
                     if distance_km > radius_km:
                         continue
 
-                    proximity_score = max(0, 1.0 - (distance_km / radius_km))
+                    proximity_score: float = max(0.0, 1.0 - (distance_km / radius_km))
 
-                    rating_val = getattr(place, "rating", None)
-                    rating_score = (rating_val or 3.0) / 5.0 if rating_val else 0.6
+                    rating_val: Optional[float] = getattr(place, "rating", None)
+                    rating_score: float = (
+                        (rating_val or 3.0) / 5.0 if rating_val else 0.6
+                    )
 
-                    user_ratings = getattr(place, "user_ratings_total", 0)
-                    review_score = min(1.0, (user_ratings or 0) / 100.0)
+                    user_ratings: int = getattr(place, "user_ratings_total", 0) or 0
+                    review_score: float = min(1.0, user_ratings / 100.0)
 
-                    combined_score = (
+                    combined_score: float = (
                         proximity_score * 0.4
                         + rating_score * 0.3
                         + review_score * 0.15
                         + category_weight * 0.15
                     )
 
-                    place_name = (
+                    place_name: str = (
                         place.display_name.text
                         if place.display_name
                         else "Unknown Place"
@@ -316,27 +336,26 @@ class RecommendationService:
                             "combined_score": round(combined_score, 3),
                         }
 
-            recommendations = sorted(
+            recommendations: List[Dict[str, Any]] = sorted(
                 place_scores.values(), key=lambda x: x["combined_score"], reverse=True
             )
 
-            # [FIX QUAN TRỌNG] Xử lý lưu DB: Dùng place_id thay vì destination_id
-            top_recs = recommendations[:k]
+            top_recs: List[Dict[str, Any]] = recommendations[:k]
 
             for rec in top_recs:
                 place_id = rec["place_id"]
                 try:
-                    # Gọi get_or_create_destination (hàm này nên trả về Destination object)
-                    new_dest = await DestinationRepository.get_or_create_destination(
+                    existing_dest = await DestinationRepository.get_destination_by_id(
                         db, place_id
                     )
-                    if new_dest:
-                        # [FIX] Dùng .place_id thay vì .destination_id
-                        rec["destination_id"] = new_dest.place_id
+                    if existing_dest:
+                        rec["destination_id"] = existing_dest.place_id
                     else:
-                        rec["destination_id"] = None
+                        new_dest = await DestinationRepository.create_destination(
+                            db, DestinationCreate(place_id=place_id)
+                        )
+                        rec["destination_id"] = new_dest.place_id if new_dest else None
                 except Exception as e:
-                    # Log lỗi nhưng không crash API
                     print(f"Warning: Could not get/create destination {place_id}: {e}")
                     rec["destination_id"] = None
 
@@ -345,7 +364,7 @@ class RecommendationService:
         except HTTPException:
             raise
         except Exception as e:
-            print(f"DEBUG ERROR RECOMENDATION: {e}")
+            print(f"DEBUG ERROR RECOMMENDATION: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error recommending nearby destinations: {str(e)}",

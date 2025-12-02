@@ -144,7 +144,9 @@ class ClusterService:
             return []
 
     @staticmethod
-    async def get_users_needing_embedding_update(db: AsyncSession, cutoff_date: int):
+    async def get_users_needing_embedding_update(
+        db: AsyncSession, cutoff_date: datetime
+    ):
         try:
             return await ClusterRepository.get_users_needing_embedding_update(
                 db, cutoff_date
@@ -239,7 +241,7 @@ class ClusterService:
         return user_cluster_mapping
 
     @staticmethod
-    async def update_user_embeddings(db: AsyncSession):
+    async def update_user_embeddings(db: AsyncSession) -> int:
         try:
             cutoff_date = datetime.now(timezone.utc) - timedelta(
                 days=EMBEDDING_UPDATE_INTERVAL_DAYS
@@ -251,17 +253,23 @@ class ClusterService:
                 )
             )
 
+            updated_count = 0
             for user in users_needing_update:
                 embedding = await ClusterService.embed_preference(db, user.id)
                 if embedding:
                     success = await ClusterService.save_preference_embedding(
                         db, user.id, embedding
                     )
-                    if not success:
+                    if success:
+                        updated_count += 1
+                    else:
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to update embedding for user {user.id}",
                         )
+            return updated_count
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -273,14 +281,17 @@ class ClusterService:
         db: AsyncSession, user_cluster_mapping: Dict[int, int]
     ) -> int:
         try:
+            created_count = 0
             for user_id, cluster_id in user_cluster_mapping.items():
                 association = await ClusterRepository.add_user_to_cluster(
                     db, user_id, cluster_id
                 )
                 if association:
+                    created_count += 1
                     await ClusterRepository.update_preference_cluster(
                         db, user_id, cluster_id
                     )
+            return created_count
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

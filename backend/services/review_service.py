@@ -20,8 +20,8 @@ class ReviewService:
                 db, destination_id
             )
             review_lists = []
-            urls = []
             for review in reviews:
+                urls = []
                 files = await ReviewRepository.get_review_files(
                     db, destination_id, review.user_id
                 )
