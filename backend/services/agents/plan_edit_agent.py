@@ -1,15 +1,12 @@
 from agents.planner_agent import PlannerAgent
-from repository.plan_repository import PlanRepository
 from services.plan_service import PlanService
-from services.user_service import UserService
 from typing import List, Dict
 
 class PlanEditAgent:
     def __init__(self):
         self.plan_service = PlanService()
-        self.user_service = UserService()
-    async def apply_modifications(self, db, plan, modifications: List[Dict]):
-        user_id = self.user_service.get_current_user_id()
+
+    async def apply_modifications(self, db, plan, modifications: List[Dict], user_id: int):
         for mod in modifications:
             action = mod.get("action")
             if action == "add_destination":
@@ -34,7 +31,7 @@ class PlanEditAgent:
         plan = await self.plan_service.get_plans_by_user(db, user_id)
 
         # thực hiện update DB
-        await self.apply_modifications(db, plan, user_text)
+        await self.apply_modifications(db, plan, user_text, user_id)
         # validate lại plan
         plan = await PlannerAgent().process_plan(db, user_id, "validate after edit")
         return plan
