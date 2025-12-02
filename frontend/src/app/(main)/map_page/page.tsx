@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import {
   Search,
   Home,
@@ -643,6 +643,7 @@ export default function MapPage() {
   }, [isDragging]);
 
   return (
+    <Suspense>
     <div className="min-h-screen w-full bg-white sm:bg-gray-200 sm:flex sm:justify-center">
       <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-2xl">
         <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
@@ -953,5 +954,6 @@ export default function MapPage() {
         )}
       </div>
     </div>
+  </Suspense>
   );
 }
