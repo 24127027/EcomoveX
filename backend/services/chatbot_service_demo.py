@@ -1,58 +1,47 @@
-# chatbot_service.py
+# chatbot_service_demo.py
+import sys
+from pathlib import Path
+
+# Add backend directory to Python path
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
+
 from typing import Any, Dict, List
-from datetime import datetime
-import os
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from utils.nlp.rule_engine import RuleEngine
-from repository.plan_repository import PlanRepository
-from services.message_service import MessageService
 from services.plan_service import PlanService
 from sub_agents.opening_hours_agent import OpeningHoursAgent
 from sub_agents.budget_check_agent import BudgetCheckAgent
 from sub_agents.daily_calculation_agent import DailyCalculationAgent
 from sub_agents.plan_validator_agent import PlanValidatorAgent
+from integration.text_generator_api import TextGeneratorAPI
 
-from integration.text_generator_api import TextGeneratorAPI  # dùng OpenRouter
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-instructions = os.path.join(current_dir, "instructions", "main_agent.txt")
-# Load instruction
-with open(instructions) as f:
-    SYSTEM_INSTRUCTION = f.read()
-
-
-class ChatbotService:
-    def __init__(self, db: AsyncSession, text_api: TextGeneratorAPI):
-        self.db = db
+class ChatbotServiceDemo:
+    def __init__(self, text_api: TextGeneratorAPI):
         self.plan_service = PlanService()
-        self.plan_repository = PlanRepository()
-        self.message_service = MessageService()
-        self.text_api = text_api  # TextGeneratorAPI instance
+        self.text_api = text_api
         self.rule_engine = RuleEngine()
-        # Sub-agents
-        self.opening_hours_agent = OpeningHoursAgent(db)
-        self.budget_check_agent = BudgetCheckAgent(db)
-        self.daily_calc_agent = DailyCalculationAgent(db)
-        self.plan_validator_agent = PlanValidatorAgent(db)
+        # Sub-agents (bỏ db)
+        self.opening_hours_agent = OpeningHoursAgent(db=None)
+        self.budget_check_agent = BudgetCheckAgent(db=None)
+        self.daily_calc_agent = DailyCalculationAgent(db=None)
+        self.plan_validator_agent = PlanValidatorAgent(db=None)
 
-    async def handle_user_message(self, room_id: int, user_id: int, user_msg: str) -> Dict[str, Any]:
+    async def handle_user_message(self, user_msg: str, plan_json: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Main entry point: xử lý message từ user
+        Main entry point: xử lý message từ user với plan giả lập
         """
-        # 1. Load context (history + stored_context + active_trip)
-        context = await self.message_service.load_context(self.db, user_id, room_id)
-        history = context.history[-6:]  # chỉ lấy 6 tin gần nhất
+        # 1. Load context giả lập (bỏ qua DB)
+        history = []
 
         # 2. Xử lý intent & action
         action_result = await self.plan_service.extract_action(user_msg)
-        plan_id = action_result.plan_id
-        action = action_result.action  # add, remove, modify_time
+        action = action_result  # dict với 'intent', 'entities', 'confidence'
 
-        # 3. Lấy full plan
-        #k tồn tại hàm get plans
-        plan = await self.plan_repository.get_plan_by_id(self.db, plan_id)
+        # 3. Dùng plan JSON trực tiếp
+        plan = plan_json
 
-        # 4. Call sub-agents
+        # 4. Call sub-agents (bỏ db, pass plan JSON)
         sub_agent_results = []
         sub_agent_results.append(await self.opening_hours_agent.process(plan, action))
         sub_agent_results.append(await self.budget_check_agent.process(plan, action))
@@ -75,28 +64,21 @@ class ChatbotService:
         # 7. Gọi TextGeneratorAPI
         llm_response = await self.text_api.generate_reply(messages)
 
-        # 8. Lưu message user & bot
-        await self.message_service.create_message(self.db, user_id, room_id, message_text=user_msg)
-        await self.message_service.create_message(self.db, 0, room_id, message_text=llm_response)  # sender_id=0 cho bot
-
-        # 9. Update stored context / active_trip nếu cần
-        await self.message_service.update_context_with_messages(context, user_msg, llm_response)
-
-        # 10. Trả JSON cho frontend
+        # 8. Trả JSON cho frontend
         return {
             "response": llm_response,
             "warnings": warnings,
             "modifications": modifications,
         }
 
-    def build_messages(self, user_msg: str, history: List[Any], plan: Any, warnings: List[str]) -> List[Dict[str, str]]:
+    def build_messages(self, user_msg: str, history: List[Any], plan: Dict[str, Any], warnings: List[str]) -> List[Dict[str, str]]:
         """
         Chuẩn hóa messages list cho OpenRouter / TextGeneratorAPI
         """
         messages = []
 
         # System instruction + warnings
-        system_content = SYSTEM_INSTRUCTION
+        system_content = "You are a travel assistant."
         if warnings:
             system_content += "\nWarnings:\n" + "\n".join(warnings)
         messages.append({"role": "system", "content": system_content})
@@ -112,5 +94,5 @@ class ChatbotService:
         messages.append({"role": "user", "content": user_msg})
 
         return messages
-    
-    
+
+
