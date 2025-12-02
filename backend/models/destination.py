@@ -35,7 +35,9 @@ class Destination(Base):
         default=GreenVerifiedStatus.Not_Green_Verified,
     )
 
-    reviews = relationship("Review", back_populates="destination", cascade="all, delete-orphan")
+    reviews = relationship(
+        "Review", back_populates="destination", cascade="all, delete-orphan"
+    )
     plan_destinations = relationship(
         "PlanDestination",
         back_populates="destination",

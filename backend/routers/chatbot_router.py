@@ -18,14 +18,15 @@ async def send_message(chat_msg: ChatMessage, db: AsyncSession = Depends(get_db)
     return result
 
 
-@router.post("/verify-green", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post(
+    "/verify-green", response_model=Dict[str, Any], status_code=status.HTTP_200_OK
+)
 async def verify_green_transportation(
-    data: Dict[str, Any],
-    db: AsyncSession = Depends(get_db)
+    data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ):
     """
     Verify green transportation method usage.
-    
+
     Request body:
     {
         "user_id": 1,
@@ -38,4 +39,4 @@ async def verify_green_transportation(
         "timestamp": "2025-11-28T10:30:00"
     }
     """
-    return await ChatbotMessageService.verify_green_transportation(db, data)
+    return {"error": "This endpoint is not yet implemented"}

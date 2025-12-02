@@ -39,7 +39,9 @@ class AirQualityAPI:
             )
 
             if response.status_code != 200:
-                raise ValueError(f"Error fetching air quality data: HTTP {response.status_code}")
+                raise ValueError(
+                    f"Error fetching air quality data: HTTP {response.status_code}"
+                )
 
             data = response.json()
             if "error" in data:

@@ -19,7 +19,9 @@ from services.storage_service import StorageService
 
 class UserService:
     @staticmethod
-    async def list_users(db: AsyncSession, filters: UserFilterParams) -> List[UserResponse]:
+    async def list_users(
+        db: AsyncSession, filters: UserFilterParams
+    ) -> List[UserResponse]:
         try:
             users = await UserRepository.list_users(db, filters)
             user_responses = []
@@ -59,7 +61,9 @@ class UserService:
             if user.avt_blob_name:
                 avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(
+                    user.cover_blob_name
+                )
             return UserResponse(
                 id=user.id,
                 username=user.username,
@@ -93,7 +97,9 @@ class UserService:
             if user.avt_blob_name:
                 avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(
+                    user.cover_blob_name
+                )
             return UserResponse(
                 id=user.id,
                 username=user.username,
@@ -127,7 +133,9 @@ class UserService:
             if user.avt_blob_name:
                 avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(
+                    user.cover_blob_name
+                )
             return UserResponse(
                 id=user.id,
                 username=user.username,
@@ -167,7 +175,9 @@ class UserService:
             if user.avt_blob_name:
                 avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(
+                    user.cover_blob_name
+                )
 
             new_point = (user.eco_point or 0) + point
 
@@ -210,7 +220,9 @@ class UserService:
             )
 
     @staticmethod
-    async def get_users_by_ids(db: AsyncSession, user_ids: List[int]) -> List[UserResponse]:
+    async def get_users_by_ids(
+        db: AsyncSession, user_ids: List[int]
+    ) -> List[UserResponse]:
         try:
             users = await UserRepository.get_users_by_ids(db, user_ids)
 
@@ -219,9 +231,13 @@ class UserService:
                 avt_url = None
                 cover_url = None
                 if user.avt_blob_name:
-                    avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
+                    avt_url = await StorageService.generate_signed_url(
+                        user.avt_blob_name
+                    )
                 if user.cover_blob_name:
-                    cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                    cover_url = await StorageService.generate_signed_url(
+                        user.cover_blob_name
+                    )
 
                 user_responses.append(
                     UserResponse(
@@ -262,7 +278,9 @@ class UserService:
             if user.avt_blob_name:
                 avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(
+                    user.cover_blob_name
+                )
 
             if user.password != updated_data.old_password:
                 raise HTTPException(
@@ -270,7 +288,9 @@ class UserService:
                     detail="Old password does not match",
                 )
 
-            updated_user = await UserRepository.update_user_credentials(db, user_id, updated_data)
+            updated_user = await UserRepository.update_user_credentials(
+                db, user_id, updated_data
+            )
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -311,9 +331,13 @@ class UserService:
             if user.avt_blob_name:
                 avt_url = await StorageService.generate_signed_url(user.avt_blob_name)
             if user.cover_blob_name:
-                cover_url = await StorageService.generate_signed_url(user.cover_blob_name)
+                cover_url = await StorageService.generate_signed_url(
+                    user.cover_blob_name
+                )
 
-            updated_user = await UserRepository.update_user_profile(db, user_id, updated_data)
+            updated_user = await UserRepository.update_user_profile(
+                db, user_id, updated_data
+            )
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -385,7 +409,9 @@ class UserActivityService:
             )
 
     @staticmethod
-    async def get_user_activities(db: AsyncSession, user_id: int) -> List[UserActivityResponse]:
+    async def get_user_activities(
+        db: AsyncSession, user_id: int
+    ) -> List[UserActivityResponse]:
         try:
             activities = await UserRepository.get_user_activities(db, user_id)
             activity_list = []

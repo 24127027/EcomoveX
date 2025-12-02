@@ -3,7 +3,7 @@ from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.user import *
+from models.user import User
 from repository.user_repository import UserRepository
 from schemas.authentication_schema import (
     AuthenticationResponse,
@@ -44,9 +44,13 @@ class AuthenticationService:
         try:
             payload = {
                 "sub": str(user.id),
-                "role": (user.role.value if hasattr(user.role, "value") else str(user.role)),
+                "role": (
+                    user.role.value if hasattr(user.role, "value") else str(user.role)
+                ),
             }
-            token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+            token = jwt.encode(
+                payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+            )
             return token
         except Exception as e:
             raise HTTPException(
@@ -55,7 +59,9 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def login_user(db: AsyncSession, email: str, password: str) -> AuthenticationResponse:
+    async def login_user(
+        db: AsyncSession, email: str, password: str
+    ) -> AuthenticationResponse:
         try:
             user = await UserRepository.get_user_by_email(db, email)
             if not user:
@@ -81,7 +87,9 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def register_user(db: AsyncSession, user_data: UserRegister) -> AuthenticationResponse:
+    async def register_user(
+        db: AsyncSession, user_data: UserRegister
+    ) -> AuthenticationResponse:
         try:
             new_user = await UserRepository.create_user(db, user_data)
             if not new_user:

@@ -3,8 +3,19 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.plan import *
-from schemas.plan_schema import *
+from models.plan import (
+    Plan,
+    PlanDestination,
+    PlanMember,
+    PlanRole,
+)
+from schemas.plan_schema import (
+    PlanCreate,
+    PlanDestinationCreate,
+    PlanDestinationUpdate,
+    PlanMemberCreate,
+    PlanUpdate,
+)
 from models.destination import Destination
 from schemas.map_schema import PlaceDetailsResponse
 
@@ -40,7 +51,9 @@ class PlanRepository:
             membership = result.scalar_one_or_none()
             return membership is not None
         except SQLAlchemyError as e:
-            print(f"ERROR: checking membership for user ID {user_id} and plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: checking membership for user ID {user_id} and plan ID {plan_id} - {e}"
+            )
             return False
 
     @staticmethod
@@ -137,7 +150,9 @@ class PlanRepository:
             return []
 
     @staticmethod
-    async def add_destination_to_plan(db: AsyncSession, plan_id: int, data: PlanDestinationCreate):
+    async def add_destination_to_plan(
+        db: AsyncSession, plan_id: int, data: PlanDestinationCreate
+    ):
         try:
             time_value = None
             if getattr(data, "time", None):
@@ -168,12 +183,17 @@ class PlanRepository:
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding destination {data.destination_id} to plan {plan_id} - {e}")
+            print(
+                f"ERROR: adding destination {data.destination_id} to plan {plan_id} - {e}"
+            )
             return None
 
     @staticmethod
     async def update_plan_destination(
-        db: AsyncSession, plan_id: int, destination_id: str, updated_data: PlanDestinationUpdate
+        db: AsyncSession,
+        plan_id: int,
+        destination_id: str,
+        updated_data: PlanDestinationUpdate,
     ):
         try:
             result = await db.execute(
@@ -206,7 +226,9 @@ class PlanRepository:
             return plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: updating destination {destination_id} in plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: updating destination {destination_id} in plan ID {plan_id} - {e}"
+            )
             return None
 
     @staticmethod
@@ -228,7 +250,9 @@ class PlanRepository:
     @staticmethod
     async def add_plan_member(db: AsyncSession, plan_id: int, data: PlanMemberCreate):
         try:
-            new_plan_member = PlanMember(user_id=data.user_id, plan_id=plan_id, role=data.role)
+            new_plan_member = PlanMember(
+                user_id=data.user_id, plan_id=plan_id, role=data.role
+            )
             db.add(new_plan_member)
             await db.commit()
             await db.refresh(new_plan_member)
@@ -243,7 +267,9 @@ class PlanRepository:
     @staticmethod
     async def get_plan_members(db: AsyncSession, plan_id: int):
         try:
-            result = await db.execute(select(PlanMember).where(PlanMember.plan_id == plan_id))
+            result = await db.execute(
+                select(PlanMember).where(PlanMember.plan_id == plan_id)
+            )
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving user plans for plan ID {plan_id} - {e}")
@@ -269,7 +295,9 @@ class PlanRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: removing user plan for user ID {member_id} and plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: removing user plan for user ID {member_id} and plan ID {plan_id} - {e}"
+            )
             return False
 
     @staticmethod
@@ -284,7 +312,9 @@ class PlanRepository:
             return []
 
     @staticmethod
-    async def get_plan_destination_by_id(db: AsyncSession, plan_id: int, destination_id: str):
+    async def get_plan_destination_by_id(
+        db: AsyncSession, plan_id: int, destination_id: str
+    ):
         try:
             result = await db.execute(
                 select(PlanDestination).where(
@@ -294,7 +324,9 @@ class PlanRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"ERROR: retrieving destination {destination_id} in plan {plan_id} - {e}")
+            print(
+                f"ERROR: retrieving destination {destination_id} in plan {plan_id} - {e}"
+            )
             return None
 
     @staticmethod
@@ -321,9 +353,11 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: updating role for user {user_id} in plan {plan_id} - {e}")
             return None
-        
+
     @staticmethod
-    async def remove_destination_from_plan(db: AsyncSession, plan_destination_id: int) -> bool:
+    async def remove_destination_from_plan(
+        db: AsyncSession, plan_destination_id: int
+    ) -> bool:
         try:
             result = await db.execute(
                 select(PlanDestination).where(PlanDestination.id == plan_destination_id)
@@ -340,13 +374,17 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: deleting plan destination ID {plan_destination_id} - {e}")
             return False
-        
+
     @staticmethod
     async def ensure_destination(db: AsyncSession, place_details: PlaceDetailsResponse):
         """Kiểm tra và tạo destination nếu chưa có để tránh lỗi Foreign Key"""
         try:
             # 1. Check tồn tại
-            result = await db.execute(select(Destination).where(Destination.place_id == place_details.place_id))
+            result = await db.execute(
+                select(Destination).where(
+                    Destination.place_id == place_details.place_id
+                )
+            )
             existing = result.scalar_one_or_none()
             if existing:
                 return existing

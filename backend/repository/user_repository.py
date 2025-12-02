@@ -4,9 +4,15 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.user import *
-from schemas.authentication_schema import *
-from schemas.user_schema import *
+from models.user import Rank, User, UserActivity
+from schemas.user_schema import (
+    UserActivityCreate,
+    UserCreate,
+    UserCredentialUpdate,
+    UserFilterParams,
+    UserProfileUpdate,
+    UserUpdateEcoPoint,
+)
 
 
 class UserRepository:
@@ -20,7 +26,9 @@ class UserRepository:
 
             if filters.search_term:
                 search = f"%{filters.search_term}%"
-                query = query.where((User.username.ilike(search)) | (User.email.ilike(search)))
+                query = query.where(
+                    (User.username.ilike(search)) | (User.email.ilike(search))
+                )
 
             if filters.role:
                 query = query.where(User.role == filters.role)
@@ -89,7 +97,9 @@ class UserRepository:
             if existed_email:
                 print(f"WARNING: User with email {user_data.email} already exists")
                 return None
-            existing_username = await UserRepository.get_user_by_username(db, user_data.username)
+            existing_username = await UserRepository.get_user_by_username(
+                db, user_data.username
+            )
             if existing_username:
                 print(f"WARNING: Username {user_data.username} already taken")
                 return None
@@ -134,7 +144,9 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
+    async def update_user_profile(
+        db: AsyncSession, user_id: int, updated_data: UserProfileUpdate
+    ):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -194,7 +206,9 @@ class UserRepository:
             return False
 
     @staticmethod
-    async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate):
+    async def log_user_activity(
+        db: AsyncSession, user_id: int, data: UserActivityCreate
+    ):
         try:
             new_activity = UserActivity(
                 user_id=user_id,
@@ -237,7 +251,9 @@ class UserRepository:
             return []
 
     @staticmethod
-    async def search_users(db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50):
+    async def search_users(
+        db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50
+    ):
         try:
             result = await db.execute(
                 select(User)

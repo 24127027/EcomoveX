@@ -68,7 +68,9 @@ class ClusterRepository:
             return None
 
     @staticmethod
-    async def update_cluster(db: AsyncSession, cluster_id: int, updated_data: ClusterUpdate):
+    async def update_cluster(
+        db: AsyncSession, cluster_id: int, updated_data: ClusterUpdate
+    ):
         try:
             update_dict = {
                 k: v
@@ -124,7 +126,9 @@ class ClusterRepository:
             if existing:
                 return existing
 
-            new_association = UserClusterAssociation(user_id=user_id, cluster_id=cluster_id)
+            new_association = UserClusterAssociation(
+                user_id=user_id, cluster_id=cluster_id
+            )
             db.add(new_association)
             await db.commit()
             await db.refresh(new_association)
@@ -299,7 +303,9 @@ class ClusterRepository:
             return []
 
     @staticmethod
-    async def get_cluster_destination(db: AsyncSession, cluster_id: int, destination_id: str):
+    async def get_cluster_destination(
+        db: AsyncSession, cluster_id: int, destination_id: str
+    ):
         try:
             query = select(ClusterDestination).where(
                 and_(
@@ -310,11 +316,15 @@ class ClusterRepository:
             result = await db.execute(query)
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"ERROR: fetching destination {destination_id} in cluster {cluster_id} - {e}")
+            print(
+                f"ERROR: fetching destination {destination_id} in cluster {cluster_id} - {e}"
+            )
             return None
 
     @staticmethod
-    async def get_top_destinations_in_cluster(db: AsyncSession, cluster_id: int, limit: int = 10):
+    async def get_top_destinations_in_cluster(
+        db: AsyncSession, cluster_id: int, limit: int = 10
+    ):
         try:
             query = (
                 select(ClusterDestination)
@@ -374,7 +384,9 @@ class ClusterRepository:
                 )
                 await db.execute(stmt)
             else:
-                new_pref = Preference(user_id=user_id, embedding=embedding, last_updated=func.now())
+                new_pref = Preference(
+                    user_id=user_id, embedding=embedding, last_updated=func.now()
+                )
                 db.add(new_pref)
 
             await db.flush()
@@ -394,7 +406,9 @@ class ClusterRepository:
             return None
 
     @staticmethod
-    async def update_preference_cluster(db: AsyncSession, user_id: int, cluster_id: int):
+    async def update_preference_cluster(
+        db: AsyncSession, user_id: int, cluster_id: int
+    ):
         try:
             stmt = (
                 update(Preference)
@@ -436,7 +450,9 @@ class ClusterRepository:
         cluster_id: Optional[int] = None,
     ):
         try:
-            result = await db.execute(select(Preference).where(Preference.user_id == user_id))
+            result = await db.execute(
+                select(Preference).where(Preference.user_id == user_id)
+            )
             preference = result.scalar_one_or_none()
 
             if preference:
@@ -482,7 +498,9 @@ class ClusterRepository:
     @staticmethod
     async def delete_preference(db: AsyncSession, user_id: int):
         try:
-            result = await db.execute(select(Preference).where(Preference.user_id == user_id))
+            result = await db.execute(
+                select(Preference).where(Preference.user_id == user_id)
+            )
             preference = result.scalar_one_or_none()
             if not preference:
                 print(f"WARNING: Preference for user {user_id} not found")
@@ -514,10 +532,13 @@ class ClusterRepository:
     async def get_user_latest_cluster(db: AsyncSession, user_id: int) -> Optional[int]:
         """Get the most recent cluster_id for a user."""
         try:
-            query = select(UserClusterAssociation.cluster_id).where(
-                UserClusterAssociation.user_id == user_id
-            ).order_by(UserClusterAssociation.assigned_at.desc()).limit(1)
-            
+            query = (
+                select(UserClusterAssociation.cluster_id)
+                .where(UserClusterAssociation.user_id == user_id)
+                .order_by(UserClusterAssociation.assigned_at.desc())
+                .limit(1)
+            )
+
             result = await db.execute(query)
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
@@ -526,13 +547,12 @@ class ClusterRepository:
 
     @staticmethod
     async def get_cluster_preferred_categories(
-        db: AsyncSession, 
-        cluster_id: int, 
-        limit: int = 5
+        db: AsyncSession, cluster_id: int, limit: int = 5
     ) -> List[str]:
         """Get most frequent categories visited by users in a cluster."""
         try:
-            query = text("""
+            query = text(
+                """
                 SELECT DISTINCT d.category, COUNT(*) as frequency
                 FROM visits v
                 JOIN destinations d ON v.destination_id = d.destination_id
@@ -541,15 +561,20 @@ class ClusterRepository:
                 GROUP BY d.category
                 ORDER BY frequency DESC
                 LIMIT :limit
-            """)
+            """
+            )
             result = await db.execute(query, {"cluster_id": cluster_id, "limit": limit})
             return [row.category for row in result]
         except SQLAlchemyError as e:
-            print(f"ERROR: fetching preferred categories for cluster {cluster_id} - {e}")
+            print(
+                f"ERROR: fetching preferred categories for cluster {cluster_id} - {e}"
+            )
             return []
 
     @staticmethod
-    async def get_cluster_embedding(db: AsyncSession, cluster_id: int) -> Optional[List[float]]:
+    async def get_cluster_embedding(
+        db: AsyncSession, cluster_id: int
+    ) -> Optional[List[float]]:
         """Get cluster embedding vector."""
         try:
             result = await db.execute(

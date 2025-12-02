@@ -2,8 +2,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.room import *
-from schemas.room_schema import *
+from models.room import MemberRole, Room, RoomDirect, RoomMember, RoomType
+from schemas.room_schema import (
+    RoomCreate,
+    RoomMemberCreate,
+    RoomUpdate,
+)
 
 
 class RoomRepository:
@@ -20,7 +24,9 @@ class RoomRepository:
             room = result.scalar_one_or_none()
             return room is not None
         except SQLAlchemyError as e:
-            print(f"ERROR: checking ownership of user ID {user_id} for room ID {room_id} - {e}")
+            print(
+                f"ERROR: checking ownership of user ID {user_id} for room ID {room_id} - {e}"
+            )
             return False
 
     @staticmethod
@@ -37,14 +43,19 @@ class RoomRepository:
             result_direct = await db.execute(
                 select(RoomDirect).where(
                     (RoomDirect.room_id == room_id)
-                    & ((RoomDirect.user1_id == user_id) | (RoomDirect.user2_id == user_id))
+                    & (
+                        (RoomDirect.user1_id == user_id)
+                        | (RoomDirect.user2_id == user_id)
+                    )
                 )
             )
             direct_member = result_direct.scalar_one_or_none()
             return direct_member is not None
 
         except SQLAlchemyError as e:
-            print(f"ERROR: checking membership of user ID {user_id} in room ID {room_id} - {e}")
+            print(
+                f"ERROR: checking membership of user ID {user_id} in room ID {room_id} - {e}"
+            )
             return False
 
     @staticmethod
@@ -66,7 +77,9 @@ class RoomRepository:
             result = await db.execute(
                 select(Room)
                 .join(RoomDirect)
-                .where((RoomDirect.user1_id == user_id) | (RoomDirect.user2_id == user_id))
+                .where(
+                    (RoomDirect.user1_id == user_id) | (RoomDirect.user2_id == user_id)
+                )
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
@@ -74,12 +87,17 @@ class RoomRepository:
             return []
 
     @staticmethod
-    async def get_direct_room_between_users(db: AsyncSession, user1_id: int, user2_id: int):
+    async def get_direct_room_between_users(
+        db: AsyncSession, user1_id: int, user2_id: int
+    ):
         try:
             result = await db.execute(
                 select(Room)
                 .join(RoomDirect)
-                .where((RoomDirect.user1_id == user1_id) & (RoomDirect.user2_id == user2_id))
+                .where(
+                    (RoomDirect.user1_id == user1_id)
+                    & (RoomDirect.user2_id == user2_id)
+                )
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
@@ -149,7 +167,9 @@ class RoomRepository:
             return new_member
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding user ID {member_data.user_id} to room ID {room_id} - {e}")
+            print(
+                f"ERROR: adding user ID {member_data.user_id} to room ID {room_id} - {e}"
+            )
             return None
 
     @staticmethod
@@ -174,7 +194,9 @@ class RoomRepository:
     @staticmethod
     async def list_members(db: AsyncSession, room_id: int):
         try:
-            result = await db.execute(select(RoomMember).where(RoomMember.room_id == room_id))
+            result = await db.execute(
+                select(RoomMember).where(RoomMember.room_id == room_id)
+            )
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: listing members for room ID {room_id} - {e}")
@@ -253,13 +275,17 @@ class RoomRepository:
             return member
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: updating member role for user {user_id} in room {room_id} - {e}")
+            print(
+                f"ERROR: updating member role for user {user_id} in room {room_id} - {e}"
+            )
             return None
 
     @staticmethod
     async def get_room_direct_info(db: AsyncSession, room_id: int):
         try:
-            result = await db.execute(select(RoomDirect).where(RoomDirect.room_id == room_id))
+            result = await db.execute(
+                select(RoomDirect).where(RoomDirect.room_id == room_id)
+            )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: getting direct room info for room {room_id} - {e}")

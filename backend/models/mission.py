@@ -43,7 +43,9 @@ class Mission(Base):
     value = Column(Integer, nullable=True, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    users = relationship("UserMission", back_populates="mission", cascade="all, delete-orphan")
+    users = relationship(
+        "UserMission", back_populates="mission", cascade="all, delete-orphan"
+    )
 
 
 class UserMission(Base):

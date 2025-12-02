@@ -2,10 +2,14 @@ from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
-from models.user import *
-from schemas.destination_schema import *
+from models.user import Activity
+from schemas.destination_schema import (
+    UserSavedDestinationResponse,
+)
 from schemas.message_schema import CommonMessageResponse
-from schemas.user_schema import *
+from schemas.user_schema import (
+    UserActivityCreate,
+)
 from services.destination_service import DestinationService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
@@ -29,7 +33,9 @@ async def save_destination_for_current_user(
     activity_data = UserActivityCreate(
         activity=Activity.save_destination, destination_id=destination_id
     )
-    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    await UserActivityService.log_user_activity(
+        user_db, current_user["user_id"], activity_data
+    )
     return result
 
 

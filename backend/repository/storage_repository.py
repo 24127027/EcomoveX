@@ -1,8 +1,14 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.metadata import *
-from schemas.storage_schema import *
+from models.metadata import Metadata
+from schemas.storage_schema import (
+    FileCategory,
+    FileMetadataFilter,
+    MetadataCreate,
+    MetadataUpdate,
+    SortOrder,
+)
 
 
 class StorageRepository:
@@ -29,7 +35,9 @@ class StorageRepository:
     @staticmethod
     async def get_metadata_by_blob_name(db: AsyncSession, blob_name: str):
         try:
-            result = await db.execute(select(Metadata).where(Metadata.blob_name == blob_name))
+            result = await db.execute(
+                select(Metadata).where(Metadata.blob_name == blob_name)
+            )
             return result.scalar_one_or_none()
         except Exception as e:
             print(f"Error retrieving metadata: {e}")
@@ -54,7 +62,9 @@ class StorageRepository:
                 if filters.uploaded_before:
                     query = query.where(Metadata.uploaded_at <= filters.uploaded_before)
 
-                sort_column = getattr(Metadata, filters.sort_by.value, Metadata.uploaded_at)
+                sort_column = getattr(
+                    Metadata, filters.sort_by.value, Metadata.uploaded_at
+                )
                 if filters.sort_order == SortOrder.ASCENDING:
                     query = query.order_by(sort_column.asc())
                 else:
@@ -71,7 +81,9 @@ class StorageRepository:
     @staticmethod
     async def delete_metadata_by_blob_name(db: AsyncSession, blob_name: str):
         try:
-            metadata = await db.execute(select(Metadata).where(Metadata.blob_name == blob_name))
+            metadata = await db.execute(
+                select(Metadata).where(Metadata.blob_name == blob_name)
+            )
             metadata = metadata.scalar_one_or_none()
 
             if metadata:
@@ -85,9 +97,13 @@ class StorageRepository:
             return False
 
     @staticmethod
-    async def update_metadata(db: AsyncSession, blob_name: str, updated_data: MetadataUpdate):
+    async def update_metadata(
+        db: AsyncSession, blob_name: str, updated_data: MetadataUpdate
+    ):
         try:
-            result = await db.execute(select(Metadata).where(Metadata.blob_name == blob_name))
+            result = await db.execute(
+                select(Metadata).where(Metadata.blob_name == blob_name)
+            )
             metadata = result.scalar_one_or_none()
 
             if not metadata:
@@ -109,9 +125,13 @@ class StorageRepository:
             return None
 
     @staticmethod
-    async def get_file_count_by_user(db: AsyncSession, user_id: int, category: FileCategory = None):
+    async def get_file_count_by_user(
+        db: AsyncSession, user_id: int, category: FileCategory = None
+    ):
         try:
-            query = select(func.count(Metadata.blob_name)).where(Metadata.user_id == user_id)
+            query = select(func.count(Metadata.blob_name)).where(
+                Metadata.user_id == user_id
+            )
 
             if category:
                 query = query.where(Metadata.category == category.value)
@@ -123,7 +143,9 @@ class StorageRepository:
             return 0
 
     @staticmethod
-    async def get_total_size_by_user(db: AsyncSession, user_id: int, category: FileCategory = None):
+    async def get_total_size_by_user(
+        db: AsyncSession, user_id: int, category: FileCategory = None
+    ):
         try:
             query = select(func.sum(Metadata.size)).where(Metadata.user_id == user_id)
 

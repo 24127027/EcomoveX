@@ -2,7 +2,6 @@ from typing import List
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 from models.plan import PlanRole
 from repository.plan_repository import PlanRepository
@@ -60,9 +59,11 @@ class PlanService:
                         id=dest.id,
                         destination_id=dest.destination_id,
                         destination_type=dest.type,
-                        type=dest.type,             
+                        type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,  # ✅ Chuyển time về format "HH:MM"
+                        time=(
+                            dest.time.strftime("%H:%M") if dest.time else None
+                        ),  # ✅ Chuyển time về format "HH:MM"
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
@@ -88,7 +89,9 @@ class PlanService:
             )
 
     @staticmethod
-    async def create_plan(db: AsyncSession, user_id: int, plan_data: PlanCreate) -> PlanResponse:
+    async def create_plan(
+        db: AsyncSession, user_id: int, plan_data: PlanCreate
+    ) -> PlanResponse:
         try:
             # 1. Tạo Plan
             new_plan = await PlanRepository.create_plan(db, plan_data)
@@ -108,18 +111,22 @@ class PlanService:
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
                     await PlanRepository.ensure_destination(db, place_info)
-                    
+
                     # Update URL ảnh nếu thiếu
                     if not dest_data.url and place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
-                    print(f"Warning syncing destination {dest_data.destination_id}: {e}")
-                
+                    print(
+                        f"Warning syncing destination {dest_data.destination_id}: {e}"
+                    )
+
                 # Sau đó mới thêm vào Plan
                 await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
 
             # 4. Return
-            saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
+            saved_destinations = await PlanRepository.get_plan_destinations(
+                db, new_plan.id
+            )
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -149,19 +156,23 @@ class PlanService:
             raise HTTPException(status_code=500, detail=f"Error creating plan: {e}")
 
     @staticmethod
-    async def update_plan(db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate):
+    async def update_plan(
+        db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate
+    ):
         try:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if not plans or not any(p.id == plan_id for p in plans):
                 raise HTTPException(status_code=404, detail="Plan not found")
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
-            
+
             # ✅ DELETE OLD DESTINATIONS FIRST
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
-            print(f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations")
-            
+            print(
+                f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations"
+            )
+
             # ✅ ADD NEW DESTINATIONS
             for i, dest_data in enumerate(updated_data.destinations or []):
                 try:
@@ -171,15 +182,23 @@ class PlanService:
                     )
                     await PlanRepository.ensure_destination(db, place_info)
                 except Exception as e:
-                    print(f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}")
+                    print(
+                        f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}"
+                    )
                     pass
-                
-                result = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
-                print(f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}")
 
-            saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
+                result = await PlanRepository.add_destination_to_plan(
+                    db, plan_id, dest_data
+                )
+                print(
+                    f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}"
+                )
+
+            saved_destinations = await PlanRepository.get_plan_destinations(
+                db, updated_plan.id
+            )
             print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
-            
+
             return PlanResponse(
                 id=updated_plan.id,
                 user_id=user_id,
@@ -220,8 +239,8 @@ class PlanService:
             success = await PlanRepository.delete_plan(db, plan_id)
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to delete")
-            
-            return {"message": "Plan deleted successfully"} 
+
+            return {"message": "Plan deleted successfully"}
         except HTTPException:
             raise
         except Exception as e:
@@ -419,7 +438,9 @@ class PlanService:
 
             ids_not_in_plan = []
             for member_id in data.ids:
-                is_member_owner = await PlanRepository.is_plan_owner(db, member_id, plan_id)
+                is_member_owner = await PlanRepository.is_plan_owner(
+                    db, member_id, plan_id
+                )
                 if is_member_owner:
                     continue
                 if not await PlanService.is_member(db, member_id, plan_id):
@@ -449,14 +470,18 @@ class PlanService:
 
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if not plans:
-                return IntentHandlerResponse(ok=False, message="Không có plan nào để chỉnh sửa.")
+                return IntentHandlerResponse(
+                    ok=False, message="Không có plan nào để chỉnh sửa."
+                )
 
             plan = plans[0]
 
             if intent == Intent.ADD:
                 destination_id = ent.get("destination_id")
                 if not destination_id:
-                    return IntentHandlerResponse(ok=False, message="Cần destination_id để thêm.")
+                    return IntentHandlerResponse(
+                        ok=False, message="Cần destination_id để thêm."
+                    )
 
                 visit_date = ent.get("visit_date")
                 order_in_day = ent.get("order_in_day", 1)
@@ -470,9 +495,13 @@ class PlanService:
                     visit_date=visit_date,
                     note=note,
                 )
-                new_dest = await PlanRepository.add_destination_to_plan(db, plan.id, dest_data)
+                new_dest = await PlanRepository.add_destination_to_plan(
+                    db, plan.id, dest_data
+                )
                 if not new_dest:
-                    return IntentHandlerResponse(ok=False, message="Không thể thêm destination.")
+                    return IntentHandlerResponse(
+                        ok=False, message="Không thể thêm destination."
+                    )
 
                 return IntentHandlerResponse(
                     ok=True,
@@ -489,9 +518,13 @@ class PlanService:
                 dest_id = ent.get("item_id") or ent.get("destination_id")
                 if dest_id:
                     ok = await PlanRepository.remove_destination_from_plan(db, dest_id)
-                    return IntentHandlerResponse(ok=ok, action="remove", item_id=dest_id)
+                    return IntentHandlerResponse(
+                        ok=ok, action="remove", item_id=dest_id
+                    )
 
-                return IntentHandlerResponse(ok=False, message="Cần id của destination để xóa.")
+                return IntentHandlerResponse(
+                    ok=False, message="Cần id của destination để xóa."
+                )
 
             if intent == Intent.MODIFY_TIME:
                 dest_id = ent.get("item_id") or ent.get("destination_id")
@@ -525,11 +558,17 @@ class PlanService:
             if intent == Intent.CHANGE_BUDGET:
                 budget = ent.get("budget")
                 update_data = PlanUpdate(budget_limit=budget)
-                updated_plan = await PlanRepository.update_plan(db, plan.id, update_data)
+                updated_plan = await PlanRepository.update_plan(
+                    db, plan.id, update_data
+                )
                 if not updated_plan:
-                    return IntentHandlerResponse(ok=False, message="Không cập nhật được budget.")
+                    return IntentHandlerResponse(
+                        ok=False, message="Không cập nhật được budget."
+                    )
 
-                return IntentHandlerResponse(ok=True, action="change_budget", budget=budget)
+                return IntentHandlerResponse(
+                    ok=True, action="change_budget", budget=budget
+                )
 
             if intent == Intent.VIEW_PLAN:
                 destinations = await PlanRepository.get_plan_destinations(db, plan.id)
@@ -555,8 +594,12 @@ class PlanService:
                 )
 
             if intent == Intent.SUGGEST:
-                suggestions = await RecommendationService.recommend_for_cluster_hybrid(db, user_id)
-                return IntentHandlerResponse(ok=True, action="suggest", suggestions=suggestions)
+                suggestions = await RecommendationService.recommend_for_cluster_hybrid(
+                    db, user_id
+                )
+                return IntentHandlerResponse(
+                    ok=True, action="suggest", suggestions=suggestions
+                )
 
             return IntentHandlerResponse(
                 ok=False,

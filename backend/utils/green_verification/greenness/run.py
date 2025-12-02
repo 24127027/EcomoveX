@@ -14,7 +14,9 @@ first_execution = True
 first_execution = True
 
 
-def process(device, model, model_type, image, input_size, target_size, optimize, use_camera):
+def process(
+    device, model, model_type, image, input_size, target_size, optimize, use_camera
+):
     """
     Run the inference and interpolate.
 
@@ -42,7 +44,9 @@ def process(device, model, model_type, image, input_size, target_size, optimize,
 
         sample = [np.reshape(image, (1, 3, *input_size))]
         prediction = model(sample)[model.output(0)][0]
-        prediction = cv2.resize(prediction, dsize=target_size, interpolation=cv2.INTER_CUBIC)
+        prediction = cv2.resize(
+            prediction, dsize=target_size, interpolation=cv2.INTER_CUBIC
+        )
     else:
         sample = torch.from_numpy(image).to(device).unsqueeze(0)
 
@@ -105,9 +109,16 @@ def create_side_by_side(image, depth, grayscale):
         return np.concatenate((image, right_side), axis=1)
 
 
-def run(img_sources, model_path = None, model_type="dpt_swin2_large_384", optimize=False, height=None,
-        square=False, grayscale=False):
-    """ img_sources: list of image URLs"""
+def run(
+    img_sources,
+    model_path=None,
+    model_type="dpt_swin2_large_384",
+    optimize=False,
+    height=None,
+    square=False,
+    grayscale=False,
+):
+    """img_sources: list of image URLs"""
     print("Initialize")
 
     if model_path is None:
@@ -116,7 +127,9 @@ def run(img_sources, model_path = None, model_type="dpt_swin2_large_384", optimi
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device: %s" % device)
 
-    model, transform, net_w, net_h = load_model(device, model_path, model_type, optimize, height, square)
+    model, transform, net_w, net_h = load_model(
+        device, model_path, model_type, optimize, height, square
+    )
 
     # get input
     num_images = len(img_sources)
@@ -131,18 +144,36 @@ def run(img_sources, model_path = None, model_type="dpt_swin2_large_384", optimi
 
         # compute
         with torch.no_grad():
-            prediction = process(device, model, model_type, image, (net_w, net_h), original_image_rgb.shape[1::-1],
-                                optimize, False)
+            prediction = process(
+                device,
+                model,
+                model_type,
+                image,
+                (net_w, net_h),
+                original_image_rgb.shape[1::-1],
+                optimize,
+                False,
+            )
         results.append(prediction.astype(np.float32))
-    
+
     return results
 
+
 if __name__ == "__main__":
-    input_path = ["https://lh3.googleusercontent.com/place-photos/AEkURDx03-8vfQPvYg11_8scYfRtdK8213AArtwFtbT84UMSkW6W3kFRfeBeY_-IkPETwspgDMXtamZR6_6xDFTpwXGlpGr1YEx36Sl1fscuG_nV8nBYQYXkD4V9-GM7pE7MVdWdv3qhlxsx9vKetIPfy2ASjA=s1600-w400"]
+    input_path = [
+        "https://lh3.googleusercontent.com/place-photos/AEkURDx03-8vfQPvYg11_8scYfRtdK8213AArtwFtbT84UMSkW6W3kFRfeBeY_-IkPETwspgDMXtamZR6_6xDFTpwXGlpGr1YEx36Sl1fscuG_nV8nBYQYXkD4V9-GM7pE7MVdWdv3qhlxsx9vKetIPfy2ASjA=s1600-w400"
+    ]
     output_path = "\\output"
     model_path = "midas_v21_small_256.pt"
-    results = run(input_path, model_path, model_type="midas_v21_small_256", optimize=True, height=None,
-        square=False, grayscale=False)
+    results = run(
+        input_path,
+        model_path,
+        model_type="midas_v21_small_256",
+        optimize=True,
+        height=None,
+        square=False,
+        grayscale=False,
+    )
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -151,4 +182,3 @@ if __name__ == "__main__":
         i += 1
         output_file = os.path.join(output_path, str(i))
         utils.write_pfm(output_file + ".pfm", res)
-        

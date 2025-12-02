@@ -1,13 +1,26 @@
+from typing import List, Optional
+
 from fastapi import APIRouter, Body, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
-from models.user import *
-from schemas.air_schema import *
+from models.user import Activity
 from schemas.destination_schema import Location
-from schemas.map_schema import *
+from schemas.map_schema import (
+    AutocompleteRequest,
+    AutocompleteResponse,
+    GeocodingResponse,
+    PlaceDataCategory,
+    PlaceDetailsRequest,
+    PlaceDetailsResponse,
+    SearchAlongRouteResponse,
+    TextSearchRequest,
+    TextSearchResponse,
+)
 from schemas.route_schema import DirectionsResponse
-from schemas.user_schema import *
+from schemas.user_schema import (
+    UserActivityCreate,
+)
 from services.map_service import MapService
 from services.user_service import UserActivityService
 from utils.token.authentication_util import get_current_user
@@ -15,14 +28,22 @@ from utils.token.authentication_util import get_current_user
 router = APIRouter(prefix="/map", tags=["Map & Navigation"])
 
 
-@router.post("/text-search", response_model=TextSearchResponse, status_code=status.HTTP_200_OK)
-async def text_search_place(request: TextSearchRequest, user_db: AsyncSession = Depends(get_db)):
+@router.post(
+    "/text-search", response_model=TextSearchResponse, status_code=status.HTTP_200_OK
+)
+async def text_search_place(
+    request: TextSearchRequest, user_db: AsyncSession = Depends(get_db)
+):
     result = await MapService.text_search_place(user_db, request)
     return result
 
 
-@router.post("/autocomplete", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK)
-async def autocomplete(request: AutocompleteRequest, user_db: AsyncSession = Depends(get_db)):
+@router.post(
+    "/autocomplete", response_model=AutocompleteResponse, status_code=status.HTTP_200_OK
+)
+async def autocomplete(
+    request: AutocompleteRequest, user_db: AsyncSession = Depends(get_db)
+):
     return await MapService.autocomplete(user_db, request)
 
 
@@ -47,19 +68,25 @@ async def get_place_details(
     activity_data = UserActivityCreate(
         activity=Activity.search_destination, destination_id=place_id
     )
-    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    await UserActivityService.log_user_activity(
+        user_db, current_user["user_id"], activity_data
+    )
 
     return result
 
 
-@router.post("/geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK
+)
 async def geocode_address(
     address: str = Body(..., min_length=2),
 ):
     return await MapService.geocode_address(address=address)
 
 
-@router.post("/reverse-geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/reverse-geocode", response_model=GeocodingResponse, status_code=status.HTTP_200_OK
+)
 async def reverse_geocode(
     lat: float = Body(..., ge=-90.0, le=90.0),
     lng: float = Body(..., ge=-180.0, le=180.0),

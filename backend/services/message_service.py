@@ -9,7 +9,15 @@ from starlette.datastructures import Headers
 
 from repository.message_repository import MessageRepository
 from repository.plan_repository import PlanRepository
-from schemas.message_schema import *
+from schemas.message_schema import (
+    ActiveTripData,
+    ContextLoadResponse,
+    MessageHistoryItem,
+    MessageResponse,
+    RoomContextCreate,
+    SessionContextResponse,
+    StoredContextData,
+)
 from schemas.storage_schema import FileCategory
 from services.room_service import RoomService
 from services.socket_service import socket
@@ -19,7 +27,9 @@ from utils.token.authentication_util import decode_access_token
 
 class MessageService:
     @staticmethod
-    async def get_message_by_id(db: AsyncSession, user_id: int, message_id: int) -> MessageResponse:
+    async def get_message_by_id(
+        db: AsyncSession, user_id: int, message_id: int
+    ) -> MessageResponse:
         try:
             message = await MessageRepository.get_message_by_id(db, message_id)
             if not message:
@@ -68,7 +78,9 @@ class MessageService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"User ID {user_id} is not a member of room ID {room_id}",
                 )
-            messages = await MessageRepository.search_messages_by_keyword(db, room_id, keyword)
+            messages = await MessageRepository.search_messages_by_keyword(
+                db, room_id, keyword
+            )
             if messages is None:
                 return []
             message_list = [
@@ -226,7 +238,9 @@ class MessageService:
         message_text: Optional[str] = None,
     ) -> MessageResponse:
         try:
-            return await MessageService.create_message(db, user_id, room_id, message_text)
+            return await MessageService.create_message(
+                db, user_id, room_id, message_text
+            )
         except HTTPException:
             raise
         except Exception:
@@ -347,7 +361,9 @@ class MessageService:
                 pass
 
     @staticmethod
-    async def load_context(db: AsyncSession, user_id: int, room_id: int) -> ContextLoadResponse:
+    async def load_context(
+        db: AsyncSession, user_id: int, room_id: int
+    ) -> ContextLoadResponse:
         try:
             # Get messages from the room
             messages = await MessageRepository.get_messages_by_room(db, room_id)
@@ -413,10 +429,14 @@ class MessageService:
     ) -> ContextLoadResponse:
         try:
             context.history.append(
-                MessageHistoryItem(role="user", content=user_msg, timestamp=datetime.utcnow())
+                MessageHistoryItem(
+                    role="user", content=user_msg, timestamp=datetime.utcnow()
+                )
             )
             context.history.append(
-                MessageHistoryItem(role="assistant", content=bot_msg, timestamp=datetime.utcnow())
+                MessageHistoryItem(
+                    role="assistant", content=bot_msg, timestamp=datetime.utcnow()
+                )
             )
 
             context.history = context.history[-max_history:]
@@ -460,7 +480,9 @@ class MessageService:
             )
 
     @staticmethod
-    async def get_room_context(db: AsyncSession, room_id: int, key: str) -> Optional[Any]:
+    async def get_room_context(
+        db: AsyncSession, room_id: int, key: str
+    ) -> Optional[Any]:
         try:
             value = await MessageRepository.get_room_context(db, room_id, key)
             return value
@@ -472,7 +494,9 @@ class MessageService:
             )
 
     @staticmethod
-    async def load_all_room_context(db: AsyncSession, room_id: int) -> SessionContextResponse:
+    async def load_all_room_context(
+        db: AsyncSession, room_id: int
+    ) -> SessionContextResponse:
         try:
             context = await MessageRepository.load_room_context(db, room_id)
             return SessionContextResponse(data=context)

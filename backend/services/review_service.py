@@ -16,13 +16,19 @@ class ReviewService:
         db: AsyncSession, destination_id: str
     ) -> List[ReviewResponse]:
         try:
-            reviews = await ReviewRepository.get_all_reviews_by_destination(db, destination_id)
+            reviews = await ReviewRepository.get_all_reviews_by_destination(
+                db, destination_id
+            )
             review_lists = []
             urls = []
             for review in reviews:
-                files = await ReviewRepository.get_review_files(db, destination_id, review.user_id)
+                files = await ReviewRepository.get_review_files(
+                    db, destination_id, review.user_id
+                )
                 for file in files:
-                    urls.append(await StorageService.generate_signed_url(file.blob_name))
+                    urls.append(
+                        await StorageService.generate_signed_url(file.blob_name)
+                    )
                 review_lists.append(
                     ReviewResponse(
                         destination_id=review.destination_id,
@@ -46,15 +52,21 @@ class ReviewService:
             )
 
     @staticmethod
-    async def get_reviews_by_user(db: AsyncSession, user_id: int) -> List[ReviewResponse]:
+    async def get_reviews_by_user(
+        db: AsyncSession, user_id: int
+    ) -> List[ReviewResponse]:
         try:
             reviews = await ReviewRepository.get_all_reviews_by_user(db, user_id)
             review_lists = []
             for review in reviews:
                 urls = []
-                files = await ReviewRepository.get_review_files(db, review.destination_id, user_id)
+                files = await ReviewRepository.get_review_files(
+                    db, review.destination_id, user_id
+                )
                 for file in files:
-                    urls.append(await StorageService.generate_signed_url(file.blob_name))
+                    urls.append(
+                        await StorageService.generate_signed_url(file.blob_name)
+                    )
                 review_lists.append(
                     ReviewResponse(
                         destination_id=review.destination_id,
@@ -83,7 +95,9 @@ class ReviewService:
         files: List[UploadFile] = None,
     ) -> ReviewResponse:
         try:
-            destination = await DestinationRepository.get_destination_by_id(db, destination_id)
+            destination = await DestinationRepository.get_destination_by_id(
+                db, destination_id
+            )
             if not destination:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -105,7 +119,9 @@ class ReviewService:
                     metadata = await StorageService.upload_file(
                         db, file, user_id, FileCategory.review
                     )
-                    urls.append(await StorageService.generate_signed_url(metadata.blob_name))
+                    urls.append(
+                        await StorageService.generate_signed_url(metadata.blob_name)
+                    )
 
             return ReviewResponse(
                 destination_id=new_review.destination_id,
@@ -143,7 +159,9 @@ class ReviewService:
 
             if files:
                 for file in files:
-                    await StorageService.upload_file(db, file, user_id, FileCategory.review)
+                    await StorageService.upload_file(
+                        db, file, user_id, FileCategory.review
+                    )
 
             files = await ReviewRepository.get_review_files(db, destination_id, user_id)
             urls = []

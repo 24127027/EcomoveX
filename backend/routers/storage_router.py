@@ -5,16 +5,23 @@ from fastapi import APIRouter, Depends, File, Path, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
-from models.metadata import *
 from schemas.message_schema import CommonMessageResponse
-from schemas.storage_schema import *
+from schemas.storage_schema import (
+    FileCategory,
+    FileMetadataFilter,
+    FileMetadataResponse,
+    FileSortBy,
+    SortOrder,
+)
 from services.storage_service import StorageService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
 
 
-@router.get("/files", response_model=list[FileMetadataResponse], status_code=status.HTTP_200_OK)
+@router.get(
+    "/files", response_model=list[FileMetadataResponse], status_code=status.HTTP_200_OK
+)
 async def get_user_files_metadata(
     category: Optional[FileCategory] = Query(None),
     content_type: Optional[str] = Query(None),
@@ -46,10 +53,14 @@ async def get_file_metadata(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await StorageService.get_file_by_blob_name(db, current_user["user_id"], blob_name)
+    return await StorageService.get_file_by_blob_name(
+        db, current_user["user_id"], blob_name
+    )
 
 
-@router.post("/files", response_model=FileMetadataResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/files", response_model=FileMetadataResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_file(
     category: FileCategory,
     file: UploadFile = File(...),
@@ -73,4 +84,6 @@ async def delete_file(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await StorageService.delete_file(db, current_user["user_id"], blob_name, bucket_name)
+    return await StorageService.delete_file(
+        db, current_user["user_id"], blob_name, bucket_name
+    )

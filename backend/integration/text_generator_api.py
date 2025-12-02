@@ -20,7 +20,9 @@ class TextGeneratorAPI:
             },
             timeout=30.0,
         )
-        self.text_model = settings.OPEN_ROUTER_MODEL_NAME or "meta-llama/llama-3.3-70b-instruct"
+        self.text_model = (
+            settings.OPEN_ROUTER_MODEL_NAME or "meta-llama/llama-3.3-70b-instruct"
+        )
 
     async def close(self):
         await self.http_client.aclose()
