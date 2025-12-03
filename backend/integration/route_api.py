@@ -4,8 +4,14 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from schemas.destination_schema import Bounds, Location
-from schemas.map_schema import *
-from schemas.route_schema import *
+from schemas.route_schema import (
+    DirectionsRequest,
+    DirectionsResponse,
+    Leg,
+    Route,
+    Step,
+    TransportMode,
+)
 from utils.config import settings
 
 TRANSPORT_MODE_TO_ROUTES_API = {
@@ -57,7 +63,9 @@ class RouteAPI:
             }
 
             if data.get_traffic:
-                payload["departureTime"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                payload["departureTime"] = time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                )
 
             if data.waypoints:
                 payload["intermediates"] = [
@@ -85,7 +93,9 @@ class RouteAPI:
                 ),
             }
 
-            response = await self.client.post(self.base_url, json=payload, headers=headers)
+            response = await self.client.post(
+                self.base_url, json=payload, headers=headers
+            )
 
             if response.status_code != 200:
                 raise ValueError(f"Error fetching routes: HTTP {response.status_code}")
@@ -160,11 +170,13 @@ class RouteAPI:
                                     latitude=end_loc.get("latitude", 0),
                                     longitude=end_loc.get("longitude", 0),
                                 ),
-                                html_instructions=step_data.get("navigationInstruction", {}).get(
-                                    "instructions", ""
-                                ),
+                                html_instructions=step_data.get(
+                                    "navigationInstruction", {}
+                                ).get("instructions", ""),
                                 travel_mode=transport_mode,
-                                polyline=step_data.get("polyline", {}).get("encodedPolyline"),
+                                polyline=step_data.get("polyline", {}).get(
+                                    "encodedPolyline"
+                                ),
                                 transit_details=step_data.get("transitDetails"),
                             )
                         )
@@ -233,7 +245,9 @@ class RouteAPI:
                             ),
                         ),
                         steps=steps,
-                        duration_in_traffic=(traffic_minutes if data.get_traffic else None),
+                        duration_in_traffic=(
+                            traffic_minutes if data.get_traffic else None
+                        ),
                         arrival_time=leg_data.get("arrivalTime"),
                         departure_time=leg_data.get("departureTime"),
                     )
@@ -266,9 +280,15 @@ class RouteAPI:
                 route_minutes = route_seconds / 60
 
                 route = Route(
-                    summary=(" → ".join([leg.end_location[0] for leg in legs]) if legs else ""),
+                    summary=(
+                        " → ".join([leg.end_location[0] for leg in legs])
+                        if legs
+                        else ""
+                    ),
                     legs=legs,
-                    overview_polyline=route_data.get("polyline", {}).get("encodedPolyline", ""),
+                    overview_polyline=route_data.get("polyline", {}).get(
+                        "encodedPolyline", ""
+                    ),
                     bounds=Bounds(
                         northeast=Location(
                             latitude=ne.get("latitude", 0),
@@ -325,7 +345,9 @@ class RouteAPI:
                 payload["vehicleInfo"] = {"emissionType": vehicle_type}
 
             if data.get_traffic:
-                payload["departureTime"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                payload["departureTime"] = time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                )
 
             if data.waypoints:
                 payload["intermediates"] = [
@@ -353,10 +375,14 @@ class RouteAPI:
                 ),
             }
 
-            response = await self.client.post(self.base_url, json=payload, headers=headers)
+            response = await self.client.post(
+                self.base_url, json=payload, headers=headers
+            )
 
             if response.status_code != 200:
-                raise ValueError(f"Error fetching eco-friendly routes: HTTP {response.status_code}")
+                raise ValueError(
+                    f"Error fetching eco-friendly routes: HTTP {response.status_code}"
+                )
 
             response_data = response.json()
             if not response_data.get("routes"):
@@ -365,7 +391,9 @@ class RouteAPI:
             routes = []
             for route_data in response_data.get("routes", []):
                 route_labels = route_data.get("routeLabels", [])
-                is_eco = "ECO_FRIENDLY" in route_labels or "FUEL_EFFICIENT" in route_labels
+                is_eco = (
+                    "ECO_FRIENDLY" in route_labels or "FUEL_EFFICIENT" in route_labels
+                )
 
                 legs = []
                 for leg_data in route_data.get("legs", []):
@@ -431,11 +459,13 @@ class RouteAPI:
                                     latitude=end_loc.get("latitude", 0),
                                     longitude=end_loc.get("longitude", 0),
                                 ),
-                                html_instructions=step_data.get("navigationInstruction", {}).get(
-                                    "instructions", ""
-                                ),
+                                html_instructions=step_data.get(
+                                    "navigationInstruction", {}
+                                ).get("instructions", ""),
                                 travel_mode=transport_mode,
-                                polyline=step_data.get("polyline", {}).get("encodedPolyline"),
+                                polyline=step_data.get("polyline", {}).get(
+                                    "encodedPolyline"
+                                ),
                                 transit_details=step_data.get("transitDetails"),
                             )
                         )
@@ -505,7 +535,9 @@ class RouteAPI:
                             ),
                         ),
                         steps=steps,
-                        duration_in_traffic=(traffic_minutes if data.get_traffic else None),
+                        duration_in_traffic=(
+                            traffic_minutes if data.get_traffic else None
+                        ),
                         arrival_time=leg_data.get("arrivalTime"),
                         departure_time=leg_data.get("departureTime"),
                     )
@@ -551,7 +583,9 @@ class RouteAPI:
                 route = Route(
                     summary=summary,
                     legs=legs,
-                    overview_polyline=route_data.get("polyline", {}).get("encodedPolyline", ""),
+                    overview_polyline=route_data.get("polyline", {}).get(
+                        "encodedPolyline", ""
+                    ),
                     bounds=Bounds(
                         northeast=Location(
                             latitude=ne.get("latitude", 0),

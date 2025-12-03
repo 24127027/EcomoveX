@@ -2,7 +2,17 @@ from typing import Optional
 
 import httpx
 
-from schemas.weather_schema import *
+from schemas.weather_schema import (
+    CurrentWeatherRequest,
+    CurrentWeatherResponse,
+    DisplayDateTime,
+    ForecastRequest,
+    HourlyDataPoint,
+    Interval,
+    Temperature,
+    WeatherCondition,
+    WeatherForecastResponse,
+)
 from utils.config import settings
 
 
@@ -19,7 +29,6 @@ class WeatherAPI:
         self.client = httpx.AsyncClient()
 
     async def get_current(self, param: CurrentWeatherRequest) -> CurrentWeatherResponse:
-
         params = {
             "location.latitude": param.location.latitude,
             "location.longitude": param.location.longitude,
@@ -31,7 +40,9 @@ class WeatherAPI:
         response = await self.client.get(url, params=params)
 
         if response.status_code != 200:
-            raise ValueError(f"Error fetching current weather: HTTP {response.status_code}")
+            raise ValueError(
+                f"Error fetching current weather: HTTP {response.status_code}"
+            )
 
         data = response.json()
         if "error" in data:
@@ -61,7 +72,9 @@ class WeatherAPI:
             is_daytime=data.get("isDaytime"),
         )
 
-    async def get_forecast_hourly(self, param: ForecastRequest) -> WeatherForecastResponse:
+    async def get_forecast_hourly(
+        self, param: ForecastRequest
+    ) -> WeatherForecastResponse:
         params = {
             "location.latitude": param.location.latitude,
             "location.longitude": param.location.longitude,

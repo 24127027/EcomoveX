@@ -1,6 +1,6 @@
 import torch
 import cv2
-import numpy as np
+
 
 class DepthEstimator:
     def __init__(self, model_type="DPT_Large"):
@@ -9,7 +9,7 @@ class DepthEstimator:
         """
         print(f"Loading MiDaS model: {model_type}...")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         # Load từ torch hub để không cần file phụ thuộc cục bộ
         self.midas = torch.hub.load("intel-isl/MiDaS", model_type)
         self.midas.to(self.device)
@@ -25,12 +25,12 @@ class DepthEstimator:
     def get_depth_map(self, image_bgr):
         # Chuyển BGR sang RGB
         img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        
+
         input_batch = self.transform(img_rgb).to(self.device)
 
         with torch.no_grad():
             prediction = self.midas(input_batch)
-            
+
             # Resize về kích thước gốc
             prediction = torch.nn.functional.interpolate(
                 prediction.unsqueeze(1),

@@ -20,7 +20,8 @@ class CupDetectorScorer:
 
         default_weights = {"glass": 1.0, "plastic": 0.6, "paper": 0.6}
         self.category_weights = {
-            k.lower(): float(v) for k, v in (category_weights or default_weights).items()
+            k.lower(): float(v)
+            for k, v in (category_weights or default_weights).items()
         }
 
         if device:
@@ -32,7 +33,9 @@ class CupDetectorScorer:
         if model_path is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             self.model_path = os.path.abspath(
-                os.path.join(script_dir, "..", "models", "glass_classification_model.pt")
+                os.path.join(
+                    script_dir, "..", "models", "glass_classification_model.pt"
+                )
             )
         else:
             self.model_path = model_path
@@ -63,13 +66,19 @@ class CupDetectorScorer:
         self._load_model()
         imgs_rgb = [cv2.cvtColor(img, cv2.COLOR_BGR2RGB) for img in images]
 
-        results = self._model(imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device)
+        results = self._model(
+            imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device
+        )
 
         all_scores: List[float] = []
         for res in results:
             for box in res.boxes:
 
-                conf = float(box.conf.item()) if hasattr(box.conf, "item") else float(box.conf)
+                conf = (
+                    float(box.conf.item())
+                    if hasattr(box.conf, "item")
+                    else float(box.conf)
+                )
                 cls = int(box.cls.item()) if hasattr(box.cls, "item") else int(box.cls)
                 class_name = (
                     str(self._model.names[cls])

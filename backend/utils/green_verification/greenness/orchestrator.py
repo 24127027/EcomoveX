@@ -16,7 +16,7 @@ Assumptions / notes:
 """
 
 import os
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 
 import numpy as np
 import torch
@@ -86,7 +86,9 @@ class GreenCoverageOrchestrator:
         # possible fallbacks
         cwd = os.path.dirname(os.path.abspath(__file__))
         candidates = [
-            default_models.get(model_type, ""),  # official default from model_loader (may be "")
+            default_models.get(
+                model_type, ""
+            ),  # official default from model_loader (may be "")
             os.path.join(cwd, f"{model_type}.pt"),
             os.path.join(cwd, "midas_v21_small_256.pt"),
             os.path.join(cwd, "best.pt"),
@@ -103,7 +105,9 @@ class GreenCoverageOrchestrator:
                 return p
 
         # print useful help
-        print(f"[orchestrator] Could not locate a depth model for '{model_type}'. Checked:")
+        print(
+            f"[orchestrator] Could not locate a depth model for '{model_type}'. Checked:"
+        )
         for p in candidates:
             if p:
                 print(f"  - {p}")
@@ -168,7 +172,9 @@ class GreenCoverageOrchestrator:
         """
         try:
             # 1) Depth: load image using utils.load_image_from_url (this is the run.py-compatible loader)
-            original_image_rgb = utils.load_image_from_url(url)  # expected RGB float32 in [0,1] as run.py expects
+            original_image_rgb = utils.load_image_from_url(
+                url
+            )  # expected RGB float32 in [0,1] as run.py expects
 
             # 2) Segmentation: call TreeSegmenter.process_image(url) ONCE (TreeSegmenter will fetch its own image)
             #    returns: masks_list, combined_mask
@@ -182,7 +188,11 @@ class GreenCoverageOrchestrator:
                 # Resize depth to a small default if mask is empty? Keep original depth shape.
                 return {
                     "url": url,
-                    "combined_mask": combined_mask if combined_mask is not None else np.array([], dtype=np.uint8),
+                    "combined_mask": (
+                        combined_mask
+                        if combined_mask is not None
+                        else np.array([], dtype=np.uint8)
+                    ),
                     "individual_masks": individual_masks,
                     "depth": depth_map,
                     "green_proportion": 0.0,
@@ -192,20 +202,26 @@ class GreenCoverageOrchestrator:
                 }
 
             # 3) Depth map (MiDaS)
-            depth_map = self._get_depth_map(original_image_rgb)  # float32 HxW (target: original_image_rgb.shape[:2])
+            depth_map = self._get_depth_map(
+                original_image_rgb
+            )  # float32 HxW (target: original_image_rgb.shape[:2])
 
             # 4) Ensure shapes match: resize depth_map to mask shape if needed
             mask_h, mask_w = combined_mask.shape[:2]
             if depth_map.shape[:2] != (mask_h, mask_w):
                 # resize depth to mask size (depth is float32)
-                depth_map_resized = cv2.resize(depth_map, (mask_w, mask_h), interpolation=cv2.INTER_CUBIC)
+                depth_map_resized = cv2.resize(
+                    depth_map, (mask_w, mask_h), interpolation=cv2.INTER_CUBIC
+                )
             else:
                 depth_map_resized = depth_map
 
             # 5) Compute green proportion
             total_pixels = combined_mask.size
             green_pixels = int(np.count_nonzero(combined_mask > 0))
-            green_proportion = float(green_pixels) / float(total_pixels) if total_pixels > 0 else 0.0
+            green_proportion = (
+                float(green_pixels) / float(total_pixels) if total_pixels > 0 else 0.0
+            )
 
             # 6) Compute depth-weighted value:
             if green_pixels > 0:
@@ -291,7 +307,9 @@ class GreenCoverageOrchestrator:
         avg_green_prop = float(np.mean([r["green_proportion"] for r in valid_results]))
         avg_green_score = float(np.mean([r["green_score"] for r in valid_results]))
         verified_count = sum(1 for r in valid_results if r.get("verified", False))
-        verification_rate = float(verified_count) / float(valid_images) if valid_images > 0 else 0.0
+        verification_rate = (
+            float(verified_count) / float(valid_images) if valid_images > 0 else 0.0
+        )
 
         return {
             "total_images": total_images,

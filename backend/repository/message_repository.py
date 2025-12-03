@@ -1,12 +1,19 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from models.message import *
-from schemas.message_schema import *
+from models.message import (
+    Message,
+    MessageStatus,
+    MessageType,
+    RoomContext,
+)
+from schemas.message_schema import (
+    RoomContextCreate,
+)
 
 
 class MessageRepository:
@@ -42,7 +49,10 @@ class MessageRepository:
         try:
             result = await db.execute(
                 select(Message)
-                .where((Message.room_id == room_id) & (Message.message_type == MessageType.file))
+                .where(
+                    (Message.room_id == room_id)
+                    & (Message.message_type == MessageType.file)
+                )
                 .order_by(Message.created_at.desc())
             )
             return result.scalars().all()
@@ -55,13 +65,17 @@ class MessageRepository:
         try:
             result = await db.execute(
                 select(Message)
-                .options(selectinload(Message.file_metadata))
-                .where((Message.content.ilike(f"%{keyword}%")) & (Message.room_id == room_id))
+                .where(
+                    (Message.content.ilike(f"%{keyword}%"))
+                    & (Message.room_id == room_id)
+                )
                 .order_by(Message.created_at.desc())
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"ERROR: searching messages for room ID {room_id} with keyword '{keyword}' - {e}")
+            print(
+                f"ERROR: searching messages for room ID {room_id} with keyword '{keyword}' - {e}"
+            )
             return []
 
     @staticmethod
@@ -109,30 +123,9 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def create_invitation_message(
-        db: AsyncSession, sender_id: int, room_id: int, plan_id: int, message_text: str
+    async def update_message_status(
+        db: AsyncSession, message_id: int, new_status: MessageStatus
     ):
-        try:
-            new_message = Message(
-                sender_id=sender_id,
-                room_id=room_id,
-                plan_id=plan_id,
-                message_type=MessageType.invitation,
-                content=message_text,
-                file_blob_name=None,
-                status=MessageStatus.sent,
-            )
-            db.add(new_message)
-            await db.commit()
-            await db.refresh(new_message)
-            return new_message
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: creating invitation message - {e}")
-            return None
-
-    @staticmethod
-    async def update_message_status(db: AsyncSession, message_id: int, new_status: MessageStatus):
         try:
             stmt = (
                 update(Message)
@@ -153,7 +146,9 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def update_message_content(db: AsyncSession, message_id: int, new_content: str):
+    async def update_message_content(
+        db: AsyncSession, message_id: int, new_content: str
+    ):
         try:
             stmt = (
                 update(Message)
@@ -229,20 +224,18 @@ class MessageRepository:
             return None
 
     @staticmethod
-    async def get_room_context(db: AsyncSession, room_id: int, key: str) -> Optional[Any]:
+    async def get_room_context(db: AsyncSession, room_id: int):
         try:
-            query = select(RoomContext).where(
-                and_(RoomContext.room_id == room_id, RoomContext.key == key)
-            )
+            query = select(RoomContext).where(RoomContext.room_id == room_id)
             result = await db.execute(query)
-            context = result.scalars().first()
-            return context.value if context else None
+            contexts = result.scalars().all()
+            return contexts
         except SQLAlchemyError as e:
-            print(f"ERROR: Getting context for room {room_id}, key {key} - {e}")
-            return None
+            print(f"ERROR: Getting context for room {room_id} - {e}")
+            return []
 
     @staticmethod
-    async def load_room_context(db: AsyncSession, room_id: int) -> Dict[str, Any]:
+    async def load_room_context(db: AsyncSession, room_id: int):
         try:
             query = select(RoomContext).where(RoomContext.room_id == room_id)
             result = await db.execute(query)
@@ -263,7 +256,7 @@ class MessageRepository:
             return result.rowcount > 0
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Deleting context for room {room_id}, key {key} - {e}")
+            print(f"ERROR: Deleting context for room {room_id} - {e}")
             return False
 
     @staticmethod
@@ -277,28 +270,3 @@ class MessageRepository:
             await db.rollback()
             print(f"ERROR: Clearing context for room {room_id} - {e}")
             return False
-
-    @staticmethod
-    async def get_message_count_by_room(db: AsyncSession, room_id: int):
-        try:
-            result = await db.execute(
-                select(func.count(Message.id)).where(Message.room_id == room_id)
-            )
-            return result.scalar() or 0
-        except SQLAlchemyError as e:
-            print(f"ERROR: counting messages for room {room_id} - {e}")
-            return 0
-
-    @staticmethod
-    async def get_latest_message_by_room(db: AsyncSession, room_id: int):
-        try:
-            result = await db.execute(
-                select(Message)
-                .where(Message.room_id == room_id)
-                .order_by(Message.created_at.desc())
-                .limit(1)
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: getting latest message for room {room_id} - {e}")
-            return None

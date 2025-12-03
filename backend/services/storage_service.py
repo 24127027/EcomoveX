@@ -7,7 +7,13 @@ from google.cloud import storage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.storage_repository import StorageRepository
-from schemas.storage_schema import *
+from schemas.storage_schema import (
+    FileCategory,
+    FileMetadata,
+    FileMetadataFilter,
+    FileMetadataResponse,
+    MetadataCreate,
+)
 from utils.config import settings
 
 
@@ -21,7 +27,9 @@ class StorageService:
         bucket_name: str = None,
     ) -> FileMetadataResponse:
         try:
-            file_metadata = await StorageService.upload_file_to_gcs(file, category, bucket_name)
+            file_metadata = await StorageService.upload_file_to_gcs(
+                file, category, bucket_name
+            )
 
             metadata_create = MetadataCreate(
                 blob_name=file_metadata.blob_name,
@@ -32,7 +40,9 @@ class StorageService:
                 bucket=file_metadata.bucket,
                 size=file_metadata.size,
             )
-            stored_metadata = await StorageRepository.store_metadata(db, metadata_create)
+            stored_metadata = await StorageRepository.store_metadata(
+                db, metadata_create
+            )
 
             if not stored_metadata:
                 raise HTTPException(
@@ -117,7 +127,9 @@ class StorageService:
                     detail="GCS bucket name is not configured",
                 )
 
-            metadata = await StorageRepository.get_metadata_by_blob_name(db, user_id, blob_name)
+            metadata = await StorageRepository.get_metadata_by_blob_name(
+                db, user_id, blob_name
+            )
             if not metadata:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -179,11 +191,15 @@ class StorageService:
         db: AsyncSession, user_id: int, filters: FileMetadataFilter
     ) -> list[FileMetadataResponse]:
         try:
-            metadata_list = await StorageRepository.get_user_files_metadata(db, user_id, filters)
+            metadata_list = await StorageRepository.get_user_files_metadata(
+                db, user_id, filters
+            )
 
             result = []
             for metadata in metadata_list:
-                url = await StorageService.generate_signed_url(metadata.blob_name, metadata.bucket)
+                url = await StorageService.generate_signed_url(
+                    metadata.blob_name, metadata.bucket
+                )
                 result.append(
                     FileMetadataResponse(
                         url=url,
@@ -208,12 +224,18 @@ class StorageService:
         db: AsyncSession, user_id: int, blob_name: str
     ) -> FileMetadataResponse:
         try:
-            metadata = await StorageRepository.get_metadata_by_blob_name(db, user_id, blob_name)
+            metadata = await StorageRepository.get_metadata_by_blob_name(
+                db, user_id, blob_name
+            )
 
             if not metadata:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+                )
 
-            url = await StorageService.generate_signed_url(metadata.blob_name, metadata.bucket)
+            url = await StorageService.generate_signed_url(
+                metadata.blob_name, metadata.bucket
+            )
 
             return FileMetadataResponse(
                 url=url,

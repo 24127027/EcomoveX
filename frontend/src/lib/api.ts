@@ -644,10 +644,12 @@ class ApiClient {
   }
 
   async sendPlanInvitation(
+    userId: number,
     roomId: number,
     planId: number
   ): Promise<ChatMessage> {
     const formData = new FormData();
+    formData.append("user_id", userId.toString());
     formData.append("plan_id", planId.toString());
     formData.append("message_type", "invitation");
     formData.append("content", "Invitation to join plan");

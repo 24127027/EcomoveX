@@ -1,11 +1,20 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.destination import *
-from schemas.destination_schema import *
+from models.destination import (
+    Destination,
+    DestinationEmbedding,
+    GreenVerifiedStatus,
+    UserSavedDestination,
+)
+from schemas.destination_schema import (
+    DestinationCreate,
+    DestinationEmbeddingCreate,
+    DestinationUpdate,
+)
 
 
 class DestinationRepository:
@@ -17,7 +26,9 @@ class DestinationRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"ERROR: Failed to retrieve destination with ID {destination_id} - {e}")
+            print(
+                f"ERROR: Failed to retrieve destination with ID {destination_id} - {e}"
+            )
             return None
 
     @staticmethod
@@ -54,7 +65,9 @@ class DestinationRepository:
             }
 
             if not update_dict:
-                return await DestinationRepository.get_destination_by_id(db, destination_id)
+                return await DestinationRepository.get_destination_by_id(
+                    db, destination_id
+                )
 
             if "green_verified_status" in update_dict:
                 update_dict["green_verified"] = update_dict.pop("green_verified_status")
@@ -90,9 +103,13 @@ class DestinationRepository:
             return False
 
     @staticmethod
-    async def save_destination_for_user(db: AsyncSession, user_id: int, destination_id: str):
+    async def save_destination_for_user(
+        db: AsyncSession, user_id: int, destination_id: str
+    ):
         try:
-            existing = await DestinationRepository.is_saved_destination(db, user_id, destination_id)
+            existing = await DestinationRepository.is_saved_destination(
+                db, user_id, destination_id
+            )
             if existing:
                 result = await db.execute(
                     select(UserSavedDestination).where(
@@ -121,15 +138,22 @@ class DestinationRepository:
     async def get_saved_destinations_for_user(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(
-                select(UserSavedDestination).where(UserSavedDestination.user_id == user_id)
+                select(UserSavedDestination).where(
+                    UserSavedDestination.user_id == user_id
+                )
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"ERROR: Failed to retrieve saved destinations for user ID " f"{user_id} - {e}")
+            print(
+                f"ERROR: Failed to retrieve saved destinations for user ID "
+                f"{user_id} - {e}"
+            )
             return []
 
     @staticmethod
-    async def delete_saved_destination(db: AsyncSession, user_id: int, destination_id: str):
+    async def delete_saved_destination(
+        db: AsyncSession, user_id: int, destination_id: str
+    ):
         try:
             stmt = delete(UserSavedDestination).where(
                 and_(
@@ -175,13 +199,17 @@ class DestinationRepository:
                 .limit(limit)
             )
             result = await db.execute(query)
-            return [{"destination_id": row[0], "save_count": row[1]} for row in result.all()]
+            return [
+                {"destination_id": row[0], "save_count": row[1]} for row in result.all()
+            ]
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to get popular destinations - {e}")
             return []
 
     @staticmethod
-    async def save_embedding(db: AsyncSession, embedding_data: DestinationEmbeddingCreate):
+    async def save_embedding(
+        db: AsyncSession, embedding_data: DestinationEmbeddingCreate
+    ):
         try:
             result = await db.execute(
                 select(DestinationEmbedding).where(
@@ -207,7 +235,10 @@ class DestinationRepository:
             return embedding
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: Failed to save embedding for " f"{embedding_data.destination_id} - {e}")
+            print(
+                f"ERROR: Failed to save embedding for "
+                f"{embedding_data.destination_id} - {e}"
+            )
             return None
 
     @staticmethod
@@ -276,85 +307,30 @@ class DestinationRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError as e:
-            print(f"ERROR: Failed to retrieve destinations by green status " f"{status} - {e}")
+            print(
+                f"ERROR: Failed to retrieve destinations by green status {status} - {e}"
+            )
             return []
 
     @staticmethod
-    async def search_destinations(db: AsyncSession, place_ids: List[str]):
-        try:
-            result = await db.execute(
-                select(Destination).where(Destination.place_id.in_(place_ids))
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Failed to search destinations - {e}")
-            return []
-
-    @staticmethod
-    async def get_or_create_destination(
-        db: AsyncSession, 
-        place_id: str
-    ) -> Optional[Destination]:
-        """Get existing destination or create a new one if it doesn't exist."""
-        try:
-            # Try to get existing destination
-            existing = await DestinationRepository.get_destination_by_id(db, place_id)
-            if existing:
-                return existing
-            
-            # Create new destination
-            new_destination = Destination(place_id=place_id)
-            db.add(new_destination)
-            await db.commit()
-            await db.refresh(new_destination)
-            return new_destination
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Failed to get or create destination {place_id} - {e}")
-            return None
-
-    @staticmethod
-    async def get_destination_ids_by_place_ids(
-        db: AsyncSession, 
-        place_ids: List[str]
-    ) -> dict[str, str]:
-        """Get a mapping of place_id to destination_id for multiple places."""
-        try:
-            result = await db.execute(
-                select(Destination.place_id, Destination.destination_id).where(
-                    Destination.place_id.in_(place_ids)
-                )
-            )
-            return {row.place_id: row.destination_id for row in result}
-        except SQLAlchemyError as e:
-            print(f"ERROR: Failed to get destination IDs by place IDs - {e}")
-            return {}
-
-    @staticmethod
-    async def get_embeddings_by_ids(
-        db: AsyncSession,
-        destination_ids: List[str]
-    ) -> Dict[str, List[float]]:
+    async def get_embeddings_by_ids(db: AsyncSession, destination_ids: List[str]):
         """
         Get embeddings for multiple destinations.
-        
+
         Args:
             db: Database session
             destination_ids: List of destination IDs
-            
+
         Returns:
             Dictionary mapping destination_id to embedding vector
         """
         try:
             result = await db.execute(
-                select(Destination.destination_id, Destination.embedding).where(
-                    and_(
-                        Destination.destination_id.in_(destination_ids),
-                        Destination.embedding.isnot(None)
-                    )
+                select(DestinationEmbedding).where(
+                    DestinationEmbedding.destination_id.in_(destination_ids)
                 )
             )
-            return {row.destination_id: row.embedding for row in result}
+            return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to get embeddings for destinations - {e}")
             return {}

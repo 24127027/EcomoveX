@@ -1,10 +1,28 @@
-﻿from typing import Optional
+from typing import Optional
 
 import httpx
 
 from schemas.destination_schema import Bounds, Location
-from schemas.map_schema import *
-from schemas.route_schema import *
+from schemas.map_schema import (
+    AddressComponent,
+    AutocompleteRequest,
+    AutocompleteResponse,
+    GeocodingResponse,
+    GeocodingResult,
+    Geometry,
+    NearbyPlaceRequest,
+    NearbyPlaceSimple,
+    NearbyPlacesResponse,
+    OpeningHours,
+    PhotoInfo,
+    PlaceDetailsResponse,
+    PlaceSearchDisplay,
+    Review,
+    SearchAlongRouteResponse,
+    TextSearchRequest,
+    TextSearchResponse,
+)
+from schemas.route_schema import DirectionsResponse
 from utils.config import settings
 from utils.maps.map_utils import interpolate_search_params
 
@@ -69,7 +87,11 @@ class MapAPI:
                 for place in data["places"]:
                     raw_photos = place.get("photos", [])
 
-                    if raw_photos and isinstance(raw_photos, list) and len(raw_photos) > 0:
+                    if (
+                        raw_photos
+                        and isinstance(raw_photos, list)
+                        and len(raw_photos) > 0
+                    ):
                         first_photo = raw_photos[0]
 
                         ref = first_photo.get("name")
@@ -110,7 +132,9 @@ class MapAPI:
             }
 
             if data.user_location:
-                params["location"] = f"{data.user_location.latitude},{data.user_location.longitude}"
+                params["location"] = (
+                    f"{data.user_location.latitude},{data.user_location.longitude}"
+                )
             if data.radius:
                 params["radius"] = data.radius
             if data.place_types:
@@ -168,7 +192,9 @@ class MapAPI:
             response = await self.client.get(url, params=params)
 
             if response.status_code != 200:
-                raise ValueError(f"Error fetching place details: HTTP {response.status_code}")
+                raise ValueError(
+                    f"Error fetching place details: HTTP {response.status_code}"
+                )
 
             data = response.json()
             if data.get("status") != "OK":
@@ -180,14 +206,20 @@ class MapAPI:
                 name=result.get("name"),
                 formatted_address=result.get("formatted_address"),
                 address_components=[
-                    AddressComponent(name=comp.get("long_name"), types=comp.get("types", []))
+                    AddressComponent(
+                        name=comp.get("long_name"), types=comp.get("types", [])
+                    )
                     for comp in result.get("address_components", [])
                 ],
                 formatted_phone_number=result.get("formatted_phone_number"),
                 geometry=Geometry(
                     location=Location(
-                        latitude=result.get("geometry", {}).get("location", {}).get("lat"),
-                        longitude=result.get("geometry", {}).get("location", {}).get("lng"),
+                        latitude=result.get("geometry", {})
+                        .get("location", {})
+                        .get("lat"),
+                        longitude=result.get("geometry", {})
+                        .get("location", {})
+                        .get("lng"),
                     ),
                     bounds=(
                         Bounds(
@@ -224,7 +256,9 @@ class MapAPI:
                     OpeningHours(
                         open_now=result.get("opening_hours", {}).get("open_now", False),
                         periods=result.get("opening_hours", {}).get("periods", []),
-                        weekday_text=result.get("opening_hours", {}).get("weekday_text", []),
+                        weekday_text=result.get("opening_hours", {}).get(
+                            "weekday_text", []
+                        ),
                     )
                     if result.get("opening_hours")
                     else None
@@ -257,7 +291,9 @@ class MapAPI:
             print(f"Error in get_place_details: {e}")
             raise e
 
-    async def reverse_geocode(self, location: Location, language: str = "vi") -> GeocodingResponse:
+    async def reverse_geocode(
+        self, location: Location, language: str = "vi"
+    ) -> GeocodingResponse:
         try:
             params = {
                 "latlng": f"{location.latitude},{location.longitude}",
@@ -269,7 +305,9 @@ class MapAPI:
             response = await self.client.get(url, params=params)
 
             if response.status_code != 200:
-                raise ValueError(f"Error in reverse geocoding: HTTP {response.status_code}")
+                raise ValueError(
+                    f"Error in reverse geocoding: HTTP {response.status_code}"
+                )
 
             data = response.json()
             if data.get("status") != "OK":
@@ -289,8 +327,12 @@ class MapAPI:
                         ],
                         geometry=Geometry(
                             location=Location(
-                                latitude=result.get("geometry", {}).get("location", {}).get("lat"),
-                                longitude=result.get("geometry", {}).get("location", {}).get("lng"),
+                                latitude=result.get("geometry", {})
+                                .get("location", {})
+                                .get("lat"),
+                                longitude=result.get("geometry", {})
+                                .get("location", {})
+                                .get("lng"),
                             ),
                             bounds=Bounds(
                                 northeast=Location(
@@ -358,8 +400,12 @@ class MapAPI:
                         ],
                         geometry=Geometry(
                             location=Location(
-                                latitude=result.get("geometry", {}).get("location", {}).get("lat"),
-                                longitude=result.get("geometry", {}).get("location", {}).get("lng"),
+                                latitude=result.get("geometry", {})
+                                .get("location", {})
+                                .get("lat"),
+                                longitude=result.get("geometry", {})
+                                .get("location", {})
+                                .get("lng"),
                             ),
                             bounds=Bounds(
                                 northeast=Location(
@@ -413,11 +459,15 @@ class MapAPI:
             response = await self.client.get(url, params=params)
 
             if response.status_code != 200:
-                raise ValueError(f"Error fetching nearby places: HTTP {response.status_code}")
+                raise ValueError(
+                    f"Error fetching nearby places: HTTP {response.status_code}"
+                )
 
             response_data = response.json()
             if response_data.get("status") != "OK":
-                raise ValueError(f"Error fetching nearby places: {response_data.get('status')}")
+                raise ValueError(
+                    f"Error fetching nearby places: {response_data.get('status')}"
+                )
 
             places = [
                 NearbyPlaceSimple(
@@ -494,7 +544,9 @@ class MapAPI:
 
             sample_points = []
             total_distance = 0
-            interpolate = await interpolate_search_params(distance=route.legs[0].distance)
+            interpolate = await interpolate_search_params(
+                distance=route.legs[0].distance
+            )
             sample_interval = interpolate[1]
 
             for leg in route.legs:
@@ -532,7 +584,6 @@ class MapAPI:
     ) -> str:
         try:
             if photo_reference.startswith("places/"):
-
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
 
                 params = {

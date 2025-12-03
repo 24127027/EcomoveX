@@ -4,12 +4,24 @@ from fastapi import HTTPException, status
 
 from integration.route_api import create_route_api_client
 from integration.text_generator_api import create_text_generator_api
-from schemas.map_schema import *
-from schemas.route_schema import *
+from schemas.route_schema import (
+    DirectionsRequest,
+    FindRoutesRequest,
+    FindRoutesResponse,
+    RecommendResponse,
+    RouteData,
+    RouteType,
+    TransitDetails,
+    TransitStep,
+    TransportMode,
+    TripMetricsResponse,
+    WalkingStep,
+)
 from services.carbon_service import CarbonService
 from services.map_service import MapService
-from  models.plan import PlanDestination
+from models.plan import PlanDestination
 import math
+
 
 class RouteService:
     @staticmethod
@@ -32,11 +44,17 @@ class RouteService:
 
                     transit_steps.append(
                         {
-                            "line": (transit_details.get("line", {}).get("short_name", "N/A")),
+                            "line": (
+                                transit_details.get("line", {}).get("short_name", "N/A")
+                            ),
                             "vehicle": TransportMode.bus,
                             "departure_stop": {
-                                "lat": (departure_stop.get("location", {}).get("lat", 0.0)),
-                                "lng": (departure_stop.get("location", {}).get("lng", 0.0)),
+                                "lat": (
+                                    departure_stop.get("location", {}).get("lat", 0.0)
+                                ),
+                                "lng": (
+                                    departure_stop.get("location", {}).get("lng", 0.0)
+                                ),
                             },
                             "arrival_stop": {
                                 "lat": arrival_stop.get("location", {}).get("lat", 0.0),
@@ -86,7 +104,9 @@ class RouteService:
             distance_km = leg["distance"]
             duration_min = leg["duration"]
 
-            carbon_response = await CarbonService.estimate_transport_emission(mode, distance_km)
+            carbon_response = await CarbonService.estimate_transport_emission(
+                mode, distance_km
+            )
 
             result = RouteData(
                 type=route_type,
@@ -162,7 +182,9 @@ class RouteService:
 
                 if driving_alternatives.routes:
                     for idx, route in enumerate(driving_alternatives.routes):
-                        route_type = RouteType.fastest if idx == 0 else RouteType.fastest
+                        route_type = (
+                            RouteType.fastest if idx == 0 else RouteType.fastest
+                        )
 
                         route_data = await RouteService.process_route_data(
                             route.model_dump(), TransportMode.car, route_type
@@ -285,14 +307,21 @@ class RouteService:
                 if driving_routes:
                     best_driving = min(driving_routes, key=lambda x: x.duration)
                     carbon_saving_percent = (
-                        ((best_driving.carbon - best_transit.carbon) / best_driving.carbon * 100)
+                        (
+                            (best_driving.carbon - best_transit.carbon)
+                            / best_driving.carbon
+                            * 100
+                        )
                         if best_driving.carbon > 0
                         else 0
                     )
 
                     max_acceptable_time = fastest_route.duration * max_time_ratio
 
-                    if carbon_saving_percent > 30 or best_transit.duration <= max_acceptable_time:
+                    if (
+                        carbon_saving_percent > 30
+                        or best_transit.duration <= max_acceptable_time
+                    ):
                         return RouteData(
                             type=RouteType.smart_combination.value,
                             mode=best_transit.mode,
@@ -308,7 +337,10 @@ class RouteService:
                 walk_route = walking_routes[0]
                 max_acceptable_time = fastest_route.duration * max_time_ratio
 
-                if walk_route.distance <= 3.0 and walk_route.duration <= max_acceptable_time:
+                if (
+                    walk_route.distance <= 3.0
+                    and walk_route.duration <= max_acceptable_time
+                ):
                     return RouteData(
                         type=RouteType.smart_combination.value,
                         mode=walk_route.mode,
@@ -331,7 +363,9 @@ class RouteService:
         lowest_carbon_route: RouteData,
     ) -> RecommendResponse:
         try:
-            carbon_savings_vs_fastest = fastest_route.carbon - lowest_carbon_route.carbon
+            carbon_savings_vs_fastest = (
+                fastest_route.carbon - lowest_carbon_route.carbon
+            )
             carbon_savings_percent = (
                 (carbon_savings_vs_fastest / fastest_route.carbon * 100)
                 if fastest_route.carbon > 0
@@ -372,12 +406,14 @@ Route options:
 
 Key insights:
 - Carbon savings: {carbon_savings_percent:.1f}% when choosing lowest carbon vs fastest
-- Time difference: {abs(time_difference):.1f} minutes {'slower' if time_difference > 0 else 'faster'}
+- Time difference: {abs(time_difference):.1f} minutes {"slower" if time_difference > 0 else "faster"}
 
 Provide a concise recommendation that balances environmental impact and convenience. Focus on the most practical choice for the user."""
 
             text_gen = await create_text_generator_api()
-            ai_recommendation = await text_gen.generate_reply([{"role": "user", "content": prompt}])
+            ai_recommendation = await text_gen.generate_reply(
+                [{"role": "user", "content": prompt}]
+            )
 
             recommended_route = "fastest"
             if (
@@ -387,7 +423,8 @@ Provide a concise recommendation that balances environmental impact and convenie
                 recommended_route = "lowest_carbon"
             elif (
                 RouteType.smart_combination in routes
-                and routes[RouteType.smart_combination].carbon < fastest_route.carbon * 0.7
+                and routes[RouteType.smart_combination].carbon
+                < fastest_route.carbon * 0.7
             ):
                 recommended_route = "smart_combination"
 
@@ -398,7 +435,11 @@ Provide a concise recommendation that balances environmental impact and convenie
             print(f"WARNING: Failed to generate AI recommendation - {str(e)}")
 
             carbon_savings_percent = (
-                ((fastest_route.carbon - lowest_carbon_route.carbon) / fastest_route.carbon * 100)
+                (
+                    (fastest_route.carbon - lowest_carbon_route.carbon)
+                    / fastest_route.carbon
+                    * 100
+                )
                 if fastest_route.carbon > 0
                 else 0
             )
@@ -413,82 +454,77 @@ Provide a concise recommendation that balances environmental impact and convenie
             )
 
     @staticmethod
-    def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-        """
-        Tính khoảng cách đường chim bay giữa 2 điểm (đơn vị: km)
-        """
-        R = 6371  # Bán kính trái đất (km)
+    def _haversine_distance(
+        lat1: float, lon1: float, lat2: float, lon2: float
+    ) -> float:
+        R = 6371  # Earth radius (km)
         dlat = math.radians(lat2 - lat1)
         dlon = math.radians(lon2 - lon1)
-        a = (math.sin(dlat / 2) * math.sin(dlat / 2) +
-             math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
-             math.sin(dlon / 2) * math.sin(dlon / 2))
+        a = math.sin(dlat / 2) * math.sin(dlat / 2) + math.cos(
+            math.radians(lat1)
+        ) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) * math.sin(dlon / 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         distance = R * c
         return distance
 
     @staticmethod
-    async def calculate_trip_metrics(destinations: List[PlanDestination]) -> dict:
-        """
-        Ước lượng quãng đường và thời gian mà KHÔNG dùng Google Maps API.
-        """
+    async def calculate_trip_metrics(
+        destinations: List[PlanDestination],
+    ) -> TripMetricsResponse:
         if len(destinations) < 2:
-            return {"total_distance_km": 0, "total_duration_min": 0, "details": []}
+            return TripMetricsResponse(
+                total_distance_km=0.0, total_duration_min=0.0, details=[]
+            )
 
-        # Sắp xếp theo thứ tự
         sorted_dests = sorted(destinations, key=lambda x: x.order_in_day)
-        
+
         total_distance = 0
         total_duration = 0
         route_details = []
 
-        # CẤU HÌNH ƯỚC LƯỢNG
-        # Hệ số quy đổi từ đường chim bay sang đường bộ (thường đường bộ dài hơn 1.3 - 1.5 lần)
-        ROAD_FACTOR = 1.4 
-        # Tốc độ trung bình trong phố (km/h) -> Dùng để tính thời gian
-        AVG_SPEED_KMH = 30 
+        # Conversion factor from straight-line to road distance (road is typically 1.3-1.5x longer)
+        ROAD_FACTOR = 1.4
+        # Average speed in city (km/h) - used for time calculation
+        AVG_SPEED_KMH = 30
 
         for i in range(len(sorted_dests) - 1):
             start_node = sorted_dests[i]
-            end_node = sorted_dests[i+1]
+            end_node = sorted_dests[i + 1]
 
-            # Lấy tọa độ từ DB/Service (Giả sử bạn đã lưu lat/lng trong bảng destinations hoặc cache)
-            # Lưu ý: MapService ở đây chỉ nên query DB lấy tọa độ đã lưu, tránh gọi API Google
             start_coords = await MapService.get_coordinates(start_node.destination_id)
             end_coords = await MapService.get_coordinates(end_node.destination_id)
 
             if not start_coords or not end_coords:
                 continue
 
-            # 1. Tính khoảng cách đường chim bay
             air_distance = RouteService._haversine_distance(
-                start_coords['lat'], start_coords['lng'],
-                end_coords['lat'], end_coords['lng']
+                start_coords["lat"],
+                start_coords["lng"],
+                end_coords["lat"],
+                end_coords["lng"],
             )
 
-            # 2. Ước lượng đường bộ
             estimated_km = air_distance * ROAD_FACTOR
-            
-            # 3. Ước lượng thời gian (Phút) = (Quãng đường / Tốc độ) * 60
             estimated_min = (estimated_km / AVG_SPEED_KMH) * 60
 
-            # Logic phụ: Nếu khoảng cách quá gần (< 1km), giả sử đi bộ hoặc đi chậm
+            # If distance is very short (<1km), assume walking speed
             if estimated_km < 1.0:
-                 estimated_min = (estimated_km / 5) * 60 # Tốc độ đi bộ 5km/h
+                estimated_min = (estimated_km / 5) * 60  # Walking speed: 5km/h
 
             total_distance += estimated_km
             total_duration += estimated_min
-            
-            route_details.append({
-                "from": start_node.destination_id,
-                "to": end_node.destination_id,
-                "km": round(estimated_km, 2),
-                "min": round(estimated_min, 0)
-            })
 
-        return {
-            "total_distance_km": round(total_distance, 2),
-            "total_duration_min": round(total_duration, 0),
-            "details": route_details,
-            "note": "calculated_by_heuristic" # Đánh dấu để biết đây là số ước lượng
-        }
+            route_details.append(
+                {
+                    "from": start_node.destination_id,
+                    "to": end_node.destination_id,
+                    "km": round(estimated_km, 2),
+                    "min": round(estimated_min, 0),
+                }
+            )
+
+        return TripMetricsResponse(
+            total_distance_km=round(total_distance, 2),
+            total_duration_min=round(total_duration, 0),
+            details=route_details,
+        )

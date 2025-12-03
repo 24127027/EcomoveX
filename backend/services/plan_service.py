@@ -53,7 +53,7 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,             
                         visit_date=dest.visit_date,
-                        time_slot=dest.time_slot,  # ✅ Sử dụng time_slot
+                        time=dest.time.strftime("%H:%M") if dest.time else None,  # ✅ Chuyển time về format "HH:MM"
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
@@ -125,7 +125,7 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time_slot=dest.time_slot,
+                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,

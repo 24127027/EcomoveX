@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from datetime import date
-from models.user import *
+
+from models.user import Activity, Rank, Role
 
 
 class UserCreate(BaseModel):
@@ -62,8 +62,8 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
     eco_point: int
-    rank: str
-    role: str
+    rank: Rank
+    role: Role
     avt_url: Optional[str] = None
     cover_url: Optional[str] = None
 
@@ -86,7 +86,7 @@ class UserActivityResponse(BaseModel):
 
 
 class UserFilterParams(BaseModel):
-    role: Optional[str] = None 
+    role: Optional[str] = None
     status: Optional[str] = None
     search: Optional[str] = None
     created_from: Optional[date] = None

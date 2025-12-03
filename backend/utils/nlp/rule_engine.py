@@ -156,7 +156,7 @@ class RuleEngine:
                 try:
                     day = int(match.group(1))
                     return day if 1 <= day <= 31 else None
-                except:
+                except ValueError:
                     pass
         return None
 
@@ -178,7 +178,7 @@ class RuleEngine:
 
                     if 0 <= hour <= 23 and 0 <= minute <= 59:
                         return f"{hour:02d}:{minute:02d}"
-                except:
+                except ValueError:
                     pass
         return None
 
@@ -194,9 +194,17 @@ class RuleEngine:
                     currency = "VND"
                     multiplier = 1
 
-                    if "triệu" in text_lower or "tr" in text_lower or "million" in text_lower:
+                    if (
+                        "triệu" in text_lower
+                        or "tr" in text_lower
+                        or "million" in text_lower
+                    ):
                         multiplier = 1000000
-                    elif "nghìn" in text_lower or "k" in text_lower or "thousand" in text_lower:
+                    elif (
+                        "nghìn" in text_lower
+                        or "k" in text_lower
+                        or "thousand" in text_lower
+                    ):
                         multiplier = 1000
                     elif "usd" in text_lower or "$" in text_lower:
                         currency = "USD"
@@ -206,7 +214,7 @@ class RuleEngine:
                         "currency": currency,
                         "original": match.group(0),
                     }
-                except:
+                except (ValueError, AttributeError):
                     pass
         return None
 
@@ -220,11 +228,15 @@ class RuleEngine:
         return None
 
     def _extract_title(self, text: str, keywords: List[str]) -> Optional[str]:
-        pattern = rf"(?:{'|'.join(keywords)})\s+(.+?)(?:\s+(?:ngày|lúc|vào|at|on|day)\b|$)"
+        pattern = (
+            rf"(?:{'|'.join(keywords)})\s+(.+?)(?:\s+(?:ngày|lúc|vào|at|on|day)\b|$)"
+        )
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             title = match.group(1).strip()
-            title = re.sub(r"\s+(id|number|số)\s*[:=]?\s*\d+$", "", title, flags=re.IGNORECASE)
+            title = re.sub(
+                r"\s+(id|number|số)\s*[:=]?\s*\d+$", "", title, flags=re.IGNORECASE
+            )
             return title[:200] if len(title) > 0 else None
         return None
 
@@ -240,7 +252,7 @@ class RuleEngine:
             if match:
                 try:
                     return int(match.group(1))
-                except:
+                except ValueError:
                     pass
         return None
 
@@ -312,7 +324,9 @@ class RuleEngine:
                 return ParseResult(Intent.MODIFY_TIME, entities, confidence)
 
             location = self._find_location(text)
-            if location or self._check_keywords(text_lower, ["địa điểm", "location", "nơi"]):
+            if location or self._check_keywords(
+                text_lower, ["địa điểm", "location", "nơi"]
+            ):
                 item_id = self._extract_item_id(text)
                 day = self._find_day(text)
 

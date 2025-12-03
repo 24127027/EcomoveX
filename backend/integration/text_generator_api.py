@@ -1,29 +1,21 @@
 import httpx
-from openai import OpenAI
 
 from utils.config import settings
 
 
 class TextGeneratorAPI:
     def __init__(self):
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1/chat/completions",
-            api_key=settings.HUGGINGFACE_API_KEY,
+        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.headers = {
+            "Authorization": f"Bearer {settings.OPEN_ROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "X-Title": "EcomoveX",
+            "Referer": "http://localhost:3000",
+            "Origin": "http://localhost:3000",
+        }
+        self.text_model = (
+            settings.OPEN_ROUTER_MODEL_NAME or "meta-llama/llama-3.3-70b-instruct"
         )
-        self.http_client = httpx.AsyncClient(
-            headers={
-                "Authorization": f"Bearer {settings.OPEN_ROUTER_API_KEY}",
-                "Content-Type": "application/json",
-                "X-Title": "EcomoveX",
-                "Referer": "http://localhost:3000",
-                "Origin": "http://localhost:3000",
-            },
-            timeout=30.0,
-        )
-        self.text_model = settings.OPEN_ROUTER_MODEL_NAME or "meta-llama/llama-3.3-70b-instruct"
-
-    async def close(self):
-        await self.http_client.aclose()
 
     async def generate_reply(
         self,
@@ -33,6 +25,10 @@ class TextGeneratorAPI:
     ) -> str:
         if model is None:
             model = self.text_model
+
+        headers = self.headers.copy()
+        if api_key and api_key != settings.OPEN_ROUTER_API_KEY:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         payload = {
             "model": model,
@@ -44,7 +40,7 @@ class TextGeneratorAPI:
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    self.client.base_url, json=payload, headers=self.http_client.headers
+                    self.base_url, json=payload, headers=headers
                 )
                 resp.raise_for_status()
 

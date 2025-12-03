@@ -42,7 +42,9 @@ class Review(Base):
 
     destination = relationship("Destination", back_populates="reviews")
     user = relationship("User", back_populates="reviews")
-    files = relationship("ReviewFile", back_populates="review", cascade="all, delete-orphan")
+    files = relationship(
+        "ReviewFile", back_populates="review", cascade="all, delete-orphan"
+    )
 
 
 class ReviewFile(Base):
@@ -66,5 +68,9 @@ class ReviewFile(Base):
         unique=True,
     )
 
-    review = relationship("Review", back_populates="files", foreign_keys=[destination_id, user_id])
-    file = relationship("Metadata", back_populates="review_files", foreign_keys=[blob_name])
+    review = relationship(
+        "Review", back_populates="files", foreign_keys=[destination_id, user_id]
+    )
+    file = relationship(
+        "Metadata", back_populates="review_files", foreign_keys=[blob_name]
+    )

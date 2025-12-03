@@ -2,7 +2,7 @@ from typing import Optional
 
 import httpx
 
-from schemas.route_schema import *
+from schemas.route_schema import TransportMode
 from utils.config import settings
 
 
@@ -24,9 +24,7 @@ class CarbonAPI:
 
     async def estimate_car(self, distance_km: float, passengers: int = 1) -> float:
         url = f"{self.basic_base_url}/estimate"
-        activity_id = (
-            "passenger_vehicle-vehicle_type_car-fuel_source_petrol-engine_size_na-vehicle_age_na-vehicle_weight_na"
-            )
+        activity_id = "passenger_vehicle-vehicle_type_car-fuel_source_petrol-engine_size_na-vehicle_age_na-vehicle_weight_na"
         params = {
             "emission_factor": {
                 "activity_id": activity_id,
@@ -39,25 +37,28 @@ class CarbonAPI:
             res = await self.client.post(url, json=params)
 
             if res.status_code != 200:
-                raise ValueError(f"Error estimating car emissions: HTTP {res.status_code}")
+                raise ValueError(
+                    f"Error estimating car emissions: HTTP {res.status_code}"
+                )
 
             data = res.json()
             if "error" in data:
-                raise ValueError(f"Error in car emissions response: {data.get('error')}")
+                raise ValueError(
+                    f"Error in car emissions response: {data.get('error')}"
+                )
 
             return data["co2e"] / passengers if passengers > 1 else data["co2e"]
 
         except httpx.RequestError as e:
             raise Exception(f"Car estimation failed: {e}")
 
-
-    async def estimate_electric_bus(self, distance_km: float = 100, passenger: int = 1) -> float:
+    async def estimate_electric_bus(
+        self, distance_km: float = 100, passenger: int = 1
+    ) -> float:
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
-                "activity_id": 
-                    "passenger_vehicle-vehicle_type_bus-fuel_source_bev-engine_size_na-vehicle_age_na-vehicle_weight_gte_12t"
-                ,
+                "activity_id": "passenger_vehicle-vehicle_type_bus-fuel_source_bev-engine_size_na-vehicle_age_na-vehicle_weight_gte_12t",
                 "data_version": "^27",
             },
             "parameters": {"distance": distance_km, "distance_unit": "km"},
@@ -72,7 +73,9 @@ class CarbonAPI:
 
             data = response.json()
             if "error" in data:
-                raise ValueError(f"Error in electric bus emissions response: {data.get('error')}")
+                raise ValueError(
+                    f"Error in electric bus emissions response: {data.get('error')}"
+                )
 
             return data["co2e"] * passenger / 30
         except httpx.RequestError as e:
@@ -82,9 +85,7 @@ class CarbonAPI:
         url = f"{self.basic_base_url}/estimate"
         params = {
             "emission_factor": {
-                "activity_id": 
-                    "passenger_vehicle-vehicle_type_motorbike-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na"
-                ,
+                "activity_id": "passenger_vehicle-vehicle_type_motorbike-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na",
                 "data_version": "^27",
             },
             "parameters": {"distance": distance_km, "distance_unit": "km"},
@@ -100,7 +101,9 @@ class CarbonAPI:
 
             data = response.json()
             if "error" in data:
-                raise ValueError(f"Error in motorbike emissions response: {data.get('error')}")
+                raise ValueError(
+                    f"Error in motorbike emissions response: {data.get('error')}"
+                )
 
             return data["co2e"]
         except httpx.RequestError as e:
@@ -112,7 +115,6 @@ class CarbonAPI:
         distance_km: float,
         passengers: int = 1,
     ) -> float:
-
         if mode == TransportMode.walking:
             return 0.0
 

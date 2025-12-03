@@ -55,12 +55,7 @@ class TreeSegmenter:
         H, W = img_up.shape[:2]
 
         # YOLO segmentation
-        result = self.model(
-            img_up,
-            conf=0.1,
-            retina_masks=True,
-            verbose=False
-        )[0]
+        result = self.model(img_up, conf=0.1, retina_masks=True, verbose=False)[0]
 
         # Prepare outputs
         masks_list = []
@@ -76,9 +71,7 @@ class TreeSegmenter:
         for m in raw_masks:
             # Resize mask to match original upscale size
             m_resized = cv2.resize(
-                m.astype(np.float32),
-                (W, H),
-                interpolation=cv2.INTER_NEAREST
+                m.astype(np.float32), (W, H), interpolation=cv2.INTER_NEAREST
             )
 
             # Convert boolean mask → uint8 (0 or 255)
@@ -88,5 +81,3 @@ class TreeSegmenter:
             combined_mask = np.maximum(combined_mask, m_resized)
 
         return masks_list, combined_mask
-
-

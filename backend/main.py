@@ -90,8 +90,8 @@ app.include_router(room_router)
 app.include_router(message_router)
 app.include_router(plan_router)
 app.include_router(chatbot_router)
-app.include_router(recommendation_router)
 app.include_router(carbon_router)
+app.include_router(recommendation_router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
