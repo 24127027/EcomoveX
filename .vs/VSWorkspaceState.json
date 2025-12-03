@@ -2,15 +2,15 @@
   "ExpandedNodes": [
     "",
     "\\frontend",
+    "\\frontend\\public",
     "\\frontend\\src",
     "\\frontend\\src\\app",
     "\\frontend\\src\\app\\(main)",
     "\\frontend\\src\\app\\(main)\\track_page",
     "\\frontend\\src\\app\\(main)\\track_page\\result",
-    "\\frontend\\src\\app\\(main)\\user_page",
-    "\\frontend\\src\\app\\(main)\\user_page\\friend_page",
-    "\\frontend\\src\\app\\(main)\\user_page\\main_page"
+    "\\frontend\\src\\app\\(main)\\track_page\\result\\not_save_CO2",
+    "\\frontend\\src\\app\\(main)\\track_page\\result\\save_CO2"
   ],
-  "SelectedNode": "\\frontend\\src\\app\\(main)\\user_page\\main_page\\page.tsx",
+  "SelectedNode": "\\frontend\\src\\app\\(main)\\track_page\\result\\not_save_CO2\\page.tsx",
   "PreviewInSolutionExplorer": false
 }

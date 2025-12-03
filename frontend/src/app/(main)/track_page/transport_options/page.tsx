@@ -59,7 +59,7 @@ interface TransportOptionProps {
 
 // Constants
 const TRANSPORT_MODES: TransportMode[] = [
-    { id: 'walk', name: 'Walk', icon: PersonStanding, time: '20 min', apiMode: 'WALKING' },
+    { id: 'walking', name: 'Walk', icon: PersonStanding, time: '20 min', apiMode: 'WALKING' },
     { id: 'motorbike', name: 'Motorbike', icon: Bike, time: '5 min', apiMode: 'MOTORBIKE' },
     { id: 'bus', name: 'Bus', icon: Bus, time: '10 min', apiMode: 'BUS' },
     { id: 'car', name: 'Car', icon: Car, time: '5 min', apiMode: 'CAR' },
@@ -67,7 +67,7 @@ const TRANSPORT_MODES: TransportMode[] = [
 ];
 
 const DEFAULT_DISTANCE = 1.4;
-const API_ENDPOINT = '/estimate';
+const API_ENDPOINT = '/carbon/estimate';
 
 // Confirmation Modal Component
 interface ConfirmModalProps {
@@ -147,8 +147,8 @@ const TransportOption: React.FC<TransportOptionProps> = ({ mode, emission, saved
                     <div className={`${abhayaLibre.className} text-sm text-black whitespace-nowrap`}>{distance}km</div>
                 </div>
             </div>
-            <div className="flex items-center gap-3">
-                <div className="bg-gray-100 rounded-lg border border-gray-400 p-3 flex gap-10 flex-1">
+            <div className="flex items-center flex-1">
+                <div className="bg-gray-100 rounded-lg border border-gray-400 p-3 px-6 flex gap-10 inline-flex">
                     <div className="flex items-center gap-3">
                         <div className="w-3 h-3 bg-orange-500 rotate-45"></div>
                         <div>
@@ -164,12 +164,14 @@ const TransportOption: React.FC<TransportOptionProps> = ({ mode, emission, saved
                         </div>
                     </div>
                 </div>
-                <button
-                    onClick={handleAccept}
-                    className={`${jost_semibold.className} bg-green-500 hover:bg-green-600 text-white text-sm px-6 py-2 rounded-full transition-colors whitespace-nowrap`}
-                >
-                    Accept
-                </button>
+                <div className="text-right flex-1">
+                    <button
+                        onClick={handleAccept}
+                        className={`${jost_semibold.className} bg-green-500 hover:bg-green-600 text-white text-sm px-6 py-2 rounded-full transition-colors whitespace-nowrap`}
+                    >
+                        Accept
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -349,8 +351,11 @@ const TransportCO2Page = () => {
             from: fromAddress,
             to: toAddress,
         });
-
-        router.push(`/track_page/result?${params.toString()}`);
+        if (mode.id === 'car') {
+            router.push(`/track_page/result/not_save_CO2?${params.toString()}`);
+        }
+        else 
+            router.push(`/track_page/result/save_CO2?${params.toString()}`);
     };
 
     const handleBackClick = () => {
@@ -358,8 +363,8 @@ const TransportCO2Page = () => {
     };
 
     return (
-        <div className="bg-white border-b shadow-sm sticky top-0 z-10">
-            <div className="max-w-md mx-auto bg-gray-50 min-h-screen">
+        <div className="bg-gray-200 flex justify-center border-b shadow-sm h-screen overflow-hidden">
+        <div className="w-full max-w-md mx-auto bg-gray-50 min-h-screen overflow-y-auto scrollbar-hide">
                 <header className="bg-white border-b shadow-sm sticky top-0 z-10">
                     <div className="p-4">
                         <div className="mb-4">
@@ -427,33 +432,33 @@ const TransportCO2Page = () => {
                 />
 
                 <style jsx global>{`
-                  @keyframes scale-in {
+                    @keyframes scale-in {
                     from {
-                      transform: scale(0.95);
-                      opacity: 0;
+                        transform: scale(0.95);
+                        opacity: 0;
                     }
                     to {
-                      transform: scale(1);
-                      opacity: 1;
+                        transform: scale(1);
+                        opacity: 1;
                     }
-                  }
+                    }
   
-                  @keyframes fade-in {
+                    @keyframes fade-in {
                     from {
-                      opacity: 0;
+                        opacity: 0;
                     }
                     to {
-                      opacity: 1;
+                        opacity: 1;
                     }
-                  }
+                    }
   
-                  .animate-scale-in {
+                    .animate-scale-in {
                     animation: scale-in 0.2s ease-out;
-                  }
+                    }
   
-                  .animate-fade-in {
+                    .animate-fade-in {
                     animation: fade-in 0.2s ease-out;
-                  }
+                    }
                 `}</style>
 
                 <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
@@ -464,7 +469,7 @@ const TransportCO2Page = () => {
                             className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
                         >
                             <Home className="size-6" strokeWidth={1.5} />
-                            <span className={`${jost_medium.className} text-[10px] mt-1`}>Home</span>
+                            <span className="text-[10px] font-bold mt-1">Home</span>
                         </Link>
 
                         <Link
@@ -472,7 +477,7 @@ const TransportCO2Page = () => {
                             className="flex flex-col items-center justify-center w-1/4 text-green-600"
                         >
                             <Route className="size-6" strokeWidth={2.0} />
-                            <span className={`${jost_medium.className} text-[10px] mt-1`}>Track</span>
+                            <span className="text-[10px] font-bold mt-1">Track</span>
                         </Link>
 
                         <Link
@@ -480,14 +485,14 @@ const TransportCO2Page = () => {
                             className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
                         >
                             <MapPin className="size-6" strokeWidth={1.5} />
-                            <span className={`${jost_medium.className} text-[10px] mt-1`}>Planning</span>
+                            <span className="text-[10px] font-bold mt-1">Planning</span>
                         </Link>
                         <Link
                             href="#"
                             className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
                         >
                             <Bot className="size-6" strokeWidth={1.5} />
-                            <span className={`${jost_medium.className} text-[10px] mt-1`}>Ecobot</span>
+                            <span className="text-[10px] font-bold mt-1">Ecobot</span>
                         </Link>
                         <Link
                             href="/user_page/main_page"
@@ -496,7 +501,7 @@ const TransportCO2Page = () => {
                             <div className="relative">
                                 <User className="size-6" strokeWidth={1.5} />
                             </div>
-                            <span className={`${jost_medium.className} text-[10px] mt-1`}>User</span>
+                            <span className="text-[10px] font-bold mt-1">User</span>
                         </Link>
                     </div>
                 </footer>
