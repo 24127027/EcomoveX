@@ -488,7 +488,19 @@ class PlanService:
                 detail=f"Unexpected error removing user from plan: {e}",
             )
 
+   
     @staticmethod
+    async def remove_destination(self, db, user_id, plan_id, plan_destination_id):
+        if not await PlanRepository.is_member(db, user_id, plan_id):
+            return {"ok": False, "message": "Bạn không có quyền xóa destination."}
+
+        ok = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
+        if not ok:
+            return {"ok": False, "message": "Không thể xóa destination."}
+
+        new_state = await self.get_plan_state(db, plan_id)
+        return {"ok": True, "action": "remove", "item_id": plan_destination_id, "state": new_state}
+
     async def handle_intent(
         db: AsyncSession,
         user_id: int,
@@ -962,40 +974,26 @@ class PlanService:
         return result
 
     @staticmethod
-    async def _sort_single_day(day_list: List[PlanDestination]) -> List[PlanDestination]:
-        """
-        Sắp xếp trong 1 ngày:
-        1. attraction
-        2. restaurant
-        3. accommodation
-        4. transport
-        5. tối ưu khoảng cách bằng RouteService
-        """
+    async def update_destination_time(self, db, user_id, plan_id, dest_id, update_data):
+        if not await PlanRepository.is_member(db, user_id, plan_id):
+            return {"ok": False, "message": "Không có quyền chỉnh sửa."}
 
-        priority = {
-            DestinationType.attraction: 1,
-            DestinationType.restaurant: 2,
-            DestinationType.accommodation: 3,
-            DestinationType.transport: 4,
-        }
+        updated = await PlanRepository.update_plan_destination(db, dest_id, update_data)
+        if not updated:
+            return {"ok": False, "message": "Không cập nhật được destination."}
 
-        # sort theo priority
-        day_list.sort(key=lambda d: priority[d.type])
+        new_state = await self.get_plan_state(db, plan_id)
+        return {"ok": True, "action": "modify_time", "item": updated, "state": new_state}
 
-        # sắp xếp tối ưu khoảng cách
-        try:
-            ordered = await RouteService._haversine_distance(day_list)
-            return ordered
-        except Exception:
-            return day_list  # fallback
-    
     @staticmethod
-    async def extract_action(user_msg: str) -> ActionResult:
-        rule_engine = RuleEngine()
-        parse_result = rule_engine.classify(user_msg)
-        return ActionResult(
-            intent=parse_result.intent,
-            entities=parse_result.entities,
-            confidence=parse_result.confidence,
-            # plan_id / action có thể set sau khi xác định plan
+    async def update_budget(self, db, user_id, plan_id, budget):
+        updated = await PlanRepository.update_plan_destination(
+            db, plan_id, PlanUpdate(budget_limit=budget)
         )
+
+        if not updated:
+            return {"ok": False, "message": "Không cập nhật budget."}
+
+        new_state = await self.get_plan_state(db, plan_id)
+        return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
+

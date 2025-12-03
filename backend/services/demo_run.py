@@ -2,10 +2,10 @@ import asyncio
 from chatbot_service_demo import ChatbotServiceDemo
 from integration.text_generator_api import TextGeneratorAPI
 from datetime import date
-from sub_agents.opening_hours_agent import OpeningHoursAgent
-from sub_agents.budget_check_agent import BudgetCheckAgent
-from sub_agents.daily_calculation_agent import DailyCalculationAgent
-from sub_agents.plan_validator_agent import PlanValidatorAgent
+from agents.sub_agents.opening_hours_agent import OpeningHoursAgent
+from agents.sub_agents.budget_check_agent import BudgetCheckAgent
+from agents.sub_agents.daily_calculation_agent import DailyCalculationAgent
+from agents.sub_agents.plan_validator_agent import PlanValidatorAgent
 from services.chatbot_service_demo import ChatbotServiceDemo
 from integration.text_generator_api import TextGeneratorAPI
 
