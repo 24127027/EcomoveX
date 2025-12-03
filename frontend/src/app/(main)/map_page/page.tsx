@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { Search, Home, MapPin, Bot, User, ChevronLeft, Navigation } from "lucide-react";
 import { api, AutocompletePrediction, PlaceDetails, Position, PlaceSearchResult } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -587,8 +587,9 @@ export default function MapPage() {
   }, [isDragging]);
 
   return (
-    <div className="min-h-screen w-full bg-white sm:bg-gray-200 sm:flex sm:justify-center">
-      <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-2xl">
+    <Suspense>
+    <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      <div className="w-full max-w-md bg-gray-50 h-screen shadow-2xl relative flex flex-col overflow-hidden">
         {/* Map Container */}
         <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
           {/* Search Bar */}
@@ -875,5 +876,6 @@ export default function MapPage() {
         </footer>
       </div>
     </div>
+  </Suspense>
   );
 }
