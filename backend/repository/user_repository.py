@@ -79,15 +79,12 @@ class UserRepository:
     @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate):
         try:
-            existed_email = await UserRepository.get_user_by_email(db, user_data.email)
-            if existed_email:
-                print(f"WARNING: User with email {user_data.email} already exists")
-                return None
-            existing_username = await UserRepository.get_user_by_username(
-                db, user_data.username
-            )
-            if existing_username:
-                print(f"WARNING: Username {user_data.username} already taken")
+            is_existing = await UserRepository.search_users(db, user_data.username) or await UserRepository.search_users(db, user_data.email)
+            if is_existing:
+                print(
+                    f"WARNING: WARNING: User creation failed - username "
+                    f"'{user_data.username}' already exists"
+                )
                 return None
             new_user = User(
                 username=user_data.username,
