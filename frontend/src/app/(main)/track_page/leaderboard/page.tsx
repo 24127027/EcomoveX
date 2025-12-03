@@ -42,10 +42,12 @@ const lalezar = Lalezar({
 });
 interface Plan {
     id: number;
-    plan_name: string;
-    start_location: string;
-    end_location: string;
-    distance_km?: number;
+    user_id: number;
+    place_name: string;
+    start_date: string;
+    end_date: string;
+    budget_limit?: number;
+    destinations: any[]; 
 }
 export default function TrackPage() {
     const router = useRouter();
@@ -55,18 +57,27 @@ export default function TrackPage() {
     const [loading, setLoading] = useState(true);
     const [co2Saved, setCo2Saved] = useState(0);
 
-    // Fetch plans khi component mount
     useEffect(() => {
         const fetchPlans = async () => {
             try {
-                const response = await fetch('/api/plans');
+                const token = localStorage.getItem('token');
+
+                const response = await fetch('/api/plans', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch plans');
                 }
 
                 const data = await response.json();
+                console.log('Fetched plans:', data);
                 setPlans(data);
+
             } catch (error) {
                 console.error('Error fetching plans:', error);
             } finally {
@@ -88,16 +99,23 @@ export default function TrackPage() {
             return;
         }
 
-        // Chuyển sang trang calculate với plan data
+        // Chuyển sang trang calculate với plan info
         const params = new URLSearchParams({
             planId: selectedPlan.id.toString(),
-            planName: selectedPlan.plan_name,
-            fromLocation: selectedPlan.start_location,
-            toLocation: selectedPlan.end_location,
-            distance: selectedPlan.distance_km?.toString() || '0'
+            planName: selectedPlan.place_name,
+            startDate: selectedPlan.start_date,
+            endDate: selectedPlan.end_date,
         });
 
         router.push(`/track_page/transport_options?${params.toString()}`);
+    };
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
     };
 
     return (
@@ -120,7 +138,7 @@ export default function TrackPage() {
                             >
                                 <span>
                                     {selectedPlan
-                                        ? selectedPlan.plan_name
+                                        ? selectedPlan.place_name
                                         : loading
                                             ? 'Loading plans...'
                                             : 'Select a plan'
@@ -131,7 +149,7 @@ export default function TrackPage() {
                                     size={20}
                                 />
                             </button>
-                            <MapPin className="absolute left-3 top-3.5 text-green-600" size={20} />
+                            <Calendar className="absolute left-3 top-3.5 text-green-600" size={20} />
 
                             {/* Dropdown Menu */}
                             {showDropdown && (
@@ -148,10 +166,10 @@ export default function TrackPage() {
                                                 className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
                                             >
                                                 <div className="font-semibold text-green-600">
-                                                    {plan.plan_name}
+                                                    {plan.place_name}
                                                 </div>
-                                                <div className="text-sm text-gray-600 mt-1">
-                                                    {plan.start_location} → {plan.end_location}
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                    {formatDate(plan.start_date)} - {formatDate(plan.end_date)}
                                                 </div>
                                             </button>
                                         ))
@@ -163,22 +181,27 @@ export default function TrackPage() {
                         {/* Display selected plan details */}
                         {selectedPlan && (
                             <div className="bg-white border-2 border-green-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="flex flex-col items-center gap-1 mt-1">
-                                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                        <div className="w-0.5 h-12 bg-green-300"></div>
-                                        <div className="w-3 h-3 border-2 border-green-500 rounded-full bg-white"></div>
+                                <div className="space-y-2">
+                                    <div>
+                                        <div className="text-xs text-gray-500 mb-1">Plan Name</div>
+                                        <div className="font-semibold text-gray-800">{selectedPlan.place_name}</div>
                                     </div>
-                                    <div className="flex-1 space-y-3">
-                                        <div>
-                                            <div className="text-xs text-gray-500 mb-1">From</div>
-                                            <div className="text-sm text-gray-800">{selectedPlan.start_location}</div>
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                            <div className="text-xs text-gray-500 mb-1">Start Date</div>
+                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.start_date)}</div>
                                         </div>
-                                        <div>
-                                            <div className="text-xs text-gray-500 mb-1">To</div>
-                                            <div className="text-sm text-gray-800">{selectedPlan.end_location}</div>
+                                        <div className="flex-1">
+                                            <div className="text-xs text-gray-500 mb-1">End Date</div>
+                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.end_date)}</div>
                                         </div>
                                     </div>
+                                    {selectedPlan.budget_limit && (
+                                        <div>
+                                            <div className="text-xs text-gray-500 mb-1">Budget Limit</div>
+                                            <div className="text-sm text-gray-800">${selectedPlan.budget_limit.toFixed(2)}</div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
