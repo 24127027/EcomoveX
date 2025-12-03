@@ -1,83 +1,59 @@
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class OpeningHoursAgent:
-    def __init__(self, db):
+    """Agent kiểm tra giờ mở cửa của các destination trong plan."""
+    
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def process(self, plan: Any, action: Any) -> Dict[str, Any]:
-        """
-        Kiểm tra giờ mở cửa của từng destination trong plan.
+    async def process(self, plan: Any, action: str = "validate") -> Dict[str, Any]:
+        """Kiểm tra giờ mở cửa của từng destination."""
+        if isinstance(plan, dict):
+            plan_data = plan
+        elif hasattr(plan, "model_dump"):
+            plan_data = plan.model_dump()
+        else:
+            plan_data = {"destinations": []}
+            if getattr(plan, "destinations", None):
+                for d in plan.destinations:
+                    plan_data["destinations"].append({
+                        "id": getattr(d, "id", None),
+                        "destination_id": getattr(d, "destination_id", None),
+                        "name": getattr(d, "name", None),
+                        "opening_hours": getattr(d, "opening_hours", None),
+                    })
 
-        Support:
-        - ORM model (plan.destinations)
-        - Pydantic model (plan.destinations)
-        - Raw dict (plan["destinations"])
-        """
-
-        destinations = self._extract_destinations(plan)
+        destinations = plan_data.get("destinations", [])
+        if not destinations:
+            return {"success": True, "message": "Không có điểm đến để kiểm tra", "modifications": []}
 
         modifications = []
-        warnings = []
+        checked_count = 0
+        missing_count = 0
 
         for dest in destinations:
-            name = dest.get("destination_id", "Unknown")
-            opening_hours = dest.get("opening_hours")  # field optional
+            dest_id = dest.get("destination_id") or dest.get("id")
+            dest_name = dest.get("name") or dest_id or "Unknown"
+            checked_count += 1
 
-            if not opening_hours:
+            if not dest.get("opening_hours"):
+                missing_count += 1
                 modifications.append({
-                    "destination_id": dest.get("id"),
-                    "destination_name": name,
-                    "issue": "missing opening_hours"
+                    "destination_id": dest_id,
+                    "destination_name": dest_name,
+                    "issue": "missing_opening_hours",
+                    "suggestion": f"Kiểm tra giờ mở cửa của '{dest_name}'"
                 })
-                warnings.append(f"Địa điểm '{name}' chưa có giờ mở cửa.")
+
+        warnings = []
+        if missing_count > 0:
+            warnings.append(f"Có {missing_count}/{checked_count} điểm đến chưa có thông tin giờ mở cửa")
 
         return {
             "success": len(warnings) == 0,
-            "message": "\n".join(warnings),
-            "modifications": modifications
+            "message": "\n".join(warnings) if warnings else "Tất cả điểm đến đều có giờ mở cửa",
+            "modifications": modifications,
+            "stats": {"checked": checked_count, "missing_hours": missing_count}
         }
-
-    # -----------------------------
-    # INTERNAL HELPERS
-    # -----------------------------
-    def _extract_destinations(self, plan: Any) -> List[Dict[str, Any]]:
-        """
-        Trả về danh sách destination dưới dạng dict.
-        Tự động xử lý 3 trường hợp:
-        1. plan = ORM object (attribute)
-        2. plan = Pydantic model
-        3. plan = dict
-        """
-
-        # Case 1: dict JSON
-        if isinstance(plan, dict):
-            return plan.get("destinations", [])
-
-        # Case 2: Pydantic model → convert to dict
-        if hasattr(plan, "model_dump"):
-            data = plan.model_dump()
-            return data.get("destinations", [])
-
-        # Case 3: ORM object
-        if hasattr(plan, "destinations"):
-            # convert ORM items to dict
-            return [self._orm_to_dict(d) for d in plan.destinations]
-
-        return []
-
-    def _orm_to_dict(self, obj: Any) -> Dict[str, Any]:
-        """
-        Convert ORM to dict safely.
-        """
-        result = {}
-        for field in dir(obj):
-            if field.startswith("_"):
-                continue
-            try:
-                value = getattr(obj, field)
-                if isinstance(value, (str, int, float, type(None))):
-                    result[field] = value
-            except:
-                pass
-        return result

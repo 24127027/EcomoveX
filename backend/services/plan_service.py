@@ -487,450 +487,9 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error removing user from plan: {e}",
             )
-
-   
-    @staticmethod
-    async def remove_destination(self, db, user_id, plan_id, plan_destination_id):
-        if not await PlanRepository.is_member(db, user_id, plan_id):
-            return {"ok": False, "message": "Bạn không có quyền xóa destination."}
-
-        ok = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
-        if not ok:
-            return {"ok": False, "message": "Không thể xóa destination."}
-
-        new_state = await self.get_plan_state(db, plan_id)
-        return {"ok": True, "action": "remove", "item_id": plan_destination_id, "state": new_state}
-
-    async def handle_intent(
-        db: AsyncSession,
-        user_id: int,
-        room_id: int,
-        user_text: str,
-    ) -> IntentHandlerResponse:
-        try:
-            # Import here to avoid circular import
-            from services.message_service import MessageService
-
-            rule_engine = RuleEngine()
-            parse = rule_engine.classify(user_text)
-            intent = parse.intent
-            ent = parse.entities
-
-            # Load context from room_id
-            context = await MessageService.load_context(db, user_id, room_id)
-
-            # Extract context data
-            llm_context = context.llm_context if context else None
-            conversation_state = llm_context.conversation_state if llm_context else None
-            active_plan_context = llm_context.active_plan if llm_context else None
-
-            # Try to get plan from context first, then fallback to query
-            plan = None
-            if active_plan_context:
-                plan = await PlanRepository.get_plan_by_id(
-                    db, active_plan_context.plan_id
-                )
-
-            if not plan:
-                plans = await PlanRepository.get_plan_by_user_id(db, user_id)
-                if not plans:
-                    return IntentHandlerResponse(
-                        ok=False, message="No plan available to edit."
-                    )
-                plan = plans[0]
-
-            is_member = await PlanService.is_member(db, user_id, plan.id)
-            if not is_member:
-                return IntentHandlerResponse(
-                    ok=False, message="You do not have permission to edit this plan."
-                )
-
-            # -----------------------------
-            # ADD intent
-            # -----------------------------
-            if intent == Intent.ADD:
-                destination_id = ent.get("destination_id")
-
-                # Try to get destination_id from context if not in entities
-                if not destination_id and conversation_state:
-                    if conversation_state.last_mentioned_destination:
-                        destination_id = (
-                            conversation_state.last_mentioned_destination.destination_id
-                        )
-
-                if not destination_id:
-                    # Update conversation state to track missing params
-                    await MessageService.update_conversation_state(
-                        db,
-                        room_id,
-                        current_intent="ADD",
-                        missing_params=["destination_id"],
-                    )
-                    return IntentHandlerResponse(
-                        ok=False,
-                        message="destination_id is required to add a destination.",
-                    )
-
-                visit_date = ent.get("visit_date")
-
-                # Try to get visit_date from context if not in entities
-                if not visit_date and conversation_state:
-                    if conversation_state.last_mentioned_date:
-                        visit_date = conversation_state.last_mentioned_date
-
-                if not visit_date:
-                    # Update conversation state to track missing params
-                    await MessageService.update_conversation_state(
-                        db,
-                        room_id,
-                        current_intent="ADD",
-                        last_destination={"destination_id": destination_id},
-                        missing_params=["visit_date"],
-                    )
-                    return IntentHandlerResponse(
-                        ok=False, message="visit_date is required."
-                    )
-
-                order_in_day = ent.get("order_in_day", 1)
-                note = ent.get("note") or ent.get("title") or ""
-                dest_type = ent.get("type", DestinationType.attraction)
-                estimated_cost = ent.get("estimated_cost")
-                url = ent.get("url")
-                time_slot = ent.get("time_slot", TimeSlot.morning)
-
-                dest_data = PlanDestinationCreate(
-                    destination_id=destination_id,
-                    destination_type=dest_type,
-                    order_in_day=order_in_day,
-                    visit_date=visit_date,
-                    estimated_cost=estimated_cost,
-                    url=url,
-                    note=note,
-                    time_slot=time_slot,
-                )
-
-                try:
-                    await MapService.get_location_details(
-                        PlaceDetailsRequest(place_id=destination_id)
-                    )
-                except Exception:
-                    await PlanRepository.ensure_destination(db, destination_id)
-
-                new_dest = await PlanService.add_destination_to_plan(
-                    db, user_id, plan.id, dest_data
-                )
-
-                destinations = await PlanService.get_plan_destinations(
-                    db, user_id, plan.id
-                )
-
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="add",
-                    item={
-                        "id": new_dest.id,
-                        "destination_id": new_dest.destination_id,
-                        "type": new_dest.type.value,
-                        "order_in_day": new_dest.order_in_day,
-                        "visit_date": str(new_dest.visit_date),
-                        "estimated_cost": new_dest.estimated_cost,
-                        "note": new_dest.note,
-                        "time_slot": new_dest.time_slot.value,
-                    },
-                    plan={
-                        "id": plan.id,
-                        "place_name": plan.place_name,
-                        "start_date": str(plan.start_date),
-                        "end_date": str(plan.end_date),
-                        "budget_limit": plan.budget_limit,
-                        "destinations": [
-                            {
-                                "id": d.id,
-                                "destination_id": d.destination_id,
-                                "type": d.type.value,
-                                "order_in_day": d.order_in_day,
-                                "visit_date": str(d.visit_date),
-                                "estimated_cost": d.estimated_cost,
-                                "url": d.url,
-                                "note": d.note,
-                                "time_slot": d.time_slot.value,
-                            }
-                            for d in destinations
-                        ],
-                    },
-                )
-
-            # -----------------------------
-            # REMOVE intent
-            # -----------------------------
-            if intent == Intent.REMOVE:
-                plan_dest_id = ent.get("item_id")
-
-                # Try to get item_id from context if not in entities
-                if not plan_dest_id and conversation_state:
-                    if conversation_state.last_mentioned_destination:
-                        # Find plan destination by destination_id
-                        dest_id = (
-                            conversation_state.last_mentioned_destination.destination_id
-                        )
-                        if dest_id:
-                            destinations = await PlanRepository.get_plan_destinations(
-                                db, plan.id
-                            )
-                            for dest in destinations:
-                                if dest.destination_id == dest_id:
-                                    plan_dest_id = dest.id
-                                    break
-
-                if not plan_dest_id:
-                    await MessageService.update_conversation_state(
-                        db,
-                        room_id,
-                        current_intent="REMOVE",
-                        missing_params=["item_id"],
-                    )
-                    return IntentHandlerResponse(
-                        ok=False, message="item_id is required to remove a destination."
-                    )
-
-                success = await PlanRepository.remove_destination_from_plan(
-                    db, plan_dest_id
-                )
-                if not success:
-                    return IntentHandlerResponse(
-                        ok=False,
-                        message="Destination not found or could not be removed.",
-                    )
-
-                destinations = await PlanService.get_plan_destinations(
-                    db, user_id, plan.id
-                )
-
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="remove",
-                    item_id=plan_dest_id,
-                    plan={
-                        "id": plan.id,
-                        "place_name": plan.place_name,
-                        "start_date": str(plan.start_date),
-                        "end_date": str(plan.end_date),
-                        "budget_limit": plan.budget_limit,
-                        "destinations": [
-                            {
-                                "id": d.id,
-                                "destination_id": d.destination_id,
-                                "type": d.type.value,
-                                "order_in_day": d.order_in_day,
-                                "visit_date": str(d.visit_date),
-                                "estimated_cost": d.estimated_cost,
-                                "url": d.url,
-                                "note": d.note,
-                                "time_slot": d.time_slot.value,
-                            }
-                            for d in destinations
-                        ],
-                    },
-                )
-
-            # -----------------------------
-            # MODIFY_TIME intent
-            # -----------------------------
-            if intent == Intent.MODIFY_TIME:
-                destination_id = ent.get("destination_id")
-
-                # Try to get destination_id from context if not in entities
-                if not destination_id and conversation_state:
-                    if conversation_state.last_mentioned_destination:
-                        destination_id = (
-                            conversation_state.last_mentioned_destination.destination_id
-                        )
-
-                if not destination_id:
-                    await MessageService.update_conversation_state(
-                        db,
-                        room_id,
-                        current_intent="MODIFY_TIME",
-                        missing_params=["destination_id"],
-                    )
-                    return IntentHandlerResponse(
-                        ok=False, message="destination_id is required to modify time."
-                    )
-
-                visit_date = ent.get("visit_date")
-                order_in_day = ent.get("order_in_day")
-                time_slot = ent.get("time_slot")
-
-                # Try to get time info from context if not in entities
-                if conversation_state:
-                    if not visit_date and conversation_state.last_mentioned_date:
-                        visit_date = conversation_state.last_mentioned_date
-                    if not time_slot and conversation_state.last_mentioned_time_slot:
-                        time_slot = conversation_state.last_mentioned_time_slot
-
-                update_data = PlanDestinationUpdate(
-                    visit_date=visit_date,
-                    order_in_day=order_in_day,
-                    time_slot=time_slot,
-                )
-
-                updated = await PlanRepository.update_plan_destination(
-                    db, plan.id, destination_id, update_data
-                )
-                if not updated:
-                    return IntentHandlerResponse(
-                        ok=False, message="Could not update destination."
-                    )
-
-                destinations = await PlanService.get_plan_destinations(
-                    db, user_id, plan.id
-                )
-
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="modify_time",
-                    item={
-                        "id": updated.id,
-                        "destination_id": updated.destination_id,
-                        "visit_date": str(updated.visit_date),
-                        "order_in_day": updated.order_in_day,
-                        "time_slot": updated.time_slot.value,
-                    },
-                    plan={
-                        "id": plan.id,
-                        "place_name": plan.place_name,
-                        "start_date": str(plan.start_date),
-                        "end_date": str(plan.end_date),
-                        "budget_limit": plan.budget_limit,
-                        "destinations": [
-                            {
-                                "id": d.id,
-                                "destination_id": d.destination_id,
-                                "type": d.type.value,
-                                "order_in_day": d.order_in_day,
-                                "visit_date": str(d.visit_date),
-                                "estimated_cost": d.estimated_cost,
-                                "url": d.url,
-                                "note": d.note,
-                                "time_slot": d.time_slot.value,
-                            }
-                            for d in destinations
-                        ],
-                    },
-                )
-
-            # -----------------------------
-            # CHANGE_BUDGET intent
-            # -----------------------------
-            if intent == Intent.CHANGE_BUDGET:
-                budget = ent.get("budget")
-                if budget is None:
-                    return IntentHandlerResponse(
-                        ok=False, message="New budget value is required."
-                    )
-
-                is_owner = await PlanService.is_plan_owner(db, user_id, plan.id)
-                if not is_owner:
-                    return IntentHandlerResponse(
-                        ok=False, message="Only the plan owner can change the budget."
-                    )
-
-                update_data = PlanUpdate(budget_limit=budget)
-                updated_plan = await PlanRepository.update_plan(
-                    db, plan.id, update_data
-                )
-                if not updated_plan:
-                    return IntentHandlerResponse(
-                        ok=False, message="Could not update budget."
-                    )
-
-                destinations = await PlanService.get_plan_destinations(
-                    db, user_id, plan.id
-                )
-
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="change_budget",
-                    budget=budget,
-                    plan={
-                        "id": updated_plan.id,
-                        "place_name": updated_plan.place_name,
-                        "start_date": str(updated_plan.start_date),
-                        "end_date": str(updated_plan.end_date),
-                        "budget_limit": updated_plan.budget_limit,
-                        "destinations": [
-                            {
-                                "id": d.id,
-                                "destination_id": d.destination_id,
-                                "type": d.type.value,
-                                "order_in_day": d.order_in_day,
-                                "visit_date": str(d.visit_date),
-                                "estimated_cost": d.estimated_cost,
-                                "url": d.url,
-                                "note": d.note,
-                                "time_slot": d.time_slot.value,
-                            }
-                            for d in destinations
-                        ],
-                    },
-                )
-
-            # -----------------------------
-            # VIEW_PLAN intent
-            # -----------------------------
-            if intent == Intent.VIEW_PLAN:
-                destinations = await PlanService.get_plan_destinations(
-                    db, user_id, plan.id
-                )
-
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="view_plan",
-                    plan={
-                        "id": plan.id,
-                        "place_name": plan.place_name,
-                        "start_date": str(plan.start_date),
-                        "end_date": str(plan.end_date),
-                        "budget_limit": plan.budget_limit,
-                        "destinations": [
-                            {
-                                "id": d.id,
-                                "destination_id": d.destination_id,
-                                "type": d.type.value,
-                                "order_in_day": d.order_in_day,
-                                "visit_date": str(d.visit_date),
-                                "estimated_cost": d.estimated_cost,
-                                "url": d.url,
-                                "note": d.note,
-                                "time_slot": d.time_slot.value,
-                            }
-                            for d in destinations
-                        ],
-                    },
-                )
-
-            # -----------------------------
-            # SUGGEST intent
-            # -----------------------------
-            if intent == Intent.SUGGEST:
-                suggestions = await RecommendationService.recommend_for_cluster_hybrid(
-                    db, user_id
-                )
-                return IntentHandlerResponse(
-                    ok=True, action="suggest", suggestions=suggestions
-                )
-
-            return IntentHandlerResponse(
-                ok=False, message="I don't understand the request, please try again."
-            )
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error handling plan intent: {str(e)}",
-            )
             
    # hàm sắp xếp destinations dự theo đánh giá của plan_validator.py
+    @staticmethod
     async def build_itinerary(destinations: List[PlanDestination]) -> List[PlanDestination]:
         """
         Sắp xếp lịch trình hợp lý dựa trên:
@@ -974,26 +533,40 @@ class PlanService:
         return result
 
     @staticmethod
-    async def update_destination_time(self, db, user_id, plan_id, dest_id, update_data):
-        if not await PlanRepository.is_member(db, user_id, plan_id):
-            return {"ok": False, "message": "Không có quyền chỉnh sửa."}
+    async def _sort_single_day(destinations: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp các điểm đến trong cùng một ngày theo:
+        - Loại điểm đến (ưu tiên: attraction > restaurant > accommodation > transport)
+        - Time slot (morning < afternoon < evening)
+        - Order in day
+        """
+        if not destinations:
+            return []
 
-        updated = await PlanRepository.update_plan_destination(db, dest_id, update_data)
-        if not updated:
-            return {"ok": False, "message": "Không cập nhật được destination."}
+        # Định nghĩa thứ tự ưu tiên cho loại điểm đến
+        type_priority = {
+            DestinationType.attraction: 1,
+            DestinationType.restaurant: 2,
+            DestinationType.accommodation: 3,
+            DestinationType.transport: 4,
+        }
 
-        new_state = await self.get_plan_state(db, plan_id)
-        return {"ok": True, "action": "modify_time", "item": updated, "state": new_state}
+        # Định nghĩa thứ tự ưu tiên cho time slot
+        time_slot_priority = {
+            TimeSlot.morning: 1,
+            TimeSlot.afternoon: 2,
+            TimeSlot.evening: 3,
+        }
 
-    @staticmethod
-    async def update_budget(self, db, user_id, plan_id, budget):
-        updated = await PlanRepository.update_plan_destination(
-            db, plan_id, PlanUpdate(budget_limit=budget)
-        )
+        def get_sort_key(dest: PlanDestination):
+            dest_type = getattr(dest, 'type', None)
+            time_slot = getattr(dest, 'time_slot', None)
+            order = getattr(dest, 'order_in_day', 0) or 0
 
-        if not updated:
-            return {"ok": False, "message": "Không cập nhật budget."}
+            type_order = type_priority.get(dest_type, 99)
+            slot_order = time_slot_priority.get(time_slot, 99)
 
-        new_state = await self.get_plan_state(db, plan_id)
-        return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
+            return (slot_order, type_order, order)
 
+        sorted_destinations = sorted(destinations, key=get_sort_key)
+        return sorted_destinations

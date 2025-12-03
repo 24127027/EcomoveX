@@ -8,12 +8,12 @@ sys.path.insert(0, str(backend_dir))
 
 from typing import Any, Dict, List
 
-from utils.nlp.rule_engine import RuleEngine
+from utils.nlp.rule_engine import RuleEngine, ParseResult
 from services.plan_service import PlanService
-from sub_agents.opening_hours_agent import OpeningHoursAgent
-from sub_agents.budget_check_agent import BudgetCheckAgent
-from sub_agents.daily_calculation_agent import DailyCalculationAgent
-from sub_agents.plan_validator_agent import PlanValidatorAgent
+from services.agents.sub_agents.opening_hours_agent import OpeningHoursAgent
+from services.agents.sub_agents.budget_check_agent import BudgetCheckAgent
+from services.agents.sub_agents.daily_calculation_agent import DailyCalculationAgent
+from services.agents.sub_agents.plan_validator_agent import PlanValidatorAgent
 from integration.text_generator_api import TextGeneratorAPI
 
 class ChatbotServiceDemo:
@@ -34,19 +34,23 @@ class ChatbotServiceDemo:
         # 1. Load context giả lập (bỏ qua DB)
         history = []
 
-        # 2. Xử lý intent & action
-        action_result = await self.plan_service.extract_action(user_msg)
-        action = action_result  # dict với 'intent', 'entities', 'confidence'
+        # 2. Xử lý intent & action bằng RuleEngine
+        parse_result: ParseResult = self.rule_engine.classify(user_msg)
+        action = {
+            "intent": parse_result.intent,
+            "entities": parse_result.entities,
+            "confidence": parse_result.confidence
+        }
 
         # 3. Dùng plan JSON trực tiếp
         plan = plan_json
 
         # 4. Call sub-agents (bỏ db, pass plan JSON)
         sub_agent_results = []
-        sub_agent_results.append(await self.opening_hours_agent.process(plan, action))
-        sub_agent_results.append(await self.budget_check_agent.process(plan, action))
-        sub_agent_results.append(await self.daily_calc_agent.process(plan, action))
-        validation_result = await self.plan_validator_agent.process(plan, action)
+        sub_agent_results.append(await self.opening_hours_agent.process(plan, action.get("intent", "validate")))
+        sub_agent_results.append(await self.budget_check_agent.process(plan, action.get("intent", "validate")))
+        sub_agent_results.append(await self.daily_calc_agent.process(plan, action.get("intent", "validate")))
+        validation_result = await self.plan_validator_agent.process(plan, action.get("intent", "validate"))
         sub_agent_results.append(validation_result)
 
         # 5. Kiểm tra modifications / warnings từ sub-agents
