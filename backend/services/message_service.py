@@ -36,16 +36,7 @@ class MessageService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"User ID {user_id} is not a member of room ID {message.room_id}",
                 )
-            return MessageResponse(
-                id=message.id,
-                sender_id=message.sender_id,
-                room_id=message.room_id,
-                plan_id=message.plan_id,
-                content=message.content,
-                message_type=message.message_type,
-                status=message.status,
-                timestamp=message.created_at,
-            )
+            return await MessageService._map_to_response(message)
         except HTTPException:
             raise
         except Exception as e:
@@ -74,19 +65,8 @@ class MessageService:
             messages = await MessageRepository.search_messages_by_keyword(db, room_id, keyword)
             if messages is None:
                 return []
-            message_list = [
-                MessageResponse(
-                    id=msg.id,
-                    sender_id=msg.sender_id,
-                    room_id=msg.room_id,
-                    content=msg.content,
-                    message_type=msg.message_type,
-                    status=msg.status,
-                    timestamp=msg.created_at,
-                )
-                for msg in messages
-            ]
-            return message_list
+            import asyncio
+            return await asyncio.gather(*[MessageService._map_to_response(msg) for msg in messages])
         except HTTPException:
             raise
         except Exception as e:
@@ -109,20 +89,8 @@ class MessageService:
             messages = await MessageRepository.get_messages_by_room(db, room_id)
             if messages is None:
                 return []
-            message_list = [
-                MessageResponse(
-                    id=msg.id,
-                    sender_id=msg.sender_id,
-                    room_id=msg.room_id,
-                    plan_id=msg.plan_id,
-                    content=msg.content,
-                    message_type=msg.message_type,
-                    status=msg.status,
-                    timestamp=msg.created_at,
-                )
-                for msg in messages
-            ]
-            return message_list
+            import asyncio
+            return await asyncio.gather(*[MessageService._map_to_response(msg) for msg in messages])
         except HTTPException:
             raise
         except Exception as e:
@@ -185,15 +153,23 @@ class MessageService:
                     detail="Failed to create message",
                 )
 
+            url = None
+            content = saved_msg.content
+            if message_file and 'file' in locals():
+                 url = file.url
+                 if not content:
+                     content = url
+
             response = MessageResponse(
                 id=saved_msg.id,
-                content=saved_msg.content,
+                content=content,
                 sender_id=saved_msg.sender_id,
                 room_id=room_id,
                 plan_id=saved_msg.plan_id,
                 message_type=saved_msg.message_type,
                 status=saved_msg.status,
                 timestamp=saved_msg.created_at,
+                url=url
             )
 
             # Broadcast to room
@@ -660,3 +636,26 @@ class MessageService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error declining invitation {message_id}: {e}",
             )
+
+    @staticmethod
+    async def _map_to_response(msg) -> MessageResponse:
+        url = None
+        content = msg.content
+        if msg.message_type == MessageType.file and msg.file_metadata:
+            url = await StorageService.generate_signed_url(
+                msg.file_metadata.blob_name, msg.file_metadata.bucket
+            )
+            if not content:
+                content = url
+        
+        return MessageResponse(
+            id=msg.id,
+            sender_id=msg.sender_id,
+            room_id=msg.room_id,
+            content=content,
+            message_type=msg.message_type,
+            status=msg.status,
+            timestamp=msg.created_at,
+            plan_id=msg.plan_id,
+            url=url
+        )

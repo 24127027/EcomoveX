@@ -1022,6 +1022,25 @@ class ApiClient {
       body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
     });
   }
+
+  async sendMessage(
+    roomId: number,
+    content?: string,
+    file?: File,
+    planId?: number,
+    messageType: "text" | "file" | "invitation" = "text"
+  ): Promise<ChatMessage> {
+    const formData = new FormData();
+    if (content) formData.append("content", content);
+    if (file) formData.append("message_file", file);
+    if (planId) formData.append("plan_id", String(planId));
+    formData.append("message_type", messageType);
+
+    return this.request<ChatMessage>(`/messages/${roomId}`, {
+      method: "POST",
+      body: formData,
+    });
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);

@@ -5,6 +5,7 @@ from typing import List
 from repository.plan_repository import PlanRepository
 from repository.room_repository import RoomRepository
 from repository.message_repository import MessageRepository
+from repository.cluster_repository import ClusterRepository
 from schemas.map_schema import *
 from schemas.plan_schema import *
 from schemas.room_schema import RoomCreate, RoomMemberCreate
@@ -52,7 +53,7 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,             
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,  # ✅ Chuyển time về format "HH:MM"
+                        time_slot=dest.time_slot,  # ✅ Sử dụng time_slot
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
@@ -124,7 +125,7 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,
+                        time_slot=dest.time_slot,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
@@ -626,11 +627,15 @@ class PlanService:
                 )
 
             # -----------------------------
-            # SUGGEST (giữ nguyên)
+            # SUGGEST
             # -----------------------------
             if intent == Intent.SUGGEST:
-                suggestions = await RecommendationService.recommend_for_cluster_hybrid(db, user_id)
-                return IntentHandlerResponse(ok=True, action="suggest", suggestions=suggestions)
+                cluster_id = await ClusterRepository.get_user_latest_cluster(db, user_id)
+                if cluster_id:
+                    suggestions = await RecommendationService.recommend_for_cluster_hybrid(db, cluster_id)
+                    return IntentHandlerResponse(ok=True, action="suggest", suggestions=suggestions)
+                else:
+                    return IntentHandlerResponse(ok=False, message="Mình chưa có đủ thông tin để gợi ý cho bạn. Hãy thử thêm vài địa điểm vào plan trước nhé!")
 
             return IntentHandlerResponse(ok=False, message="Mình không hiểu yêu cầu, bạn nói lại được không?")
 

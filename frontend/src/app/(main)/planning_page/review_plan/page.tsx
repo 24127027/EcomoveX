@@ -297,10 +297,33 @@ function ChatWindow({
     setIsLoading(true);
 
     try {
-      const storedUser = localStorage.getItem("user_info");
       let userId = 0;
+      const storedUser = localStorage.getItem("user_info");
       if (storedUser) {
-        userId = JSON.parse(storedUser).id;
+        try {
+          userId = JSON.parse(storedUser).id;
+        } catch (e) {
+          console.error("Error parsing user_info", e);
+        }
+      }
+
+      if (!userId) {
+        try {
+          const profile = await api.getUserProfile();
+          userId = profile.id;
+          localStorage.setItem("user_info", JSON.stringify(profile));
+        } catch (e) {
+          console.error("Failed to fetch user profile", e);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "bot",
+              text: "Error: Could not identify user. Please log in again.",
+            },
+          ]);
+          setIsLoading(false);
+          return;
+        }
       }
 
       const res = await api.sendBotMessage(userId, roomId, userMsg);

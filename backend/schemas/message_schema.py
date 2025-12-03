@@ -45,18 +45,18 @@ class MessageResponse(BaseModel):
 class RoomContextCreate(BaseModel):
     room_id: int = Field(..., gt=0)
     key: str = Field(..., min_length=1, max_length=128)
-    value: Optional[Dict[str, Any]] = None
+    value: Optional[Any] = None
 
 
 class RoomContextUpdate(BaseModel):
-    value: Optional[Dict[str, Any]] = None
+    value: Optional[Any] = None
 
 
 class RoomContextResponse(BaseModel):
     id: int
     room_id: int
     key: str
-    value: Optional[Dict[str, Any]] = None
+    value: Optional[Any] = None
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -18,8 +18,8 @@ class ReviewService:
         try:
             reviews = await ReviewRepository.get_all_reviews_by_destination(db, destination_id)
             review_lists = []
-            urls = []
             for review in reviews:
+                urls = []
                 files = await ReviewRepository.get_review_files(db, destination_id, review.user_id)
                 for file in files:
                     urls.append(await StorageService.generate_signed_url(file.blob_name))
@@ -105,6 +105,9 @@ class ReviewService:
                     metadata = await StorageService.upload_file(
                         db, file, user_id, FileCategory.review
                     )
+                    await ReviewRepository.add_review_file(
+                        db, destination_id, user_id, metadata.blob_name
+                    )
                     urls.append(await StorageService.generate_signed_url(metadata.blob_name))
 
             return ReviewResponse(
@@ -143,7 +146,12 @@ class ReviewService:
 
             if files:
                 for file in files:
-                    await StorageService.upload_file(db, file, user_id, FileCategory.review)
+                    metadata = await StorageService.upload_file(
+                        db, file, user_id, FileCategory.review
+                    )
+                    await ReviewRepository.add_review_file(
+                        db, destination_id, user_id, metadata.blob_name
+                    )
 
             files = await ReviewRepository.get_review_files(db, destination_id, user_id)
             urls = []

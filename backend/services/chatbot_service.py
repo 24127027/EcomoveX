@@ -31,6 +31,9 @@ class ChatbotService:
             action = planner_result.get("action") if isinstance(planner_result, dict) else getattr(planner_result, "action", None)
             # Lấy plan_id nếu có
             plan_id = planner_result.get("plan_id") if isinstance(planner_result, dict) else getattr(planner_result, "plan_id", None)
+            
+            plan_data = None # Initialize plan_data to avoid UnboundLocalError
+
             # Dữ liệu plan để trả về frontend (Nên là Full List Destinations)
             if action == "add" or action == "remove" or action == "modify_time":
             # Lấy full plan bằng repository để update

@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models.message import *
 from schemas.message_schema import *
@@ -12,7 +13,11 @@ class MessageRepository:
     @staticmethod
     async def get_message_by_id(db: AsyncSession, message_id: int):
         try:
-            result = await db.execute(select(Message).where(Message.id == message_id))
+            result = await db.execute(
+                select(Message)
+                .options(selectinload(Message.file_metadata))
+                .where(Message.id == message_id)
+            )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: fetching message ID {message_id} - {e}")
@@ -23,6 +28,7 @@ class MessageRepository:
         try:
             result = await db.execute(
                 select(Message)
+                .options(selectinload(Message.file_metadata))
                 .where((Message.room_id == room_id))
                 .order_by(Message.created_at.desc())
             )
@@ -49,6 +55,7 @@ class MessageRepository:
         try:
             result = await db.execute(
                 select(Message)
+                .options(selectinload(Message.file_metadata))
                 .where((Message.content.ilike(f"%{keyword}%")) & (Message.room_id == room_id))
                 .order_by(Message.created_at.desc())
             )

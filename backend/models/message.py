@@ -22,7 +22,6 @@ from database.db import Base
 class MessageType(str, Enum):
     text = "text"
     file = "file"
-    invitation = "invitation"
 
 
 class MessageStatus(str, Enum):
@@ -42,7 +41,6 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False, index=True)
-    plan_id = Column(Integer, ForeignKey("plans.id"), nullable=True)
     message_type = Column(SQLEnum(MessageType), default=MessageType.text)
     file_blob_name = Column(
         String, ForeignKey("metadata.blob_name", ondelete="SET NULL"), nullable=True

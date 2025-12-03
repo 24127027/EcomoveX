@@ -20,6 +20,8 @@ import {
   Send,
   MessageCircle,
   Route, // Icon chat
+  ImagePlus,
+  Download,
 } from "lucide-react";
 import { Jost } from "next/font/google";
 import {
@@ -62,6 +64,7 @@ export default function FriendsPage() {
   const [inputMessage, setInputMessage] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null); // Để auto scroll
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- STATE CHO PLAN INVITATION ---
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -404,6 +407,42 @@ export default function FriendsPage() {
     }
   };
 
+  // Hàm xử lý gửi file (hình ảnh)
+  const handleSendFile = async (file: File) => {
+    if (!activeRoomId || !currentUserId) return;
+
+    try {
+      // Use API to upload file instead of WebSocket base64
+      await api.sendMessage(activeRoomId, undefined, file, undefined, "file");
+      // Message will be received via WebSocket broadcast
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("Failed to send file:", error);
+      setFeedback({ text: "Failed to send image", type: "error" });
+    }
+  };
+
+  const handleDownload = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `image-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      window.open(url, "_blank");
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
@@ -596,7 +635,30 @@ export default function FriendsPage() {
                             : "bg-white text-gray-700 rounded-tl-none shadow-sm border border-gray-100"
                         }`}
                       >
-                        {msg.content}
+                        {msg.message_type === "file" ? (
+                          msg.content ? (
+                            <div className="relative group">
+                              <img
+                                src={msg.content}
+                                alt="Sent image"
+                                className="rounded-lg max-w-full h-auto"
+                              />
+                              <button
+                                onClick={() => handleDownload(msg.content!)}
+                                className="absolute bottom-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                                title="Download"
+                              >
+                                <Download size={16} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="italic text-gray-400">
+                              Image not available
+                            </span>
+                          )
+                        ) : (
+                          msg.content
+                        )}
                         <div
                           className={`text-[10px] mt-1 text-right ${
                             isMe ? "text-green-100" : "text-gray-400"
@@ -639,6 +701,22 @@ export default function FriendsPage() {
               >
                 <Send size={20} />
               </button>
+
+              {/* Nút gửi hình ảnh */}
+              <label className="bg-gray-100 p-3 rounded-xl hover:bg-gray-200 cursor-pointer text-gray-500 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleSendFile(e.target.files[0]);
+                    }
+                  }}
+                />
+                <ImagePlus size={20} />
+              </label>
             </div>
           </div>
         )}
