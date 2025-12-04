@@ -78,20 +78,6 @@ class UserRepository:
             return []
 
     @staticmethod
-    async def get_user_by_email(db: AsyncSession, email: str):
-        """
-        Get a single user by email address.
-        """
-        try:
-            result = await db.execute(
-                select(User).where(User.email == email)
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Failed to fetch user by email '{email}' - {e}")
-            return None
-
-    @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate):
         try:
             is_existing = await UserRepository.search_users(db, user_data.username) or await UserRepository.search_users(db, user_data.email)
@@ -311,4 +297,15 @@ class UserRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: Failed to update role for user ID {user_id} - {e}")
+            return None
+
+        
+    @staticmethod
+    async def get_user_by_email(db: AsyncSession, email: str):
+        try:
+            result = await db.execute(select(User).where(User.email == email))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
             return None
