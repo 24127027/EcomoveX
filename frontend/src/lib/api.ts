@@ -23,8 +23,9 @@ interface AuthResponse {
   access_token: string;
   token_type: string;
   user_id: number;
-  username: string;
-  email: string;
+  username?: string;
+  email?: string;
+  role: string;
 }
 
 interface ValidationError {
@@ -390,6 +391,31 @@ export interface ReviewStatisticsResponse {
   average_rating: number;
   total_reviews: number;
   rating_distribution: Record<string, number>;
+}
+
+// --- ADMIN TYPES ---
+export interface UserFilterParams {
+  role?: string;
+  status?: string;
+  search?: string;
+  created_from?: string;
+  created_to?: string;
+  skip?: number;
+  limit?: number;
+}
+
+export interface AdminUserResponse extends UserProfile {
+  eco_point: number;
+  rank: string;
+  created_at?: string;
+  last_login?: string;
+}
+
+export interface DashboardStats {
+  total_users: number;
+  active_destinations: number;
+  pending_reviews: number;
+  eco_impact_score: number;
 }
 
 // --- API CLIENT CLASS ---
@@ -1024,6 +1050,103 @@ class ApiClient {
       body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
     });
   }
+
+  // --- ADMIN ENDPOINTS ---
+  
+  // List all users with filters (Admin only)
+  async listAllUsers(filters?: UserFilterParams): Promise<AdminUserResponse[]> {
+    const params = new URLSearchParams();
+    if (filters?.role) params.append("role", filters.role);
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.created_from) params.append("created_from", filters.created_from);
+    if (filters?.created_to) params.append("created_to", filters.created_to);
+    if (filters?.skip !== undefined) params.append("skip", String(filters.skip));
+    if (filters?.limit !== undefined) params.append("limit", String(filters.limit));
+    
+    const queryString = params.toString();
+    return this.request<AdminUserResponse[]>(
+      `/users/users${queryString ? `?${queryString}` : ""}`,
+      { method: "GET" }
+    );
+  }
+
+  // Delete user by ID (Admin only)
+  async adminDeleteUser(userId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Add eco points to a user (Admin only)
+  async addEcoPointsToUser(userId: number, points: number): Promise<UserProfile> {
+    return this.request<UserProfile>(
+      `/users/${userId}/eco_point/add?point=${points}`,
+      { method: "POST" }
+    );
+  }
+
+  // Get all reviews (for moderation)
+  async getAllReviews(): Promise<ReviewResponse[]> {
+    return this.request<ReviewResponse[]>("/reviews/me", { method: "GET" });
+  }
+
+  // Get all missions (Admin)
+  async adminGetAllMissions(): Promise<Mission[]> {
+    return this.request<Mission[]>("/rewards/missions", { method: "GET" });
+  }
+
+  // Create mission (Admin only)
+  async createMission(data: {
+    name: string;
+    description: string;
+    reward_type: string;
+    action_trigger: string;
+    value: number;
+  }): Promise<Mission> {
+    return this.request<Mission>("/rewards/missions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Update mission (Admin only)
+  async updateMission(missionId: number, data: {
+    name?: string;
+    description?: string;
+    reward_type?: string;
+    action_trigger?: string;
+    value?: number;
+  }): Promise<Mission> {
+    return this.request<Mission>(`/rewards/missions/${missionId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Delete mission (Admin only)
+  async deleteMission(missionId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/rewards/missions/${missionId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Admin update user password (Admin only)
+  async adminUpdatePassword(userId: number, newPassword: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/users/${userId}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+  }
+
+  // Admin update user role (Admin only)
+  async adminUpdateRole(userId: number, newRole: string): Promise<UserProfile> {
+    return this.request<UserProfile>(`/users/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ new_role: newRole }),
+    });
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);
+

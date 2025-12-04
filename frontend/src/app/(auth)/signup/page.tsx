@@ -93,7 +93,14 @@ export default function SignupPage() {
         localStorage.setItem("user_id", response.user_id.toString());
       }
 
-      router.replace("/allow_permission/location_permission");
+      localStorage.setItem("user_role", response.role);
+
+      // Redirect to admin page if user is admin
+      if (response.role === "Admin") {
+        router.replace("/admin");
+      } else {
+        router.replace("/allow_permission/location_permission");
+      }
     } catch (err: any) {
       if (err instanceof ApiValidationError) {
         setValidationErrors({

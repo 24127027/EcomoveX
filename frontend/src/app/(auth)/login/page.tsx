@@ -103,8 +103,14 @@ export default function SigninPage() {
 
       localStorage.setItem("access_token", response.access_token);
       localStorage.setItem("user_id", response.user_id.toString());
+      localStorage.setItem("user_role", response.role);
 
-      router.push("/allow_permission/location_permission");
+      // Redirect to admin page if user is admin
+      if (response.role === "Admin") {
+        router.push("/admin");
+      } else {
+        router.push("/allow_permission/location_permission");
+      }
     } catch (err: any) {
       console.error("Login error:", err);
 

@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.message_schema import CommonMessageResponse
 from schemas.user_schema import (
+    AdminPasswordUpdate,
+    AdminRoleUpdate,
     UserCredentialUpdate,
     UserFilterParams,
     UserProfileUpdate,
@@ -121,3 +123,39 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
 ):
     return await UserService.list_users(db, filters)
+
+
+@router.put(
+    "/{user_id}/password",
+    dependencies=[Depends(require_roles(["Admin"]))],
+    response_model=CommonMessageResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def admin_update_user_password(
+    user_id: int,
+    password_data: AdminPasswordUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    success = await UserService.admin_update_password(
+        db, user_id, password_data.new_password
+    )
+    if success:
+        return {"message": "Password updated successfully"}
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+    )
+
+
+@router.put(
+    "/{user_id}/role",
+    dependencies=[Depends(require_roles(["Admin"]))],
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def admin_update_user_role(
+    user_id: int,
+    role_data: AdminRoleUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    return await UserService.admin_update_role(db, user_id, role_data.new_role)
+

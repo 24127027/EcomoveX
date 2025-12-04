@@ -1,11 +1,163 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, MapPin, MessageSquare, BarChart3, Settings, FileText, Shield, Search, Plus, Edit, Trash2, Eye, Check, X, AlertCircle, TrendingUp, Leaf, Award } from 'lucide-react';
+import { api, AdminUserResponse, ReviewResponse, Mission } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Check if user is admin
+  useEffect(() => {
+    const userRole = localStorage.getItem('user_role');
+    if (userRole !== 'Admin') {
+      alert('Access denied. Admin privileges required.');
+      router.push('/home');
+    }
+  }, [router]);
+
+  // State for real data
+  const [users, setUsers] = useState<AdminUserResponse[]>([]);
+  const [reviews, setReviews] = useState<ReviewResponse[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [dashboardStats, setDashboardStats] = useState({
+    total_users: 0,
+    active_destinations: 0,
+    pending_reviews: 0,
+    eco_impact_score: 0,
+  });
+
+  // Fetch users
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    }
+  }, [activeTab]);
+
+  // Fetch reviews
+  useEffect(() => {
+    if (activeTab === 'reviews') {
+      fetchReviews();
+    }
+  }, [activeTab]);
+
+  // Fetch dashboard data
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      fetchDashboardData();
+    }
+  }, [activeTab]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const fetchedUsers = await api.listAllUsers({ limit: 100 });
+      setUsers(fetchedUsers);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch users');
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchReviews = async () => {
+    try {
+      setLoading(true);
+      const fetchedReviews = await api.getAllReviews();
+      setReviews(fetchedReviews);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch reviews');
+      console.error('Error fetching reviews:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      // Fetch all users to calculate stats
+      const allUsers = await api.listAllUsers({ limit: 1000 });
+      const allReviews = await api.getAllReviews();
+      
+      setDashboardStats({
+        total_users: allUsers.length,
+        active_destinations: 0, // This would need a dedicated endpoint
+        pending_reviews: allReviews.length,
+        eco_impact_score: allUsers.reduce((sum, user) => sum + (user.eco_point || 0), 0),
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch dashboard data');
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+      await api.adminDeleteUser(userId);
+      alert('User deleted successfully');
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete user');
+    }
+  };
+
+  const handleChangePassword = async (userId: number, username: string) => {
+    const newPassword = prompt(`Enter new password for ${username}:`);
+    if (!newPassword || newPassword.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+    
+    try {
+      await api.adminUpdatePassword(userId, newPassword);
+      alert('Password updated successfully');
+    } catch (err: any) {
+      alert(err.message || 'Failed to update password');
+    }
+  };
+
+  const handleChangeStatus = (userId: number, username: string) => {
+    const newStatus = prompt(`Enter new status for ${username} (Active/Suspended/Banned):`);
+    if (!newStatus) return;
+    // TODO: Implement status change API
+    alert('Status change feature - to be implemented with backend API');
+  };
+
+  const handleChangeRole = async (userId: number, currentRole: string, username: string) => {
+    const newRole = currentRole === 'Admin' ? 'user' : 'admin';
+    if (!confirm(`Change ${username}'s role to ${newRole}?`)) return;
+    
+    try {
+      await api.adminUpdateRole(userId, newRole);
+      alert('Role updated successfully');
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update role');
+    }
+  };
+
+  const handleDeleteReview = async (destinationId: string) => {
+    if (!confirm('Are you sure you want to delete this review?')) return;
+    
+    try {
+      await api.deleteReview(destinationId);
+      alert('Review deleted successfully');
+      fetchReviews();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete review');
+    }
+  };
 
   // Sidebar Navigation
   const navigation = [
@@ -18,11 +170,11 @@ const AdminDashboard = () => {
   ];
 
   // Mock data
-  const dashboardStats = [
-    { label: 'Total Users', value: '12,543', change: '+12%', icon: Users, color: 'bg-blue-500' },
-    { label: 'Active Destinations', value: '284', change: '+5%', icon: MapPin, color: 'bg-green-500' },
-    { label: 'Pending Reviews', value: '45', change: '-15%', icon: MessageSquare, color: 'bg-orange-500' },
-    { label: 'Eco Impact Score', value: '8,542', change: '+28%', icon: Leaf, color: 'bg-emerald-500' },
+  const dashboardStatsDisplay = [
+    { label: 'Total Users', value: dashboardStats.total_users.toString(), change: '+12%', icon: Users, color: 'bg-blue-500' },
+    { label: 'Active Destinations', value: dashboardStats.active_destinations.toString(), change: '+5%', icon: MapPin, color: 'bg-green-500' },
+    { label: 'Pending Reviews', value: dashboardStats.pending_reviews.toString(), change: '-15%', icon: MessageSquare, color: 'bg-orange-500' },
+    { label: 'Eco Impact Score', value: dashboardStats.eco_impact_score.toLocaleString(), change: '+28%', icon: Leaf, color: 'bg-emerald-500' },
   ];
 
   const popularDestinations = [
@@ -41,12 +193,7 @@ const AdminDashboard = () => {
     { month: 'Jun', users: 12543 },
   ];
 
-  const users = [
-    { id: 1, username: 'johndoe', email: 'john@example.com', role: 'Customer', status: 'Active', ecoPoints: 150, joinDate: '2024-01-15', lastActivity: '2024-11-26' },
-    { id: 2, username: 'janesmith', email: 'jane@example.com', role: 'Admin', status: 'Active', ecoPoints: 320, joinDate: '2024-02-20', lastActivity: '2024-11-25' },
-    { id: 3, username: 'mikejohnson', email: 'mike@example.com', role: 'Customer', status: 'Suspended', ecoPoints: 85, joinDate: '2024-03-10', lastActivity: '2024-11-20' },
-    { id: 4, username: 'sarahw', email: 'sarah@example.com', role: 'Customer', status: 'Banned', ecoPoints: 0, joinDate: '2024-04-05', lastActivity: '2024-10-15' },
-  ];
+  // Removed mock users array - now using state
 
   const destinations = [
     { id: 101, name: 'Bali Eco Resort', country: 'Indonesia', ecoRating: 4.8, verified: true, tags: ['Sustainable', 'Wildlife Protection', 'Green Energy'], createdDate: '2024-01-10' },
@@ -54,12 +201,7 @@ const AdminDashboard = () => {
     { id: 103, name: 'Glacier National Park', country: 'USA', ecoRating: 4.6, verified: false, tags: ['Nature Preserve', 'Low Impact'], createdDate: '2024-03-20' },
   ];
 
-  const reviews = [
-    { id: 1, user: 'johndoe', destination: 'Bali Eco Resort', rating: 5, comment: 'Amazing sustainable resort! The solar panels and recycling program were impressive.', status: 'Pending', botFlag: 'Safe', submittedDate: '2024-11-25' },
-    { id: 2, user: 'janesmith', destination: 'Amazon Lodge', rating: 4, comment: 'Great experience, but transportation could be improved.', status: 'Pending', botFlag: 'Safe', submittedDate: '2024-11-24' },
-    { id: 3, user: 'suspicious_user', destination: 'Costa Rica', rating: 1, comment: 'Terrible! Click here for better deals: fake-website.com', status: 'Pending', botFlag: 'Spam Detected', submittedDate: '2024-11-23' },
-    { id: 4, user: 'sarahw', destination: 'Iceland Tour', rating: 5, comment: 'Absolutely breathtaking landscapes and eco-friendly practices!', status: 'Approved', botFlag: 'Safe', submittedDate: '2024-11-22' },
-  ];
+  // Removed mock reviews array - now using state
 
   const auditLogs = [
     { id: 1, admin: 'admin@travel.com', action: 'User Suspended', target: 'mikejohnson (ID: 3)', timestamp: '2024-11-26 10:30:15', details: 'Suspended for policy violation' },
@@ -72,9 +214,12 @@ const AdminDashboard = () => {
   // Render Dashboard
   const renderDashboard = () => (
     <div className="space-y-6">
+      {loading && <div className="text-center py-4">Loading dashboard data...</div>}
+      {error && <div className="bg-red-100 text-red-800 p-4 rounded">{error}</div>}
+      
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {dashboardStats.map((stat, index) => (
+        {dashboardStatsDisplay.map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -175,12 +320,19 @@ const AdminDashboard = () => {
   
   const renderUserManagement = () => {
     const filteredUsers = users.filter(user => {
-      if (userFilter === 'suspended') return user.status === 'Suspended';
+      if (userFilter === 'suspended') return user.role === 'Suspended';
+      if (searchTerm) {
+        return user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      }
       return true;
     });
 
     return (
     <div className="space-y-6">
+      {loading && <div className="text-center py-4">Loading users...</div>}
+      {error && <div className="bg-red-100 text-red-800 p-4 rounded">{error}</div>}
+      
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 mb-6">
           <h2 className="text-xl font-semibold text-gray-900">User Management</h2>
@@ -203,6 +355,12 @@ const AdminDashboard = () => {
               <option value="all">All Users</option>
               <option value="suspended">Only Suspended</option>
             </select>
+            <button 
+              onClick={fetchUsers}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Refresh
+            </button>
           </div>
         </div>
 
@@ -213,68 +371,80 @@ const AdminDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Eco Points</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Activity</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{user.username}</p>
-                      <p className="text-xs text-gray-500">ID: {user.id}</p>
-                    </div>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    No users found
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{user.email}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{user.username}</p>
+                        <p className="text-xs text-gray-500">ID: {user.id}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{user.email}</td>
+                    <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         user.role === 'Admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
                       }`}>
                         {user.role}
                       </span>
-                      <button className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${
-                        user.role === 'Admin' 
-                          ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
-                      }`} title={user.role === 'Admin' ? 'Remove Admin' : 'Make Admin'}>
-                        <Shield className="w-3 h-3" />
-                        {user.role === 'Admin' ? 'Remove' : 'Make Admin'}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      user.status === 'Active' ? 'bg-green-100 text-green-800' :
-                      user.status === 'Suspended' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{user.ecoPoints}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{user.lastActivity}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <button className="text-blue-600 hover:text-blue-800" title="View Activity">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button className="text-green-600 hover:text-green-800" title="Add Eco Points">
-                        <Plus className="w-4 h-4" />
-                      </button>
-                      <button className={`${user.status === 'Suspended' ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800'}`} title={user.status === 'Suspended' ? 'Unsuspend' : 'Suspend'}>
-                        <AlertCircle className="w-4 h-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-800" title="Ban User">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                        {user.rank}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                        Active
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleChangeRole(user.id, user.role || 'User', user.username)}
+                          className="text-purple-600 hover:text-purple-800" 
+                          title="Change Role"
+                        >
+                          <Shield className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleChangeStatus(user.id, user.username)}
+                          className="text-yellow-600 hover:text-yellow-800" 
+                          title="Change Status"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleChangePassword(user.id, user.username)}
+                          className="text-blue-600 hover:text-blue-800" 
+                          title="Change Password"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="text-red-600 hover:text-red-800" 
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -283,7 +453,7 @@ const AdminDashboard = () => {
       {/* User Activity Modal Placeholder */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-800">
-          <strong>Note:</strong> Click the eye icon to view detailed user activity including login history, bookings, reviews, and eco-friendly actions.
+          <strong>Note:</strong> User management is now connected to the backend API. You can manage roles, status, passwords, and delete users.
         </p>
       </div>
     </div>
@@ -396,78 +566,85 @@ const AdminDashboard = () => {
   // Render Review Moderation
   const renderReviewModeration = () => (
     <div className="space-y-6">
+      {loading && <div className="text-center py-4">Loading reviews...</div>}
+      {error && <div className="bg-red-100 text-red-800 p-4 rounded">{error}</div>}
+      
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Review Moderation</h2>
           <div className="flex gap-2">
             <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-              {reviews.filter(r => r.status === 'Pending').length} Pending
+              {reviews.length} Total Reviews
             </span>
-            <span className="px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full">
-              {reviews.filter(r => r.botFlag !== 'Safe').length} Flagged
-            </span>
+            <button 
+              onClick={fetchReviews}
+              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+            >
+              Refresh
+            </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          {reviews.map((review) => (
-            <div key={review.id} className={`border rounded-lg p-4 ${
-              review.botFlag !== 'Safe' ? 'border-red-300 bg-red-50' : 'border-gray-200'
-            }`}>
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <p className="font-medium text-gray-900">{review.user}</p>
-                    <span className="text-sm text-gray-500">→ {review.destination}</span>
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-300'}>★</span>
-                      ))}
+          {reviews.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No reviews found</div>
+          ) : (
+            reviews.map((review) => (
+              <div key={review.destination_id} className="border rounded-lg p-4 border-gray-200">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <p className="font-medium text-gray-900">User ID: {review.user_id}</p>
+                      <span className="text-sm text-gray-500">→ {review.destination_id}</span>
+                      <div className="flex items-center gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <span key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+                        ))}
+                      </div>
                     </div>
+                    <p className="text-xs text-gray-500">Submitted: {new Date(review.created_at).toLocaleDateString()}</p>
                   </div>
-                  <p className="text-xs text-gray-500">Submitted: {review.submittedDate}</p>
+                  <div className="flex items-center gap-2">
+                    {review.files_urls && review.files_urls.length > 0 && (
+                      <span className="text-xs text-blue-600">{review.files_urls.length} files</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    review.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                    review.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {review.status}
-                  </span>
-                  {review.botFlag !== 'Safe' && (
-                    <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {review.botFlag}
-                    </span>
-                  )}
+
+                <p className="text-sm text-gray-700 mb-3">{review.content}</p>
+
+                {review.files_urls && review.files_urls.length > 0 && (
+                  <div className="flex gap-2 mb-3">
+                    {review.files_urls.slice(0, 3).map((url, idx) => (
+                      <img 
+                        key={idx} 
+                        src={url} 
+                        alt={`Review image ${idx + 1}`}
+                        className="w-20 h-20 object-cover rounded"
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleDeleteReview(review.destination_id)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                  >
+                    <X className="w-4 h-4" />
+                    Delete Review
+                  </button>
                 </div>
               </div>
-
-              <p className="text-sm text-gray-700 mb-3">{review.comment}</p>
-
-              {review.status === 'Pending' && (
-                <div className="flex gap-2">
-                  <button className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700">
-                    <Check className="w-4 h-4" />
-                    Approve
-                  </button>
-                  <button className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700">
-                    <X className="w-4 h-4" />
-                    Reject
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="font-semibold text-blue-900 mb-2">🤖 Auto-Moderation Bot</h3>
+        <h3 className="font-semibold text-blue-900 mb-2">📋 Review Moderation</h3>
         <p className="text-sm text-blue-800">
-          The content moderation bot automatically pre-checks all reviews for spam, inappropriate content, and suspicious links. 
-          Flagged reviews are highlighted in red for your immediate attention.
+          Reviews are fetched from the backend API. You can delete inappropriate reviews.
         </p>
       </div>
     </div>

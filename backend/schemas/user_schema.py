@@ -39,6 +39,28 @@ class UserCredentialUpdate(BaseModel):
         return v.strip() if v else None
 
 
+class AdminPasswordUpdate(BaseModel):
+    new_password: str = Field(..., min_length=6)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Password cannot be empty or whitespace")
+        return v.strip()
+
+
+class AdminRoleUpdate(BaseModel):
+    new_role: Role
+
+    @field_validator("new_role")
+    @classmethod
+    def validate_role(cls, v: Role) -> Role:
+        if v not in [Role.user, Role.admin]:
+            raise ValueError("Role must be either 'User' or 'Admin'")
+        return v
+
+
 class UserProfileUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=1, max_length=100)
     avt_blob_name: Optional[str] = None
