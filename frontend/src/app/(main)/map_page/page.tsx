@@ -110,7 +110,7 @@ const generateSessionToken = () => {
 };
 
 // --- MAIN COMPONENT ---
-export default function MapPage() {
+function MapPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isLoaded, loadError } = useGoogleMaps();
@@ -643,7 +643,6 @@ export default function MapPage() {
   }, [isDragging]);
 
   return (
-    <Suspense>
     <div className="min-h-screen w-full bg-white sm:bg-gray-200 sm:flex sm:justify-center">
       <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-2xl">
         <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
@@ -954,6 +953,20 @@ export default function MapPage() {
         )}
       </div>
     </div>
-  </Suspense>
+  );
+}
+
+export default function MapPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
+          <p className="text-gray-600 font-semibold">Loading map...</p>
+        </div>
+      </div>
+    }>
+      <MapPageContent />
+    </Suspense>
   );
 }
