@@ -1,7 +1,8 @@
 from fastapi import HTTPException, status
+
 from integration.carbon_api import create_carbonAPI_client
-from typing import Optional
 from schemas.route_schema import TransportMode
+
 
 class CarbonService:
     @staticmethod
@@ -9,7 +10,7 @@ class CarbonService:
         mode: TransportMode,
         distance_km: float,
         passengers: int = 1,
-    ):
+    ) -> float:
         carbonAPI = None
         try:
             carbonAPI = await create_carbonAPI_client()
@@ -24,7 +25,7 @@ class CarbonService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error estimating transport emission: {e}"
+                detail=f"Error estimating transport emission: {e}",
             )
         finally:
             if carbonAPI:
