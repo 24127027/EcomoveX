@@ -16,12 +16,12 @@ async def promote_to_admin(email: str):
         user = result.scalar_one_or_none()
         
         if not user:
-            print(f"❌ User with email '{email}' not found")
+            print(f" User with email '{email}' not found")
             return False
         
         user.role = Role.admin
         await session.commit()
-        print(f"✅ User '{user.username}' (ID: {user.id}) has been promoted to Admin!")
+        print(f" User '{user.username}' (ID: {user.id}) has been promoted to Admin!")
         return True
 
 
