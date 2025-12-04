@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from fastapi import HTTPException, status
 
-from utils.green_verification.greenness.orchestrator import GreenCoverageOrchestrator
+from backend.utils.green_verification.orchestrator import GreenCoverageOrchestrator
 from schemas.green_verification_schema import (
     GreenVerificationRequest,
     GreenVerificationResponse,
@@ -90,50 +90,29 @@ class GreenVerificationService:
                 detail=f"Error verifying images: {str(e)}"
             )
     
-    @staticmethod
-    async def verify_single_image(
-        image_url: str,
-        green_threshold: float = 0.3
-    ) -> ImageVerificationResult:
-        """
-        Verify green coverage for a single image URL.
+    # (Giả định code trong class GreenVerificationService)
+    @classmethod
+    async def verify_images(cls, request: GreenVerificationRequest) -> GreenVerificationResponse:
+        orchestrator = cls.get_orchestrator()
         
-        Args:
-            image_url: URL of the image to verify
-            green_threshold: Threshold for verification (0-1)
-            
-        Returns:
-            ImageVerificationResult
-        """
-        try:
-            orchestrator = GreenVerificationService.get_orchestrator()
-            
-            # Override threshold
-            original_threshold = orchestrator.green_threshold
-            orchestrator.green_threshold = green_threshold
-            
-            # Process single image
-            result = orchestrator.process_single_image(image_url)
-            
-            # Restore threshold
-            orchestrator.green_threshold = original_threshold
-            
-            return ImageVerificationResult(
-                url=result["url"],
-                green_proportion=result["green_proportion"],
-                depth_weighted=result["depth_weighted"],
-                green_score=result["green_score"],
-                verified=result["verified"],
-                error=result.get("error")
-            )
-            
-        except RuntimeError as re:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Green verification service unavailable: {str(re)}"
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error verifying image: {str(e)}"
-            )
+        # Chạy orchestrator (đã update trả về cup_detections)
+        raw_results = orchestrator.process_image_list(request.image_urls)
+        
+        # Map dữ liệu từ dict sang Pydantic Schema
+        processed_results = []
+        for r in raw_results:
+            # Tự động map các trường khớp tên
+            # Lưu ý: r['cup_detections'] từ orchestrator là list dict, 
+            # Pydantic sẽ tự validate sang List[CupDetectionResult]
+            processed_results.append(ImageVerificationResult(
+                url=r['url'],
+                green_score=r.get('green_score', 0.0),
+                green_proportion=r.get('green_proportion', 0.0),
+                depth_weighted_score=r.get('depth_weighted', 0.0),
+                verified=r.get('verified', False),
+                cup_detections=r.get('cup_detections', []), # Map trường này
+                error=r.get('error')
+            ))
+
+        summary = orchestrator.get_summary_stats(raw_results)
+        return GreenVerificationResponse(results=processed_results, summary=summary)

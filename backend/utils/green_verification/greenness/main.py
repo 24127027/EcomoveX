@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Tuple
-from orchestrator import GreenVerificationOrchestrator
+from backend.utils.green_verification.orchestrator import GreenVerificationOrchestrator
 from segmentation import TreeSegmenter
 from database import get_db
 

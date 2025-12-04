@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import torch
 from model_loader import default_models, load_model
-
+import torch.hub 
 import utils
 
 first_execution = True
@@ -14,7 +14,7 @@ first_execution = True
 first_execution = True
 
 
-def process(device, model, model_type, image, input_size, target_size, optimize, use_camera):
+def process(device, model, image, target_size, optimize, use_camera):
     """
     Run the inference and interpolate.
 
@@ -33,91 +33,50 @@ def process(device, model, model_type, image, input_size, target_size, optimize,
     """
     global first_execution
 
-    if "openvino" in model_type:
-        if first_execution or not use_camera:
+    sample = torch.from_numpy(image).to(device).unsqueeze(0)
+
+    if optimize and device == torch.device("cuda"):
+        if first_execution:
             print(
-                f"    Input resized to {input_size[0]}x{input_size[1]} before entering the encoder"
+                "  Optimization to half-floats activated. Use with caution, because models like Swin require\n"
+                "  float precision to work properly and may yield non-finite depth values to some extent for\n"
+                "  half-floats."
             )
-            first_execution = False
+        sample = sample.to(memory_format=torch.channels_last)
+        sample = sample.half()
 
-        sample = [np.reshape(image, (1, 3, *input_size))]
-        prediction = model(sample)[model.output(0)][0]
-        prediction = cv2.resize(prediction, dsize=target_size, interpolation=cv2.INTER_CUBIC)
-    else:
-        sample = torch.from_numpy(image).to(device).unsqueeze(0)
+    if first_execution or not use_camera:
+        height, width = sample.shape[2:]
+        print(f"    Input resized to {width}x{height} before entering the encoder")
+        first_execution = False
 
-        if optimize and device == torch.device("cuda"):
-            if first_execution:
-                print(
-                    "  Optimization to half-floats activated. Use with caution, because models like Swin require\n"
-                    "  float precision to work properly and may yield non-finite depth values to some extent for\n"
-                    "  half-floats."
-                )
-            sample = sample.to(memory_format=torch.channels_last)
-            sample = sample.half()
-
-        if first_execution or not use_camera:
-            height, width = sample.shape[2:]
-            print(f"    Input resized to {width}x{height} before entering the encoder")
-            first_execution = False
-
-        prediction = model.forward(sample)
-        prediction = (
-            torch.nn.functional.interpolate(
-                prediction.unsqueeze(1),
-                size=target_size[::-1],
-                mode="bicubic",
-                align_corners=False,
-            )
-            .squeeze()
-            .cpu()
-            .numpy()
+    prediction = model.forward(sample)
+    prediction = (
+        torch.nn.functional.interpolate(
+            prediction.unsqueeze(1),
+            size=target_size[::-1],
+            mode="bicubic",
+            align_corners=False,
         )
+        .squeeze()
+        .cpu()
+        .numpy()
+    )
 
     return prediction
 
-
-def create_side_by_side(image, depth, grayscale):
-    """
-    Take an RGB image and depth map and place them side by side. This includes a proper normalization of the depth map
-    for better visibility.
-
-    Args:
-        image: the RGB image
-        depth: the depth map
-        grayscale: use a grayscale colormap?
-
-    Returns:
-        the image and depth map place side by side
-    """
-    depth_min = depth.min()
-    depth_max = depth.max()
-    normalized_depth = 255 * (depth - depth_min) / (depth_max - depth_min)
-    normalized_depth *= 3
-
-    right_side = np.repeat(np.expand_dims(normalized_depth, 2), 3, axis=2) / 3
-    if not grayscale:
-        right_side = cv2.applyColorMap(np.uint8(right_side), cv2.COLORMAP_INFERNO)
-
-    if image is None:
-        return right_side
-    else:
-        return np.concatenate((image, right_side), axis=1)
-
-
-def run(img_sources, model_path = None, model_type="dpt_swin2_large_384", optimize=False, height=None,
+def run(img_sources, model_type="dpt_swin2_large_384", optimize=False, height=None,
         square=False, grayscale=False):
     """ img_sources: list of image URLs"""
     print("Initialize")
 
-    if model_path is None:
-        model_path = default_models[model_type]
-        print("  Using default model for %s: %s" % (model_type, model_path))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device: %s" % device)
 
-    model, transform, net_w, net_h = load_model(device, model_path, model_type, optimize, height, square)
-
+    model = torch.hub.load("isl-org/MiDaS", model_type)
+    transform = torch.hub.load("isl-org/MiDaS", "transforms")
+    
+    model.to(device)
     # get input
     num_images = len(img_sources)
     print("Start processing")
@@ -131,7 +90,7 @@ def run(img_sources, model_path = None, model_type="dpt_swin2_large_384", optimi
 
         # compute
         with torch.no_grad():
-            prediction = process(device, model, model_type, image, (net_w, net_h), original_image_rgb.shape[1::-1],
+            prediction = process(device, model, model_type, image, original_image_rgb.shape[1::-1],
                                 optimize, False)
         results.append(prediction.astype(np.float32))
     

@@ -1,6 +1,6 @@
 import os
 import cv2
-from orchestrator import run_green_verification_pipeline
+from backend.utils.green_verification.orchestrator import run_green_verification_pipeline
 
 if __name__ == "__main__":
     MY_MODEL_NAME = "yolov11x-seg.pt"
