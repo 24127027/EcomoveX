@@ -1,4 +1,4 @@
-from agents.planner_agent import PlannerAgent
+from services.agents.planner_agent import PlannerAgent
 from services.plan_service import PlanService
 from typing import List, Dict
 

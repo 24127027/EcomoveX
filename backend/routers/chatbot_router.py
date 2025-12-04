@@ -3,11 +3,11 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.schemas.plan_schema import PlanCreate
+from schemas.plan_schema import PlanCreate
 from database.db import get_db
 from schemas.message_schema import ChatMessage
-from backend.services.agents.chatbot_service import ChatbotService
-from backend.services.agents.planner_agent import PlannerAgent
+from services.agents.chatbot_service import ChatbotService
+from services.agents.planner_agent import PlannerAgent
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
