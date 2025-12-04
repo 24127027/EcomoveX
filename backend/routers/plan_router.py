@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +47,42 @@ async def delete_plan(
     return await PlanService.delete_plan(db, current_user["user_id"], plan_id)
 
 
+@router.post("/{plan_id}/destinations", response_model=PlanDestinationResponse, status_code=status.HTTP_201_CREATED)
+async def add_destination_to_plan(
+    plan_id: int,
+    data: PlanDestinationCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.add_destination_to_plan(db, current_user["user_id"], plan_id, data)
+
+@router.put("/destinations/{plan_destination_id}", response_model=PlanDestinationResponse, status_code=status.HTTP_200_OK)
+async def update_plan_destination(
+    plan_destination_id: int,
+    updated_data: PlanDestinationUpdate,
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.update_plan_destination(
+        db, 
+        current_user["user_id"], 
+        plan_id, 
+        plan_destination_id, 
+        updated_data
+        )
+
+@router.delete("/destinations/{plan_destination_id}", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
+async def remove_destination_from_plan(
+    plan_destination_id: int,
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.remove_destination_from_plan(db, current_user["user_id"], plan_id, plan_destination_id)
+
+@router.get("/{plan_id}/members", response_model=PlanMemberResponse, status_code=status.HTTP_200_OK)
+
 @router.get(
     "/{plan_id}/members",
     response_model=PlanMemberResponse,
@@ -85,3 +121,28 @@ async def remove_members_from_plan(
     current_user: dict = Depends(get_current_user),
 ):
     return await PlanService.remove_plan_member(db, current_user["user_id"], plan_id, data)
+
+@router.post("/{plan_id}/join", response_model=CommonMessageResponse, status_code=status.HTTP_200_OK)
+async def join_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    await PlanService.join_plan(db, current_user["user_id"], plan_id)
+    return CommonMessageResponse(message="Joined plan successfully")
+
+@router.get("/{plan_id}/chat-room", response_model=Dict[str, int], status_code=status.HTTP_200_OK)
+async def get_plan_chat_room(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    room_id = await PlanService.get_or_create_plan_chat_room(db, current_user["user_id"], plan_id)
+    return {"room_id": room_id}
+
+
+
+
+
+
+

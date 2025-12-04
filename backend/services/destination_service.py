@@ -90,6 +90,10 @@ class DestinationService:
         db: AsyncSession, user_id: int, destination_id: str
     ) -> UserSavedDestinationResponse:
         try:
+            destination = await DestinationRepository.get_destination_by_id(db, destination_id)
+            if not destination:
+                new_dest_data = DestinationCreate(place_id=destination_id)
+                await DestinationRepository.create_destination(db, new_dest_data)
             is_saved = await DestinationRepository.is_saved_destination(db, user_id, destination_id)
             if is_saved:
                 raise HTTPException(
@@ -154,7 +158,7 @@ class DestinationService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Saved destination not found for user",
                 )
-            return {"detail": "Saved destination deleted successfully"}
+            return {"message": "Saved destination deleted successfully"}
         except HTTPException:
             raise
         except Exception as e:

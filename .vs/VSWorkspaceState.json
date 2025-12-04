@@ -1,16 +1,12 @@
 {
   "ExpandedNodes": [
     "",
-    "\\frontend",
-    "\\frontend\\src",
-    "\\frontend\\src\\app",
-    "\\frontend\\src\\app\\(main)",
-    "\\frontend\\src\\app\\(main)\\track_page",
-    "\\frontend\\src\\app\\(main)\\track_page\\leaderboard",
-    "\\frontend\\src\\app\\(main)\\track_page\\transport_options",
-    "\\frontend\\src\\app\\api",
-    "\\frontend\\src\\lib"
+    "\\backend",
+    "\\backend\\.pytest_cache",
+    "\\backend\\utils",
+    "\\backend\\utils\\green_verification",
+    "\\backend\\utils\\green_verification\\greenness"
   ],
-  "SelectedNode": "\\frontend\\src\\lib\\api.ts",
+  "SelectedNode": "\\backend\\utils\\green_verification\\greenness\\midas_v21_small_256.pt",
   "PreviewInSolutionExplorer": false
 }

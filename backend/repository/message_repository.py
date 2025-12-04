@@ -102,6 +102,29 @@ class MessageRepository:
             return None
 
     @staticmethod
+    async def create_invitation_message(
+        db: AsyncSession, sender_id: int, room_id: int, plan_id: int, message_text: str
+    ):
+        try:
+            new_message = Message(
+                sender_id=sender_id,
+                room_id=room_id,
+                plan_id=plan_id,
+                message_type=MessageType.invitation,
+                content=message_text,
+                file_blob_name=None,
+                status=MessageStatus.sent,
+            )
+            db.add(new_message)
+            await db.commit()
+            await db.refresh(new_message)
+            return new_message
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: creating invitation message - {e}")
+            return None
+
+    @staticmethod
     async def update_message_status(db: AsyncSession, message_id: int, new_status: MessageStatus):
         try:
             stmt = (

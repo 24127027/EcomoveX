@@ -56,15 +56,16 @@ export const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
 
 const parseDate = (dateStr: string) => {
   if (!dateStr) return new Date(0);
-  const parts = dateStr.split("/");
-  if (parts.length === 3) {
-    return new Date(
-      parseInt(parts[2]),
-      parseInt(parts[1]) - 1,
-      parseInt(parts[0])
-    );
+  if (dateStr.includes("-")) {
+    const [year, month, day] = dateStr.split("-").map(Number);
+    return new Date(year, month - 1, day);
   }
-  return new Date(dateStr); // Fallback
+
+  if (dateStr.includes("/")) {
+    const [day, month, year] = dateStr.split("/").map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
 };
 
 export default function HomePage() {
@@ -120,8 +121,6 @@ export default function HomePage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Lọc các plan có ngày >= hôm nay
-        // Lưu ý: api.ts của bạn đang dùng field 'date' string kiểu "20/11/2025"
         const futurePlans = plans.filter((p) => {
           const planDate = parseDate(p.date);
           return planDate >= today;

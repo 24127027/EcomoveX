@@ -2,26 +2,43 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Jost, Abhaya_Libre } from "next/font/google";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Jost, Abhaya_Libre, Roboto } from "next/font/google";
+import { api } from "@/lib/api";
 
-const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+// --- FONTS ---
+const roboto = Roboto({
+  subsets: ["vietnamese"],
+  weight: ["400", "500", "700"],
+});
+const jost = Jost({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700"],
+});
 const abhaya_libre = Abhaya_Libre({
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700"],
 });
 
 export default function CreatePlanPage() {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // --- FORM STATE ---
+  const [placeName, setPlaceName] = useState<string>("");
   const [budget, setBudget] = useState<number>(100000);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   // --- CALENDAR STATE ---
-  const [displayDate, setDisplayDate] = useState(new Date(2025, 10, 1));
+  const [displayDate, setDisplayDate] = useState(new Date());
+
   const [selectedRange, setSelectedRange] = useState<{
-    start: number | null;
-    end: number | null;
+    start: Date | null;
+    end: Date | null;
   }>({
-    start: 24,
-    end: 27,
+    start: new Date(),
+    end: null,
   });
 
   // --- CALENDAR LOGIC ---
@@ -29,6 +46,7 @@ export default function CreatePlanPage() {
   const month = displayDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+
   const monthNames = [
     "January",
     "February",
@@ -47,28 +65,110 @@ export default function CreatePlanPage() {
   const handlePrevMonth = () => setDisplayDate(new Date(year, month - 1, 1));
   const handleNextMonth = () => setDisplayDate(new Date(year, month + 1, 1));
 
+  const isSameDay = (d1: Date, d2: Date) => {
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
+
   const handleDateClick = (day: number) => {
+    const clickedDate = new Date(year, month, day);
+    clickedDate.setHours(0, 0, 0, 0);
+
     if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
-      setSelectedRange({ start: day, end: null });
+      setSelectedRange({ start: clickedDate, end: null });
     } else {
-      const newStart = Math.min(selectedRange.start, day);
-      const newEnd = Math.max(selectedRange.start, day);
-      setSelectedRange({ start: newStart, end: newEnd });
+      if (clickedDate < selectedRange.start) {
+        setSelectedRange({ start: clickedDate, end: selectedRange.start });
+      } else if (isSameDay(clickedDate, selectedRange.start)) {
+        setSelectedRange({ start: null, end: null });
+      } else {
+        setSelectedRange({ ...selectedRange, end: clickedDate });
+      }
     }
   };
 
-  const isSelected = (day: number) => {
-    if (!selectedRange.start) return false;
-    if (selectedRange.end) {
-      return day >= selectedRange.start && day <= selectedRange.end;
+  const getDayStatus = (day: number) => {
+    if (!selectedRange.start) return "none";
+
+    const currentCellDate = new Date(year, month, day);
+    currentCellDate.setHours(0, 0, 0, 0);
+    const start = selectedRange.start;
+    const end = selectedRange.end;
+
+    // Reset giờ cho start/end để so sánh
+    const sTime = new Date(start).setHours(0, 0, 0, 0);
+    const cTime = currentCellDate.getTime();
+
+    if (end) {
+      const eTime = new Date(end).setHours(0, 0, 0, 0);
+      if (cTime === sTime || cTime === eTime) return "selected";
+      if (cTime > sTime && cTime < eTime) return "in-range";
+    } else {
+      if (cTime === sTime) return "selected";
     }
-    return day === selectedRange.start;
+
+    return "none";
   };
 
-  // Xử lý thay đổi budget từ input (chặn số âm)
+  const toggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter((t) => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     if (val >= 0) setBudget(val);
+    else if (val < 0) setBudget(0);
+  };
+
+  const handlePeopleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    if (val <= 0) {
+      e.target.value = "1";
+    }
+  };
+
+  const handleCreatePlan = async () => {
+    if (!placeName.trim()) {
+      alert("Please enter where you want to go!");
+      return;
+    }
+    if (!selectedRange.start) {
+      alert("Please select at least one date for your trip!");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const startDate = selectedRange.start;
+      const endDate = selectedRange.end ? selectedRange.end : startDate;
+
+      const formatDateLocal = (date: Date) => {
+        const offset = date.getTimezoneOffset();
+        const localDate = new Date(date.getTime() - offset * 60 * 1000);
+        return localDate.toISOString().split("T")[0];
+      };
+
+      const newPlan = await api.createPlan({
+        place_name: placeName,
+        start_date: formatDateLocal(startDate),
+        end_date: formatDateLocal(endDate),
+        budget_limit: budget,
+      });
+      router.push(`/planning_page/${newPlan.id}`);
+    } catch (error) {
+      console.error("Error creating plan:", error);
+      alert("There was an error creating your plan. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,7 +197,9 @@ export default function CreatePlanPage() {
             <input
               type="text"
               placeholder="Where to?"
-              className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552] bg-transparent text-lg`}
+              value={placeName}
+              onChange={(e) => setPlaceName(e.target.value)}
+              className={`${roboto.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552] bg-transparent text-lg`}
             />
           </div>
 
@@ -110,7 +212,6 @@ export default function CreatePlanPage() {
             </h3>
 
             <div className="bg-[#F1F8F1] rounded-xl p-4 select-none">
-              {/* Month Nav */}
               <div className="flex justify-between items-center mb-4 px-2">
                 <ChevronLeft
                   size={24}
@@ -148,17 +249,35 @@ export default function CreatePlanPage() {
                 ))}
                 {Array.from({ length: daysInMonth }).map((_, index) => {
                   const day = index + 1;
-                  const selected = isSelected(day);
+
+                  const dateToCheck = new Date(year, month, day);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const isPast = dateToCheck < today;
+
+                  const status = getDayStatus(day);
+
                   return (
                     <div key={day} className="flex justify-center items-center">
                       <div
-                        onClick={() => handleDateClick(day)}
+                        onClick={() => !isPast && handleDateClick(day)}
                         className={`${
                           jost.className
-                        } w-8 h-8 flex items-center justify-center rounded-full text-sm cursor-pointer transition-all ${
-                          selected
-                            ? "bg-[#53B552] text-white font-bold shadow-md scale-110"
-                            : "text-gray-800 hover:bg-green-100"
+                        } w-8 h-8 flex items-center justify-center rounded-full text-sm transition-all 
+                        ${
+                          isPast
+                            ? "text-gray-300 cursor-not-allowed"
+                            : "cursor-pointer text-gray-800 hover:bg-green-100"
+                        }
+                        ${
+                          status === "selected" && !isPast
+                            ? "bg-[#53B552] text-white font-bold shadow-md scale-110 hover:bg-[#53B552]"
+                            : ""
+                        }
+                        ${
+                          status === "in-range" && !isPast
+                            ? "bg-[#E3F1E4] text-[#53B552] font-semibold"
+                            : ""
                         }`}
                       >
                         {day}
@@ -174,6 +293,8 @@ export default function CreatePlanPage() {
           <div className="bg-white border border-[#53B552] rounded-xl p-4 shadow-sm">
             <input
               type="number"
+              onChange={handlePeopleCountChange}
+              min={1}
               placeholder="How many people joining this trip?"
               className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552] bg-transparent text-sm`}
             />
@@ -211,30 +332,46 @@ export default function CreatePlanPage() {
               "BeachLover",
               "CulturalTravel",
               "Backpacking",
-            ].map((tag, idx) => (
-              <span
-                key={idx}
-                className={`${
-                  jost.className
-                } px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-colors
+              "Foodie",
+              "Relaxation",
+              "NatureExplorer",
+              "LuxuryTravel",
+              "FamilyTrip",
+              "SoloTravel",
+            ].map((tag, idx) => {
+              const isActive = selectedTags.includes(tag);
+              return (
+                <span
+                  key={idx}
+                  onClick={() => toggleTag(tag)}
+                  className={`${
+                    jost.className
+                  } px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-colors border select-none
                     ${
-                      tag === "CulturalTravel" || tag === "BeachLover"
-                        ? "bg-[#E3F1E4] text-[#53B552] border border-[#53B552]"
-                        : "bg-gray-100 text-gray-500 hover:bg-green-50"
+                      isActive
+                        ? "bg-[#E3F1E4] text-[#53B552] border-[#53B552]"
+                        : "bg-gray-100 text-gray-500 border-transparent hover:bg-green-50"
                     }`}
-              >
-                {tag}
-              </span>
-            ))}
+                >
+                  {tag}
+                </span>
+              );
+            })}
           </div>
         </main>
 
         {/* --- BOTTOM BUTTON --- */}
-        <div className="absolute bottom-20 left-0 right-0 px-5 bg-linear-to-t from-[#F5F7F5] via-[#F5F7F5] to-transparent pt-4 pb-2">
+        <div className="absolute bottom-0 left-0 right-0 px-5 bg-[#F5F7F5] pt-4 pb-8 z-30">
           <button
-            className={`${jost.className} w-full bg-[#53B552] text-white text-xl font-bold py-3.5 rounded-xl shadow-lg hover:bg-green-600 transition-all active:scale-[0.98]`}
+            onClick={handleCreatePlan}
+            disabled={isLoading}
+            className={`${jost.className} w-full bg-[#53B552] text-white text-xl font-bold py-3.5 rounded-xl shadow-lg hover:bg-green-600 transition-all flex justify-center items-center gap-2`}
           >
-            Create New Plan
+            {isLoading ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              "Create New Plan"
+            )}
           </button>
         </div>
 

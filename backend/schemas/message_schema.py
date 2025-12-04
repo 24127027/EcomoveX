@@ -32,6 +32,7 @@ class MessageResponse(BaseModel):
     id: int
     sender_id: int
     room_id: int
+    plan_id: Optional[int] = None
     content: Optional[str]
     message_type: MessageType
     url: Optional[str] = None

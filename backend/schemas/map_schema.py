@@ -3,9 +3,23 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from schemas.destination_schema import Geometry, Location
+from schemas.destination_schema import Bounds
 
+class Location(BaseModel):
+    longitude: float = Field(alias="lng")
+    latitude: float = Field(alias="lat")
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        ser_json_tuples=False,
+        json_schema_extra={"serialization": {"by_alias": True}},
+    )
+
+class Geometry(BaseModel):
+    location: Location
+    bounds: Optional[Bounds] = None
+    
 class PlaceSearchDisplay(BaseModel):
     description: str
     place_id: str
