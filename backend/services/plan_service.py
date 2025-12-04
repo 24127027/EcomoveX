@@ -428,41 +428,85 @@ class PlanService:
                 detail=f"Unexpected error removing user from plan: {e}",
             )
             
-   
+   # hàm sắp xếp destinations dự theo đánh giá của plan_validator.py
     @staticmethod
-    async def remove_destination(self, db, user_id, plan_id, plan_destination_id):
-        if not await PlanRepository.is_member(db, user_id, plan_id):
-            return {"ok": False, "message": "Bạn không có quyền xóa destination."}
+    async def build_itinerary(destinations: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp lịch trình hợp lý dựa trên:
+        - Ngày đi (visit_date)
+        - Loại điểm đến (attraction > restaurant > accommodation > transport)
+        - Sắp xếp tiếp theo khoảng cách tối ưu (RouteService)
+        """
 
-        ok = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
-        if not ok:
-            return {"ok": False, "message": "Không thể xóa destination."}
+        if not destinations:
+            return []
 
-        new_state = await self.get_plan_state(db, plan_id)
-        return {"ok": True, "action": "remove", "item_id": plan_destination_id, "state": new_state}
+        # ------------------------------------------------------------
+        # 1. Sắp xếp theo ngày
+        # ------------------------------------------------------------
+        destinations.sort(key=lambda d: d.visit_date)
 
+        # ------------------------------------------------------------
+        # 2. Group theo ngày
+        # ------------------------------------------------------------
+        result = []
+        current_day = None
+        group = []
+
+        for d in destinations:
+            if current_day is None:
+                current_day = d.visit_date
+
+            if d.visit_date != current_day:
+                sorted_day = await PlanService._sort_single_day(group)
+                result.extend(sorted_day)
+                group = []
+                current_day = d.visit_date
+
+            group.append(d)
+
+        # cuối cùng
+        if group:
+            sorted_day = await PlanService._sort_single_day(group)
+            result.extend(sorted_day)
+
+        return result
 
     @staticmethod
-    async def update_destination_time(self, db, user_id, plan_id, dest_id, update_data):
-        if not await PlanRepository.is_member(db, user_id, plan_id):
-            return {"ok": False, "message": "Không có quyền chỉnh sửa."}
+    async def _sort_single_day(destinations: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp các điểm đến trong cùng một ngày theo:
+        - Loại điểm đến (ưu tiên: attraction > restaurant > accommodation > transport)
+        - Time slot (morning < afternoon < evening)
+        - Order in day
+        """
+        if not destinations:
+            return []
 
-        updated = await PlanRepository.update_plan_destination(db, dest_id, update_data)
-        if not updated:
-            return {"ok": False, "message": "Không cập nhật được destination."}
+        # Định nghĩa thứ tự ưu tiên cho loại điểm đến
+        type_priority = {
+            DestinationType.attraction: 1,
+            DestinationType.restaurant: 2,
+            DestinationType.accommodation: 3,
+            DestinationType.transport: 4,
+        }
 
-        new_state = await self.get_plan_state(db, plan_id)
-        return {"ok": True, "action": "modify_time", "item": updated, "state": new_state}
+        # Định nghĩa thứ tự ưu tiên cho time slot
+        time_slot_priority = {
+            TimeSlot.morning: 1,
+            TimeSlot.afternoon: 2,
+            TimeSlot.evening: 3,
+        }
 
-    @staticmethod
-    async def update_budget(self, db, user_id, plan_id, budget):
-        updated = await PlanRepository.update_plan_destination(
-            db, plan_id, PlanUpdate(budget_limit=budget)
-        )
+        def get_sort_key(dest: PlanDestination):
+            dest_type = getattr(dest, 'type', None)
+            time_slot = getattr(dest, 'time_slot', None)
+            order = getattr(dest, 'order_in_day', 0) or 0
 
-        if not updated:
-            return {"ok": False, "message": "Không cập nhật budget."}
+            type_order = type_priority.get(dest_type, 99)
+            slot_order = time_slot_priority.get(time_slot, 99)
 
-        new_state = await self.get_plan_state(db, plan_id)
-        return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
+            return (slot_order, type_order, order)
 
+        sorted_destinations = sorted(destinations, key=get_sort_key)
+        return sorted_destinations
