@@ -135,7 +135,7 @@ const AdminDashboard = () => {
   };
 
   const handleChangeRole = async (userId: number, currentRole: string, username: string) => {
-    const newRole = currentRole === 'Admin' ? 'user' : 'admin';
+    const newRole = currentRole === 'Admin' ? 'User' : 'Admin';
     if (!confirm(`Change ${username}'s role to ${newRole}?`)) return;
     
     try {
