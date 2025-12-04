@@ -246,3 +246,13 @@ class UserRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to search users with term '{search_term}' - {e}")
             return []
+        
+    @staticmethod
+    async def get_user_by_email(db: AsyncSession, email: str):
+        try:
+            result = await db.execute(select(User).where(User.email == email))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
+            return None
