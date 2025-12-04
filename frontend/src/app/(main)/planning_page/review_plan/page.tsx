@@ -45,7 +45,13 @@ import {
   User,
 } from "lucide-react";
 import { Jost } from "next/font/google";
-import { api, PlanActivity, PlaceDetails, UserProfile } from "@/lib/api";
+import {
+  api,
+  PlanActivity,
+  PlaceDetails,
+  UserProfile,
+  PlanMemberDetail,
+} from "@/lib/api"; // ✅ Import PlanMemberDetail
 import Link from "next/link";
 
 // --- FONTS ---
@@ -450,6 +456,15 @@ function ReviewPlanContent() {
     return localDate.toISOString().slice(0, 19); // Cắt bỏ phần milliseconds và chữ Z
   };
 
+  // ✅ Helper để chuyển date thành format "YYYY-MM-DD" (chỉ date, không có time)
+  const toDateOnlyString = (dateInput: string | Date) => {
+    const date = new Date(dateInput);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   // --- HELPER: Phân bố activities trên các ngày trong trip ---
   const distributeActivitiesAcrossDays = (
     activities: PlanActivity[],
@@ -512,8 +527,7 @@ function ReviewPlanContent() {
   const [planOwnerId, setPlanOwnerId] = useState<number | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
-  const [memberIds, setMemberIds] = useState<number[]>([]);
-  const [memberEmail, setMemberEmail] = useState("");
+  const [members, setMembers] = useState<PlanMemberDetail[]>([]); // ✅ Store full member objects
 
   // Split Screen State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -739,9 +753,12 @@ function ReviewPlanContent() {
 
           // Load plan members
           try {
-            const members = await api.getPlanMembers(Number(id));
-            setMemberIds(members.ids);
-            console.log(`👥 Loaded ${members.ids.length} member(s)`);
+            const membersResponse = await api.getPlanMembers(Number(id));
+            // Backend now returns { plan_id, members: [...] } with full member details
+            setMembers(membersResponse.members || []);
+            console.log(
+              `👥 Loaded ${membersResponse.members?.length || 0} member(s)`
+            );
           } catch (error) {
             console.error("Failed to load members:", error);
           }
@@ -1139,14 +1156,9 @@ function ReviewPlanContent() {
           }
         }
 
-        // ✅ Chuyển time_slot thành time format "HH:MM"
-        let timeStr = "09:00"; // Default Morning
-        if (act.time_slot === "Afternoon") timeStr = "14:00";
-        else if (act.time_slot === "Evening") timeStr = "18:00";
-
         const visitDate = act.date
-          ? toLocalISOString(act.date)
-          : toLocalISOString(new Date(planInfo.date));
+          ? toDateOnlyString(act.date)
+          : toDateOnlyString(new Date(planInfo.date));
 
         const payload = {
           id: 0,
@@ -1154,7 +1166,10 @@ function ReviewPlanContent() {
           destination_type: validType,
           type: validType,
           visit_date: visitDate,
-          time: timeStr, // ✅ Thêm time field
+          time_slot: act.time_slot.toLowerCase() as
+            | "morning"
+            | "afternoon"
+            | "evening",
           order_in_day: index + 1,
           note: act.title,
           url: act.image_url,
@@ -1164,7 +1179,7 @@ function ReviewPlanContent() {
         console.log(
           `📤 Activity ${index + 1}: ${
             act.title
-          } | Date: ${visitDate} | Time: ${timeStr} | Slot: ${act.time_slot}`
+          } | Date: ${visitDate} | Slot: ${act.time_slot}`
         );
 
         return payload;
@@ -1224,8 +1239,8 @@ function ReviewPlanContent() {
       sessionStorage.removeItem("selected_add_slot");
       sessionStorage.removeItem("EDITING_PLAN_ID"); // ← Clear planId after save
 
-      // ✅ Navigate và trigger refresh bằng cách thêm timestamp
-      router.push(`/planning_page/showing_plan_page?refresh=${Date.now()}`);
+      // ✅ Navigate to transport selection page
+      router.push(`/planning_page/transport_selection?id=${planId}`);
     } catch (e) {
       console.error("Save Error:", e);
       alert("Failed to save plan. Please check console for details.");
@@ -1548,52 +1563,7 @@ function ReviewPlanContent() {
                 </div>
               )}
 
-              {isOwner && (
-                <div className="mb-6">
-                  <label
-                    className={`${jost.className} block text-sm font-bold text-gray-700 mb-2 ml-1`}
-                  >
-                    Add Member by Email
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type="email"
-                        value={memberEmail}
-                        onChange={(e) => setMemberEmail(e.target.value)}
-                        placeholder="friend@example.com"
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-[#53B552]/50 outline-none transition-all"
-                      />
-                      <User
-                        size={18}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (!memberEmail || !planId) return;
-                        try {
-                          const user = await api.getUserByEmail(memberEmail);
-                          await api.addPlanMembers(Number(planId), [user.id]);
-                          const members = await api.getPlanMembers(
-                            Number(planId)
-                          );
-                          setMemberIds(members.ids);
-                          setMemberEmail("");
-                          alert(`Added ${user.username || user.email} to plan`);
-                        } catch (error) {
-                          console.error("Failed to add member:", error);
-                          alert("Failed to add member. Please check email.");
-                        }
-                      }}
-                      disabled={!memberEmail.includes("@")}
-                      className="px-6 py-3 bg-[#53B552] text-white rounded-xl hover:bg-[#46a045] disabled:opacity-50 disabled:cursor-not-allowed font-bold transition-all shadow-sm active:scale-95"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* ❌ REMOVED: Add Member by Email section */}
 
               <div>
                 <h3
@@ -1601,12 +1571,12 @@ function ReviewPlanContent() {
                 >
                   Current Members{" "}
                   <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
-                    {memberIds.length}
+                    {members.length}
                   </span>
                 </h3>
 
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                  {memberIds.length === 0 ? (
+                  {members.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                       <Users size={32} className="mx-auto text-gray-300 mb-2" />
                       <p className="text-sm text-gray-400">
@@ -1614,9 +1584,9 @@ function ReviewPlanContent() {
                       </p>
                     </div>
                   ) : (
-                    memberIds.map((id) => (
+                    members.map((member) => (
                       <div
-                        key={id}
+                        key={member.user_id}
                         className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow"
                       >
                         <div className="flex items-center gap-3">
@@ -1624,16 +1594,19 @@ function ReviewPlanContent() {
                             <span
                               className={`${jost.className} font-bold text-gray-500`}
                             >
-                              {id.toString().slice(0, 2)}
+                              {member.username?.charAt(0).toUpperCase() ||
+                                member.user_id.toString().slice(0, 2)}
                             </span>
                           </div>
                           <div>
                             <p
                               className={`${jost.className} font-bold text-gray-800 text-sm`}
                             >
-                              User #{id}
+                              {member.username ||
+                                member.email ||
+                                `User #${member.user_id}`}
                             </p>
-                            {id === planOwnerId ? (
+                            {member.role === "owner" ? (
                               <span className="text-[10px] font-bold text-[#53B552] bg-[#E3F1E4] px-2 py-0.5 rounded-full inline-block mt-0.5">
                                 Owner
                               </span>
@@ -1645,19 +1618,26 @@ function ReviewPlanContent() {
                           </div>
                         </div>
 
-                        {isOwner && id !== planOwnerId && (
+                        {/* Action buttons */}
+                        {isOwner && member.role !== "owner" ? (
+                          // Owner can kick members
                           <button
                             onClick={async () => {
                               if (!planId) return;
-                              if (!confirm("Remove this member?")) return;
+                              if (
+                                !confirm(
+                                  `Remove ${member.username || "this member"}?`
+                                )
+                              )
+                                return;
                               try {
                                 await api.removePlanMembers(Number(planId), [
-                                  id,
+                                  member.user_id,
                                 ]);
-                                const members = await api.getPlanMembers(
-                                  Number(planId)
-                                );
-                                setMemberIds(members.ids);
+                                const membersResponse =
+                                  await api.getPlanMembers(Number(planId));
+                                setMembers(membersResponse.members || []);
+                                alert("Member removed successfully!");
                               } catch (error) {
                                 console.error(
                                   "Failed to remove member:",
@@ -1671,7 +1651,34 @@ function ReviewPlanContent() {
                           >
                             <Trash2 size={18} />
                           </button>
-                        )}
+                        ) : !isOwner && member.user_id === currentUser?.id ? (
+                          // Member can leave plan (except owner)
+                          <button
+                            onClick={async () => {
+                              if (!planId) return;
+                              if (
+                                !confirm(
+                                  "Are you sure you want to leave this plan?"
+                                )
+                              )
+                                return;
+                              try {
+                                await api.leavePlan(Number(planId));
+                                alert("You have left the plan successfully!");
+                                // Redirect back to plans list
+                                window.location.href =
+                                  "/planning_page/showing_plan_page";
+                              } catch (error) {
+                                console.error("Failed to leave plan:", error);
+                                alert("Failed to leave plan");
+                              }
+                            }}
+                            className="px-3 py-1.5 text-xs font-bold text-red-500 hover:text-white hover:bg-red-500 border border-red-500 rounded-full transition-all"
+                            title="Leave plan"
+                          >
+                            Leave
+                          </button>
+                        ) : null}
                       </div>
                     ))
                   )}

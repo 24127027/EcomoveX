@@ -58,6 +58,8 @@ export default function PlanningPage() {
 
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null); // ✅ Add current user ID
+
   const getPlanDays = (startDate: string, endDate?: string) => {
     const start = parseDate(startDate);
     const end = endDate ? parseDate(endDate) : parseDate(startDate);
@@ -76,6 +78,8 @@ export default function PlanningPage() {
       console.log("🔄 Fetching plans from API...");
       const allPlans = await api.getPlans();
       console.log("📦 Received plans:", allPlans.length, allPlans);
+      console.log("🔍 First plan user_id:", allPlans[0]?.user_id);
+      console.log("👤 Current user ID:", currentUserId);
 
       if (!allPlans || allPlans.length === 0) {
         setIncomingPlan(null);
@@ -138,10 +142,32 @@ export default function PlanningPage() {
   };
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    // Load current user from API or localStorage
+    const loadCurrentUser = async () => {
+      try {
+        // Try localStorage first
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          setCurrentUserId(user.id);
+          console.log("👤 Current user loaded from localStorage:", user.id);
+        } else {
+          // Fallback: Get from API
+          const profile = await api.getUserProfile();
+          setCurrentUserId(profile.id);
+          console.log("👤 Current user loaded from API:", profile.id);
+          // Save to localStorage for next time
+          localStorage.setItem("user", JSON.stringify(profile));
+        }
+      } catch (error) {
+        console.error("Failed to load current user:", error);
+      }
+    };
 
-  // ✅ THÊM: Refresh khi có query param refresh (từ review_plan sau khi save)
+    loadCurrentUser();
+    // Then refresh data
+    refreshData();
+  }, []); // ✅ THÊM: Refresh khi có query param refresh (từ review_plan sau khi save)
   useEffect(() => {
     const refreshParam = searchParams.get("refresh");
     if (refreshParam) {
@@ -176,7 +202,13 @@ export default function PlanningPage() {
   };
 
   // --- HÀM XỬ LÝ XÓA PLAN ---
-  const handleDeletePlan = async (id: number) => {
+  const handleDeletePlan = async (id: number, planUserId?: number) => {
+    // ✅ Check ownership first
+    if (currentUserId && planUserId && planUserId !== currentUserId) {
+      alert("Only the plan owner can delete this plan.");
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this plan?")) return;
 
     try {
@@ -282,16 +314,23 @@ export default function PlanningPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Nút xóa cho Incoming Plan */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleDeletePlan(incomingPlan.id);
-                          }}
-                          className="p-2 bg-red-50 text-red-400 rounded-full hover:bg-red-100 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {/* Nút xóa cho Incoming Plan - Only show for owner */}
+                        {currentUserId &&
+                          incomingPlan.user_id === currentUserId && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeletePlan(
+                                  incomingPlan.id,
+                                  incomingPlan.user_id
+                                );
+                              }}
+                              className="p-2 bg-red-50 text-red-400 rounded-full hover:bg-red-100 hover:text-red-500 transition-colors"
+                              title="Delete plan (owner only)"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         <Link
                           href={`/planning_page/${incomingPlan.id}/details`}
                         >
@@ -418,7 +457,8 @@ export default function PlanningPage() {
                         plan={plan}
                         expandedId={expandedPlanId}
                         onToggle={handleTogglePlan}
-                        onDelete={() => handleDeletePlan(plan.id)} // Truyền hàm delete
+                        onDelete={() => handleDeletePlan(plan.id, plan.user_id)} // ✅ Pass user_id
+                        currentUserId={currentUserId} // ✅ Pass current user ID
                         type="future"
                       />
                     ))}
@@ -436,7 +476,8 @@ export default function PlanningPage() {
                         plan={plan}
                         expandedId={expandedPlanId}
                         onToggle={handleTogglePlan}
-                        onDelete={() => handleDeletePlan(plan.id)} // Truyền hàm delete
+                        onDelete={() => handleDeletePlan(plan.id, plan.user_id)} // ✅ Pass user_id
+                        currentUserId={currentUserId} // ✅ Pass current user ID
                         type="past"
                       />
                     ))}
@@ -656,16 +697,19 @@ function PlanSummaryCard({
   expandedId,
   onToggle,
   onDelete, // [NEW] Nhận hàm delete
+  currentUserId, // ✅ Add current user ID
   type,
 }: {
   plan: TravelPlan;
   expandedId: number | null;
   onToggle: (id: number) => void;
   onDelete: () => void;
+  currentUserId: number | null; // ✅ Add type
   type: "future" | "past";
 }) {
   const isExpanded = expandedId === plan.id;
   const dateObj = parseDate(plan.date);
+  const isOwner = currentUserId && plan.user_id === currentUserId; // ✅ Check ownership
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 border border-gray-100">
@@ -700,16 +744,19 @@ function PlanSummaryCard({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* [NEW] Nút Delete */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation(); // Chặn sự kiện toggle mở rộng
-              onDelete();
-            }}
-            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-          >
-            <Trash2 size={18} />
-          </button>
+          {/* [NEW] Nút Delete - Only show for owner */}
+          {isOwner && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Chặn sự kiện toggle mở rộng
+                onDelete();
+              }}
+              className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+              title="Delete plan (owner only)"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
           <ChevronRight
             size={20}
             onClick={() => onToggle(plan.id)}

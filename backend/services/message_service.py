@@ -4,11 +4,13 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import Headers
 
 from repository.message_repository import MessageRepository
 from repository.plan_repository import PlanRepository
+from repository.room_repository import RoomRepository
 from schemas.message_schema import (
     ActivePlanContext,
     ActiveTripData,
@@ -117,18 +119,31 @@ class MessageService:
             messages = await MessageRepository.get_messages_by_room(db, room_id)
             if messages is None:
                 return []
-            message_list = [
-                MessageResponse(
-                    id=msg.id,
-                    sender_id=msg.sender_id,
-                    room_id=msg.room_id,
-                    content=msg.content,
-                    message_type=msg.message_type,
-                    status=msg.status,
-                    timestamp=msg.created_at,
+            
+            import json
+            message_list = []
+            for msg in messages:
+                # Extract plan_id from JSON content for plan_invitation messages
+                extracted_plan_id = None
+                if msg.message_type == MessageType.plan_invitation and msg.content:
+                    try:
+                        content_data = json.loads(msg.content)
+                        extracted_plan_id = content_data.get("plan_id")
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+                
+                message_list.append(
+                    MessageResponse(
+                        id=msg.id,
+                        sender_id=msg.sender_id,
+                        room_id=msg.room_id,
+                        content=msg.content,
+                        message_type=msg.message_type,
+                        status=msg.status,
+                        timestamp=msg.created_at,
+                        plan_id=extracted_plan_id
+                    )
                 )
-                for msg in messages
-            ]
             return message_list
         except HTTPException:
             raise
@@ -146,6 +161,7 @@ class MessageService:
         message_text: Optional[str] = None,
         message_file: Optional[UploadFile] = None,
         message_type: MessageType = MessageType.text,
+        plan_id: Optional[int] = None,  # ✅ Add plan_id parameter
     ) -> MessageResponse:
         try:
             is_member = await RoomService.is_member(db, sender_id, room_id)
@@ -155,10 +171,50 @@ class MessageService:
                     detail=f"User ID {sender_id} is not a member of room ID {room_id}",
                 )
 
-            if not message_text and not message_file:
+            if not message_text and not message_file and message_type != MessageType.plan_invitation:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Either message text or message file must be provided",
+                )
+            
+            # Handle different message types
+            if message_type == MessageType.plan_invitation:
+                # For plan invitations, use the dedicated method
+                if not plan_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="plan_id is required for plan invitations",
+                    )
+                
+                # Get invitee_id from room members (the other person in the room)
+                from models.room import RoomMember
+                
+                result = await db.execute(
+                    select(RoomMember.user_id).where(RoomMember.room_id == room_id)
+                )
+                member_ids = [row[0] for row in result.fetchall()]
+                
+                # Find the other member (not the sender)
+                invitee_id = None
+                for member_id in member_ids:
+                    if member_id != sender_id:
+                        invitee_id = member_id
+                        break
+                
+                if not invitee_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Could not determine invitee from room members",
+                    )
+                
+                # Create plan invitation message
+                saved_msg = await MessageRepository.create_plan_invitation_message(
+                    db=db,
+                    sender_id=sender_id,
+                    room_id=room_id,
+                    plan_id=plan_id,
+                    invitee_id=invitee_id,
+                    message_text=message_text or f"Invited you to join Plan #{plan_id}"
                 )
             elif message_file:
                 file = await StorageService.upload_file(
@@ -183,6 +239,17 @@ class MessageService:
 
             url = None
             content = saved_msg.content
+            extracted_plan_id = None
+            
+            # Extract plan_id from JSON content for plan_invitation messages
+            if saved_msg.message_type == MessageType.plan_invitation and content:
+                try:
+                    import json
+                    content_data = json.loads(content)
+                    extracted_plan_id = content_data.get("plan_id")
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+            
             if message_file and 'file' in locals():
                  url = file.url
                  if not content:
@@ -196,7 +263,8 @@ class MessageService:
                 message_type=saved_msg.message_type,
                 status=saved_msg.status,
                 timestamp=saved_msg.created_at,
-                url=url
+                url=url,
+                plan_id=extracted_plan_id
             )
 
             await socket.broadcast(jsonable_encoder(response), room_id)
@@ -859,3 +927,282 @@ class MessageService:
         prompt_parts.append("\n=== END CONTEXT ===")
 
         return "\n".join(prompt_parts)
+
+    # ======================== Plan Invitation Service Methods ========================
+
+    @staticmethod
+    async def send_plan_invitation(
+        db: AsyncSession,
+        sender_id: int,
+        room_id: int,
+        plan_id: int,
+        invitee_id: int,
+        message: Optional[str] = None,
+    ) -> MessageResponse:
+        """
+        Gửi lời mời tham gia plan qua chat.
+        
+        Args:
+            sender_id: ID người gửi lời mời (owner của plan)
+            room_id: ID room chat
+            plan_id: ID plan muốn mời
+            invitee_id: ID người được mời
+            message: Tin nhắn kèm theo
+        
+        Returns:
+            MessageResponse với thông tin message đã tạo
+        
+        Raises:
+            HTTPException 403: Nếu sender không phải owner của plan
+            HTTPException 404: Nếu plan/room không tồn tại
+            HTTPException 400: Nếu invitee đã là member
+        """
+        try:
+            # 1. Kiểm tra sender có phải owner của plan không
+            is_owner = await PlanRepository.is_plan_owner(db, sender_id, plan_id)
+            if not is_owner:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only plan owner can invite members",
+                )
+
+            # 2. Kiểm tra plan tồn tại
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan {plan_id} not found",
+                )
+
+            # 3. Kiểm tra invitee đã là member chưa
+            is_member = await PlanRepository.is_member(db, invitee_id, plan_id)
+            if is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User is already a member of this plan",
+                )
+
+            # 4. Kiểm tra room access
+            has_access = await RoomService.check_room_access(db, invitee_id, room_id)
+            if not has_access:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Invitee does not have access to this room",
+                )
+
+            # 5. Tạo invitation message
+            invitation_msg = await MessageRepository.create_plan_invitation_message(
+                db, sender_id, room_id, plan_id, message
+            )
+
+            if not invitation_msg:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create invitation message",
+                )
+
+            # 6. Lưu invitee_id vào context
+            context_key = f"invitation_{invitation_msg.id}"
+            await MessageRepository.save_room_context(
+                db,
+                RoomContextCreate(
+                    room_id=room_id,
+                    key=context_key,
+                    value={
+                        "status": "pending",
+                        "plan_id": plan_id,
+                        "invitee_id": invitee_id,
+                        "sender_id": sender_id,
+                    },
+                ),
+            )
+
+            # 7. Gửi WebSocket notification
+            await socket.send_message(room_id, invitation_msg)
+
+            return MessageResponse(
+                id=invitation_msg.id,
+                sender_id=invitation_msg.sender_id,
+                room_id=invitation_msg.room_id,
+                content=invitation_msg.content,
+                message_type=invitation_msg.message_type,
+                status=invitation_msg.status,
+                timestamp=invitation_msg.created_at,
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error sending plan invitation: {str(e)}",
+            )
+
+    @staticmethod
+    async def respond_to_invitation(
+        db: AsyncSession,
+        user_id: int,
+        message_id: int,
+        action: str,  # "accepted" or "rejected"
+    ) -> Dict[str, Any]:
+        """
+        Xử lý response cho lời mời (accept/reject).
+        
+        Args:
+            user_id: ID người được mời
+            message_id: ID message chứa lời mời
+            action: "accepted" hoặc "rejected"
+        
+        Returns:
+            Dict với thông tin kết quả
+        
+        Raises:
+            HTTPException 404: Message không tồn tại
+            HTTPException 403: User không phải người được mời
+            HTTPException 400: Invitation đã được xử lý
+        """
+        try:
+            # 1. Lấy message
+            message = await MessageRepository.get_message_by_id(db, message_id)
+            if not message or message.message_type != MessageType.plan_invitation:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Invitation message not found",
+                )
+
+            # 2. Lấy context
+            context_key = f"invitation_{message_id}"
+            context = await MessageRepository.get_room_context_value(
+                db, message.room_id, context_key
+            )
+
+            if not context or not isinstance(context, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Invitation context not found",
+                )
+
+            # 3. Kiểm tra user có phải invitee không
+            if context.get("invitee_id") != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You are not the invitee of this plan",
+                )
+
+            # 4. Kiểm tra status hiện tại
+            current_status = context.get("status", "pending")
+            if current_status != "pending":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invitation already {current_status}",
+                )
+
+            plan_id = context.get("plan_id")
+            if not plan_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid invitation data",
+                )
+
+            # 5. Xử lý action
+            if action == "accepted":
+                # Thêm user vào plan_members với role member
+                from schemas.plan_schema import PlanMemberCreate
+                from models.plan import PlanRole
+
+                new_member = await PlanRepository.add_plan_member(
+                    db,
+                    plan_id,
+                    PlanMemberCreate(user_id=user_id, role=PlanRole.member),
+                )
+
+                if not new_member:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to add member to plan",
+                    )
+
+                # Cập nhật status
+                await MessageRepository.update_invitation_status(
+                    db, message.room_id, message_id, "accepted"
+                )
+
+                return {
+                    "success": True,
+                    "message": "Invitation accepted",
+                    "plan_id": plan_id,
+                    "action": "accepted",
+                }
+
+            elif action == "rejected":
+                # Chỉ cập nhật status, không thêm vào plan
+                await MessageRepository.update_invitation_status(
+                    db, message.room_id, message_id, "rejected"
+                )
+
+                return {
+                    "success": True,
+                    "message": "Invitation rejected",
+                    "plan_id": plan_id,
+                    "action": "rejected",
+                }
+
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid action. Must be 'accepted' or 'rejected'",
+                )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error responding to invitation: {str(e)}",
+            )
+
+    @staticmethod
+    async def get_invitation_details(
+        db: AsyncSession, user_id: int, message_id: int
+    ) -> Dict[str, Any]:
+        """Lấy chi tiết lời mời plan"""
+        try:
+            import json
+
+            message = await MessageRepository.get_message_by_id(db, message_id)
+            if not message or message.message_type != MessageType.plan_invitation:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Invitation not found",
+                )
+
+            # Parse content
+            content_data = json.loads(message.content) if message.content else {}
+            plan_id = content_data.get("plan_id")
+
+            # Lấy status từ context
+            status = await MessageRepository.get_invitation_status(
+                db, message.room_id, message_id
+            )
+
+            # Lấy plan info
+            plan = await PlanRepository.get_plan_by_id(db, plan_id) if plan_id else None
+
+            return {
+                "message_id": message.id,
+                "sender_id": message.sender_id,
+                "plan_id": plan_id,
+                "plan_name": plan.place_name if plan else None,
+                "status": status,
+                "message": content_data.get("message"),
+                "created_at": message.created_at.isoformat(),
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error getting invitation details: {str(e)}",
+            )
+

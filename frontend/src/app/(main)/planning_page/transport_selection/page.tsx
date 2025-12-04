@@ -13,18 +13,19 @@ import {
   Check,
   ArrowRight,
   TrendingUp,
+  AlertCircle,
 } from "lucide-react";
 import { Jost } from "next/font/google";
+import { api } from "@/lib/api";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 // Transport types with fuel consumption data
 interface TransportOption {
-  id: string;
+  id: "car" | "motorbike" | "bus";
   name: string;
   icon: typeof Car;
   fuelPerKm: number; // Liters per 100km
-  co2PerKm: number; // kg CO2 per km
   color: string;
   bgColor: string;
 }
@@ -35,7 +36,6 @@ const TRANSPORT_OPTIONS: TransportOption[] = [
     name: "Car",
     icon: Car,
     fuelPerKm: 7.5, // 7.5L/100km
-    co2PerKm: 0.12, // 120g CO2/km
     color: "text-blue-600",
     bgColor: "bg-blue-50",
   },
@@ -44,7 +44,6 @@ const TRANSPORT_OPTIONS: TransportOption[] = [
     name: "Motorbike",
     icon: Bike,
     fuelPerKm: 2.5, // 2.5L/100km
-    co2PerKm: 0.06, // 60g CO2/km
     color: "text-orange-600",
     bgColor: "bg-orange-50",
   },
@@ -53,11 +52,16 @@ const TRANSPORT_OPTIONS: TransportOption[] = [
     name: "Bus",
     icon: Bus,
     fuelPerKm: 1.2, // 1.2L/100km per passenger
-    co2PerKm: 0.03, // 30g CO2/km per passenger
     color: "text-green-600",
     bgColor: "bg-green-50",
   },
 ];
+
+interface CarbonData {
+  car: number;
+  motorbike: number;
+  bus: number;
+}
 
 function TransportSelectionContent() {
   const router = useRouter();
@@ -68,53 +72,88 @@ function TransportSelectionContent() {
     null
   );
   const [totalDistance, setTotalDistance] = useState<number>(0);
+  const [carbonData, setCarbonData] = useState<CarbonData>({
+    car: 0,
+    motorbike: 0,
+    bus: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Calculate total distance from plan activities
-    const loadPlanDistance = () => {
+    // Calculate total distance and fetch carbon data
+    const loadPlanData = async () => {
       try {
         const activities = sessionStorage.getItem("current_plan_activities");
-        if (activities) {
-          const parsed = JSON.parse(activities);
-
-          // Calculate distance based on number of transitions between places
-          // Each transition is estimated at 5-15km depending on type
-          let totalDist = 0;
-
-          if (parsed.length > 1) {
-            // Base distance: 8km per transition on average
-            const transitions = parsed.length - 1;
-            totalDist = transitions * 8;
-
-            // Add extra distance for different time slots (assuming they're farther apart)
-            const timeSlots = new Set(parsed.map((a: any) => a.time_slot));
-            if (timeSlots.size > 1) {
-              totalDist += (timeSlots.size - 1) * 5; // Extra 5km per time slot change
-            }
-          }
-
-          setTotalDistance(totalDist > 0 ? totalDist : 30); // Minimum 30km for any trip
-        } else {
-          setTotalDistance(30); // Default for empty plan
+        if (!activities) {
+          setTotalDistance(30); // Default fallback
+          await fetchCarbonData(30);
+          setIsLoading(false);
+          return;
         }
+
+        const parsed = JSON.parse(activities);
+
+        // Calculate distance based on number of transitions
+        let totalDist = 0;
+        if (parsed.length > 1) {
+          const transitions = parsed.length - 1;
+          totalDist = transitions * 8;
+
+          const timeSlots = new Set(parsed.map((a: any) => a.time_slot));
+          if (timeSlots.size > 1) {
+            totalDist += (timeSlots.size - 1) * 5;
+          }
+        }
+
+        const distance = totalDist > 0 ? totalDist : 30;
+        setTotalDistance(distance);
+
+        // Fetch real carbon data from backend
+        await fetchCarbonData(distance);
       } catch (error) {
-        console.error("Error loading distance:", error);
-        setTotalDistance(50); // Default fallback
+        console.error("Error loading plan data:", error);
+        setError("Failed to load carbon data");
+        setTotalDistance(50);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadPlanDistance();
+    loadPlanData();
   }, []);
+
+  const fetchCarbonData = async (distance: number) => {
+    try {
+      const [carEmission, motorbikeEmission, busEmission] = await Promise.all([
+        api.estimateCarbon("car", distance, 1),
+        api.estimateCarbon("motorbike", distance, 1),
+        api.estimateCarbon("bus", distance, 1),
+      ]);
+
+      setCarbonData({
+        car: carEmission,
+        motorbike: motorbikeEmission,
+        bus: busEmission,
+      });
+    } catch (error) {
+      console.error("Error fetching carbon data:", error);
+      setError("Failed to fetch carbon emissions data");
+      // Set default values as fallback
+      setCarbonData({
+        car: distance * 0.12,
+        motorbike: distance * 0.06,
+        bus: distance * 0.03,
+      });
+    }
+  };
 
   const calculateFuelConsumption = (fuelPerKm: number) => {
     return ((totalDistance * fuelPerKm) / 100).toFixed(2);
   };
 
-  const calculateCO2Emission = (co2PerKm: number) => {
-    return (totalDistance * co2PerKm).toFixed(2);
+  const getCO2Emission = (transportId: "car" | "motorbike" | "bus") => {
+    return carbonData[transportId].toFixed(2);
   };
 
   const handleConfirm = () => {
@@ -167,6 +206,23 @@ function TransportSelectionContent() {
 
       {/* Content */}
       <div className="max-w-2xl mx-auto px-6 py-8">
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="text-sm font-semibold text-red-800 mb-1">
+                  Error Loading Data
+                </p>
+                <p className="text-sm text-red-700">
+                  {error}. Using estimated values.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Trip Info */}
         <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
           <div className="flex items-center justify-between">
@@ -196,7 +252,7 @@ function TransportSelectionContent() {
             const Icon = transport.icon;
             const isSelected = selectedTransport === transport.id;
             const fuelNeeded = calculateFuelConsumption(transport.fuelPerKm);
-            const co2Emission = calculateCO2Emission(transport.co2PerKm);
+            const co2Emission = getCO2Emission(transport.id);
 
             return (
               <button

@@ -246,6 +246,21 @@ class MessageRepository:
             return {}
 
     @staticmethod
+    async def get_room_context_value(db: AsyncSession, room_id: int, key: str):
+        """Get a specific context value by key for a room"""
+        try:
+            query = select(RoomContext).where(
+                RoomContext.room_id == room_id,
+                RoomContext.key == key
+            )
+            result = await db.execute(query)
+            context = result.scalar_one_or_none()
+            return context.value if context else None
+        except SQLAlchemyError as e:
+            print(f"ERROR: Getting context value for room {room_id}, key {key} - {e}")
+            return None
+
+    @staticmethod
     async def delete_room_context(db: AsyncSession, room_id: int, key: str) -> bool:
         try:
             stmt = delete(RoomContext).where(
@@ -270,3 +285,117 @@ class MessageRepository:
             await db.rollback()
             print(f"ERROR: Clearing context for room {room_id} - {e}")
             return False
+
+    # ======================== Plan Invitation Methods ========================
+
+    @staticmethod
+    async def create_plan_invitation_message(
+        db: AsyncSession,
+        sender_id: int,
+        room_id: int,
+        plan_id: int,
+        invitee_id: int,
+        message_text: Optional[str] = None,
+    ):
+        """Tạo message với type plan_invitation và lưu plan_id vào content dạng JSON"""
+        try:
+            import json
+
+            # Content sẽ chứa plan_id và message
+            content_data = {"plan_id": plan_id, "message": message_text or ""}
+
+            new_message = Message(
+                sender_id=sender_id,
+                room_id=room_id,
+                message_type=MessageType.plan_invitation,
+                content=json.dumps(content_data),
+                status=MessageStatus.sent,
+            )
+            db.add(new_message)
+            await db.commit()
+            await db.refresh(new_message)
+
+            # Lưu trạng thái pending vào RoomContext
+            context_key = f"invitation_{new_message.id}"
+            await MessageRepository.save_room_context(
+                db,
+                RoomContextCreate(
+                    room_id=room_id,
+                    key=context_key,
+                    value={
+                        "status": "pending",
+                        "plan_id": plan_id,
+                        "invitee_id": invitee_id,
+                    },
+                ),
+            )
+
+            return new_message
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: creating plan invitation message - {e}")
+            return None
+
+    @staticmethod
+    async def get_invitation_status(
+        db: AsyncSession, room_id: int, message_id: int
+    ) -> Optional[str]:
+        """Lấy trạng thái của lời mời (pending/accepted/rejected)"""
+        context_key = f"invitation_{message_id}"
+        context = await MessageRepository.get_room_context_value(db, room_id, context_key)
+        if context and isinstance(context, dict):
+            return context.get("status", "pending")
+        return "pending"
+
+    @staticmethod
+    async def update_invitation_status(
+        db: AsyncSession, room_id: int, message_id: int, new_status: str
+    ) -> bool:
+        """Cập nhật trạng thái lời mời"""
+        try:
+            context_key = f"invitation_{message_id}"
+            context = await MessageRepository.get_room_context_value(
+                db, room_id, context_key
+            )
+
+            if context and isinstance(context, dict):
+                context["status"] = new_status
+                await MessageRepository.save_room_context(
+                    db,
+                    RoomContextCreate(room_id=room_id, key=context_key, value=context),
+                )
+                return True
+            return False
+        except SQLAlchemyError as e:
+            print(f"ERROR: updating invitation status - {e}")
+            return False
+
+    @staticmethod
+    async def get_pending_invitations(db: AsyncSession, room_id: int):
+        """Lấy danh sách các lời mời đang pending trong room"""
+        try:
+            # Lấy tất cả messages có type plan_invitation
+            result = await db.execute(
+                select(Message)
+                .where(
+                    (Message.room_id == room_id)
+                    & (Message.message_type == MessageType.plan_invitation)
+                )
+                .order_by(Message.created_at.desc())
+            )
+            all_invitations = result.scalars().all()
+
+            # Filter những invitation có status pending
+            pending = []
+            for inv in all_invitations:
+                status = await MessageRepository.get_invitation_status(
+                    db, room_id, inv.id
+                )
+                if status == "pending":
+                    pending.append(inv)
+
+            return pending
+        except SQLAlchemyError as e:
+            print(f"ERROR: getting pending invitations - {e}")
+            return []
+

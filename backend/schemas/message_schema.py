@@ -1,9 +1,16 @@
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from models.message import MessageStatus, MessageType
+
+
+class InvitationStatus(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
 
 
 class ChatMessage(BaseModel):
@@ -37,6 +44,7 @@ class MessageResponse(BaseModel):
     url: Optional[str] = None
     status: MessageStatus
     timestamp: datetime
+    plan_id: Optional[int] = None  # For plan_invitation messages
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,8 +167,56 @@ class SessionContextResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+
+
 class RoomContextDataResponse(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     room_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ======================== Plan Invitation Schemas ========================
+
+
+class PlanInvitationCreate(BaseModel):
+    """Schema để tạo lời mời tham gia plan"""
+
+    room_id: int = Field(..., gt=0, description="ID của room chat")
+    plan_id: int = Field(..., gt=0, description="ID của plan muốn mời")
+    invitee_id: int = Field(..., gt=0, description="ID của người được mời")
+    message: Optional[str] = Field(
+        None, max_length=500, description="Tin nhắn kèm theo lời mời"
+    )
+
+
+class PlanInvitationResponse(BaseModel):
+    """Schema response cho lời mời plan"""
+
+    id: int
+    sender_id: int
+    room_id: int
+    plan_id: int
+    plan_name: str
+    status: InvitationStatus
+    message: Optional[str]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InvitationActionRequest(BaseModel):
+    """Schema để accept/reject lời mời"""
+
+    action: InvitationStatus = Field(
+        ..., description="Action: 'accepted' hoặc 'rejected'"
+    )
+
+    @property
+    def is_accepted(self) -> bool:
+        return self.action == InvitationStatus.accepted
+
+    @property
+    def is_rejected(self) -> bool:
+        return self.action == InvitationStatus.rejected
+

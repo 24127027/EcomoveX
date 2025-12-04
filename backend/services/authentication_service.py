@@ -19,7 +19,8 @@ class AuthenticationService:
     @staticmethod
     async def authenticate_user(db: AsyncSession, credentials: UserLogin):
         try:
-            user = await UserRepository.get_user_by_email(db, credentials.email)
+            users = await UserRepository.search_users(db, credentials.email, limit=1)
+            user = users[0] if users else None
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,7 +64,8 @@ class AuthenticationService:
         db: AsyncSession, email: str, password: str
     ) -> AuthenticationResponse:
         try:
-            user = await UserRepository.get_user_by_email(db, email)
+            users = await UserRepository.search_users(db, email, limit=1)
+            user = users[0] if users else None
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
