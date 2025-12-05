@@ -2,6 +2,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
+from backend.models.destination import Destination
+from backend.services.destination_service import DestinationService
 from repository.plan_repository import PlanRepository
 from schemas.map_schema import *
 from schemas.plan_schema import *
@@ -456,3 +458,40 @@ class PlanService:
         return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
 
 
+    async def add_place_by_text(db, user_id: int, plan_id: int, text: str) -> Destination:
+        # 1. Search
+        data = TextSearchRequest(query=text)
+        resp = await MapService.text_search_place(db, data)
+
+        if not resp.results:
+            raise HTTPException(404, f"No results for '{text}'")
+        
+        # 2. Pick first
+        first = resp.results[0]
+
+        # 3. Save to DB if needed
+        dest = await DestinationService.get_by_place_id(db, first.place_id)
+
+        return await PlanRepository.add_place(
+            db=db,
+            plan_id=plan_id,
+            place_id=first.place_id,
+            name=first.name,
+            location=first.location,
+        )
+
+    @staticmethod
+    async def remove_place_by_name(db, plan, text: str):
+        text_lower = text.lower()
+
+        for day in plan.days:
+            new_activities = []
+            for act in day.activities:
+                if text_lower in act.name.lower():
+                    # skip → tức là xóa
+                    continue
+                new_activities.append(act)
+            day.activities = new_activities
+
+        await db.commit()
+        return plan

@@ -12,9 +12,9 @@ class PlanEditAgent:
         for mod in modifications:
             action = mod.get("action")
             if action == "add":
-                await PlanService.add_destination_to_plan(db, user_id, plan.id, mod["destination_data"])
+                await PlanService.add_place_by_text(db, user_id, plan.id, mod["destination_data"])
             elif action == "remove":
-                await PlanService.remove_destination(db, user_id, plan.id, mod["destination_id"])
+                await PlanService.remove_place_by_name(db, user_id, plan.id, mod["destination_id"])
             elif action == "modify_time":
                 await PlanService.update_destination_time(db, user_id, plan.id, mod["destination_id"], mod["fields"])
             elif action == "change_budget":
