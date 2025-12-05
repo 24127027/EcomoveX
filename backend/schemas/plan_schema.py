@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from models.plan import DestinationType, PlanRole, TimeSlot
+from schemas.route_schema import RouteForPlanResponse
 
 
 class PlanDestinationCreate(BaseModel):
@@ -89,6 +90,7 @@ class PlanResponse(BaseModel):
     end_date: date
     budget_limit: Optional[float] = None
     destinations: List[PlanDestinationResponse] = Field(default_factory=list)
+    route: Optional[List[RouteForPlanResponse]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

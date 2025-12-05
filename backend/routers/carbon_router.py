@@ -11,8 +11,6 @@ router = APIRouter(prefix="/carbon", tags=["Carbon Emissions Estimation"])
     Returns the estimated carbon emission in kg CO2e.
 
 """
-
-
 @router.post("/estimate", response_model=float)
 async def estimate_transport_emission(req: EmissionRequest):
     carbon_emission = await CarbonService.estimate_transport_emission(

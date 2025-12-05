@@ -22,8 +22,6 @@ from schemas.plan_schema import (
     ActionResult
 )
 from services.map_service import MapService
-from services.recommendation_service import RecommendationService
-from utils.nlp.rule_engine import Intent, RuleEngine
 from services.route_service import RouteService
 from repository.plan_repository import PlanDestination
 
@@ -131,6 +129,14 @@ class PlanService:
             saved_destinations = await PlanRepository.get_plan_destinations(
                 db, new_plan.id
             )
+            
+            list_route = []
+            for i in range(len(saved_destinations) - 1):
+                origin = saved_destinations[i].destination_id
+                destination = saved_destinations[i + 1].destination_id
+                routes = await RouteService.get_route_for_plan(origin, destination)
+                list_route.extend(routes)
+            
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -153,6 +159,7 @@ class PlanService:
                     )
                     for dest in saved_destinations
                 ],
+                route=list_route,
             )
         except HTTPException:
             raise
@@ -193,7 +200,13 @@ class PlanService:
             saved_destinations = await PlanRepository.get_plan_destinations(
                 db, updated_plan.id
             )
-            print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
+
+            list_route = []
+            for i in range(len(saved_destinations) - 1):
+                origin = saved_destinations[i].destination_id
+                destination = saved_destinations[i + 1].destination_id
+                routes = await RouteService.get_route_for_plan(origin, destination)
+                list_route.extend(routes)
 
             return PlanResponse(
                 id=updated_plan.id,
@@ -217,6 +230,7 @@ class PlanService:
                     )
                     for dest in saved_destinations
                 ],
+                route=list_route,
             )
         except HTTPException:
             raise
