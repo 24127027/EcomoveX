@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Users, MapPin, MessageSquare, BarChart3, Settings, FileText, Shield, Search, Plus, Edit, Trash2, Eye, Check, X, AlertCircle, TrendingUp, Leaf, Award } from 'lucide-react';
-import { api, AdminUserResponse, ReviewResponse, Mission } from '@/lib/api';
+import { Users, MapPin, MessageSquare, BarChart3, Settings, FileText, Shield, Search, Plus, Edit, Trash2, Eye, Check, X, AlertCircle, TrendingUp, Leaf, Award, RefreshCw, ExternalLink, Bot } from 'lucide-react';
+import { api, AdminUserResponse, ReviewResponse, Mission, DestinationWithCertificate, GreenVerifiedStatus } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 const AdminDashboard = () => {
@@ -25,6 +25,7 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState<AdminUserResponse[]>([]);
   const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [destinations, setDestinations] = useState<DestinationWithCertificate[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     total_users: 0,
     active_destinations: 0,
@@ -43,6 +44,13 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (activeTab === 'reviews') {
       fetchReviews();
+    }
+  }, [activeTab]);
+
+  // Fetch destinations
+  useEffect(() => {
+    if (activeTab === 'destinations') {
+      fetchDestinations();
     }
   }, [activeTab]);
 
@@ -74,6 +82,20 @@ const AdminDashboard = () => {
     } catch (err: any) {
       setError(err.message || 'Failed to fetch reviews');
       console.error('Error fetching reviews:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDestinations = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const fetchedDestinations = await api.adminGetAllDestinations({ limit: 500 });
+      setDestinations(fetchedDestinations);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch destinations');
+      console.error('Error fetching destinations:', err);
     } finally {
       setLoading(false);
     }
@@ -159,6 +181,89 @@ const AdminDashboard = () => {
     }
   };
 
+  // Certificate management handlers
+  const handleManualCertificateChange = async (destinationId: string, currentStatus: GreenVerifiedStatus) => {
+    const statusOptions: GreenVerifiedStatus[] = ['Green Certified', 'Not Green Verified', 'AI Green Verified'];
+    const statusChoice = prompt(
+      `Current status: ${currentStatus}\n\nChoose new status:\n1. Green Certified\n2. Not Green Verified\n3. AI Green Verified\n\nEnter 1, 2, or 3:`
+    );
+    
+    if (!statusChoice) return;
+    
+    const statusIndex = parseInt(statusChoice) - 1;
+    if (statusIndex < 0 || statusIndex >= statusOptions.length) {
+      alert('Invalid choice');
+      return;
+    }
+    
+    const newStatus = statusOptions[statusIndex];
+    
+    try {
+      setLoading(true);
+      await api.adminUpdateCertificate(destinationId, newStatus);
+      alert(`Certificate updated to: ${newStatus}`);
+      fetchDestinations();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update certificate');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExternalApiCheck = async (destinationId: string) => {
+    if (!confirm('Run external API verification check for this destination?')) return;
+    
+    try {
+      setLoading(true);
+      const result = await api.adminCheckExternalApi(destinationId);
+      
+      if (result.passed) {
+        const shouldUpdate = confirm(
+          `External API Check PASSED ✓\n\nScore: ${(result.score! * 100).toFixed(1)}%\n${result.details}\n\nUpdate certificate to "Green Certified"?`
+        );
+        if (shouldUpdate) {
+          await api.adminUpdateCertificate(destinationId, 'Green Certified');
+          fetchDestinations();
+        }
+      } else {
+        alert(
+          `External API Check FAILED ✗\n\nScore: ${(result.score! * 100).toFixed(1)}%\n${result.details}`
+        );
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to run external API check');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAiCheck = async (destinationId: string) => {
+    if (!confirm('Run AI verification check for this destination?')) return;
+    
+    try {
+      setLoading(true);
+      const result = await api.adminCheckAiVerification(destinationId);
+      
+      if (result.verified) {
+        const shouldUpdate = confirm(
+          `AI Verification PASSED ✓\n\nConfidence: ${(result.confidence! * 100).toFixed(1)}%\nGreen Score: ${(result.green_score! * 100).toFixed(1)}%\n\nUpdate certificate to "AI Green Verified"?`
+        );
+        if (shouldUpdate) {
+          await api.adminUpdateCertificate(destinationId, 'AI Green Verified');
+          fetchDestinations();
+        }
+      } else {
+        alert(
+          `AI Verification FAILED ✗\n\nConfidence: ${(result.confidence! * 100).toFixed(1)}%\nGreen Score: ${(result.green_score! * 100).toFixed(1)}%`
+        );
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to run AI check');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Sidebar Navigation
   const navigation = [
     { id: 'dashboard', name: 'Dashboard', icon: BarChart3 },
@@ -193,15 +298,7 @@ const AdminDashboard = () => {
     { month: 'Jun', users: 12543 },
   ];
 
-  // Removed mock users array - now using state
-
-  const destinations = [
-    { id: 101, name: 'Bali Eco Resort', country: 'Indonesia', ecoRating: 4.8, verified: true, tags: ['Sustainable', 'Wildlife Protection', 'Green Energy'], createdDate: '2024-01-10' },
-    { id: 102, name: 'Amazon Rainforest Lodge', country: 'Brazil', ecoRating: 4.9, verified: true, tags: ['Carbon Neutral', 'Conservation', 'Local Community'], createdDate: '2024-02-15' },
-    { id: 103, name: 'Glacier National Park', country: 'USA', ecoRating: 4.6, verified: false, tags: ['Nature Preserve', 'Low Impact'], createdDate: '2024-03-20' },
-  ];
-
-  // Removed mock reviews array - now using state
+  // Removed mock users and destinations arrays - now using state from API
 
   const auditLogs = [
     { id: 1, admin: 'admin@travel.com', action: 'User Suspended', target: 'mikejohnson (ID: 3)', timestamp: '2024-11-26 10:30:15', details: 'Suspended for policy violation' },
@@ -344,13 +441,13 @@ const AdminDashboard = () => {
                 placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
               />
             </div>
             <select 
               value={userFilter}
               onChange={(e) => setUserFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             >
               <option value="all">All Users</option>
               <option value="suspended">Only Suspended</option>
@@ -461,38 +558,67 @@ const AdminDashboard = () => {
   };
 
   // Render Destinations
-  const [destinationFilter, setDestinationFilter] = useState('all');
+  const [destinationFilter, setDestinationFilter] = useState<'all' | GreenVerifiedStatus>('all');
 
   const renderDestinations = () => {
     const filteredDestinations = destinations.filter(dest => {
-      if (destinationFilter === 'verified') return dest.verified === true;
-      if (destinationFilter === 'unverified') return dest.verified === false;
-      return true;
+      if (destinationFilter === 'all') return true;
+      return dest.green_verified === destinationFilter;
     });
+
+    const getStatusBadgeColor = (status: GreenVerifiedStatus) => {
+      switch (status) {
+        case 'Green Certified':
+          return 'bg-green-100 text-green-800';
+        case 'AI Green Verified':
+          return 'bg-blue-100 text-blue-800';
+        case 'Not Green Verified':
+        default:
+          return 'bg-gray-100 text-gray-800';
+      }
+    };
 
     return (
     <div className="space-y-6">
+      {loading && <div className="text-center py-4">Loading destinations...</div>}
+      {error && <div className="bg-red-100 text-red-800 p-4 rounded">{error}</div>}
+      
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col gap-4 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Destinations</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">Destination Certificate Management</h2>
+            <button 
+              onClick={fetchDestinations}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name or ID..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Search by place ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
               />
             </div>
             <select 
               value={destinationFilter}
-              onChange={(e) => setDestinationFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onChange={(e) => setDestinationFilter(e.target.value as any)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             >
               <option value="all">All Destinations</option>
-              <option value="verified">Only Green-Verified</option>
-              <option value="unverified">Only Non-Verified</option>
+              <option value="Green Certified">Green Certified</option>
+              <option value="AI Green Verified">AI Green Verified</option>
+              <option value="Not Green Verified">Not Green Verified</option>
             </select>
+          </div>
+          <div className="text-sm text-gray-600">
+            Total: {filteredDestinations.length} destinations
           </div>
         </div>
 
@@ -500,56 +626,49 @@ const AdminDashboard = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Eco Rating</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verified</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Environmental Tags</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Place ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Certificate Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredDestinations.map((dest) => (
-                <tr key={dest.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-mono text-gray-900">{dest.id}</td>
+              {filteredDestinations
+                .filter(dest => !searchTerm || dest.place_id.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map((dest) => (
+                <tr key={dest.place_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-gray-900">{dest.name}</p>
-                    <p className="text-xs text-gray-500">{dest.createdDate}</p>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{dest.country}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1">
-                      <Leaf className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-semibold text-gray-900">{dest.ecoRating}</span>
-                    </div>
+                    <p className="text-sm font-mono text-gray-900">{dest.place_id}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <button className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                      dest.verified 
-                        ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                    }`}>
-                      {dest.verified ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      {dest.verified ? 'Verified' : 'Unverified'}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {dest.tags.map((tag, index) => (
-                        <span key={index} className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded-full">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(dest.green_verified)}`}>
+                      {dest.green_verified}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button className="text-blue-600 hover:text-blue-800" title="Edit">
-                        <Edit className="w-4 h-4" />
+                      <button 
+                        onClick={() => handleManualCertificateChange(dest.place_id, dest.green_verified)}
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                        title="Manually Change Certificate"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Manual
                       </button>
-                      <button className="text-red-600 hover:text-red-800" title="Delete">
-                        <Trash2 className="w-4 h-4" />
+                      <button 
+                        onClick={() => handleExternalApiCheck(dest.place_id)}
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        title="Check with External API"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        API Check
+                      </button>
+                      <button 
+                        onClick={() => handleAiCheck(dest.place_id)}
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                        title="AI Verification Check"
+                      >
+                        <Bot className="w-3 h-3" />
+                        AI Check
                       </button>
                     </div>
                   </td>
@@ -558,6 +677,13 @@ const AdminDashboard = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          <strong>Certificate Management:</strong> You can manually change certificates, check with external APIs (mock), or run AI verification (mock). 
+          The actual API and AI endpoints will be connected when backend is ready.
+        </p>
       </div>
     </div>
     );

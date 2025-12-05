@@ -191,6 +191,33 @@ export interface SavedDestination {
   image_url?: string;
 }
 
+// Destination certificate/verification types
+export type GreenVerifiedStatus = "Green Certified" | "Not Green Verified" | "AI Green Verified";
+
+export interface DestinationWithCertificate {
+  place_id: string;
+  green_verified: GreenVerifiedStatus;
+}
+
+export interface CertificateUpdateRequest {
+  destination_id: string;
+  new_status: GreenVerifiedStatus;
+}
+
+export interface ExternalApiCheckResult {
+  destination_id: string;
+  passed: boolean;
+  score?: number;
+  details?: string;
+}
+
+export interface AiCheckResult {
+  destination_id: string;
+  verified: boolean;
+  confidence?: number;
+  green_score?: number;
+}
+
 export interface UploadResponse {
   url: string;
   blob_name: string;
@@ -1145,6 +1172,74 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify({ new_role: newRole }),
     });
+  }
+
+  // --- ADMIN DESTINATION/CERTIFICATE ENDPOINTS ---
+
+  // Get all destinations (Admin only)
+  async adminGetAllDestinations(params?: {
+    skip?: number;
+    limit?: number;
+    verified_status?: GreenVerifiedStatus;
+  }): Promise<DestinationWithCertificate[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append("skip", String(params.skip));
+    if (params?.limit !== undefined) queryParams.append("limit", String(params.limit));
+    if (params?.verified_status) queryParams.append("verified_status", params.verified_status);
+    
+    const queryString = queryParams.toString();
+    return this.request<DestinationWithCertificate[]>(
+      `/destinations/admin/all${queryString ? `?${queryString}` : ""}`,
+      { method: "GET" }
+    );
+  }
+
+  // Update destination certificate status (Admin only)
+  async adminUpdateCertificate(
+    destinationId: string,
+    newStatus: GreenVerifiedStatus
+  ): Promise<DestinationWithCertificate> {
+    return this.request<DestinationWithCertificate>(
+      `/destinations/admin/${destinationId}/certificate?new_status=${encodeURIComponent(newStatus)}`,
+      { method: "PUT" }
+    );
+  }
+
+  // Mock: Check destination with external API (not implemented on backend yet)
+  async adminCheckExternalApi(destinationId: string): Promise<ExternalApiCheckResult> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Mock response - randomly pass or fail
+    const passed = Math.random() > 0.3;
+    const score = passed ? Math.random() * 0.3 + 0.7 : Math.random() * 0.5;
+    
+    return {
+      destination_id: destinationId,
+      passed,
+      score,
+      details: passed 
+        ? "External verification passed: Location meets green standards" 
+        : "External verification failed: Insufficient green coverage detected",
+    };
+  }
+
+  // Mock: Check destination with AI verification (not implemented on backend yet)
+  async adminCheckAiVerification(destinationId: string): Promise<AiCheckResult> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Mock response - randomly verify or not
+    const verified = Math.random() > 0.4;
+    const confidence = Math.random() * 0.3 + 0.7;
+    const green_score = verified ? Math.random() * 0.25 + 0.65 : Math.random() * 0.5;
+    
+    return {
+      destination_id: destinationId,
+      verified,
+      confidence,
+      green_score,
+    };
   }
 }
 

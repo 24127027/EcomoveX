@@ -39,6 +39,13 @@ class DestinationUpdate(BaseModel):
     green_verified_status: Optional[GreenVerifiedStatus] = None
 
 
+class DestinationResponse(BaseModel):
+    place_id: str
+    green_verified: GreenVerifiedStatus
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserSavedDestinationResponse(BaseModel):
     user_id: int
     destination_id: str
