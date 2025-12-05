@@ -295,12 +295,50 @@ export interface PlanActivity {
 }
 
 export interface TravelPlan {
-  id: number;
-  destination: string;
-  date: string;
-  end_date?: string;
-  activities: PlanActivity[];
+    id: number;
+    place_name: string;
+    start_date: string;
+    end_date: string;
+    budget_limit?: number | null;
+    destinations: PlanDestinationResponse[];
+    route?: RouteForPlanResponse[] | null;
 }
+export interface RouteForPlanResponse {
+    origin: string;
+    destination: string;
+    distance_km: number;
+    estimated_travel_time_min: number;
+    carbon_emission_kg: number;
+    route_polyline: string;
+    transport_mode: string;  
+    route_type: string;      
+}
+
+export interface PlanDestinationResponse {
+    id: number;
+    destination_id: string;
+    type: DestinationType;          
+    order_in_day: number;
+    visit_date: string;             
+    estimated_cost?: number | null;
+    url?: string | null;
+    note?: string | null;
+    time_slot: TimeSlot;            
+}
+
+export enum DestinationType {
+    restaurant = "restaurant",
+    accommodation = "accommodation",
+    attraction = "attraction",
+    transport = "transport",
+}
+
+export enum TimeSlot {
+    morning = "morning",     // 6am - 12pm
+    afternoon = "afternoon", // 12pm - 6pm
+    evening = "evening",     // 6pm - 11pm
+}
+
 
 export interface CreatePlanRequest {
   place_name: string;
@@ -548,32 +586,38 @@ class ApiClient {
   }
 
   async getPlans(): Promise<TravelPlan[]> {
-    const plans = await this.request<PlanResponse[]>("/plans/", {
+    const plans = await this.request<TravelPlan[]>("/plans/", {
       method: "GET",
     });
     return plans.map((p) => ({
-      id: p.id,
-      destination: p.place_name,
-      date: p.start_date,
-      end_date: p.end_date,
-      activities: p.destinations.map((d, index) => {
-        let slot = "Morning";
-        const hour = new Date(d.visit_date).getHours();
-
-        if (hour >= 12 && hour < 18) slot = "Afternoon";
-        if (hour >= 18) slot = "Evening";
-
-        return {
-          id: `${d.destination_id}-${index}`,
-          original_id: d.id,
-          title: d.note || "Destination",
-          address: "",
-          image_url: "",
-          time_slot: slot as "Morning" | "Afternoon" | "Evening",
-          date: d.visit_date,
-          type: d.destination_type,
-        };
-      }),
+        id: p.id,
+        place_name: p.place_name,
+        start_date: p.start_date,
+        end_date: p.end_date,
+        budget_limit: p.budget_limit ?? null,
+        destinations: p.destinations.map((d) => ({
+            id: d.id,
+            destination_id: d.destination_id,
+            type: d.type,
+            order_in_day: d.order_in_day,
+            visit_date: d.visit_date,
+            estimated_cost: d.estimated_cost ?? null,
+            url: d.url ?? null,
+            note: d.note ?? null,
+            time_slot: d.time_slot,
+        })),
+        route: p.route
+            ? p.route.map((r) => ({
+                origin: r.origin,
+                destination: r.destination,
+                distance_km: r.distance_km,
+                estimated_travel_time_min: r.estimated_travel_time_min,
+                carbon_emission_kg: r.carbon_emission_kg,
+                route_polyline: r.route_polyline,
+                transport_mode: r.transport_mode,
+                route_type: r.route_type,  
+            }))
+            : null,
     }));
   }
 

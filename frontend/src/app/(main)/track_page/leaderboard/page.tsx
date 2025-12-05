@@ -78,13 +78,18 @@ export default function TrackPage() {
         }
 
         const params = new URLSearchParams({
-            planId: selectedPlan.id.toString(),
-            planName: selectedPlan.destination,
-            startDate: selectedPlan.date,
-            endDate: selectedPlan.end_date ?? "",
+            id: selectedPlan.id.toString(),
+            place_name: selectedPlan.place_name,
+            start_date: selectedPlan.start_date,
+            end_date: selectedPlan.end_date ?? "",
+            budget_limit: selectedPlan.budget_limit !== null && selectedPlan.budget_limit !== undefined
+                ? selectedPlan.budget_limit.toString()
+                : "",
+            destinations: JSON.stringify(selectedPlan.destinations),
+            route: selectedPlan.route ? JSON.stringify(selectedPlan.route) : "",
         });
 
-        router.push(`/track_page/transport_options?${params.toString()}`);
+        router.push(`/track_page/route_options?${params.toString()}`);
     };
 
     const formatDate = (dateString: string) => {
@@ -114,7 +119,7 @@ export default function TrackPage() {
                             >
                                 <span>
                                     {selectedPlan
-                                        ? selectedPlan.destination
+                                        ? selectedPlan.place_name
                                         : loading
                                             ? 'Loading plans...'
                                             : 'Select a plan'}
@@ -140,10 +145,10 @@ export default function TrackPage() {
                                                 className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
                                             >
                                                 <div className="font-semibold text-green-600">
-                                                    {plan.destination}
+                                                    {plan.place_name}
                                                 </div>
                                                 <div className="text-xs text-gray-500 mt-1">
-                                                    {formatDate(plan.date)} - {plan.end_date ? formatDate(plan.end_date) : "?"}
+                                                    {formatDate(plan.start_date)} - {plan.end_date ? formatDate(plan.end_date) : "?"}
                                                 </div>
                                             </button>
                                         ))
@@ -179,7 +184,7 @@ export default function TrackPage() {
                         )}
 
                         <button
-                            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed"
                             onClick={handleCalculate}
                             disabled={!selectedPlan || loading}
                         >

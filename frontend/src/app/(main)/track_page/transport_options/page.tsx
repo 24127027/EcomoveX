@@ -313,17 +313,6 @@ const TransportCO2Page = () => {
     };
 
     const navigateToNextPage = (mode: TransportMode, emission: string, saved: string) => {
-        // Lưu data vào localStorage (optional)
-        const tripData = {
-            mode: mode.name,
-            emission,
-            saved,
-            fromAddress,
-            toAddress,
-            distance
-        };
-        localStorage.setItem('selectedTrip', JSON.stringify(tripData));
-
         // Chuyển trang với query params
         const params = new URLSearchParams({
             mode: mode.id,

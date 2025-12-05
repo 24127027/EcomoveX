@@ -72,7 +72,7 @@ export default function EcoTripResult_NotSaveCO2() {
                                 <div className="flex items-center gap-3">
                                     <div className="w-4 h-4 bg-orange-500 rotate-45"></div>
                                     <div className="min-w-0">
-                                        <div className={`${jost_semibold.className} text-sm text-black`}>{emmision}kg</div>
+                                        <div className={`${jost_semibold.className} text-sm text-black`}>{emission}kg</div>
                                         <div className={`${jost_semibold.className} text-sm text-gray-400`}>CO2 Emission</div>
                                     </div>
                                 </div>
