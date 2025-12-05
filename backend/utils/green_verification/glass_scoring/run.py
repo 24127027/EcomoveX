@@ -1,11 +1,11 @@
 import os
 from typing import Dict, List, Optional
+
 import cv2
 import numpy as np
+import torch
 from ultralytics import YOLO
-import torch 
-import os
-import torch  
+
 
 class CupDetectorScorer:
     def __init__(
@@ -19,17 +19,24 @@ class CupDetectorScorer:
         self._model: Optional[YOLO] = None
 
         default_weights = {"glass": 1.0, "plastic": 0.6, "paper": 0.6}
-        self.category_weights = {k.lower(): float(v) for k, v in (category_weights or default_weights).items()}
-        
+        self.category_weights = {
+            k.lower(): float(v)
+            for k, v in (category_weights or default_weights).items()
+        }
+
         if device:
             self.device = device
         else:
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         print(f"CupDetectorScorer using device: {self.device}")
-        
+
         if model_path is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            self.model_path = os.path.abspath(os.path.join(script_dir, "..", "models", "glass_classification_model.pt"))
+            self.model_path = os.path.abspath(
+                os.path.join(
+                    script_dir, "..", "models", "glass_classification_model.pt"
+                )
+            )
         else:
             self.model_path = model_path
 
@@ -52,31 +59,41 @@ class CupDetectorScorer:
             if img is None:
                 raise FileNotFoundError(f"Image not found: {p}")
             images.append(cv2.resize(img, (640, 640)))
-        
+
         if not images:
             return -10.0
 
         self._load_model()
         imgs_rgb = [cv2.cvtColor(img, cv2.COLOR_BGR2RGB) for img in images]
 
-        results = self._model(imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device)
+        results = self._model(
+            imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device
+        )
 
         all_scores: List[float] = []
         for res in results:
             for box in res.boxes:
 
-                conf = float(box.conf.item()) if hasattr(box.conf, "item") else float(box.conf)
+                conf = (
+                    float(box.conf.item())
+                    if hasattr(box.conf, "item")
+                    else float(box.conf)
+                )
                 cls = int(box.cls.item()) if hasattr(box.cls, "item") else int(box.cls)
-                class_name = str(self._model.names[cls]) if hasattr(self._model, "names") and cls in self._model.names else str(cls)
+                class_name = (
+                    str(self._model.names[cls])
+                    if hasattr(self._model, "names") and cls in self._model.names
+                    else str(cls)
+                )
                 material = class_name.lower()
-                
+
                 weight = float(self.category_weights.get(material, 0.5))
                 score = min(1.0, conf * weight)
                 all_scores.append(score)
-        
+
         if not all_scores:
             return -10.0
-        
+
         avg_score = float(np.mean(all_scores))
 
         normalized = (avg_score * 20.0) - 10.0

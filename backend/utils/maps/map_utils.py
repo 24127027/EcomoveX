@@ -1,5 +1,6 @@
 import math
 
+
 async def interpolate_search_params(distance: float) -> tuple[int, float]:
     r_min, r_max = 300, 5000
     d_max = 500000

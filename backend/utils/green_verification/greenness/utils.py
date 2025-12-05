@@ -1,10 +1,11 @@
-"""Utils for monoDepth.
-"""
+"""Utils for monoDepth."""
+
 import sys
 import re
 import numpy as np
 import cv2
 import torch
+import requests
 
 
 def read_pfm(path):
@@ -163,6 +164,7 @@ def resize_depth(depth, width, height):
 
     return depth_resized
 
+
 def write_depth(path, depth, grayscale, bits=1):
     """Write depth map to png file.
 
@@ -175,13 +177,13 @@ def write_depth(path, depth, grayscale, bits=1):
         bits = 1
 
     if not np.isfinite(depth).all():
-        depth=np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+        depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
         print("WARNING: Non-finite depth values present")
 
     depth_min = depth.min()
     depth_max = depth.max()
 
-    max_val = (2**(8*bits))-1
+    max_val = (2 ** (8 * bits)) - 1
 
     if depth_max - depth_min > np.finfo("float").eps:
         out = max_val * (depth - depth_min) / (depth_max - depth_min)
@@ -197,3 +199,17 @@ def write_depth(path, depth, grayscale, bits=1):
         cv2.imwrite(path + ".png", out.astype("uint16"))
 
     return
+
+
+def load_image_from_url(url):
+    """Download image → decode using cv2 → return RGB float32 in [0,1]."""
+    resp = requests.get(url)
+    data = np.frombuffer(resp.content, np.uint8)
+    img_bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+    if img_bgr is None:
+        raise Exception(f"Failed to decode image at {url}")
+
+    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    img_rgb = img_rgb.astype(np.float32) / 255.0
+    return img_rgb

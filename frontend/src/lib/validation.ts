@@ -1,5 +1,5 @@
 /**
- * Frontend validation utilities to match backend requirements
+ * Frontend validation utilities to match  requirements
  */
 
 export interface ValidationErrors {
@@ -11,7 +11,7 @@ export interface ValidationErrors {
 
 /**
  * Validate email format
- * Backend uses EmailStr from Pydantic which is quite strict
+ *  uses EmailStr from Pydantic which is quite strict
  */
 export const validateEmail = (email: string): string | null => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,7 +33,7 @@ export const validateEmail = (email: string): string | null => {
 
 /**
  * Validate username
- * Backend: min_length=1, max_length=100, cannot be empty or whitespace
+ * : min_length=1, max_length=100, cannot be empty or whitespace
  */
 export const validateUsername = (username: string): string | null => {
   if (!username) {
@@ -53,7 +53,7 @@ export const validateUsername = (username: string): string | null => {
 
 /**
  * Validate password strength
- * Backend: min_length=6
+ * : min_length=6
  */
 export const validatePassword = (password: string): string | null => {
   if (!password) {
@@ -134,13 +134,13 @@ export const validateLoginForm = (data: {
 };
 
 /**
- * Get user-friendly error message for backend errors
+ * Get user-friendly error message for  errors
  */
 export const getFriendlyErrorMessage = (error: any): string => {
   if (typeof error === "string") return error;
 
   if (error.message) {
-    // Handle specific backend error messages
+    // Handle specific  error messages
     if (error.message.includes("email")) {
       return "Email is invalid or already in use";
     }

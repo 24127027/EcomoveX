@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   Camera,
+  Route,
 } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
 import { useRouter } from "next/navigation";
@@ -171,7 +172,6 @@ export default function ProfilePage() {
       setIsSaving(true);
       setSuccessMsg("");
 
-      // --- 1. Xử lý Upload Ảnh (nếu có chọn file mới) ---
       let newBlobName = null;
       let newAvatarUrl = null;
       if (avatarFile) {
@@ -193,7 +193,6 @@ export default function ProfilePage() {
 
       const promises = [];
 
-      // --- 2. Request update Profile (Username & Avatar URL) ---
       if (username !== user?.username || newBlobName) {
         promises.push(
           api
@@ -223,7 +222,6 @@ export default function ProfilePage() {
         );
       }
 
-      // --- 3. Request Credentials (Email + Password)
       const isEmailChanged = email !== user?.email;
       const isPasswordChanged = newPassword.length > 0;
 
@@ -262,7 +260,6 @@ export default function ProfilePage() {
           password: "Incorrect current password.",
         }));
       } else {
-        // Hiển thị lỗi chi tiết hơn nếu có
         alert(error.message || "Failed to update profile.");
       }
     } finally {
@@ -282,9 +279,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="relative pt-12 pb-24 px-6 rounded-b-[40px] overflow-hidden z-0 bg-[#E3F1E4]">
-          {/* Input ẩn cho Cover */}
           <input
             type="file"
             hidden
@@ -293,7 +288,6 @@ export default function ProfilePage() {
             onChange={handleCoverFileChange}
           />
 
-          {/* Ảnh nền Cover */}
           {previewCover && (
             <Image
               src={previewCover}
@@ -304,7 +298,6 @@ export default function ProfilePage() {
             />
           )}
 
-          {/* Overlay chỉnh sửa Cover (Chỉ hiện khi Edit Mode) */}
           {isEditing && (
             <div
               onClick={handleCoverClick}
@@ -316,7 +309,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Nội dung Header (Nút Back, Tiêu đề...) - Cần relative z-20 để nổi lên trên ảnh */}
           <div className="relative z-20 flex items-center gap-4">
             <Link href="/user_page/main_page">
               <ArrowLeft
@@ -335,7 +327,6 @@ export default function ProfilePage() {
             </h1>
           </div>
         </div>
-        {/* Avatar Section */}
         <div className="relative z-10 -mt-16 flex flex-col items-center">
           <input
             type="file"
@@ -353,7 +344,6 @@ export default function ProfilePage() {
                 fill
                 className="object-cover"
               />
-              {/* Overlay khi đang Edit */}
               {isEditing && (
                 <div
                   onClick={handleAvatarClick}
@@ -363,7 +353,6 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-            {/* Nút dấu cộng (+) */}
             {isEditing && (
               <div
                 onClick={handleAvatarClick}
@@ -381,9 +370,7 @@ export default function ProfilePage() {
           </h2>
         </div>
 
-        {/* Main Form (Giữ nguyên) */}
         <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-5">
-          {/* Username */}
           <div className="flex flex-col">
             <label
               className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
@@ -405,7 +392,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Email */}
           <div className="flex flex-col">
             <label
               className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
@@ -434,7 +420,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Password */}
           <div className="flex flex-col">
             <label
               className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
@@ -457,7 +442,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Old Password */}
           {isEditing && needsAuth && (
             <div className="flex flex-col animate-in fade-in slide-in-from-top-2 duration-300">
               <label
@@ -490,7 +474,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Buttons */}
           <div className="pt-4 flex flex-col items-center pb-8">
             {successMsg && (
               <p
@@ -518,7 +501,6 @@ export default function ProfilePage() {
           </div>
         </main>
 
-        {/* Footer */}
         <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
           <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
@@ -529,6 +511,16 @@ export default function ProfilePage() {
               <Home size={24} strokeWidth={2} />
               <span className={`${jost.className} text-xs font-medium mt-1`}>
                 Home
+              </span>
+            </Link>
+            <Link
+              href="/track_page/leaderboard"
+              className="flex flex-col items-center text-gray-400 hover:text-green-600"
+            >
+              {" "}
+              <Route size={24} strokeWidth={2} />
+              <span className={`${jost.className} text-xs font-medium mt-1`}>
+                Track
               </span>
             </Link>
             <Link

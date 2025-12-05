@@ -1,5 +1,3 @@
-import { types } from "util";
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // --- INTERFACES & TYPES ---
@@ -10,9 +8,9 @@ interface LoginCredentials {
 }
 
 export interface UserCredentialUpdate {
-  old_password: string; // Bắt buộc
-  new_email?: string; // Optional
-  new_password?: string; // Optional
+  old_password: string;
+  new_email?: string;
+  new_password?: string;
 }
 
 interface SignupData {
@@ -27,10 +25,6 @@ interface AuthResponse {
   user_id: number;
   username: string;
   email: string;
-}
-
-interface ApiError {
-  detail: string;
 }
 
 interface ValidationError {
@@ -68,12 +62,61 @@ export interface Position {
   lng: number;
 }
 
-export interface SearchPlacesRequest {
+// --- NEW TEXT SEARCH TYPES START ---
+export interface LocalizedText {
+  text: string;
+  languageCode?: string;
+}
+
+export interface PhotoInfo {
+  photo_url: string;
+  size: [number, number]; // Tuple matching Python's Tuple[int, int]
+}
+
+export interface GreenPlaceRecommendation {
+  place_id: string;
+  destination_id?: string | null;
+  name: string;
+  formatted_address: string;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  rating?: number;
+  combined_score?: number;
+  photo_url?: string;
+}
+
+export interface PlaceSearchResult {
+  id: string; //  sends "id"
+  displayName: LocalizedText; //  sends "displayName"
+  formattedAddress?: string; //  sends "formattedAddress"
+  location?: Position;
+  types: string[];
+  photos?: PhotoInfo | null;
+}
+
+export interface TextSearchRequest {
+  query: string;
+  location?: Position;
+  radius?: number; // Integer 100-50000
+  place_types?: string; // e.g., "restaurant"
+  field_mask?: string[]; // Optional: ["places.id", "places.displayName"]
+}
+
+export interface TextSearchResponse {
+  places: PlaceSearchResult[]; //  sends "places"
+}
+// --- NEW TEXT SEARCH TYPES END ---
+
+export type PlaceDataCategory = "basic" | "contact" | "atmosphere";
+
+export interface AutocompleteRequest {
   query: string;
   user_location?: Position;
   radius?: number; // in meters
   place_types?: string; // Comma-separated string
   language?: string;
+  session_token?: string | null;
 }
 
 export interface AutocompletePrediction {
@@ -153,21 +196,6 @@ export interface UploadResponse {
   filename: string;
 }
 
-export interface PlanActivity {
-  id: number;
-  title: string;
-  address: string;
-  image_url: string;
-  time_slot: "Morning" | "Afternoon" | "Evening";
-}
-
-export interface TravelPlan {
-  id: number;
-  destination: string;
-  date: string;
-  activities: PlanActivity[];
-}
-
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
@@ -226,6 +254,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   message_type: string;
+  plan_id?: number;
 }
 
 export interface RoomResponse {
@@ -233,6 +262,144 @@ export interface RoomResponse {
   name: string;
   created_at: string;
   member_ids: number[]; // Quan trọng: cần trường này để lọc
+}
+//REWARD & MISSION TYPES
+export interface Mission {
+  id: number;
+  name: string;
+  description: string;
+  reward_type: string;
+  action_trigger: string;
+  value: number;
+}
+
+export interface UserRewardResponse {
+  user_id: number;
+  mission: Mission[];
+  total_points: number;
+}
+
+//PLAN DESTINATION TYPES
+export interface PlanDestination {
+  id: number;
+  destination_id: string;
+  destination_type: string;
+  visit_date: string;
+  time_slot: string; // ✅ Backend trả về lowercase, sẽ convert sang capitalize
+  note?: string;
+  url?: string;
+  order_in_day?: number;
+}
+
+export interface PlanResponse {
+  id: number;
+  user_id: number; // Owner ID for permission checking
+  place_name: string;
+  start_date: string;
+  end_date: string;
+  budget_limit: number;
+  destinations: PlanDestination[];
+}
+
+// Member management interfaces
+export interface PlanMember {
+  id: number;
+  email: string;
+  display_name?: string;
+}
+
+export interface PlanMemberDetail {
+  user_id: number;
+  plan_id: number;
+  role: "owner" | "member";
+  joined_at: string;
+  username?: string; // ✅ Add username
+  email?: string; // ✅ Add email as fallback
+}
+
+export interface PlanMemberResponse {
+  plan_id: number;
+  members: PlanMemberDetail[];
+}
+
+export interface AddMemberRequest {
+  ids: number[];
+}
+
+export interface PlanActivity {
+  id: number | string;
+  original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
+  title: string;
+  address: string;
+  image_url: string;
+  time_slot: "Morning" | "Afternoon" | "Evening"; // ✅ Internal sử dụng capitalize
+  date?: string;
+  type?: string;
+  order_in_day?: number;
+  time?: string;
+  day?: number;
+}
+
+export interface TravelPlan {
+  id: number;
+  user_id?: number; // Owner ID
+  destination: string;
+  date: string;
+  end_date?: string;
+  activities: PlanActivity[];
+  budget?: number; // Legacy field
+  budget_limit?: number; // ✅ Backend field name
+}
+
+export interface PlanDestinationCreate {
+  id: number;
+  destination_id: string;
+  destination_type: string;
+  order_in_day: number;
+  visit_date: string;
+  time_slot: "morning" | "afternoon" | "evening"; // ✅ Lowercase để match backend enum
+  estimated_cost?: number;
+  url?: string;
+  note?: string;
+}
+export interface CreatePlanRequest {
+  place_name: string;
+  start_date: string;
+  end_date?: string;
+  budget_limit: number;
+  destinations?: PlanDestinationCreate[];
+}
+
+export interface UpdatePlanRequest {
+  place_name?: string;
+  start_date?: string;
+  end_date?: string;
+  budget_limit?: number;
+  destinations?: PlanDestinationCreate[];
+}
+
+export interface DestinationCard {
+  tempId: number;
+  destinationId: string;
+  name: string;
+  visitDate: string;
+  type: string;
+}
+
+//--- REVIEW TYPES ---
+export interface ReviewResponse {
+  destination_id: string;
+  rating: number;
+  content: string;
+  user_id: number;
+  created_at: string;
+  files_urls: string[];
+}
+
+export interface ReviewStatisticsResponse {
+  average_rating: number;
+  total_reviews: number;
+  rating_distribution: Record<string, number>;
 }
 
 // --- API CLIENT CLASS ---
@@ -280,10 +447,12 @@ class ApiClient {
     const fetchOptions: RequestInit = {
       ...options,
       headers: options.body instanceof FormData ? headers : headers,
+      cache: "no-store", // ✅ Disable cache để luôn lấy data mới nhất
     };
 
     const response = await fetch(`${this.baseURL}${endpoint}`, fetchOptions);
-
+    console.log("BASE URL:", this.baseURL);
+    console.log("ENDPOINT:", endpoint);
     if (!response.ok) {
       try {
         const errorData = await response.json();
@@ -351,7 +520,13 @@ class ApiClient {
     });
   }
 
-  async unsaveDestination(destinationId: number): Promise<void> {
+  async saveDestination(destinationId: string): Promise<any> {
+    return this.request(`/destinations/saved/${destinationId}`, {
+      method: "POST",
+    });
+  }
+
+  async unsaveDestination(destinationId: string): Promise<void> {
     return this.request(`/destinations/saved/${destinationId}`, {
       method: "DELETE",
     });
@@ -360,6 +535,30 @@ class ApiClient {
   // --- USER ENDPOINTS ---
   async getUserProfile(): Promise<UserProfile> {
     return this.request<UserProfile>("/users/me", { method: "GET" });
+  }
+
+  async getUserByEmail(email: string): Promise<UserProfile> {
+    return this.request<UserProfile>(
+      `/users/email/${encodeURIComponent(email)}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  async getUserByUsername(username: string): Promise<UserProfile> {
+    return this.request<UserProfile>(
+      `/users/username/${encodeURIComponent(username)}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  async getUserById(userId: number): Promise<UserProfile> {
+    return this.request<UserProfile>(`/users/id/${userId}`, {
+      method: "GET",
+    });
   }
 
   async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
@@ -391,38 +590,222 @@ class ApiClient {
       body: formData,
     });
   }
+  // --- PLAN ENDPOINTS ---
+  async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
+    return this.request<PlanResponse>("/plans/", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+  async deletePlan(planId: number): Promise<void> {
+    return this.request(`/plans/${planId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async addDestinationToPlan(
+    planId: number,
+    data: PlanDestination
+  ): Promise<any> {
+    return this.request(`/plans/${planId}/destinations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  async updatePlanDestination(
+    destinationId: string | number,
+    planId: number,
+    data: { note?: string; visit_date?: string }
+  ): Promise<any> {
+    return this.request(
+      `/plans/destinations/${destinationId}?plan_id=${planId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+  async deletePlanDestination(
+    planDestinationId: number,
+    planId: number
+  ): Promise<void> {
+    return this.request(
+      `/plans/destinations/${planDestinationId}?plan_id=${planId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
+  async updatePlan(
+    planId: number,
+    data: UpdatePlanRequest
+  ): Promise<PlanResponse> {
+    return this.request<PlanResponse>(`/plans/${planId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async joinPlan(planId: number): Promise<void> {
+    await this.request(`/plans/${planId}/join`, {
+      method: "POST",
+    });
+  }
+
+  async sendPlanInvitation(
+    userId: number,
+    roomId: number,
+    planId: number
+  ): Promise<ChatMessage> {
+    const formData = new FormData();
+    formData.append("user_id", userId.toString());
+    formData.append("plan_id", planId.toString());
+    formData.append("message_type", "plan_invitation");
+    formData.append("content", "Invitation to join plan");
+
+    return this.request<ChatMessage>(`/messages/${roomId}`, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async acceptInvitation(messageId: number): Promise<void> {
+    await this.request(`/messages/invitations/${messageId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "accepted" }),
+    });
+  }
+
+  async declineInvitation(messageId: number): Promise<void> {
+    await this.request(`/messages/${messageId}/decline`, {
+      method: "PUT",
+    });
+  }
+
+  async getInvitationStatus(
+    messageId: number
+  ): Promise<{ status: string; plan_id: number }> {
+    return this.request(`/messages/invitations/${messageId}`, {
+      method: "GET",
+    });
+  }
+
+  // --- PLAN MEMBER ENDPOINTS ---
+  async getPlanMembers(planId: number): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "GET",
+    });
+  }
+
+  async addPlanMembers(
+    planId: number,
+    memberIds: number[]
+  ): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ ids: memberIds }),
+    });
+  }
+
+  // ✅ Add members with roles (for auto-adding owner)
+  async addPlanMembersWithRoles(
+    planId: number,
+    members: Array<{ user_id: number; role: string }>
+  ): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ ids: members }),
+    });
+  }
+
+  async removePlanMembers(planId: number, memberIds: number[]): Promise<void> {
+    return this.request(`/plans/${planId}/members`, {
+      method: "DELETE",
+      body: JSON.stringify({ ids: memberIds }),
+    });
+  }
+
+  async leavePlan(planId: number): Promise<void> {
+    const profile = await this.getUserProfile();
+    return this.removePlanMembers(planId, [profile.id]);
+  }
 
   async getPlans(): Promise<TravelPlan[]> {
-    // Mock data
-    return [
-      {
-        id: 201,
-        destination: "Ho Chi Minh City (Upcoming)",
-        date: "30/11/2025",
-        activities: [
-          {
-            id: 1,
-            title: "Thảo Cầm Viên",
-            address: "2 Nguyen Binh Khiem, D1",
-            image_url:
-              "https://images.unsplash.com/photo-1596263576925-48c581d6a90a?q=80&w=200",
-            time_slot: "Morning",
-          },
-        ],
-      },
-      {
-        id: 101,
-        destination: "District 1 (Past)",
-        date: "04/01/2026",
-        activities: [],
-      },
-      {
-        id: 102,
-        destination: "District 5 (Past)",
-        date: "01/01/2023",
-        activities: [],
-      },
-    ];
+    const plans = await this.request<PlanResponse[]>("/plans/", {
+      method: "GET",
+    });
+
+    return plans.map((p) => {
+      // Chuẩn hóa ngày bắt đầu chuyến đi về 00:00:00 để tính toán chính xác
+      const planStartDate = new Date(`${p.start_date}T00:00:00`);
+
+      const activities = p.destinations.map((d, index) => {
+        const dateObj = new Date(d.visit_date);
+
+        // ✅ Convert backend lowercase time_slot sang capitalize cho frontend
+        const normalizeTimeSlot = (
+          slot: string
+        ): "Morning" | "Afternoon" | "Evening" => {
+          const lower = slot.toLowerCase();
+          if (lower === "afternoon") return "Afternoon";
+          if (lower === "evening") return "Evening";
+          return "Morning";
+        };
+        const slot = normalizeTimeSlot(d.time_slot || "morning");
+
+        const timeString = dateObj.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        // [MỚI] Logic tính thứ tự ngày (Day 1, Day 2...)
+        const actDateOnly = new Date(dateObj);
+        actDateOnly.setHours(0, 0, 0, 0);
+        planStartDate.setHours(0, 0, 0, 0);
+
+        const diffTime = actDateOnly.getTime() - planStartDate.getTime();
+        // Dùng Math.round để xử lý sai số mili-giây nếu có
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        const dayIndex = diffDays + 1;
+
+        return {
+          id: `${d.destination_id}-${index}`,
+          original_id: d.id,
+          title: d.note || "Destination",
+          address: "",
+          image_url: d.url || "",
+          time_slot: slot,
+          date: d.visit_date,
+          time: timeString,
+          type: d.destination_type,
+          order_in_day: d.order_in_day || 0,
+          day: dayIndex >= 1 ? dayIndex : 1,
+        };
+      });
+
+      activities.sort((a, b) => {
+        const dateA = new Date(a.date!).getTime();
+        const dateB = new Date(b.date!).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+
+        return (a.order_in_day || 0) - (b.order_in_day || 0);
+      });
+
+      return {
+        id: p.id,
+        user_id: p.user_id, // Map owner ID
+        destination: p.place_name,
+        date: p.start_date,
+        end_date: p.end_date,
+        budget_limit: p.budget_limit, // ✅ Map budget_limit from backend
+        activities: activities,
+      };
+    });
   }
 
   // --- FRIEND ENDPOINTS ---
@@ -446,6 +829,13 @@ class ApiClient {
     });
   }
 
+  async sendFriendRequestByUsername(username: string): Promise<FriendResponse> {
+    return this.request<FriendResponse>(`/friends/request/by-username`, {
+      method: "POST",
+      body: JSON.stringify({ username }),
+    });
+  }
+
   async acceptFriendRequest(friendId: number): Promise<FriendResponse> {
     return this.request<FriendResponse>(`/friends/${friendId}/accept`, {
       method: "POST",
@@ -462,6 +852,34 @@ class ApiClient {
     return this.request(`/friends/${friendId}`, { method: "DELETE" });
   }
 
+  // --- MAP ENDPOINTS ---
+
+  // Integrated Text Search Function
+  async textSearchPlace(
+    request: TextSearchRequest
+  ): Promise<TextSearchResponse> {
+    const response = await this.request<TextSearchResponse>(
+      "/map/text-search",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
+    return response;
+  }
+
+  async autocomplete(
+    request: AutocompleteRequest
+  ): Promise<AutocompleteResponse> {
+    const response = await this.request<AutocompleteResponse>(
+      "/map/autocomplete",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
+    return response;
+  }
   // --- CHAT ENDPOINTS ---
   async getDirectRoomId(partnerId: number): Promise<number> {
     const res = await this.request<{ id: number }>("/rooms/direct", {
@@ -503,27 +921,31 @@ class ApiClient {
     return this.request<RoomResponse>("/rooms/rooms", {
       method: "POST",
       body: JSON.stringify({
-        room_name: name,
+        name: name,
         member_ids: memberIds,
       }),
     });
   }
 
-  // --- MAP ENDPOINTS ---
-  async searchPlaces(
-    request: SearchPlacesRequest
-  ): Promise<AutocompleteResponse> {
-    const response = await this.request<AutocompleteResponse>("/map/search", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
-    return response;
-  }
+  async getPlaceDetails(
+    placeId: string,
+    sessionToken?: string | null,
+    categories?: PlaceDataCategory[]
+  ): Promise<PlaceDetails> {
+    const params = new URLSearchParams();
 
-  async getPlaceDetails(placeId: string): Promise<PlaceDetails> {
-    return this.request<PlaceDetails>(`/map/place/${placeId}`, {
-      method: "GET",
-    });
+    if (sessionToken) {
+      params.append("session_token", sessionToken);
+    }
+
+    if (categories && categories.length > 0) {
+      categories.forEach((cat) => params.append("categories", cat));
+    }
+
+    const queryString = params.toString();
+    const path = `/map/place/${placeId}${queryString ? `?${queryString}` : ""}`;
+
+    return this.request<PlaceDetails>(path, { method: "GET" });
   }
 
   async geocodeAddress(address: string): Promise<ReverseGeocodeResponse> {
@@ -540,18 +962,6 @@ class ApiClient {
     });
   }
 
-  async birdDistance(origin: Position, destination: Position): Promise<number> {
-    const params = new URLSearchParams({
-      origin_lat: origin.lat.toString(),
-      origin_lng: origin.lng.toString(),
-      destination_lat: destination.lat.toString(),
-      destination_lng: destination.lng.toString(),
-    });
-    return this.request<number>(`/map/bird-distance?${params.toString()}`, {
-      method: "GET",
-    });
-  }
-
   // --- WEATHER & AIR ENDPOINTS ---
 
   async getCurrentWeather(
@@ -564,13 +974,175 @@ class ApiClient {
     );
   }
 
-  // [SỬA LỖI Ở ĐÂY] Đã thêm đóng ngoặc cho hàm này
   async getAirQuality(lat: number, lng: number): Promise<AirQualityResponse> {
-    // Gọi endpoint /air/air-quality
     return this.request<AirQualityResponse>(
       `/air/air-quality?lat=${lat}&lng=${lng}`,
       { method: "GET" }
     );
+  }
+
+  //REWARD & MISSION ENDPOINTS
+  async getAllMissions(): Promise<Mission[]> {
+    return this.request<Mission[]>("/rewards/missions", { method: "GET" });
+  }
+
+  async getUserRewards(): Promise<UserRewardResponse> {
+    return this.request<UserRewardResponse>("/rewards/me/missions", {
+      method: "GET",
+    });
+  }
+
+  // --- REVIEW ENDPOINTS ---
+
+  // Lấy danh sách review theo địa điểm
+  async getReviewsByDestination(
+    destinationId: string
+  ): Promise<ReviewResponse[]> {
+    return this.request<ReviewResponse[]>(
+      `/reviews/destination/${destinationId}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  async createReview(
+    destinationId: string,
+    data: { rating: number; content: string },
+    files: File[] = []
+  ): Promise<ReviewResponse> {
+    const formData = new FormData();
+    formData.append("rating", String(data.rating));
+    formData.append("content", data.content);
+
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    return this.request<ReviewResponse>(`/reviews/${destinationId}`, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async getReviewStatistics(
+    destinationId: string
+  ): Promise<ReviewStatisticsResponse> {
+    return this.request<ReviewStatisticsResponse>(
+      `/reviews/destination/${destinationId}/statistics`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  // Xóa review
+  async deleteReview(destinationId: string): Promise<void> {
+    return this.request<void>(`/reviews/${destinationId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // --- RECOMMENDATION ENDPOINTS ---
+
+  async getNearbyGreenPlaces(
+    lat: number,
+    lng: number,
+    radiusKm: number = 5,
+    k: number = 10
+  ): Promise<GreenPlaceRecommendation[]> {
+    return this.request<GreenPlaceRecommendation[]>(
+      `/recommendations/user/me/nearby-by-cluster?latitude=${lat}&longitude=${lng}&radius_km=${radiusKm}&k=${k}`,
+      { method: "GET" }
+    );
+  }
+
+  async getPlanChatRoom(planId: number): Promise<{ room_id: number }> {
+    return this.request<{ room_id: number }>(`/plans/${planId}/chat-room`, {
+      method: "GET",
+    });
+  }
+
+  // --- CARBON EMISSIONS ---
+  async estimateCarbon(
+    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train",
+    distanceKm: number,
+    passengers: number = 1
+  ): Promise<number> {
+    return this.request<number>(
+      `/carbon/estimate?transport_mode=${transportMode}&distance_km=${distanceKm}&passengers=${passengers}`,
+      {
+        method: "POST",
+      }
+    );
+  }
+
+  // --- ROUTES ---
+  async findOptimalRoutes(
+    origins: Array<{ lat: number; lng: number }>,
+    destinations: Array<{ lat: number; lng: number }>,
+    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train"
+  ): Promise<any> {
+    return this.request<any>("/routes/find-optimal", {
+      method: "POST",
+      body: JSON.stringify({
+        origins,
+        destinations,
+        transport_mode: transportMode,
+      }),
+    });
+  }
+
+  // --- CHATBOT & AI ---
+  async generatePlan(planData: {
+    place_name: string;
+    start_date: string;
+    end_date: string;
+    budget_limit?: number;
+    destinations: Array<{
+      destination_id: string;
+      destination_type: string;
+      visit_date: string;
+      order_in_day: number;
+      time_slot: string;
+      note?: string;
+      estimated_cost?: number;
+      url?: string;
+    }>;
+  }): Promise<any> {
+    return this.request<any>("/chatbot/plan/generate", {
+      method: "POST",
+      body: JSON.stringify(planData),
+    });
+  }
+
+  async sendBotMessage(
+    userId: number,
+    roomId: number,
+    message: string
+  ): Promise<any> {
+    return this.request<any>("/chatbot/message", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
+    });
+  }
+
+  async sendMessage(
+    roomId: number,
+    content?: string,
+    file?: File,
+    planId?: number,
+    messageType: "text" | "file" | "plan_invitation" = "text"
+  ): Promise<ChatMessage> {
+    const formData = new FormData();
+    if (content) formData.append("content", content);
+    if (file) formData.append("message_file", file);
+    if (planId) formData.append("plan_id", String(planId));
+    formData.append("message_type", messageType);
+
+    return this.request<ChatMessage>(`/messages/${roomId}`, {
+      method: "POST",
+      body: formData,
+    });
   }
 }
 

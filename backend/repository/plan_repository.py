@@ -1,8 +1,25 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from models.plan import *
-from schemas.plan_schema import *
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models.plan import (
+    Plan,
+    PlanDestination,
+    PlanMember,
+    PlanRole,
+)
+from schemas.plan_schema import (
+    PlanCreate,
+    PlanDestinationCreate,
+    PlanDestinationUpdate,
+    PlanMemberCreate,
+    PlanUpdate,
+)
+from models.destination import Destination
+
+
+from sqlalchemy.orm import selectinload
+
 
 class PlanRepository:
     @staticmethod
@@ -10,17 +27,19 @@ class PlanRepository:
         try:
             result = await db.execute(
                 select(PlanMember).where(
-                    PlanMember.plan_id == plan_id, 
-                    PlanMember.user_id == user_id, 
-                    PlanMember.role == PlanRole.owner
+                    PlanMember.plan_id == plan_id,
+                    PlanMember.user_id == user_id,
+                    PlanMember.role == PlanRole.owner,
                 )
             )
             plan = result.scalar_one_or_none()
             return plan is not None
         except SQLAlchemyError as e:
-            print(f"ERROR: checking plan ownership for user ID {user_id} and plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: checking plan ownership for user ID {user_id} and plan ID {plan_id} - {e}"
+            )
             return False
-        
+
     @staticmethod
     async def is_member(db: AsyncSession, user_id: int, plan_id: int) -> bool:
         try:
@@ -33,18 +52,25 @@ class PlanRepository:
             membership = result.scalar_one_or_none()
             return membership is not None
         except SQLAlchemyError as e:
-            print(f"ERROR: checking membership for user ID {user_id} and plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: checking membership for user ID {user_id} and plan ID {plan_id} - {e}"
+            )
             return False
-    
+
     @staticmethod
     async def get_plan_by_user_id(db: AsyncSession, user_id: int):
         try:
-            result = await db.execute(select(Plan).join(PlanMember).where(PlanMember.user_id == user_id))
+            result = await db.execute(
+                select(Plan)
+                .join(PlanMember)
+                .where(PlanMember.user_id == user_id)
+                .options(selectinload(Plan.members))
+            )
             return result.scalars().all()
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving plans for user ID {user_id} - {e}")
             return []
-        
+
     @staticmethod
     async def get_plan_by_id(db: AsyncSession, plan_id: int):
         try:
@@ -61,7 +87,7 @@ class PlanRepository:
                 place_name=plan_data.place_name,
                 start_date=plan_data.start_date,
                 end_date=plan_data.end_date,
-                budget_limit=plan_data.budget_limit
+                budget_limit=plan_data.budget_limit,
             )
             db.add(new_plan)
             await db.commit()
@@ -98,7 +124,7 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: updating plan ID {plan_id} - {e}")
             return None
-        
+
     @staticmethod
     async def delete_plan(db: AsyncSession, plan_id: int):
         try:
@@ -128,37 +154,62 @@ class PlanRepository:
             return []
 
     @staticmethod
-    async def add_destination_to_plan(db: AsyncSession, plan_id: int, data: PlanDestinationCreate):
+    async def add_destination_to_plan(
+        db: AsyncSession, plan_id: int, data: PlanDestinationCreate
+    ):
         try:
             new_plan_dest = PlanDestination(
                 plan_id=plan_id,
                 destination_id=data.destination_id,
                 type=data.destination_type,
+                order_in_day=data.order_in_day,
                 visit_date=data.visit_date,
-                note=data.note
+                estimated_cost=data.estimated_cost,
+                url=data.url,
+                note=data.note,
+                time_slot=data.time_slot,
             )
             db.add(new_plan_dest)
             await db.commit()
             await db.refresh(new_plan_dest)
+            print(f"  ✅ DB: Added destination {new_plan_dest.id} to plan {plan_id}")
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding destination {data.destination_id} to plan {plan_id} - {e}")
+            print(
+                f"ERROR: adding destination {data.destination_id} to plan {plan_id} - {e}"
+            )
             return None
-        
+
     @staticmethod
-    async def update_plan_destination(db: AsyncSession, destination_id: str, updated_data: PlanDestinationUpdate):
+    async def update_plan_destination(
+        db: AsyncSession,
+        plan_id: int,
+        destination_id: str,
+        updated_data: PlanDestinationUpdate,
+    ):
         try:
             result = await db.execute(
-                select(PlanDestination).where(PlanDestination.destination_id == destination_id)
+                select(PlanDestination).where(
+                    PlanDestination.plan_id == plan_id,
+                    PlanDestination.destination_id == destination_id,
+                )
             )
             plan_dest = result.scalar_one_or_none()
             if not plan_dest:
-                print(f"WARNING: WARNING: Destination ID {destination_id} not found")
+                print(
+                    f"WARNING: WARNING: Destination {destination_id} in plan ID {plan_id} not found"
+                )
                 return None
 
             if updated_data.visit_date is not None:
                 plan_dest.visit_date = updated_data.visit_date
+            if updated_data.order_in_day is not None:
+                plan_dest.order_in_day = updated_data.order_in_day
+            if updated_data.estimated_cost is not None:
+                plan_dest.estimated_cost = updated_data.estimated_cost
+            if updated_data.url is not None:
+                plan_dest.url = updated_data.url
             if updated_data.note is not None:
                 plan_dest.note = updated_data.note
 
@@ -168,35 +219,32 @@ class PlanRepository:
             return plan_dest
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: updating destination ID {destination_id} - {e}")
+            print(
+                f"ERROR: updating destination {destination_id} in plan ID {plan_id} - {e}"
+            )
             return None
 
     @staticmethod
-    async def remove_destination_from_plan(db: AsyncSession, destination_id: str):
+    async def delete_all_plan_destination(db: AsyncSession, plan_id: int):
         try:
             result = await db.execute(
-                select(PlanDestination).where(PlanDestination.destination_id == destination_id)
+                select(PlanDestination).where(PlanDestination.plan_id == plan_id)
             )
-            plan_dest = result.scalar_one_or_none()
-            if not plan_dest:
-                print(f"WARNING: Destination ID {destination_id} not found")
-                return False
-
-            await db.delete(plan_dest)
+            plan_destinations = result.scalars().all()
+            for dest in plan_destinations:
+                await db.delete(dest)
             await db.commit()
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: removing destination ID {destination_id} - {e}")
+            print(f"ERROR: deleting destinations for plan ID {plan_id} - {e}")
             return False
-    
+
     @staticmethod
     async def add_plan_member(db: AsyncSession, plan_id: int, data: PlanMemberCreate):
         try:
             new_plan_member = PlanMember(
-                user_id=data.user_id,
-                plan_id=plan_id,
-                role=data.role
+                user_id=data.user_id, plan_id=plan_id, role=data.role
             )
             db.add(new_plan_member)
             await db.commit()
@@ -204,9 +252,11 @@ class PlanRepository:
             return new_plan_member
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: adding plan member for user ID {data.user_id} and plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: adding plan member for user ID {data.user_id} and plan ID {plan_id} - {e}"
+            )
             return None
-        
+
     @staticmethod
     async def get_plan_members(db: AsyncSession, plan_id: int):
         try:
@@ -217,19 +267,20 @@ class PlanRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving user plans for plan ID {plan_id} - {e}")
             return []
-    
+
     @staticmethod
     async def remove_plan_member(db: AsyncSession, plan_id: int, member_id: int):
         try:
             result = await db.execute(
                 select(PlanMember).where(
-                    PlanMember.user_id == member_id,
-                    PlanMember.plan_id == plan_id
+                    PlanMember.user_id == member_id, PlanMember.plan_id == plan_id
                 )
             )
             user_plan = result.scalar_one_or_none()
             if not user_plan:
-                print(f"WARNING: WARNING: UserPlan for user ID {member_id} and plan ID {plan_id} not found")
+                print(
+                    f"WARNING: WARNING: UserPlan for user ID {member_id} and plan ID {plan_id} not found"
+                )
                 return False
 
             await db.delete(user_plan)
@@ -237,5 +288,121 @@ class PlanRepository:
             return True
         except SQLAlchemyError as e:
             await db.rollback()
-            print(f"ERROR: removing user plan for user ID {member_id} and plan ID {plan_id} - {e}")
+            print(
+                f"ERROR: removing user plan for user ID {member_id} and plan ID {plan_id} - {e}"
+            )
             return False
+
+    @staticmethod
+    async def get_all_plans(db: AsyncSession, skip: int = 0, limit: int = 100):
+        try:
+            result = await db.execute(
+                select(Plan).order_by(Plan.created_at.desc()).offset(skip).limit(limit)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving all plans - {e}")
+            return []
+
+    @staticmethod
+    async def get_plan_destination_by_id(
+        db: AsyncSession, plan_id: int, destination_id: str
+    ):
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(
+                    PlanDestination.plan_id == plan_id,
+                    PlanDestination.destination_id == destination_id,
+                )
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(
+                f"ERROR: retrieving destination {destination_id} in plan {plan_id} - {e}"
+            )
+            return None
+
+    @staticmethod
+    async def get_plan_destination_by_id(db: AsyncSession, plan_destination_id: int):
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving plan destination ID {plan_destination_id} - {e}")
+            return None
+
+    @staticmethod
+    async def update_plan_member_role(
+        db: AsyncSession, plan_id: int, user_id: int, new_role: PlanRole
+    ):
+        try:
+            result = await db.execute(
+                select(PlanMember).where(
+                    PlanMember.plan_id == plan_id, PlanMember.user_id == user_id
+                )
+            )
+            member = result.scalar_one_or_none()
+            if not member:
+                print(f"WARNING: Member {user_id} not found in plan {plan_id}")
+                return None
+
+            member.role = new_role
+            db.add(member)
+            await db.commit()
+            await db.refresh(member)
+            return member
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating role for user {user_id} in plan {plan_id} - {e}")
+            return None
+
+    @staticmethod
+    async def remove_destination_from_plan(
+        db: AsyncSession, plan_destination_id: int
+    ) -> bool:
+        try:
+            result = await db.execute(
+                select(PlanDestination).where(PlanDestination.id == plan_destination_id)
+            )
+            dest = result.scalar_one_or_none()
+            if not dest:
+                print(f"WARNING: PlanDestination ID {plan_destination_id} not found")
+                return False
+
+            await db.delete(dest)
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: deleting plan destination ID {plan_destination_id} - {e}")
+            return False
+
+    @staticmethod
+    async def ensure_destination(db: AsyncSession, place_id: str):
+        """Kiểm tra và tạo destination nếu chưa có để tránh lỗi Foreign Key"""
+        try:
+            # 1. Check tồn tại
+            result = await db.execute(
+                select(Destination).where(Destination.place_id == place_id)
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing
+
+            # 2. Tạo mới
+            new_dest = Destination(
+                place_id=place_id,
+                # Các trường này có thể null trong model destination.py của bạn không?
+                # Dựa vào file bạn gửi, model Destination CHỈ CÓ place_id và green_verified
+                # Nếu database thực tế có cột name, address... thì thêm vào đây.
+                # Nếu chỉ có place_id thì chỉ cần dòng dưới:
+            )
+            db.add(new_dest)
+            await db.commit()
+            return new_dest
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: ensuring destination {place_id} - {e}")
+            return None
