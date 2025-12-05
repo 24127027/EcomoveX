@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from schemas.destination_schema import Bounds
 
+
 class Location(BaseModel):
     longitude: float = Field(alias="lng")
     latitude: float = Field(alias="lat")
@@ -16,10 +17,12 @@ class Location(BaseModel):
         json_schema_extra={"serialization": {"by_alias": True}},
     )
 
+
 class Geometry(BaseModel):
     location: Location
     bounds: Optional[Bounds] = None
-    
+
+
 class PlaceSearchDisplay(BaseModel):
     description: str
     place_id: str

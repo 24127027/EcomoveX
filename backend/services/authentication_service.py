@@ -1,9 +1,12 @@
+import secrets
+import random
+import string
 from fastapi import HTTPException, status
 from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.user import *
+from models.user import User
 from repository.user_repository import UserRepository
 from schemas.authentication_schema import (
     AuthenticationResponse,
@@ -44,9 +47,13 @@ class AuthenticationService:
         try:
             payload = {
                 "sub": str(user.id),
-                "role": (user.role.value if hasattr(user.role, "value") else str(user.role)),
+                "role": (
+                    user.role.value if hasattr(user.role, "value") else str(user.role)
+                ),
             }
-            token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+            token = jwt.encode(
+                payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+            )
             return token
         except Exception as e:
             raise HTTPException(
@@ -55,7 +62,9 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def login_user(db: AsyncSession, email: str, password: str) -> AuthenticationResponse:
+    async def login_user(
+        db: AsyncSession, email: str, password: str
+    ) -> AuthenticationResponse:
         try:
             user = await UserRepository.get_user_by_email(db, email)
             if not user:
@@ -81,7 +90,9 @@ class AuthenticationService:
             )
 
     @staticmethod
-    async def register_user(db: AsyncSession, user_data: UserRegister) -> AuthenticationResponse:
+    async def register_user(
+        db: AsyncSession, user_data: UserRegister
+    ) -> AuthenticationResponse:
         try:
             new_user = await UserRepository.create_user(db, user_data)
             if not new_user:
@@ -102,4 +113,43 @@ class AuthenticationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error registering user: {e}",
+            )
+
+    @staticmethod
+    async def generate_temporary_password(db: AsyncSession, email: str) -> str:
+        try:
+            is_user = await UserRepository.get_user_by_email(db, email)
+            if not is_user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User with the provided email does not exist",
+                )
+            # Random password length between 8-19 characters
+            password_length = secrets.randbelow(12) + 8  # 8 to 19
+            
+            lowercase = string.ascii_lowercase
+            uppercase = string.ascii_uppercase
+            digits = string.digits
+            symbols = string.punctuation
+
+            # Ensure at least one character from each category
+            password_chars = [
+                secrets.choice(lowercase),
+                secrets.choice(uppercase),
+                secrets.choice(digits),
+                secrets.choice(symbols),
+            ]
+
+            # Fill remaining characters randomly from all categories
+            all_chars = lowercase + uppercase + digits + symbols
+            password_chars += [secrets.choice(all_chars) for _ in range(password_length - 4)]
+
+            # Securely shuffle the password characters
+            secrets.SystemRandom().shuffle(password_chars)
+            
+            return ''.join(password_chars)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error generating temporary password: {e}",
             )

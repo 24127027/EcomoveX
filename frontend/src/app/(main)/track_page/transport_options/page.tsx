@@ -59,15 +59,14 @@ interface TransportOptionProps {
 
 // Constants
 const TRANSPORT_MODES: TransportMode[] = [
-    { id: 'walking', name: 'Walk', icon: PersonStanding, time: '20 min', apiMode: 'WALKING' },
-    { id: 'motorbike', name: 'Motorbike', icon: Bike, time: '5 min', apiMode: 'MOTORBIKE' },
-    { id: 'bus', name: 'Bus', icon: Bus, time: '10 min', apiMode: 'BUS' },
-    { id: 'car', name: 'Car', icon: Car, time: '5 min', apiMode: 'CAR' },
-    { id: 'metro', name: 'Metro', icon: Train, time: '20 min', apiMode: 'METRO' }
+    { id: 'walking', name: 'Walk', icon: PersonStanding, time: '20 min', apiMode: 'walking' },
+    { id: 'motorbike', name: 'Motorbike', icon: Bike, time: '5 min', apiMode: 'motorbike' },
+    { id: 'bus', name: 'Bus', icon: Bus, time: '10 min', apiMode: 'bus' },
+    { id: 'car', name: 'Car', icon: Car, time: '5 min', apiMode: 'car' }
 ];
 
-const DEFAULT_DISTANCE = 1.4;
-const API_ENDPOINT = '/carbon/estimate';
+const DEFAULT_DISTANCE = 4.5;
+const API_ENDPOINT = "http://127.0.0.1:8000/carbon/estimate";
 
 // Confirmation Modal Component
 interface ConfirmModalProps {
@@ -191,27 +190,35 @@ const TransportCO2Page = () => {
     const [selectedSaved, setSelectedSaved] = useState('0.0');
 
     useEffect(() => {
+        if (!distance || distance <= 0) {
+            setLoading(false);
+            return;
+        }
+
         const fetchEmissions = async () => {
             setLoading(true);
             const emissionData: Record<string, EmissionData> = {};
 
             try {
-                // Bước 1: Fetch tất cả emission data
                 const rawEmissions: Record<string, number> = {};
 
-                for (const mode of TRANSPORT_MODES) {
+                const fetchPromises = TRANSPORT_MODES.map(async (mode) => {
                     try {
-                        const url = `${API_ENDPOINT}?transport_mode=${mode.apiMode}&distance_km=${distance}&passengers=1`;
+                        const url = `${API_ENDPOINT}`;
                         console.log(`Fetching: ${url}`);
 
                         const response = await fetch(url, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                            }
+                            },
+                            body: JSON.stringify({
+                                transport_mode: mode.apiMode,
+                                distance_km: distance,
+                                passengers: 1
+                            })
                         });
 
-                        // Kiểm tra response status
                         if (!response.ok) {
                             const text = await response.text();
                             console.error(`API Error for ${mode.id}:`, {
@@ -222,48 +229,46 @@ const TransportCO2Page = () => {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
 
-                        // Kiểm tra Content-Type
-                        const contentType = response.headers.get('content-type');
-                        console.log(`Content-Type for ${mode.id}:`, contentType);
+                        // Backend trả về trực tiếp số float
+                        const emissionValue = await response.json();
 
-                        if (!contentType || !contentType.includes('application/json')) {
-                            const text = await response.text();
-                            console.error(`Non-JSON response for ${mode.id}:`, text);
-                            throw new Error('Response is not JSON');
+                        // Validate là number
+                        if (typeof emissionValue !== 'number' || isNaN(emissionValue)) {
+                            console.error(`Invalid emission value for ${mode.id}:`, emissionValue);
+                            return { mode: mode.id, value: 0 };
                         }
 
-                        // Parse JSON
-                        const data = await response.json();
-                        console.log(`Data for ${mode.id}:`, data);
-
-                        // Backend có thể trả về object hoặc số
-                        const emissionValue = typeof data === 'number'
-                            ? data
-                            : data.carbon_emission_kg || data.carbon_emission || 0;
-
-                        rawEmissions[mode.id] = emissionValue;
+                        console.log(`Emission for ${mode.id}:`, emissionValue);
+                        return { mode: mode.id, value: emissionValue };
 
                     } catch (fetchError) {
                         console.error(`Error fetching emission for ${mode.id}:`, fetchError);
-                        // Nếu 1 mode fail, vẫn tiếp tục với mode khác
-                        rawEmissions[mode.id] = 0;
+                        return { mode: mode.id, value: 0 };
                     }
-                }
+                });
+
+                // Đợi tất cả requests hoàn thành
+                const results = await Promise.all(fetchPromises);
+
+                // Map results vào rawEmissions
+                results.forEach(result => {
+                    rawEmissions[result.mode] = result.value;
+                });
 
                 console.log('All raw emissions:', rawEmissions);
 
-                // Bước 2: Lấy baseline emission (car)
+                //Lấy baseline emission (car)
                 const carEmission = rawEmissions['car'] || 0;
                 console.log('Car baseline emission:', carEmission);
 
-                // Bước 3: Tính carbon_saved cho mỗi phương tiện
+                //Tính carbon_saved cho mỗi phương tiện
                 for (const mode of TRANSPORT_MODES) {
                     const emission = rawEmissions[mode.id] || 0;
                     const saved = Math.max(0, carEmission - emission);
 
-                    emissionData[mode.id] = {
-                        carbon_emission_kg: emission,
-                        carbon_saved_kg: saved
+                    emissionData[mode.id] = { 
+                        carbon_emission_kg: Number(emission.toFixed(2)),
+                        carbon_saved_kg: Number(saved.toFixed(2))
                     };
                 }
 
@@ -272,27 +277,6 @@ const TransportCO2Page = () => {
 
             } catch (error) {
                 console.error('Critical error in fetchEmissions:', error);
-
-                // Fallback data với tính toán carbon_saved
-                console.log('Using fallback data');
-                const fallbackRaw = {
-                    walk: 0.0,
-                    motorbike: 4.0,
-                    bus: 0.0,
-                    car: 8.2,
-                    metro: 0.0
-                };
-
-                const carEmission = fallbackRaw.car;
-
-                Object.keys(fallbackRaw).forEach(key => {
-                    const emission = fallbackRaw[key as keyof typeof fallbackRaw];
-                    emissionData[key] = {
-                        carbon_emission_kg: emission,
-                        carbon_saved_kg: Math.max(0, carEmission - emission)
-                    };
-                });
-
                 setEmissions(emissionData);
             } finally {
                 setLoading(false);
@@ -300,7 +284,7 @@ const TransportCO2Page = () => {
         };
 
         fetchEmissions();
-    }, [distance]);
+    }, [distance]);  
 
     const handleAccept = (mode: TransportMode, emission: string, saved: string) => {
         setSelectedMode(mode);
@@ -345,11 +329,7 @@ const TransportCO2Page = () => {
             mode: mode.id,
             modeName: mode.name,
             emission,
-            saved,
-            time: mode.time,
-            distance: distance.toString(),
-            from: fromAddress,
-            to: toAddress,
+            saved
         });
         if (mode.id === 'car') {
             router.push(`/track_page/result/not_save_CO2?${params.toString()}`);
@@ -363,8 +343,8 @@ const TransportCO2Page = () => {
     };
 
     return (
-        <div className="bg-gray-200 flex justify-center border-b shadow-sm h-screen overflow-hidden">
-        <div className="w-full max-w-md mx-auto bg-gray-50 min-h-screen overflow-y-auto scrollbar-hide">
+        <div className="bg-gray-200 flex justify-center border-b shadow-sm h-screen">
+            <div className="w-full max-w-md mx-auto bg-gray-50 min-h-screen flex flex-col overflow-y-auto scrollbar-hide">
                 <header className="bg-white border-b shadow-sm sticky top-0 z-10">
                     <div className="p-4">
                         <div className="mb-4">
@@ -403,7 +383,7 @@ const TransportCO2Page = () => {
                 </header>
 
                 {/* Transport Options */}
-                <div className="px-4 pt-4 pb-20">
+                <div className="px-4 pt-4 pb-20 flex-1">
                     {loading ? (
                         <div className="text-center py-8">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
@@ -430,36 +410,6 @@ const TransportCO2Page = () => {
                     onClose={handleCancelCar}
                     onConfirm={handleConfirmCar}
                 />
-
-                <style jsx global>{`
-                    @keyframes scale-in {
-                    from {
-                        transform: scale(0.95);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: scale(1);
-                        opacity: 1;
-                    }
-                    }
-  
-                    @keyframes fade-in {
-                    from {
-                        opacity: 0;
-                    }
-                    to {
-                        opacity: 1;
-                    }
-                    }
-  
-                    .animate-scale-in {
-                    animation: scale-in 0.2s ease-out;
-                    }
-  
-                    .animate-fade-in {
-                    animation: fade-in 0.2s ease-out;
-                    }
-                `}</style>
 
                 <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
                     <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>

@@ -3,10 +3,17 @@ from typing import List
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from models.user import *
-from schemas.authentication_schema import *
-from schemas.user_schema import *
+from models.user import Rank, User, UserActivity
+from schemas.user_schema import (
+    UserActivityCreate,
+    UserCreate,
+    UserCredentialUpdate,
+    UserFilterParams,
+    UserProfileUpdate,
+    UserUpdateEcoPoint,
+)
 
 
 class UserRepository:
@@ -16,20 +23,24 @@ class UserRepository:
         Fetch raw User ORM objects from DB with filters & pagination
         """
         try:
-            query = select(User).order_by(User.created_at.desc())
+            query = (
+                select(User)
+                .options(
+                    selectinload(User.rooms),
+                    selectinload(User.reviews),
+                    selectinload(User.missions),
+                )
+                .order_by(User.created_at.desc())
+            )
 
-            if filters.search_term:
-                search = f"%{filters.search_term}%"
+            if filters.search:
+                search = f"%{filters.search}%"
                 query = query.where(
-                    (User.username.ilike(search)) |
-                    (User.email.ilike(search))
+                    (User.username.ilike(search)) | (User.email.ilike(search))
                 )
 
             if filters.role:
                 query = query.where(User.role == filters.role)
-
-            if filters.status:
-                query = query.where(User.status == filters.status)
 
             if filters.created_from:
                 query = query.where(User.created_at >= filters.created_from)
@@ -66,35 +77,14 @@ class UserRepository:
             return []
 
     @staticmethod
-    async def get_user_by_email(db: AsyncSession, email: str):
-        try:
-            result = await db.execute(select(User).where(User.email == email))
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
-            return None
-
-    @staticmethod
-    async def get_user_by_username(db: AsyncSession, username: str):
-        try:
-            result = await db.execute(select(User).where(User.username == username))
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: Failed to retrieve user by username {username} - {e}")
-            return None
-
-    @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate):
         try:
-            existed_email = await UserRepository.get_user_by_email(db, user_data.email)
-            if existed_email:
-                print(f"WARNING: User with email {user_data.email} already exists")
-                return None
-            existing_username = await UserRepository.get_user_by_username(db, user_data.username)
-            if existing_username:
-                print(f"WARNING: Username {user_data.username} already taken")
+            is_existing = await UserRepository.search_users(db, user_data.username) or await UserRepository.search_users(db, user_data.email)
+            if is_existing:
+                print(
+                    f"WARNING: WARNING: User creation failed - username "
+                    f"'{user_data.username}' already exists"
+                )
                 return None
             new_user = User(
                 username=user_data.username,
@@ -137,7 +127,9 @@ class UserRepository:
             return None
 
     @staticmethod
-    async def update_user_profile(db: AsyncSession, user_id: int, updated_data: UserProfileUpdate):
+    async def update_user_profile(
+        db: AsyncSession, user_id: int, updated_data: UserProfileUpdate
+    ):
         try:
             user = await UserRepository.get_user_by_id(db, user_id)
             if not user:
@@ -197,7 +189,9 @@ class UserRepository:
             return False
 
     @staticmethod
-    async def log_user_activity(db: AsyncSession, user_id: int, data: UserActivityCreate):
+    async def log_user_activity(
+        db: AsyncSession, user_id: int, data: UserActivityCreate
+    ):
         try:
             new_activity = UserActivity(
                 user_id=user_id,
@@ -229,21 +223,17 @@ class UserRepository:
             return []
 
     @staticmethod
-    async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
-        try:
-            result = await db.execute(
-                select(User).order_by(User.created_at.desc()).offset(skip).limit(limit)
-            )
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            print(f"ERROR: Failed to retrieve all users - {e}")
-            return []
-
-    @staticmethod
-    async def search_users(db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50):
+    async def search_users(
+        db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50
+    ):
         try:
             result = await db.execute(
                 select(User)
+                .options(
+                    selectinload(User.rooms),
+                    selectinload(User.reviews),
+                    selectinload(User.missions),
+                )
                 .where(
                     (User.username.ilike(f"%{search_term}%"))
                     | (User.email.ilike(f"%{search_term}%"))
@@ -256,3 +246,13 @@ class UserRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to search users with term '{search_term}' - {e}")
             return []
+        
+    @staticmethod
+    async def get_user_by_email(db: AsyncSession, email: str):
+        try:
+            result = await db.execute(select(User).where(User.email == email))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
+            return None

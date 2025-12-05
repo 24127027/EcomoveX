@@ -1,18 +1,31 @@
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models.plan import PlanRole, DestinationType, TimeSlot
 from repository.plan_repository import PlanRepository
-from repository.room_repository import RoomRepository
-from repository.message_repository import MessageRepository
-from schemas.map_schema import *
-from schemas.plan_schema import *
-from schemas.room_schema import RoomCreate, RoomMemberCreate
-from schemas.message_schema import RoomContextCreate
+from schemas.map_schema import PlaceDetailsRequest
+from schemas.plan_schema import (
+    IntentHandlerResponse,
+    MemberCreate,
+    MemberDelete,
+    PlanCreate,
+    PlanDestinationCreate,
+    PlanDestinationResponse,
+    PlanDestinationUpdate,
+    PlanMemberCreate,
+    PlanMemberDetailResponse,
+    PlanMemberResponse,
+    PlanResponse,
+    PlanUpdate,
+    ActionResult
+)
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
-from models.room import RoomType, MemberRole
+from services.route_service import RouteService
+from repository.plan_repository import PlanDestination
 
 
 class PlanService:
@@ -44,25 +57,27 @@ class PlanService:
                 return []
             list_plan_responses = []
             for plan in plans:
+                members = await PlanRepository.get_plan_members(db, plan.id)
+                owner = next((m for m in members if m.role == PlanRole.owner), None)
                 destinations = await PlanRepository.get_plan_destinations(db, plan.id)
                 dest_infos = [
                     PlanDestinationResponse(
                         id=dest.id,
                         destination_id=dest.destination_id,
                         destination_type=dest.type,
-                        type=dest.type,             
+                        type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,  # ✅ Chuyển time về format "HH:MM"
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in destinations
                 ]
                 plan_response = PlanResponse(
                     id=plan.id,
-                    user_id=next((m.user_id for m in plan.members if m.role == PlanRole.owner), user_id),
+                    user_id=owner.user_id if owner else None,
                     place_name=plan.place_name,
                     start_date=plan.start_date,
                     end_date=plan.end_date,
@@ -78,7 +93,9 @@ class PlanService:
             )
 
     @staticmethod
-    async def create_plan(db: AsyncSession, user_id: int, plan_data: PlanCreate) -> PlanResponse:
+    async def create_plan(
+        db: AsyncSession, user_id: int, plan_data: PlanCreate
+    ) -> PlanResponse:
         try:
             # 1. Tạo Plan
             new_plan = await PlanRepository.create_plan(db, plan_data)
@@ -98,18 +115,22 @@ class PlanService:
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
                     await PlanRepository.ensure_destination(db, place_info)
-                    
+
                     # Update URL ảnh nếu thiếu
-                    if not dest_data.url and place_info.photos:
+                    if place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
-                    print(f"Warning syncing destination {dest_data.destination_id}: {e}")
-                
+                    print(
+                        f"Warning syncing destination {dest_data.destination_id}: {e}"
+                    )
+
                 # Sau đó mới thêm vào Plan
                 await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
 
             # 4. Return
-            saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
+            saved_destinations = await PlanRepository.get_plan_destinations(
+                db, new_plan.id
+            )
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -124,11 +145,11 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in saved_destinations
                 ],
@@ -139,37 +160,41 @@ class PlanService:
             raise HTTPException(status_code=500, detail=f"Error creating plan: {e}")
 
     @staticmethod
-    async def update_plan(db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate):
+    async def update_plan(
+        db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate
+    ):
         try:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if not plans or not any(p.id == plan_id for p in plans):
                 raise HTTPException(status_code=404, detail="Plan not found")
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
-            
+
             # ✅ DELETE OLD DESTINATIONS FIRST
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
-            print(f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations")
-            
             # ✅ ADD NEW DESTINATIONS
-            for i, dest_data in enumerate(updated_data.destinations or []):
+            for dest_data in updated_data.destinations:
                 try:
-                    print(f"  📍 Adding destination {i+1}: {dest_data.destination_id}")
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info)
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
+                    if place_info.photos:
+                        dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
-                    print(f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}")
-                    pass
-                
-                result = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
-                print(f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Error syncing destination {dest_data.destination_id}: {e}",
+                    )
 
-            saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
+                await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
+
+            saved_destinations = await PlanRepository.get_plan_destinations(
+                db, updated_plan.id
+            )
             print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
-            
+
             return PlanResponse(
                 id=updated_plan.id,
                 user_id=user_id,
@@ -184,15 +209,17 @@ class PlanService:
                         destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time=dest.time.strftime("%H:%M") if dest.time else None,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in saved_destinations
                 ],
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error: {e}")
 
@@ -210,8 +237,8 @@ class PlanService:
             success = await PlanRepository.delete_plan(db, plan_id)
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to delete")
-            
-            return {"message": "Plan deleted successfully"} 
+
+            return {"message": "Plan deleted successfully"}
         except HTTPException:
             raise
         except Exception as e:
@@ -248,6 +275,7 @@ class PlanService:
                     estimated_cost=dest.estimated_cost,
                     url=dest.url,
                     note=dest.note,
+                    time_slot=dest.time_slot,
                 )
                 for dest in destinations
             ]
@@ -308,6 +336,7 @@ class PlanService:
                 url=plan_dest.url,
                 note=plan_dest.note,
                 order_in_day=plan_dest.order_in_day,
+                time_slot=plan_dest.time_slot,
             )
         except HTTPException:
             raise
@@ -338,8 +367,18 @@ class PlanService:
                     detail=f"Plan with ID {plan_id} not found",
                 )
             user_plans = await PlanRepository.get_plan_members(db, plan_id)
-            list_ids = [user_plan.user_id for user_plan in user_plans]
-            return PlanMemberResponse(plan_id=plan_id, ids=list_ids)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=member.user_id,
+                        plan_id=plan_id,
+                        role=member.role,
+                        joined_at=member.joined_at,
+                    )
+                    for member in user_plans
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -368,18 +407,28 @@ class PlanService:
                 )
 
             duplicates = []
-            for id in data.ids:
-                if await PlanService.is_member(db, id, plan_id):
-                    duplicates.append(id)
+            for member in data.ids:
+                if await PlanService.is_member(db, member.user_id, plan_id):
+                    duplicates.append(member.user_id)
                     continue
                 await PlanRepository.add_plan_member(
                     db,
                     plan_id,
-                    PlanMemberCreate(user_id=id, role=PlanRole.member),
+                    PlanMemberCreate(user_id=member.user_id, role=member.role),
                 )
             users = await PlanRepository.get_plan_members(db, plan_id)
-            list_ids = [user.user_id for user in users]
-            return PlanMemberResponse(plan_id=plan_id, ids=list_ids)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=user.user_id,
+                        plan_id=plan_id,
+                        role=user.role,
+                        joined_at=user.joined_at,
+                    )
+                    for user in users
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -409,16 +458,28 @@ class PlanService:
 
             ids_not_in_plan = []
             for member_id in data.ids:
-                is_member_owner = await PlanRepository.is_plan_owner(db, member_id, plan_id)
+                is_member_owner = await PlanRepository.is_plan_owner(
+                    db, member_id, plan_id
+                )
                 if is_member_owner:
                     continue
                 if not await PlanService.is_member(db, member_id, plan_id):
                     ids_not_in_plan.append(member_id)
                     continue
                 await PlanRepository.remove_plan_member(db, plan_id, member_id)
-            list = await PlanService.get_plan_members(db, plan_id)
-            ids = list.ids
-            return PlanMemberResponse(plan_id=plan_id, ids=ids)
+            users = await PlanService.get_plan_members(db, plan_id)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=user.user_id,
+                        plan_id=plan_id,
+                        role=user.role,
+                        joined_at=user.joined_at,
+                    )
+                    for user in users.members
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -427,285 +488,85 @@ class PlanService:
                 detail=f"Unexpected error removing user from plan: {e}",
             )
             
+   # hàm sắp xếp destinations dự theo đánh giá của plan_validator.py
     @staticmethod
-    async def handle_intent(
-        db: AsyncSession, user_id: int, room_id: int, user_text: str
-    ) -> IntentHandlerResponse:
-        try:
-            rule_engine = RuleEngine()
-            parse = rule_engine.classify(user_text)
-            intent = parse.intent
-            ent = parse.entities
+    async def build_itinerary(destinations: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp lịch trình hợp lý dựa trên:
+        - Ngày đi (visit_date)
+        - Loại điểm đến (attraction > restaurant > accommodation > transport)
+        - Sắp xếp tiếp theo khoảng cách tối ưu (RouteService)
+        """
 
-            plans = await PlanRepository.get_plan_by_user_id(db, user_id)
-            if not plans:
-                return IntentHandlerResponse(ok=False, message="Không có plan nào để chỉnh sửa.")
+        if not destinations:
+            return []
 
-            plan = plans[0]
+        # ------------------------------------------------------------
+        # 1. Sắp xếp theo ngày
+        # ------------------------------------------------------------
+        destinations.sort(key=lambda d: d.visit_date)
 
-            # -----------------------------
-            # ADD intent
-            # -----------------------------
-            if intent == Intent.ADD:
-                # FIX: đảm bảo user là member của plan trước khi add
-                if not await PlanRepository.is_member(db, user_id, plan.id):
-                    return IntentHandlerResponse(ok=False, message="Bạn không có quyền chỉnh sửa plan này.")
+        # ------------------------------------------------------------
+        # 2. Group theo ngày
+        # ------------------------------------------------------------
+        result = []
+        current_day = None
+        group = []
 
-                destination_id = ent.get("destination_id")
-                if not destination_id:
-                    return IntentHandlerResponse(ok=False, message="Cần destination_id để thêm.")
+        for d in destinations:
+            if current_day is None:
+                current_day = d.visit_date
 
-                visit_date = ent.get("visit_date")
-                order_in_day = ent.get("order_in_day", 1)
-                note = ent.get("note") or ent.get("title") or "Hoạt động mới"
-                dest_type = ent.get("type", "attraction")
+            if d.visit_date != current_day:
+                sorted_day = await PlanService._sort_single_day(group)
+                result.extend(sorted_day)
+                group = []
+                current_day = d.visit_date
 
-                dest_data = PlanDestinationCreate(
-                    destination_id=destination_id,
-                    destination_type=dest_type,
-                    order_in_day=order_in_day,
-                    visit_date=visit_date,
-                    note=note,
-                )
-                new_dest = await PlanRepository.add_destination_to_plan(db, plan.id, dest_data)
-                if not new_dest:
-                    return IntentHandlerResponse(ok=False, message="Không thể thêm destination.")
+            group.append(d)
 
-                # FIX: trả về full plan destinations để caller (ChatbotService) có dữ liệu cập nhật
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                out = [
-                    {
-                        "id": dest.id,
-                        "destination_id": dest.destination_id,
-                        "type": dest.type,
-                        "order_in_day": dest.order_in_day,
-                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
-                        "note": dest.note,
-                    }
-                    for dest in destinations
-                ]
+        # cuối cùng
+        if group:
+            sorted_day = await PlanService._sort_single_day(group)
+            result.extend(sorted_day)
 
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="add",
-                    item={
-                        "id": new_dest.id,
-                        "destination_id": new_dest.destination_id,
-                        "order_in_day": new_dest.order_in_day,
-                        "note": new_dest.note,
-                    },
-                    data={"plan_id": plan.id, "destinations": out},
-                )
-
-            # -----------------------------
-            # REMOVE intent
-            # -----------------------------
-            if intent == Intent.REMOVE:
-                # dest_id ở đây phải là plan_destination_id (primary key của PlanDestination)
-                dest_id = ent.get("item_id") or ent.get("destination_id")
-                if dest_id:
-                    # FIX: kiểm quyền: user phải là member để xóa
-                    if not await PlanRepository.is_member(db, user_id, plan.id):
-                        return IntentHandlerResponse(ok=False, message="Bạn không có quyền xóa destination trong plan này.")
-
-                    ok = await PlanRepository.remove_destination_from_plan(db, dest_id)
-                    if not ok:
-                        return IntentHandlerResponse(ok=False, message="Không tìm thấy hoặc không xóa được destination.")
-                    # FIX: trả về danh sách destinations sau khi xóa
-                    destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                    out = [
-                        {
-                            "id": dest.id,
-                            "destination_id": dest.destination_id,
-                            "type": dest.type,
-                            "order_in_day": dest.order_in_day,
-                            "visit_date": str(dest.visit_date) if dest.visit_date else None,
-                            "note": dest.note,
-                        }
-                        for dest in destinations
-                    ]
-                    return IntentHandlerResponse(ok=True, action="remove", item_id=dest_id, data={"plan_id": plan.id, "destinations": out})
-
-                return IntentHandlerResponse(ok=False, message="Cần id của destination để xóa.")
-
-            # -----------------------------
-            # MODIFY_TIME intent
-            # -----------------------------
-            if intent == Intent.MODIFY_TIME:
-                dest_id = ent.get("item_id") or ent.get("destination_id")
-                visit_date = ent.get("visit_date")
-                order_in_day = ent.get("order_in_day")
-
-                if not dest_id:
-                    return IntentHandlerResponse(ok=False, message="Cần id của destination để đổi thời gian.")
-
-                # FIX: chuẩn hóa update payload cho PlanDestination
-                update_data = PlanDestinationUpdate(
-                    visit_date=visit_date, order_in_day=order_in_day
-                )
-
-                # FIX: gọi đúng hàm update_plan_destination (đã thêm ở repository)
-                updated = await PlanRepository.update_plan_destination(db, dest_id, update_data)
-                if not updated:
-                    return IntentHandlerResponse(ok=False, message="Không cập nhật được destination.")
-
-                # FIX: trả về danh sách destinations sau cập nhật
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                out = [
-                    {
-                        "id": dest.id,
-                        "destination_id": dest.destination_id,
-                        "type": dest.type,
-                        "order_in_day": dest.order_in_day,
-                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
-                        "note": dest.note,
-                    }
-                    for dest in destinations
-                ]
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="modify_time",
-                    item={
-                        "id": updated.id,
-                        "visit_date": str(updated.visit_date) if updated.visit_date else None,
-                        "order_in_day": updated.order_in_day,
-                    },
-                    data={"plan_id": plan.id, "destinations": out},
-                )
-
-            # -----------------------------
-            # CHANGE_BUDGET intent (giữ nguyên)
-            # -----------------------------
-            if intent == Intent.CHANGE_BUDGET:
-                budget = ent.get("budget")
-                update_data = PlanUpdate(budget_limit=budget)
-                updated_plan = await PlanRepository.update_plan(db, plan.id, update_data)
-                if not updated_plan:
-                    return IntentHandlerResponse(ok=False, message="Không cập nhật được budget.")
-
-                # FIX: lấy lại destinations để trả về data (consistent)
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                out = [
-                    {
-                        "id": dest.id,
-                        "destination_id": dest.destination_id,
-                        "type": dest.type,
-                        "order_in_day": dest.order_in_day,
-                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
-                        "note": dest.note,
-                    }
-                    for dest in destinations
-                ]
-
-                return IntentHandlerResponse(ok=True, action="change_budget", budget=budget, data={"plan_id": plan.id, "destinations": out})
-
-            # -----------------------------
-            # VIEW_PLAN (giữ nguyên, trả plan)
-            # -----------------------------
-            if intent == Intent.VIEW_PLAN:
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                out = [
-                    {
-                        "id": dest.id,
-                        "destination_id": dest.destination_id,
-                        "type": dest.type,
-                        "order_in_day": dest.order_in_day,
-                        "visit_date": str(dest.visit_date) if dest.visit_date else None,
-                        "note": dest.note,
-                    }
-                    for dest in destinations
-                ]
-                return IntentHandlerResponse(
-                    ok=True,
-                    action="view_plan",
-                    plan={
-                        "id": plan.id,
-                        "place_name": plan.place_name,
-                        "destinations": out,
-                    },
-                )
-
-            # -----------------------------
-            # SUGGEST (giữ nguyên)
-            # -----------------------------
-            if intent == Intent.SUGGEST:
-                suggestions = await RecommendationService.recommend_for_cluster_hybrid(db, user_id)
-                return IntentHandlerResponse(ok=True, action="suggest", suggestions=suggestions)
-
-            return IntentHandlerResponse(ok=False, message="Mình không hiểu yêu cầu, bạn nói lại được không?")
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error handling plan intent: {str(e)}",
-            )
+        return result
 
     @staticmethod
-    async def join_plan(db: AsyncSession, user_id: int, plan_id: int) -> bool:
-        try:
-            # Check if plan exists
-            plan = await PlanRepository.get_plan_by_id(db, plan_id)
-            if not plan:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
-            
-            # Check if already member
-            is_member = await PlanRepository.is_member(db, user_id, plan_id)
-            if is_member:
-                return True # Already joined
-            
-            result = await PlanRepository.add_member(db, plan_id, user_id)
-            if not result:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to join plan")
-            return True
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error joining plan: {e}")
+    async def _sort_single_day(destinations: List[PlanDestination]) -> List[PlanDestination]:
+        """
+        Sắp xếp các điểm đến trong cùng một ngày theo:
+        - Loại điểm đến (ưu tiên: attraction > restaurant > accommodation > transport)
+        - Time slot (morning < afternoon < evening)
+        - Order in day
+        """
+        if not destinations:
+            return []
 
-    @staticmethod
-    async def get_or_create_plan_chat_room(db: AsyncSession, user_id: int, plan_id: int) -> int:
-        try:
-            # 1. Check if user is member of plan
-            if not await PlanRepository.is_member(db, user_id, plan_id):
-                raise HTTPException(status_code=403, detail="User is not a member of this plan")
+        # Định nghĩa thứ tự ưu tiên cho loại điểm đến
+        type_priority = {
+            DestinationType.attraction: 1,
+            DestinationType.restaurant: 2,
+            DestinationType.accommodation: 3,
+            DestinationType.transport: 4,
+        }
 
-            room_name = f"PLAN_{plan_id}"
-            
-            # 2. Find room
-            room = await RoomRepository.get_room_by_name(db, room_name)
-            
-            if room:
-                # Ensure user is member
-                if not await RoomRepository.is_member(db, user_id, room.id):
-                    await RoomRepository.add_member(
-                        db, room.id, RoomMemberCreate(user_id=user_id, role=MemberRole.member)
-                    )
-                return room.id
-            
-            # 3. Create room
-            new_room = await RoomRepository.create_room(
-                db, RoomCreate(name=room_name, room_type=RoomType.group)
-            )
-            if not new_room:
-                raise HTTPException(status_code=500, detail="Failed to create chat room")
-                
-            # 4. Add user as admin
-            await RoomRepository.add_member(
-                db, new_room.id, RoomMemberCreate(user_id=user_id, role=MemberRole.admin)
-            )
-            
-            # 5. Set Context
-            await MessageRepository.save_room_context(
-                db, RoomContextCreate(room_id=new_room.id, key="active_trip_id", value=plan_id)
-            )
-            
-            return new_room.id
+        # Định nghĩa thứ tự ưu tiên cho time slot
+        time_slot_priority = {
+            TimeSlot.morning: 1,
+            TimeSlot.afternoon: 2,
+            TimeSlot.evening: 3,
+        }
 
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error getting plan chat room: {e}",
-            )
+        def get_sort_key(dest: PlanDestination):
+            dest_type = getattr(dest, 'type', None)
+            time_slot = getattr(dest, 'time_slot', None)
+            order = getattr(dest, 'order_in_day', 0) or 0
 
+            type_order = type_priority.get(dest_type, 99)
+            slot_order = time_slot_priority.get(time_slot, 99)
+
+            return (slot_order, type_order, order)
+
+        sorted_destinations = sorted(destinations, key=get_sort_key)
+        return sorted_destinations

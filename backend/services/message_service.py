@@ -1,7 +1,7 @@
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +9,22 @@ from starlette.datastructures import Headers
 
 from repository.message_repository import MessageRepository
 from repository.plan_repository import PlanRepository
-from schemas.message_schema import *
+from schemas.message_schema import (
+    ActivePlanContext,
+    ActiveTripData,
+    ContextLoadResponse,
+    ConversationState,
+    DestinationContext,
+    LLMContextData,
+    MessageHistoryItem,
+    MessageResponse,
+    PlanDestinationContext,
+    RoomContextCreate,
+    SessionContextResponse,
+    StoredContextData,
+    UserPreferences,
+)
+from models.message import MessageType
 from schemas.storage_schema import FileCategory
 from services.room_service import RoomService
 from services.socket_service import socket
@@ -19,9 +34,12 @@ from utils.token.authentication_util import decode_access_token
 
 from fastapi.encoders import jsonable_encoder
 
+
 class MessageService:
     @staticmethod
-    async def get_message_by_id(db: AsyncSession, user_id: int, message_id: int) -> MessageResponse:
+    async def get_message_by_id(
+        db: AsyncSession, user_id: int, message_id: int
+    ) -> MessageResponse:
         try:
             message = await MessageRepository.get_message_by_id(db, message_id)
             if not message:
@@ -40,7 +58,6 @@ class MessageService:
                 id=message.id,
                 sender_id=message.sender_id,
                 room_id=message.room_id,
-                plan_id=message.plan_id,
                 content=message.content,
                 message_type=message.message_type,
                 status=message.status,
@@ -71,7 +88,9 @@ class MessageService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"User ID {user_id} is not a member of room ID {room_id}",
                 )
-            messages = await MessageRepository.search_messages_by_keyword(db, room_id, keyword)
+            messages = await MessageRepository.search_messages_by_keyword(
+                db, room_id, keyword
+            )
             if messages is None:
                 return []
             message_list = [
@@ -114,7 +133,6 @@ class MessageService:
                     id=msg.id,
                     sender_id=msg.sender_id,
                     room_id=msg.room_id,
-                    plan_id=msg.plan_id,
                     content=msg.content,
                     message_type=msg.message_type,
                     status=msg.status,
@@ -138,7 +156,6 @@ class MessageService:
         room_id: int,
         message_text: Optional[str] = None,
         message_file: Optional[UploadFile] = None,
-        plan_id: Optional[int] = None,
         message_type: MessageType = MessageType.text,
     ) -> MessageResponse:
         try:
@@ -149,20 +166,10 @@ class MessageService:
                     detail=f"User ID {sender_id} is not a member of room ID {room_id}",
                 )
 
-            if not message_text and not message_file and message_type != MessageType.invitation:
+            if not message_text and not message_file:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Either message text or message file must be provided",
-                )
-
-            if message_type == MessageType.invitation:
-                if not plan_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Plan ID is required for invitation messages",
-                    )
-                saved_msg = await MessageRepository.create_invitation_message(
-                    db, sender_id, room_id, plan_id, message_text or "Invitation to join plan"
                 )
             elif message_file:
                 file = await StorageService.upload_file(
@@ -190,13 +197,11 @@ class MessageService:
                 content=saved_msg.content,
                 sender_id=saved_msg.sender_id,
                 room_id=room_id,
-                plan_id=saved_msg.plan_id,
                 message_type=saved_msg.message_type,
                 status=saved_msg.status,
                 timestamp=saved_msg.created_at,
             )
 
-            # Broadcast to room
             await socket.broadcast(jsonable_encoder(response), room_id)
 
             return response
@@ -247,7 +252,9 @@ class MessageService:
         message_text: Optional[str] = None,
     ) -> MessageResponse:
         try:
-            return await MessageService.create_message(db, user_id, room_id, message_text)
+            return await MessageService.create_message(
+                db, user_id, room_id, message_text
+            )
         except HTTPException:
             raise
         except Exception:
@@ -368,9 +375,10 @@ class MessageService:
                 pass
 
     @staticmethod
-    async def load_context(db: AsyncSession, user_id: int, room_id: int) -> ContextLoadResponse:
+    async def load_context(
+        db: AsyncSession, user_id: int, room_id: int
+    ) -> ContextLoadResponse:
         try:
-            # Get messages from the room
             messages = await MessageRepository.get_messages_by_room(db, room_id)
 
             history = []
@@ -388,35 +396,107 @@ class MessageService:
                         )
                     )
 
-            # Load room context
             room_context = await MessageRepository.load_room_context(db, room_id)
+
+            user_preferences = None
+            if "user_preferences" in room_context:
+                pref_data = room_context["user_preferences"]
+                user_preferences = UserPreferences(**pref_data) if pref_data else None
+
+            active_plan_context = None
+            plans = await PlanRepository.get_plan_by_user_id(db, user_id)
+            if plans and len(plans) > 0:
+                active_plan_id = room_context.get("active_plan_id")
+                if active_plan_id:
+                    plan = await PlanRepository.get_plan_by_id(db, active_plan_id)
+                else:
+                    plan = plans[0]
+
+                if plan:
+                    destinations = await PlanRepository.get_plan_destinations(
+                        db, plan.id
+                    )
+                    dest_contexts = []
+                    for dest in destinations:
+                        dest_contexts.append(
+                            PlanDestinationContext(
+                                id=dest.id,
+                                destination_id=dest.destination_id,
+                                name=(
+                                    dest.destination.name
+                                    if hasattr(dest, "destination") and dest.destination
+                                    else None
+                                ),
+                                visit_date=(
+                                    str(dest.visit_date) if dest.visit_date else None
+                                ),
+                                time_slot=(
+                                    dest.time_slot.value if dest.time_slot else None
+                                ),
+                                order_in_day=dest.order_in_day,
+                                note=dest.note,
+                            )
+                        )
+
+                    active_plan_context = ActivePlanContext(
+                        plan_id=plan.id,
+                        place_name=plan.place_name,
+                        start_date=str(plan.start_date) if plan.start_date else None,
+                        end_date=str(plan.end_date) if plan.end_date else None,
+                        budget_limit=plan.budget_limit,
+                        destinations=dest_contexts,
+                    )
+
+            conversation_state = ConversationState(
+                current_intent=room_context.get("current_intent"),
+                pending_action=room_context.get("pending_action"),
+                last_mentioned_destination=(
+                    DestinationContext(**room_context["last_destination"])
+                    if "last_destination" in room_context
+                    and room_context["last_destination"]
+                    else None
+                ),
+                last_mentioned_date=room_context.get("last_date"),
+                last_mentioned_time_slot=room_context.get("last_time_slot"),
+                awaiting_confirmation=room_context.get("awaiting_confirmation", False),
+                missing_params=room_context.get("missing_params", []),
+            )
+
+            llm_context = LLMContextData(
+                user_id=user_id,
+                user_preferences=user_preferences,
+                active_plan=active_plan_context,
+                conversation_state=conversation_state,
+                custom_data=room_context.get("custom_data", {}),
+            )
 
             stored_context = None
             if "stored_context" in room_context:
                 stored_context = StoredContextData(**room_context["stored_context"])
 
             active_trip = None
-            activities = []
-
             if "active_trip_id" in room_context:
-                trip_id = room_context["active_trip_id"]
+                trip_data = room_context["active_trip_id"]
+                trip_id = (
+                    trip_data["trip_id"] if isinstance(trip_data, dict) else trip_data
+                )
                 trip = await PlanRepository.get_plan_by_id(db, trip_id)
 
                 if trip:
                     active_trip = ActiveTripData(
                         trip_id=trip.id,
-                        destination=trip.destination,
+                        place_name=trip.place_name,
                         start_date=trip.start_date,
                         end_date=trip.end_date,
-                        budget=trip.budget if hasattr(trip, "budget") else None,
+                        budget_limit=trip.budget_limit,
                         preferences=room_context.get("trip_preferences", {}),
                     )
 
             return ContextLoadResponse(
                 history=history,
+                llm_context=llm_context,
                 stored_context=stored_context,
                 active_trip=active_trip,
-                activities=activities,
                 room_context=room_context,
             )
 
@@ -434,10 +514,16 @@ class MessageService:
     ) -> ContextLoadResponse:
         try:
             context.history.append(
-                MessageHistoryItem(role="user", content=user_msg, timestamp=datetime.utcnow())
+                MessageHistoryItem(
+                    role="user", content=user_msg, timestamp=datetime.now(timezone.utc)
+                )
             )
             context.history.append(
-                MessageHistoryItem(role="assistant", content=bot_msg, timestamp=datetime.utcnow())
+                MessageHistoryItem(
+                    role="assistant",
+                    content=bot_msg,
+                    timestamp=datetime.now(timezone.utc),
+                )
             )
 
             context.history = context.history[-max_history:]
@@ -481,10 +567,20 @@ class MessageService:
             )
 
     @staticmethod
-    async def get_room_context(db: AsyncSession, room_id: int, key: str) -> Optional[Any]:
+    async def get_room_context(
+        db: AsyncSession, room_id: int
+    ) -> List[SessionContextResponse]:
         try:
-            value = await MessageRepository.get_room_context(db, room_id, key)
-            return value
+            values = await MessageRepository.get_room_context(db, room_id)
+            return [
+                SessionContextResponse(
+                    room_id=value.room_id,
+                    key=value.key,
+                    value=value.value,
+                    updated_at=value.updated_at,
+                )
+                for value in values
+            ]
 
         except Exception as e:
             raise HTTPException(
@@ -493,10 +589,20 @@ class MessageService:
             )
 
     @staticmethod
-    async def load_all_room_context(db: AsyncSession, room_id: int) -> SessionContextResponse:
+    async def load_all_room_context(
+        db: AsyncSession, room_id: int
+    ) -> List[SessionContextResponse]:
         try:
-            context = await MessageRepository.load_room_context(db, room_id)
-            return SessionContextResponse(data=context)
+            contexts = await MessageRepository.get_room_context(db, room_id)
+            return [
+                SessionContextResponse(
+                    room_id=context.room_id,
+                    key=context.key,
+                    value=context.value,
+                    updated_at=context.updated_at,
+                )
+                for context in contexts
+            ]
 
         except Exception as e:
             raise HTTPException(
@@ -505,7 +611,7 @@ class MessageService:
             )
 
     @staticmethod
-    async def delete_room_context(db: AsyncSession, room_id: int, key: str) -> bool:
+    async def delete_room_context(db: AsyncSession, room_id: int, key: str):
         try:
             success = await MessageRepository.delete_room_context(db, room_id, key)
 
@@ -515,7 +621,7 @@ class MessageService:
                     detail=f"Context key '{key}' not found for room {room_id}",
                 )
 
-            return success
+            return {"detail": "Room context deleted successfully"}
 
         except HTTPException:
             raise
@@ -526,7 +632,7 @@ class MessageService:
             )
 
     @staticmethod
-    async def clear_room_context(db: AsyncSession, room_id: int) -> bool:
+    async def clear_room_context(db: AsyncSession, room_id: int):
         try:
             success = await MessageRepository.clear_room_context(db, room_id)
 
@@ -536,7 +642,7 @@ class MessageService:
                     detail=f"Failed to clear context for room {room_id}",
                 )
 
-            return success
+            return {"detail": "Room context cleared successfully"}
 
         except HTTPException:
             raise
@@ -572,21 +678,16 @@ class MessageService:
         preferences: Optional[Dict[str, Any]] = None,
     ) -> SessionContextResponse:
         try:
-            await MessageService.save_room_context(
+            response = await MessageService.save_room_context(
                 db, room_id, "active_trip_id", {"trip_id": trip_id}
             )
 
             if preferences:
-                return await MessageService.save_room_context(
+                await MessageService.save_room_context(
                     db, room_id, "trip_preferences", preferences
                 )
 
-            return SessionContextResponse(
-                room_id=room_id,
-                key="active_trip_id",
-                value={"trip_id": trip_id},
-                updated_at=datetime.utcnow(),
-            )
+            return response
 
         except Exception as e:
             raise HTTPException(
@@ -608,55 +709,156 @@ class MessageService:
             )
 
     @staticmethod
-    async def decline_invitation(db: AsyncSession, user_id: int, message_id: int) -> MessageResponse:
+    async def update_conversation_state(
+        db: AsyncSession,
+        room_id: int,
+        current_intent: Optional[str] = None,
+        pending_action: Optional[str] = None,
+        last_destination: Optional[Dict[str, Any]] = None,
+        last_date: Optional[str] = None,
+        last_time_slot: Optional[str] = None,
+        awaiting_confirmation: bool = False,
+        missing_params: Optional[List[str]] = None,
+    ):
         try:
-            message = await MessageRepository.get_message_by_id(db, message_id)
-            if not message:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Message ID {message_id} not found",
+            if current_intent is not None:
+                await MessageService.save_room_context(
+                    db, room_id, "current_intent", {"value": current_intent}
+                )
+            if pending_action is not None:
+                await MessageService.save_room_context(
+                    db, room_id, "pending_action", {"value": pending_action}
+                )
+            if last_destination is not None:
+                await MessageService.save_room_context(
+                    db, room_id, "last_destination", last_destination
+                )
+            if last_date is not None:
+                await MessageService.save_room_context(
+                    db, room_id, "last_date", {"value": last_date}
+                )
+            if last_time_slot is not None:
+                await MessageService.save_room_context(
+                    db, room_id, "last_time_slot", {"value": last_time_slot}
                 )
 
-            is_member = await RoomService.is_member(db, user_id, message.room_id)
-            if not is_member:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"User ID {user_id} is not a member of room ID {message.room_id}",
-                )
-
-            if message.message_type != MessageType.invitation:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Message is not an invitation",
-                )
-
-            # Update content to indicate declined
-            message.content = "Invitation Declined"
-            # We might want to clear plan_id so the button disappears or stays as history
-            # message.plan_id = None 
-            
-            await db.commit()
-            await db.refresh(message)
-
-            response = MessageResponse(
-                id=message.id,
-                content=message.content,
-                sender_id=message.sender_id,
-                room_id=message.room_id,
-                plan_id=message.plan_id,
-                message_type=message.message_type,
-                status=message.status,
-                timestamp=message.created_at,
+            await MessageService.save_room_context(
+                db, room_id, "awaiting_confirmation", {"value": awaiting_confirmation}
             )
 
-            # Broadcast update
-            await socket.broadcast(jsonable_encoder(response), message.room_id)
+            if missing_params is not None:
+                await MessageService.save_room_context(
+                    db, room_id, "missing_params", {"value": missing_params}
+                )
 
-            return response
-        except HTTPException:
-            raise
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error declining invitation {message_id}: {e}",
+            print(f"Warning: Failed to update conversation state: {e}")
+
+    @staticmethod
+    async def set_active_plan(db: AsyncSession, room_id: int, plan_id: int):
+        try:
+            await MessageService.save_room_context(
+                db, room_id, "active_plan_id", {"value": plan_id}
             )
+        except Exception as e:
+            print(f"Warning: Failed to set active plan: {e}")
+
+    @staticmethod
+    async def save_user_preferences(
+        db: AsyncSession,
+        room_id: int,
+        preferences: Dict[str, Any],
+    ):
+        try:
+            await MessageService.save_room_context(
+                db, room_id, "user_preferences", preferences
+            )
+        except Exception as e:
+            print(f"Warning: Failed to save user preferences: {e}")
+
+    @staticmethod
+    async def clear_conversation_state(db: AsyncSession, room_id: int):
+        try:
+            keys_to_clear = [
+                "current_intent",
+                "pending_action",
+                "last_destination",
+                "last_date",
+                "last_time_slot",
+                "awaiting_confirmation",
+                "missing_params",
+            ]
+            for key in keys_to_clear:
+                await MessageRepository.delete_room_context(db, room_id, key)
+        except Exception as e:
+            print(f"Warning: Failed to clear conversation state: {e}")
+
+    @staticmethod
+    def build_llm_system_prompt(llm_context: LLMContextData) -> str:
+        prompt_parts = [
+            "You are EcomoveX's intelligent travel assistant.",
+            "Style: Friendly, enthusiastic, concise.",
+            "",
+            "=== CONTEXT INFORMATION ===",
+        ]
+
+        if llm_context.user_preferences:
+            pref = llm_context.user_preferences
+            prompt_parts.append("\n[USER PREFERENCES]")
+            if pref.preferred_activities:
+                prompt_parts.append(
+                    f"- Preferred activities: {', '.join(pref.preferred_activities)}"
+                )
+            if pref.budget_range:
+                prompt_parts.append(f"- Budget: {pref.budget_range}")
+            if pref.travel_style:
+                prompt_parts.append(f"- Travel style: {pref.travel_style}")
+
+        if llm_context.active_plan:
+            plan = llm_context.active_plan
+            prompt_parts.append("\n[CURRENT PLAN]")
+            prompt_parts.append(f"- Plan ID: {plan.plan_id}")
+            prompt_parts.append(f"- Destination: {plan.place_name}")
+            if plan.start_date and plan.end_date:
+                prompt_parts.append(f"- Duration: {plan.start_date} to {plan.end_date}")
+            if plan.budget_limit:
+                prompt_parts.append(f"- Budget: {plan.budget_limit:,.0f} VND")
+
+            if plan.destinations:
+                prompt_parts.append(
+                    f"\n[PLANNED DESTINATIONS] ({len(plan.destinations)} places)"
+                )
+                for i, dest in enumerate(plan.destinations, 1):
+                    dest_info = f"  {i}. ID={dest.id}"
+                    if dest.name:
+                        dest_info += f", {dest.name}"
+                    if dest.visit_date:
+                        dest_info += f", date {dest.visit_date}"
+                    if dest.time_slot:
+                        dest_info += f", {dest.time_slot}"
+                    prompt_parts.append(dest_info)
+
+        state = llm_context.conversation_state
+        if state.current_intent or state.pending_action:
+            prompt_parts.append("\n[CONVERSATION STATE]")
+            if state.current_intent:
+                prompt_parts.append(f"- Current intent: {state.current_intent}")
+            if state.pending_action:
+                prompt_parts.append(f"- Pending action: {state.pending_action}")
+            if state.last_mentioned_destination:
+                dest = state.last_mentioned_destination
+                prompt_parts.append(
+                    f"- Last mentioned destination: {dest.name or dest.destination_id}"
+                )
+            if state.last_mentioned_date:
+                prompt_parts.append(
+                    f"- Last mentioned date: {state.last_mentioned_date}"
+                )
+            if state.missing_params:
+                prompt_parts.append(
+                    f"- Missing parameters: {', '.join(state.missing_params)}"
+                )
+
+        prompt_parts.append("\n=== END CONTEXT ===")
+
+        return "\n".join(prompt_parts)

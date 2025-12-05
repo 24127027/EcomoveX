@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { Home, MapPin, Calendar, MessageCircle, User, Search, Leaf, Bot, Route, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
+import { api, TravelPlan } from "@/lib/api"; 
 
 const jost_bold = Jost({
     subsets: ["latin"],
@@ -39,47 +39,25 @@ const lalezar = Lalezar({
     subsets: ["latin"],
     weight: ["400"],
     display: 'swap'
-});
-interface Plan {
-    id: number;
-    user_id: number;
-    place_name: string;
-    start_date: string;
-    end_date: string;
-    budget_limit?: number;
-    destinations: any[]; 
-}
+}); 
 export default function TrackPage() {
     const router = useRouter();
-    const [plans, setPlans] = useState<Plan[]>([]);
-    const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+    const [plans, setPlans] = useState<TravelPlan[]>([]);
+    const [selectedPlan, setSelectedPlan] = useState<TravelPlan | null>(null);
     const [showDropdown, setShowDropdown] = useState(false);
     const [loading, setLoading] = useState(true);
     const [co2Saved, setCo2Saved] = useState(0);
+    const [error, setError] = useState<string>("");
 
     useEffect(() => {
         const fetchPlans = async () => {
             try {
-                const token = localStorage.getItem('token');
-
-                const response = await fetch('/api/plans', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to fetch plans');
-                }
-
-                const data = await response.json();
-                console.log('Fetched plans:', data);
+                setLoading(true);
+                const data = await api.getPlans();   // ← gọi hàm bạn đã viết
                 setPlans(data);
-
-            } catch (error) {
-                console.error('Error fetching plans:', error);
+            } catch (err: any) {
+                console.error(err);
+                setError("Failed to load plans");
             } finally {
                 setLoading(false);
             }
@@ -88,7 +66,7 @@ export default function TrackPage() {
         fetchPlans();
     }, []);
 
-    const handlePlanSelect = (plan: Plan) => {
+    const handlePlanSelect = (plan: TravelPlan) => {
         setSelectedPlan(plan);
         setShowDropdown(false);
     };
@@ -99,12 +77,11 @@ export default function TrackPage() {
             return;
         }
 
-        // Chuyển sang trang calculate với plan info
         const params = new URLSearchParams({
             planId: selectedPlan.id.toString(),
-            planName: selectedPlan.place_name,
-            startDate: selectedPlan.start_date,
-            endDate: selectedPlan.end_date,
+            planName: selectedPlan.destination,
+            startDate: selectedPlan.date,
+            endDate: selectedPlan.end_date ?? "",
         });
 
         router.push(`/track_page/transport_options?${params.toString()}`);
@@ -123,13 +100,12 @@ export default function TrackPage() {
             <div className="w-full min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative">
                 {/* Main Content */}
                 <div className="flex-1 p-6 pb-20 overflow-y-auto scrollbar-hide">
-                    {/* Header */}
+
                     <div className="flex items-center gap-2 mb-6">
                         <Leaf className="text-green-600" size={32} />
                         <h1 className={`${jost_extrabold.className} text-2xl text-green-600`}>TRACK</h1>
                     </div>
 
-                    {/* Plan Selection Dropdown */}
                     <div className="space-y-3 mb-2">
                         <div className="relative">
                             <button
@@ -138,11 +114,10 @@ export default function TrackPage() {
                             >
                                 <span>
                                     {selectedPlan
-                                        ? selectedPlan.place_name
+                                        ? selectedPlan.destination
                                         : loading
                                             ? 'Loading plans...'
-                                            : 'Select a plan'
-                                    }
+                                            : 'Select a plan'}
                                 </span>
                                 <ChevronDown
                                     className={`text-green-600 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
@@ -151,7 +126,6 @@ export default function TrackPage() {
                             </button>
                             <Calendar className="absolute left-3 top-3.5 text-green-600" size={20} />
 
-                            {/* Dropdown Menu */}
                             {showDropdown && (
                                 <div className="absolute z-20 w-full mt-2 bg-white border-2 border-green-500 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                                     {plans.length === 0 ? (
@@ -166,10 +140,10 @@ export default function TrackPage() {
                                                 className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
                                             >
                                                 <div className="font-semibold text-green-600">
-                                                    {plan.place_name}
+                                                    {plan.destination}
                                                 </div>
                                                 <div className="text-xs text-gray-500 mt-1">
-                                                    {formatDate(plan.start_date)} - {formatDate(plan.end_date)}
+                                                    {formatDate(plan.date)} - {plan.end_date ? formatDate(plan.end_date) : "?"}
                                                 </div>
                                             </button>
                                         ))
@@ -183,25 +157,23 @@ export default function TrackPage() {
                             <div className="bg-white border-2 border-green-200 rounded-lg p-4">
                                 <div className="space-y-2">
                                     <div>
-                                        <div className="text-xs text-gray-500 mb-1">Plan Name</div>
-                                        <div className="font-semibold text-gray-800">{selectedPlan.place_name}</div>
+                                        <div className="text-xs text-gray-500 mb-1">Destination</div>
+                                        <div className="font-semibold text-gray-800">{selectedPlan.destination}</div>
                                     </div>
+
                                     <div className="flex gap-4">
                                         <div className="flex-1">
                                             <div className="text-xs text-gray-500 mb-1">Start Date</div>
-                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.start_date)}</div>
+                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.date)}</div>
                                         </div>
                                         <div className="flex-1">
                                             <div className="text-xs text-gray-500 mb-1">End Date</div>
-                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.end_date)}</div>
+                                            <div className="text-sm text-gray-800">
+                                                {selectedPlan.end_date ? formatDate(selectedPlan.end_date) : "?"}
+                                            </div>
                                         </div>
                                     </div>
-                                    {selectedPlan.budget_limit && (
-                                        <div>
-                                            <div className="text-xs text-gray-500 mb-1">Budget Limit</div>
-                                            <div className="text-sm text-gray-800">${selectedPlan.budget_limit.toFixed(2)}</div>
-                                        </div>
-                                    )}
+
                                 </div>
                             </div>
                         )}

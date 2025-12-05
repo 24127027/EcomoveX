@@ -9,7 +9,9 @@ def patch_torch_compatibility():
 
         import torch.utils._pytree as pytree
 
-        if not hasattr(pytree, "register_pytree_node") and hasattr(pytree, "_register_pytree_node"):
+        if not hasattr(pytree, "register_pytree_node") and hasattr(
+            pytree, "_register_pytree_node"
+        ):
             pytree.register_pytree_node = pytree._register_pytree_node
 
         if "transformers" not in sys.modules:

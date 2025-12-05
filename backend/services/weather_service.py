@@ -49,7 +49,9 @@ class WeatherService:
             detail = await MapService.get_location_details(request_data)
             location = detail.geometry.location
             weather_client = await create_weather_client()
-            param = ForecastRequest(location=location, hours=hours, unit_system=unit_system)
+            param = ForecastRequest(
+                location=location, hours=hours, unit_system=unit_system
+            )
             return await weather_client.get_forecast_hourly(param=param)
         except HTTPException:
             raise

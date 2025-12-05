@@ -29,7 +29,9 @@ class DisplayDateTime(BaseModel):
     month: int
     day: int
     hours: int
-    utc_offset: str = Field(..., alias="utcOffset", example="-28800s")
+    utc_offset: str = Field(
+        ..., alias="utcOffset", json_schema_extra={"example": "-28800s"}
+    )
 
 
 class CurrentWeatherRequest(BaseModel):

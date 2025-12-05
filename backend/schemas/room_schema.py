@@ -36,11 +36,6 @@ class RoomDirectResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    role: MemberRole
-    joined_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
 
 class RoomMemberCreate(BaseModel):
     user_id: int

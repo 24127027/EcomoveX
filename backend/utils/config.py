@@ -18,7 +18,6 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:3000,https://ecomovex.onrender.com,"
 
-    HUGGINGFACE_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
     CLIMATIQ_API_KEY: str = ""
 
@@ -31,8 +30,8 @@ class Settings(BaseSettings):
     OPEN_ROUTER_API_KEY: str = ""
     OPEN_ROUTER_MODEL_NAME: str = "meta-llama/llama-3.3-70b-instruct"
 
-    #BREEAM API Credentials
     BREEAM_USERNAME: str = ""
     BREEAM_PASSWORD: str = ""
+
 
 settings = Settings()

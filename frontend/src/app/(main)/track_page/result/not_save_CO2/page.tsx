@@ -3,6 +3,7 @@
 import { Home, MapPin, Calendar, MessageSquare, User, Route, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { Jost } from 'next/font/google';
+import { useSearchParams } from 'next/navigation';
 
 const jost_medium = Jost({
     subsets: ["latin"],
@@ -30,6 +31,10 @@ const jost_semibold = Jost({
 
 
 export default function EcoTripResult_NotSaveCO2() {
+    const searchParams = useSearchParams();
+    const emission = searchParams.get("emission");
+    const saved = searchParams.get("saved");
+
     return (
         <div className="w-full min-h-screen bg-gray-200 flex justify-center">
             <div className="w-full max-w-[430px] min-h-screen bg-white flex flex-col relative shadow-xl">
@@ -67,7 +72,7 @@ export default function EcoTripResult_NotSaveCO2() {
                                 <div className="flex items-center gap-3">
                                     <div className="w-4 h-4 bg-orange-500 rotate-45"></div>
                                     <div className="min-w-0">
-                                        <div className={`${jost_semibold.className} text-sm text-black`}>0.0kg</div>
+                                        <div className={`${jost_semibold.className} text-sm text-black`}>{emmision}kg</div>
                                         <div className={`${jost_semibold.className} text-sm text-gray-400`}>CO2 Emission</div>
                                     </div>
                                 </div>
@@ -75,7 +80,7 @@ export default function EcoTripResult_NotSaveCO2() {
                                 <div className="flex items-center gap-3">
                                     <div className="w-4 h-4 bg-green-500 rotate-45"></div>
                                     <div className="min-w-0">
-                                        <div className={`${jost_semibold.className} text-sm text-black`}>8.2kg</div>
+                                        <div className={`${jost_semibold.className} text-sm text-black`}>{saved}kg</div>
                                         <div className={`${jost_semibold.className} text-sm text-gray-400`}>CO2 Saved</div>
                                     </div>
                                 </div>

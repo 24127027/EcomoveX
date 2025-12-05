@@ -1,9 +1,23 @@
+from typing import Dict, Optional
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration.map_api import create_map_client
 from schemas.destination_schema import DestinationCreate, Location
-from schemas.map_schema import *
+from schemas.map_schema import (
+    AutocompleteRequest,
+    AutocompleteResponse,
+    GeocodingResponse,
+    NearbyPlaceRequest,
+    NearbyPlacesResponse,
+    PlaceDataCategory,
+    PlaceDetailsRequest,
+    PlaceDetailsResponse,
+    SearchAlongRouteResponse,
+    TextSearchRequest,
+    TextSearchResponse,
+)
 from schemas.route_schema import DirectionsResponse
 from services.destination_service import DestinationService
 
@@ -31,7 +45,30 @@ FIELD_GROUPS = {
 
 class MapService:
     @staticmethod
-    async def text_search_place(db: AsyncSession, data: TextSearchRequest) -> TextSearchResponse:
+    async def get_coordinates(place_id: str) -> Optional[Dict[str, float]]:
+        map_client = None
+        try:
+            map_client = await create_map_client()
+            response = await map_client.get_place_details(
+                place_id=place_id,
+                fields=["geometry/location"],
+            )
+            if response and response.geometry and response.geometry.location:
+                return {
+                    "lat": response.geometry.location.lat,
+                    "lng": response.geometry.location.lng,
+                }
+            return None
+        except Exception:
+            return None
+        finally:
+            if map_client:
+                await map_client.close()
+
+    @staticmethod
+    async def text_search_place(
+        db: AsyncSession, data: TextSearchRequest
+    ) -> TextSearchResponse:
         map_client = await create_map_client()
 
         try:
@@ -58,7 +95,9 @@ class MapService:
             await map_client.close()
 
     @staticmethod
-    async def autocomplete(db: AsyncSession, data: AutocompleteRequest) -> AutocompleteResponse:
+    async def autocomplete(
+        db: AsyncSession, data: AutocompleteRequest
+    ) -> AutocompleteResponse:
         map_client = None
         try:
             map_client = await create_map_client()

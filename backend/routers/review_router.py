@@ -4,12 +4,19 @@ from fastapi import APIRouter, Depends, File, Path, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
-from models.user import *
+from models.user import Activity
 from schemas.message_schema import CommonMessageResponse
-from schemas.review_schema import *
-from schemas.user_schema import *
+from schemas.review_schema import (
+    ReviewCreate,
+    ReviewResponse,
+    ReviewStatisticsResponse,
+    ReviewUpdate,
+)
+from schemas.user_schema import (
+    UserActivityCreate,
+)
 from services.review_service import ReviewService
-from services.user_service import UserActivityService
+from services.user_service import UserService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
@@ -63,11 +70,13 @@ async def create_review(
     activity_data = UserActivityCreate(
         activity=Activity.review_destination, destination_id=destination_id
     )
-    await UserActivityService.log_user_activity(user_db, current_user["user_id"], activity_data)
+    await UserService.log_user_activity(user_db, current_user["user_id"], activity_data)
     return result
 
 
-@router.put("/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK)
+@router.put(
+    "/{destination_id}", response_model=ReviewResponse, status_code=status.HTTP_200_OK
+)
 async def update_review(
     destination_id: str = Path(...),
     updated_data: ReviewUpdate = Depends(ReviewUpdate.as_form),
@@ -90,4 +99,6 @@ async def delete_review(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return await ReviewService.delete_review(user_db, current_user["user_id"], destination_id)
+    return await ReviewService.delete_review(
+        user_db, current_user["user_id"], destination_id
+    )

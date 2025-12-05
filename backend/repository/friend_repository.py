@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from models.friend import *
+from models.friend import Friend, FriendStatus
 from models.user import User
 
 
@@ -18,7 +18,9 @@ class FriendRepository:
 
             existing = await FriendRepository.get_friendship(db, user_id, friend_id)
             if existing:
-                print(f"WARNING: Friendship already exists between {user_id} and {friend_id}")
+                print(
+                    f"WARNING: Friendship already exists between {user_id} and {friend_id}"
+                )
                 return None
 
             friendship_user = Friend(
@@ -121,10 +123,7 @@ class FriendRepository:
                 and_(
                     Friend.user1_id == user1_id,
                     Friend.user2_id == user2_id,
-                    or_(
-                        Friend.status == FriendStatus.friend,
-                        Friend.status == FriendStatus.pending,
-                    ),
+                    Friend.status == FriendStatus.friend,
                 )
             )
             result = await db.execute(stmt)
@@ -225,7 +224,6 @@ class FriendRepository:
         db: AsyncSession, user_id: int, search_term: str, skip: int = 0, limit: int = 50
     ):
         try:
-
             query = (
                 select(Friend)
                 .join(
