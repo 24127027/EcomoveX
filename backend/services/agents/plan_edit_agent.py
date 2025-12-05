@@ -1,10 +1,12 @@
 from agents.planner_agent import PlannerAgent
 from services.plan_service import PlanService
+from utils.nlp.llm_plan_edit_parser import LLMPlanEditParser
 from typing import List, Dict
 
 class PlanEditAgent:
     def __init__(self):
         self.plan_service = PlanService()
+        self.llm_parser = LLMPlanEditParser()
 
     async def apply_modifications(self, db, plan, modifications: List[Dict], user_id: int):
         for mod in modifications:
@@ -23,9 +25,11 @@ class PlanEditAgent:
         self.plan_service = PlanService()
         # parse user_text để xác định thay đổi
         plan = await self.plan_service.get_plans_by_user(db, user_id)
-
+        
+        modifications = await self.llm_parser.parse(user_text)
+        
         # thực hiện update DB
-        await self.apply_modifications(db, plan, user_text, user_id)
+        await self.apply_modifications(db, plan, modifications, user_id)
         # validate lại plan
         plan = await PlannerAgent().process_plan(db, user_id, "validate after edit")
         return plan

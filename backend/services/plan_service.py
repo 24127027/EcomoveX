@@ -455,3 +455,5 @@ class PlanService:
         new_state = await self.get_plan_state(db, plan_id)
         return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
 
+
+    
