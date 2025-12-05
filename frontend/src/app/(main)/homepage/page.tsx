@@ -217,9 +217,11 @@ export default function HomePage() {
         const p = await api.getPlans();
         const t = new Date();
         t.setHours(0, 0, 0, 0);
+        // Filter: future plans AND have at least 2 activities
         const fp = p.filter((i) => {
           const d = parseDate(i.date);
-          return d >= t;
+          const hasEnoughActivities = i.activities && i.activities.length >= 2;
+          return d >= t && hasEnoughActivities;
         });
         fp.sort(
           (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()

@@ -14,6 +14,7 @@ import {
   ArrowRight,
   TrendingUp,
   AlertCircle,
+  Save,
 } from "lucide-react";
 import { Jost } from "next/font/google";
 import { api } from "@/lib/api";
@@ -78,6 +79,7 @@ function TransportSelectionContent() {
     bus: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -156,19 +158,130 @@ function TransportSelectionContent() {
     return carbonData[transportId].toFixed(2);
   };
 
-  const handleConfirm = () => {
-    if (!selectedTransport) return;
+  const toDateOnlyString = (dateInput: string | Date): string => {
+    const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
-    // Save selected transport to sessionStorage
-    const transportData = {
-      transportType: selectedTransport,
-      totalDistance,
-      timestamp: Date.now(),
-    };
-    sessionStorage.setItem("selected_transport", JSON.stringify(transportData));
+  const handleSavePlan = async () => {
+    if (!selectedTransport) {
+      alert("Please select a transport mode first!");
+      return;
+    }
 
-    // Navigate back to showing_plan_page
-    router.push(`/planning_page/showing_plan_page?refresh=${Date.now()}`);
+    setIsSaving(true);
+    try {
+      // Get activities from sessionStorage
+      const activitiesRaw = sessionStorage.getItem("current_plan_activities");
+      const planInfoRaw = sessionStorage.getItem("temp_plan_info");
+
+      if (!activitiesRaw || !planInfoRaw) {
+        throw new Error("Missing plan data");
+      }
+
+      const activities = JSON.parse(activitiesRaw);
+      const planInfo = JSON.parse(planInfoRaw);
+
+      if (activities.length < 2) {
+        alert(
+          `You need at least 2 destinations! (Current: ${activities.length})`
+        );
+        setIsSaving(false);
+        return;
+      }
+
+      // Prepare destinations payload
+      const destinationsPayload = activities.map((act: any, index: number) => {
+        let validType = "attraction";
+        const typeLower = (act.type || "").toLowerCase();
+
+        if (typeLower.includes("restaurant") || typeLower.includes("food"))
+          validType = "restaurant";
+        else if (typeLower.includes("hotel") || typeLower.includes("lodging"))
+          validType = "accommodation";
+        else if (typeLower.includes("transit") || typeLower.includes("station"))
+          validType = "transport";
+
+        let realDestinationId = String(act.id);
+        const lastDashIndex = realDestinationId.lastIndexOf("-");
+        if (lastDashIndex !== -1) {
+          const suffix = realDestinationId.substring(lastDashIndex + 1);
+          if (!isNaN(Number(suffix))) {
+            realDestinationId = realDestinationId.substring(0, lastDashIndex);
+          }
+        }
+
+        const visitDate = act.date
+          ? toDateOnlyString(act.date)
+          : toDateOnlyString(new Date(planInfo.date));
+
+        return {
+          id: 0,
+          destination_id: realDestinationId,
+          destination_type: validType,
+          type: validType,
+          visit_date: visitDate,
+          time_slot: act.time_slot.toLowerCase() as
+            | "morning"
+            | "afternoon"
+            | "evening",
+          order_in_day: index + 1,
+          note: act.title,
+          url: act.image_url,
+          estimated_cost: 0,
+        };
+      });
+
+      const payload = {
+        place_name: planInfo.name || "My Travel Plan",
+        start_date: toDateOnlyString(planInfo.date),
+        end_date: planInfo.end_date
+          ? toDateOnlyString(planInfo.end_date)
+          : toDateOnlyString(planInfo.date),
+        budget_limit: Number(planInfo.budget) || 0,
+        destinations: destinationsPayload,
+      };
+
+      console.log("💾 Saving plan with transport:", selectedTransport);
+
+      let savedPlan;
+      if (planId) {
+        // Update existing plan
+        savedPlan = await api.updatePlan(Number(planId), payload);
+        alert("✅ Plan updated successfully!");
+      } else {
+        // Create new plan
+        savedPlan = await api.createPlan(payload);
+        alert("✅ Plan created successfully!");
+      }
+
+      // Save transport selection
+      const transportData = {
+        transportType: selectedTransport,
+        totalDistance,
+        carbonEmission: carbonData[selectedTransport as keyof CarbonData],
+        timestamp: Date.now(),
+      };
+      sessionStorage.setItem(
+        "selected_transport",
+        JSON.stringify(transportData)
+      );
+
+      // Navigate to showing_plan_page
+      router.push(
+        `/planning_page/showing_plan_page${
+          savedPlan.id ? `?id=${savedPlan.id}` : ""
+        }`
+      );
+    } catch (error: any) {
+      console.error("❌ Save error:", error);
+      alert(`Failed to save plan: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleBack = () => {
@@ -177,187 +290,203 @@ function TransportSelectionContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#53B552]"></div>
+      <div className="h-screen w-full flex justify-center bg-gray-50">
+        <div className="w-full max-w-md bg-white h-full shadow-2xl flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#53B552]"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-[#E3F1E4] to-white">
-      {/* Header */}
-      <div className="bg-[#E3F1E4] px-6 py-4 sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center justify-between max-w-2xl mx-auto">
-          <button
-            onClick={handleBack}
-            className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-50 transition"
-          >
-            <ChevronLeft size={24} className="text-gray-700" />
-          </button>
-          <h1
-            className={`${jost.className} text-xl font-bold text-gray-800 flex items-center gap-2`}
-          >
-            <Fuel className="text-[#53B552]" size={24} />
-            Select Transport
-          </h1>
-          <div className="w-10"></div>
+    <div className="h-screen w-full flex justify-center bg-gray-50">
+      <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-[#E3F1E4] px-6 py-4 sticky top-0 z-10 shadow-sm shrink-0">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleBack}
+              className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-50 transition"
+            >
+              <ChevronLeft size={24} className="text-gray-700" />
+            </button>
+            <h1
+              className={`${jost.className} text-xl font-bold text-gray-800 flex items-center gap-2`}
+            >
+              <Fuel className="text-[#53B552]" size={24} />
+              Select Transport
+            </h1>
+            <div className="w-10"></div>
+          </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={20} />
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-8">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle
+                  className="text-red-600 shrink-0 mt-0.5"
+                  size={20}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-red-800 mb-1">
+                    Error Loading Data
+                  </p>
+                  <p className="text-sm text-red-700">
+                    {error}. Using estimated values.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Trip Info */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-red-800 mb-1">
-                  Error Loading Data
+                <p className="text-sm text-gray-500 mb-1">Total Distance</p>
+                <p
+                  className={`${jost.className} text-3xl font-bold text-gray-800`}
+                >
+                  {totalDistance.toFixed(1)} <span className="text-lg">km</span>
                 </p>
-                <p className="text-sm text-red-700">
-                  {error}. Using estimated values.
+              </div>
+              <div className="w-16 h-16 bg-[#E3F1E4] rounded-full flex items-center justify-center">
+                <TrendingUp className="text-[#53B552]" size={32} />
+              </div>
+            </div>
+          </div>
+
+          {/* Transport Options */}
+          <div className="space-y-4 mb-6">
+            <h2
+              className={`${jost.className} text-lg font-semibold text-gray-700 mb-4`}
+            >
+              Choose Your Transport Method
+            </h2>
+
+            {TRANSPORT_OPTIONS.map((transport) => {
+              const Icon = transport.icon;
+              const isSelected = selectedTransport === transport.id;
+              const fuelNeeded = calculateFuelConsumption(transport.fuelPerKm);
+              const co2Emission = getCO2Emission(transport.id);
+
+              return (
+                <button
+                  key={transport.id}
+                  onClick={() => setSelectedTransport(transport.id)}
+                  className={`w-full bg-white rounded-2xl p-6 shadow-sm transition-all duration-200 ${
+                    isSelected
+                      ? "ring-2 ring-[#53B552] shadow-lg scale-[1.02]"
+                      : "hover:shadow-md hover:scale-[1.01]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`w-14 h-14 ${transport.bgColor} rounded-xl flex items-center justify-center`}
+                      >
+                        <Icon className={transport.color} size={28} />
+                      </div>
+                      <div className="text-left">
+                        <h3
+                          className={`${jost.className} text-xl font-bold text-gray-800`}
+                        >
+                          {transport.name}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          {transport.fuelPerKm}L / 100km
+                        </p>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <div className="w-8 h-8 bg-[#53B552] rounded-full flex items-center justify-center">
+                        <Check className="text-white" size={20} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fuel & Emission Stats */}
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Fuel className="text-gray-400" size={16} />
+                        <p className="text-xs text-gray-500 font-medium">
+                          Total Fuel
+                        </p>
+                      </div>
+                      <p
+                        className={`${jost.className} text-lg font-bold text-gray-800`}
+                      >
+                        {fuelNeeded}{" "}
+                        <span className="text-sm font-normal">L</span>
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Leaf className="text-gray-400" size={16} />
+                        <p className="text-xs text-gray-500 font-medium">
+                          CO₂ Emission
+                        </p>
+                      </div>
+                      <p
+                        className={`${jost.className} text-lg font-bold ${
+                          transport.id === "bus"
+                            ? "text-green-600"
+                            : "text-gray-800"
+                        }`}
+                      >
+                        {co2Emission}{" "}
+                        <span className="text-sm font-normal">kg</span>
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Eco Tip */}
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Leaf className="text-green-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="text-sm font-semibold text-green-800 mb-1">
+                  Eco Tip
+                </p>
+                <p className="text-sm text-green-700">
+                  Choosing public transport like buses can reduce your carbon
+                  footprint by up to 75% compared to private vehicles!
                 </p>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Trip Info */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Total Distance</p>
-              <p
-                className={`${jost.className} text-3xl font-bold text-gray-800`}
-              >
-                {totalDistance.toFixed(1)} <span className="text-lg">km</span>
-              </p>
-            </div>
-            <div className="w-16 h-16 bg-[#E3F1E4] rounded-full flex items-center justify-center">
-              <TrendingUp className="text-[#53B552]" size={32} />
-            </div>
-          </div>
-        </div>
-
-        {/* Transport Options */}
-        <div className="space-y-4 mb-6">
-          <h2
-            className={`${jost.className} text-lg font-semibold text-gray-700 mb-4`}
+          {/* Confirm Button */}
+          <button
+            onClick={handleSavePlan}
+            disabled={!selectedTransport || isSaving}
+            className={`w-full py-4 rounded-2xl font-bold text-white transition-all duration-200 flex items-center justify-center gap-2 ${
+              selectedTransport && !isSaving
+                ? "bg-[#53B552] hover:bg-green-600 shadow-lg hover:shadow-xl"
+                : "bg-gray-300 cursor-not-allowed"
+            }`}
           >
-            Choose Your Transport Method
-          </h2>
-
-          {TRANSPORT_OPTIONS.map((transport) => {
-            const Icon = transport.icon;
-            const isSelected = selectedTransport === transport.id;
-            const fuelNeeded = calculateFuelConsumption(transport.fuelPerKm);
-            const co2Emission = getCO2Emission(transport.id);
-
-            return (
-              <button
-                key={transport.id}
-                onClick={() => setSelectedTransport(transport.id)}
-                className={`w-full bg-white rounded-2xl p-6 shadow-sm transition-all duration-200 ${
-                  isSelected
-                    ? "ring-2 ring-[#53B552] shadow-lg scale-[1.02]"
-                    : "hover:shadow-md hover:scale-[1.01]"
-                }`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-14 h-14 ${transport.bgColor} rounded-xl flex items-center justify-center`}
-                    >
-                      <Icon className={transport.color} size={28} />
-                    </div>
-                    <div className="text-left">
-                      <h3
-                        className={`${jost.className} text-xl font-bold text-gray-800`}
-                      >
-                        {transport.name}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {transport.fuelPerKm}L / 100km
-                      </p>
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <div className="w-8 h-8 bg-[#53B552] rounded-full flex items-center justify-center">
-                      <Check className="text-white" size={20} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Fuel & Emission Stats */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Fuel className="text-gray-400" size={16} />
-                      <p className="text-xs text-gray-500 font-medium">
-                        Total Fuel
-                      </p>
-                    </div>
-                    <p
-                      className={`${jost.className} text-lg font-bold text-gray-800`}
-                    >
-                      {fuelNeeded}{" "}
-                      <span className="text-sm font-normal">L</span>
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Leaf className="text-gray-400" size={16} />
-                      <p className="text-xs text-gray-500 font-medium">
-                        CO₂ Emission
-                      </p>
-                    </div>
-                    <p
-                      className={`${jost.className} text-lg font-bold ${
-                        transport.id === "bus"
-                          ? "text-green-600"
-                          : "text-gray-800"
-                      }`}
-                    >
-                      {co2Emission}{" "}
-                      <span className="text-sm font-normal">kg</span>
-                    </p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+            {isSaving ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                Saving Plan...
+              </>
+            ) : (
+              <>
+                <Save size={20} />
+                Save Plan
+              </>
+            )}
+          </button>
         </div>
-
-        {/* Eco Tip */}
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <Leaf className="text-green-600 shrink-0 mt-0.5" size={20} />
-            <div>
-              <p className="text-sm font-semibold text-green-800 mb-1">
-                Eco Tip
-              </p>
-              <p className="text-sm text-green-700">
-                Choosing public transport like buses can reduce your carbon
-                footprint by up to 75% compared to private vehicles!
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Confirm Button */}
-        <button
-          onClick={handleConfirm}
-          disabled={!selectedTransport}
-          className={`w-full py-4 rounded-2xl font-bold text-white transition-all duration-200 flex items-center justify-center gap-2 ${
-            selectedTransport
-              ? "bg-[#53B552] hover:bg-green-600 shadow-lg hover:shadow-xl"
-              : "bg-gray-300 cursor-not-allowed"
-          }`}
-        >
-          Confirm & Continue
-          <ArrowRight size={20} />
-        </button>
       </div>
     </div>
   );
@@ -367,8 +496,10 @@ export default function TransportSelectionPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-white flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#53B552]"></div>
+        <div className="h-screen w-full flex justify-center bg-gray-50">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#53B552]"></div>
+          </div>
         </div>
       }
     >

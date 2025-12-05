@@ -328,7 +328,7 @@ export interface AddMemberRequest {
 
 export interface PlanActivity {
   id: number | string;
-  original_id?: number;
+  original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
   title: string;
   address: string;
   image_url: string;
@@ -1076,6 +1076,29 @@ class ApiClient {
         destinations,
         transport_mode: transportMode,
       }),
+    });
+  }
+
+  // --- CHATBOT & AI ---
+  async generatePlan(planData: {
+    place_name: string;
+    start_date: string;
+    end_date: string;
+    budget_limit?: number;
+    destinations: Array<{
+      destination_id: string;
+      destination_type: string;
+      visit_date: string;
+      order_in_day: number;
+      time_slot: string;
+      note?: string;
+      estimated_cost?: number;
+      url?: string;
+    }>;
+  }): Promise<any> {
+    return this.request<any>("/chatbot/plan/generate", {
+      method: "POST",
+      body: JSON.stringify(planData),
     });
   }
 

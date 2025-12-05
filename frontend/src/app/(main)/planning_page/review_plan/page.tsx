@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import {
@@ -26,6 +26,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronLeft,
+  ChevronRight,
   CalendarDays,
   Save,
   Sparkles,
@@ -237,7 +238,12 @@ function ChatWindow({
 }) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
-  >([]);
+  >([
+    {
+      role: "bot",
+      text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+    },
+  ]); // ✅ Default welcome message
   const [input, setInput] = useState("");
   const [roomId, setRoomId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -249,13 +255,23 @@ function ChatWindow({
 
   // 1. Fetch Room ID
   useEffect(() => {
-    if (!planId) return;
     const fetchRoom = async () => {
       try {
-        const res = await api.getPlanChatRoom(planId);
-        setRoomId(res.room_id);
+        if (planId) {
+          // Existing plan - get room from backend
+          const res = await api.getPlanChatRoom(planId);
+          setRoomId(res.room_id);
+        } else {
+          // New plan - use temporary room ID (safe for PostgreSQL INTEGER)
+          // Generate random ID between 1M and 2B (within int32 range)
+          const tempRoomId = Math.floor(Math.random() * 1000000000) + 1000000;
+          setRoomId(tempRoomId);
+          console.log("📝 Using temporary room ID for new plan:", tempRoomId);
+        }
       } catch (error) {
         console.error("Failed to get plan chat room:", error);
+        // Fallback to safe random room ID if API fails
+        setRoomId(Math.floor(Math.random() * 1000000000) + 1000000);
       }
     };
     fetchRoom();
@@ -263,7 +279,7 @@ function ChatWindow({
 
   // 2. Fetch History
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !planId) return; // ✅ Only fetch history for saved plans
     const fetchHistory = async () => {
       try {
         const history = await api.getChatHistory(roomId);
@@ -282,7 +298,7 @@ function ChatWindow({
           setMessages([
             {
               role: "bot",
-              text: "Hello! I'm your travel assistant. How can I help you adjust your plan?",
+              text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
             },
           ]);
         } else {
@@ -293,14 +309,14 @@ function ChatWindow({
       }
     };
     fetchHistory();
-  }, [roomId]);
+  }, [roomId, planId]); // ✅ Add planId dependency
 
   const handleSend = async () => {
-    if (!input.trim() || !roomId) return;
+    if (!input.trim() || !roomId || !planId || isLoading) return; // ✅ Require saved plan
     const userMsg = input;
-    setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
-    setInput("");
+    setInput(""); // Clear input first
     setIsLoading(true);
+    setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
 
     try {
       let userId = 0;
@@ -396,13 +412,24 @@ function ChatWindow({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Ask me to change schedule..."
-          className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-green-400"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder={
+            planId
+              ? "Ask me to change schedule..."
+              : "Save your plan first to use AI assistant"
+          }
+          disabled={!planId}
+          className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
-          className="bg-[#53B552] text-white p-2 rounded-full hover:bg-green-600"
+          disabled={!planId}
+          className="bg-[#53B552] text-white p-2 rounded-full hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send size={18} />
         </button>
@@ -512,7 +539,47 @@ function ReviewPlanContent() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [activities, setActivities] = useState<PlanActivity[]>([]);
+
+  // ✅ Wrap setActivities to log all updates
+  const setActivitiesWithLogging = (
+    newActivities: PlanActivity[] | ((prev: PlanActivity[]) => PlanActivity[])
+  ) => {
+    console.log("🔄 setActivities called:", {
+      type: typeof newActivities === "function" ? "function" : "direct",
+      newLength:
+        typeof newActivities === "function" ? "computed" : newActivities.length,
+      stack: new Error().stack?.split("\n")[2]?.trim(), // Show caller
+    });
+
+    if (typeof newActivities === "function") {
+      setActivities((prev) => {
+        const result = newActivities(prev);
+        console.log("  📊 Function result:", {
+          prevLength: prev.length,
+          newLength: result.length,
+          first: result[0]?.title,
+        });
+        return result;
+      });
+    } else {
+      console.log("  📊 Direct set:", {
+        length: newActivities.length,
+        first: newActivities[0]?.title,
+      });
+      setActivities(newActivities);
+    }
+  };
+
   const [activeId, setActiveId] = useState<string | number | null>(null);
+  const activitiesRef = useRef<PlanActivity[]>([]); // Ref to always have latest activities
+
+  // AI Generation States
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [aiGenerationDone, setAiGenerationDone] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const aiGenerationAttemptedRef = useRef(false); // Track if AI generation was attempted
+  const aiResultsSetRef = useRef(false); // ✅ Track if AI results were just set (prevent overwrite)
+  const initialLoadDoneRef = useRef(false); // ✅ Track if initial data load completed
 
   const [planInfo, setPlanInfo] = useState({
     name: "My Awesome Trip",
@@ -530,7 +597,7 @@ function ReviewPlanContent() {
   const [members, setMembers] = useState<PlanMemberDetail[]>([]); // ✅ Store full member objects
 
   // Split Screen State
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true); // ✅ Mở mặc định để show gợi ý
   const [planHeightPercent, setPlanHeightPercent] = useState(100);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -551,6 +618,15 @@ function ReviewPlanContent() {
     };
     loadUser();
   }, []);
+
+  // Clear AI generation flags on mount (run once)
+  useEffect(() => {
+    console.log("🧹 Clearing AI generation flags on mount");
+    sessionStorage.removeItem("ai_generated_temp_plan");
+    if (planId) {
+      sessionStorage.removeItem(`ai_generated_plan_${planId}`);
+    }
+  }, []); // ✅ Empty deps - run once on mount
 
   // Check ownership when user or plan owner changes
   useEffect(() => {
@@ -587,6 +663,17 @@ function ReviewPlanContent() {
 
   // --- INIT DATA ---
   useEffect(() => {
+    console.log("🔄 INIT DATA useEffect triggered", {
+      planId,
+      initialLoadDone: initialLoadDoneRef.current,
+    });
+
+    // ✅ Prevent multiple loads - only load once
+    if (initialLoadDoneRef.current) {
+      console.log("⏭️ Initial load already done, skipping");
+      return;
+    }
+
     const loadPlanDetail = async (id: string) => {
       try {
         setIsAiProcessing(true);
@@ -708,6 +795,7 @@ function ReviewPlanContent() {
 
                 return {
                   id: place.place_id,
+                  original_id: place.place_id, // ✅ Preserve original ID for AI matching
                   title: place.name,
                   address: place.formatted_address,
                   image_url: place.photos?.[0]?.photo_url || "",
@@ -799,6 +887,10 @@ function ReviewPlanContent() {
       } else {
         loadDataFromStorage();
       }
+
+      // ✅ Mark initial load as complete
+      initialLoadDoneRef.current = true;
+      console.log("✅ Initial load completed");
     }
   }, [planId]);
 
@@ -819,6 +911,15 @@ function ReviewPlanContent() {
   };
 
   const loadDataFromStorage = () => {
+    console.log("📂 loadDataFromStorage called");
+
+    // ✅ Don't overwrite if AI just set results
+    if (aiResultsSetRef.current) {
+      console.log("⏭️ Skipping loadDataFromStorage - AI results just set");
+      aiResultsSetRef.current = false; // Reset flag
+      return;
+    }
+
     const rawData = sessionStorage.getItem(STORAGE_KEY_RAW);
     const storedActivities = sessionStorage.getItem(STORAGE_KEY_STRUCTURED);
     const storedInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
@@ -880,6 +981,7 @@ function ReviewPlanContent() {
         if (newItems.length > 0) {
           const newActivities = newItems.map((place) => ({
             id: place.place_id,
+            original_id: place.place_id, // ✅ Preserve original ID for AI matching
             title: place.name,
             address: place.formatted_address,
             image_url: place.photos?.[0]?.photo_url || "",
@@ -930,6 +1032,11 @@ function ReviewPlanContent() {
   };
 
   useEffect(() => {
+    console.log("💾 Save activities to sessionStorage useEffect:", {
+      activitiesLength: activities.length,
+      firstActivity: activities[0]?.title,
+    });
+
     if (activities.length > 0) {
       sessionStorage.setItem(
         STORAGE_KEY_STRUCTURED,
@@ -956,6 +1063,23 @@ function ReviewPlanContent() {
       });
       sessionStorage.setItem(STORAGE_KEY_RAW, JSON.stringify(rawListForMap));
     }
+  }, [activities]);
+
+  // Sync activities to ref for AI generation
+  useEffect(() => {
+    activitiesRef.current = activities;
+  }, [activities]);
+
+  // ✅ DEBUG: Log whenever activities changes
+  useEffect(() => {
+    console.log("🔔 Activities state changed:", {
+      length: activities.length,
+      items: activities.map((a) => ({
+        id: a.id,
+        title: a.title,
+        slot: a.time_slot,
+      })),
+    });
   }, [activities]);
 
   // --- SPLIT SCREEN LOGIC ---
@@ -1085,6 +1209,253 @@ function ReviewPlanContent() {
       setActivities((prev) => prev.filter((a) => a.id !== id));
     }
   };
+
+  // ==========================================
+  // AI PLAN GENERATION
+  // ==========================================
+  const generateAIPlan = useCallback(async () => {
+    // Use ref to get latest activities
+    const currentActivities = activitiesRef.current;
+
+    // Check điều kiện
+    if (
+      currentActivities.length < 2 ||
+      aiGenerationDone ||
+      isAIGenerating ||
+      aiGenerationAttemptedRef.current
+    ) {
+      console.log("⏭️ Skip AI generation:", {
+        notEnoughActivities: currentActivities.length < 2,
+        alreadyDone: aiGenerationDone,
+        inProgress: isAIGenerating,
+        attempted: aiGenerationAttemptedRef.current,
+      });
+      return;
+    }
+
+    // Mark as attempted immediately to prevent concurrent calls
+    aiGenerationAttemptedRef.current = true;
+
+    // Check sessionStorage để đảm bảo chỉ generate 1 lần
+    const storageKey = planId
+      ? `ai_generated_plan_${planId}`
+      : `ai_generated_temp_plan`;
+    const hasGenerated = sessionStorage.getItem(storageKey);
+
+    if (hasGenerated === "true") {
+      console.log("✅ Plan đã được AI generate trước đó");
+      setAiGenerationDone(true);
+      return;
+    }
+
+    console.log("🤖 Starting AI plan generation...");
+    setIsAIGenerating(true);
+    setAiError(null);
+
+    try {
+      // Helper to convert to YYYY-MM-DD
+      const toDateString = (dateInput: any): string => {
+        if (!dateInput) return new Date().toISOString().split("T")[0];
+        const d =
+          typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+        return d.toISOString().split("T")[0];
+      };
+
+      // Prepare plan data
+      const planData = {
+        place_name: planInfo?.name || "My Travel Plan",
+        start_date: toDateString(planInfo?.date),
+        end_date: toDateString(planInfo?.end_date || planInfo?.date),
+        budget_limit: Number(planInfo?.budget) || 100000, // Default budget if not set
+        destinations: currentActivities.map((activity, index) => {
+          // Determine destination type
+          let validType = "attraction";
+          const typeLower = (activity.type || "").toLowerCase();
+          if (typeLower.includes("restaurant") || typeLower.includes("food"))
+            validType = "restaurant";
+          else if (typeLower.includes("hotel") || typeLower.includes("lodging"))
+            validType = "accommodation";
+          else if (
+            typeLower.includes("transit") ||
+            typeLower.includes("station")
+          )
+            validType = "transport";
+
+          return {
+            destination_id: String(activity.original_id || activity.id),
+            destination_type: validType,
+            visit_date: toDateString(activity.date || planInfo?.date),
+            order_in_day: index + 1, // Start from 1, not 0
+            time_slot: (activity.time_slot || "morning").toLowerCase(),
+            note: activity.address || "",
+            estimated_cost: 0,
+          };
+        }),
+      };
+
+      console.log("📤 Sending to AI:", JSON.stringify(planData, null, 2));
+
+      // Call API
+      const result = await api.generatePlan(planData);
+
+      console.log("📥 AI Response:", result);
+
+      // Validate response
+      if (!result || !result.success) {
+        throw new Error(result?.message || "AI generation failed");
+      }
+
+      // Check if we have destinations in response
+      if (
+        result.plan?.destinations &&
+        Array.isArray(result.plan.destinations)
+      ) {
+        console.log("🔍 Mapping AI destinations to activities:", {
+          aiDestinations: result.plan.destinations.length,
+          currentActivities: currentActivities.length,
+        });
+
+        // Map AI response back to activities
+        const optimizedActivities = result.plan.destinations
+          .map((dest: any, idx: number) => {
+            // Find original activity to preserve all fields
+            // Compare as strings since destination_id can be Google Place ID
+            const original = currentActivities.find(
+              (a) =>
+                String(a.original_id || a.id) === String(dest.destination_id)
+            );
+
+            if (!original) {
+              console.warn(
+                `⚠️ Destination ${dest.destination_id} not found in original activities`,
+                {
+                  lookingFor: dest.destination_id,
+                  availableIds: currentActivities.map((a) => ({
+                    id: a.id,
+                    original_id: a.original_id,
+                    title: a.title,
+                  })),
+                }
+              );
+              return null;
+            }
+
+            // Merge AI data with original data
+            return {
+              ...original,
+              date: dest.visit_date || original.date,
+              order_in_day: dest.order_in_day ?? idx,
+              // ✅ Capitalize time_slot from backend (morning → Morning)
+              time_slot: dest.time_slot
+                ? ((dest.time_slot.charAt(0).toUpperCase() +
+                    dest.time_slot.slice(1)) as
+                    | "Morning"
+                    | "Afternoon"
+                    | "Evening")
+                : original.time_slot,
+              time: dest.suggested_time || original.time,
+              day: idx + 1,
+            };
+          })
+          .filter(Boolean); // Remove nulls
+
+        console.log("✨ Optimized activities result:", {
+          count: optimizedActivities.length,
+          sample: optimizedActivities[0],
+        });
+
+        // Only update if we got valid results
+        if (optimizedActivities.length > 0) {
+          console.log("📝 Setting activities to:", optimizedActivities);
+          aiResultsSetRef.current = true; // ✅ Mark that AI results are being set
+          setActivities(optimizedActivities as PlanActivity[]);
+
+          // Mark as generated
+          sessionStorage.setItem(storageKey, "true");
+          setAiGenerationDone(true);
+
+          console.log("✅ AI plan generation successful!");
+        } else {
+          console.error(
+            "❌ No valid destinations after mapping - keeping original plan"
+          );
+          // Keep original plan instead of clearing
+          sessionStorage.setItem(storageKey, "true");
+          setAiGenerationDone(true);
+        }
+      } else {
+        console.log("ℹ️ AI không thay đổi thứ tự, giữ nguyên plan hiện tại");
+        sessionStorage.setItem(storageKey, "true");
+        setAiGenerationDone(true);
+      }
+
+      // Log warnings if any
+      if (result.warnings && result.warnings.length > 0) {
+        console.warn("⚠️ AI Warnings:", result.warnings);
+      }
+    } catch (error: any) {
+      console.error("❌ AI generation error:", error);
+      setAiError(error.message || "Failed to generate AI plan");
+
+      // Don't block user - they can still use manual plan
+      // Just log the error and continue
+    } finally {
+      setIsAIGenerating(false);
+    }
+  }, []); // Empty deps - function will use latest activities via closure
+
+  // Auto-trigger AI plan generation on initial load
+  useEffect(() => {
+    console.log("🔍 Auto-trigger AI useEffect running:", {
+      activitiesLength: activities.length,
+      aiGenerationDone,
+      isAIGenerating,
+      isAiProcessing,
+      planId,
+    });
+
+    // Only run if we have activities and haven't generated yet
+    if (
+      activities.length >= 2 &&
+      !aiGenerationDone &&
+      !isAIGenerating &&
+      !isAiProcessing // Don't run during fake AI animation
+    ) {
+      console.log("🤖 Auto-triggering AI plan generation...", {
+        activitiesCount: activities.length,
+        planId,
+        aiGenerationDone,
+        isAIGenerating,
+        isAiProcessing,
+      });
+      generateAIPlan();
+    } else {
+      console.log("⏭️ Skip auto AI generation:", {
+        activitiesCount: activities.length,
+        planId,
+        aiGenerationDone,
+        isAIGenerating,
+        isAiProcessing,
+        reason:
+          activities.length < 2
+            ? "Not enough activities"
+            : aiGenerationDone
+            ? "Already generated"
+            : isAIGenerating
+            ? "Currently generating"
+            : isAiProcessing
+            ? "AI animation in progress"
+            : "Unknown",
+      });
+    }
+  }, [
+    planId,
+    activities.length,
+    aiGenerationDone,
+    isAIGenerating,
+    isAiProcessing,
+    generateAIPlan,
+  ]);
 
   const handleAddPlaceToSlot = (dayStr?: string, timeSlot?: string) => {
     if (!isOwner && planId) {
@@ -1252,25 +1623,27 @@ function ReviewPlanContent() {
   // --- RENDER AI ---
   if (isAiProcessing) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-green-100 rounded-full blur-3xl opacity-50"></div>
-        <div className="relative z-10 flex flex-col items-center max-w-sm w-full">
-          <div className="w-20 h-20 bg-[#E3F1E4] rounded-full flex items-center justify-center animate-pulse mb-8">
-            <Sparkles className="text-[#53B552] w-10 h-10 animate-spin-slow" />
-          </div>
-          <h2
-            className={`${jost.className} text-xl font-bold text-gray-800 text-center mb-2`}
-          >
-            AI Generator
-          </h2>
-          <p className="text-gray-500 text-sm mb-8 text-center">
-            {AI_STEPS[aiStepIndex]}
-          </p>
-          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#53B552] transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            ></div>
+      <div className="h-screen w-full flex justify-center bg-gray-50">
+        <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col items-center justify-center p-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-green-100 rounded-full blur-3xl opacity-50"></div>
+          <div className="relative z-10 flex flex-col items-center max-w-sm w-full">
+            <div className="w-20 h-20 bg-[#E3F1E4] rounded-full flex items-center justify-center animate-pulse mb-8">
+              <Sparkles className="text-[#53B552] w-10 h-10 animate-spin-slow" />
+            </div>
+            <h2
+              className={`${jost.className} text-xl font-bold text-gray-800 text-center mb-2`}
+            >
+              AI Generator
+            </h2>
+            <p className="text-gray-500 text-sm mb-8 text-center">
+              {AI_STEPS[aiStepIndex]}
+            </p>
+            <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#53B552] transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1329,33 +1702,106 @@ function ReviewPlanContent() {
                 </button>
               )}
               <button
-                onClick={handleSaveToBackend}
-                disabled={!isOwner || isSaving || activities.length < 2}
+                onClick={() => {
+                  if (activities.length < 2) {
+                    alert(
+                      `Add at least ${
+                        2 - activities.length
+                      } more destination(s)`
+                    );
+                    return;
+                  }
+                  router.push("/planning_page/transport_selection");
+                }}
+                disabled={activities.length < 2}
                 className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
-                  !isOwner || activities.length < 2 || isSaving
+                  activities.length < 2
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "text-[#53B552] bg-[#E3F1E4] hover:bg-green-100"
+                    : "text-white bg-[#53B552] hover:bg-green-600"
                 }`}
                 title={
-                  !isOwner
-                    ? "Only plan owner can save changes"
-                    : activities.length < 2
+                  activities.length < 2
                     ? `Add at least ${
                         2 - activities.length
                       } more destination(s)`
-                    : "Save plan"
+                    : "Next: Choose transport"
                 }
               >
-                {isSaving ? (
-                  "Saving..."
-                ) : (
-                  <>
-                    <Save size={16} /> Save
-                  </>
-                )}
+                Next
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
+
+          {/* AI GENERATION BANNER */}
+          {isAIGenerating && (
+            <div className="bg-linear-to-r from-green-50 to-blue-50 px-4 py-3 border-b border-green-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                  <Sparkles className="text-[#53B552] w-4 h-4 animate-spin" />
+                </div>
+                <div className="flex-1">
+                  <p
+                    className={`${jost.className} text-sm font-semibold text-gray-800`}
+                  >
+                    AI is optimizing your plan...
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Analyzing best routes and timing
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AI ERROR BANNER */}
+          {aiError && (
+            <div className="bg-red-50 px-4 py-3 border-b border-red-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-4 h-4 text-red-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p
+                    className={`${jost.className} text-sm font-semibold text-red-800`}
+                  >
+                    AI optimization failed
+                  </p>
+                  <p className="text-xs text-red-600">{aiError}</p>
+                </div>
+                <button
+                  onClick={() => setAiError(null)}
+                  className="text-red-400 hover:text-red-600"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* SCROLLABLE CONTENT */}
           <div className="flex-1 overflow-y-auto p-4 pb-20">
@@ -1426,6 +1872,24 @@ function ReviewPlanContent() {
               <div className="space-y-6">
                 {planDays.map((day, idx) => {
                   const dayStr = day.split("T")[0];
+
+                  // ✅ DEBUG: Log filtering for this day
+                  const morningItems = activities.filter(
+                    (a) =>
+                      a.time_slot === "Morning" &&
+                      (a.date?.split("T")[0] === dayStr ||
+                        (!a.date && dayStr === planDays[0].split("T")[0]))
+                  );
+                  console.log(`📅 Day ${idx + 1} (${dayStr}) - Morning:`, {
+                    totalActivities: activities.length,
+                    morningCount: morningItems.length,
+                    morningItems: morningItems.map((a) => ({
+                      title: a.title,
+                      date: a.date,
+                      slot: a.time_slot,
+                    })),
+                  });
+
                   return (
                     <div key={idx}>
                       <div className="flex items-center gap-2 mb-3 sticky top-0 bg-[#F5F7F5] z-10 py-2">
