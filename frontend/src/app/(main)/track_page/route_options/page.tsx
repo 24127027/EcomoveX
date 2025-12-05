@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 
 interface PlanDestinationResponse {
@@ -27,14 +27,14 @@ interface TravelPlan {
 }
 
 export default function RouteSelectionPage() {
-    const location = useLocation();
-    const navigate = useNavigate();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
     const [plan, setPlan] = useState<TravelPlan | null>(null);
 
     /** Load params từ URL */
     useEffect(() => {
-        const params = new URLSearchParams(location.search);
+        const params = searchParams;
 
         try {
             const parsedPlan: TravelPlan = {
@@ -55,7 +55,7 @@ export default function RouteSelectionPage() {
         } catch (e) {
             console.error("Failed to parse plan", e);
         }
-    }, [location.search]);
+    }, [searchParams]);
 
     /** Tạo danh sách các option (đi từ điểm A → điểm B theo thứ tự thời gian) */
     const routeOptions = useMemo(() => {
@@ -85,40 +85,38 @@ export default function RouteSelectionPage() {
     }, [plan]);
 
     const handleSelect = (option: { from: any; to: any }) => {
-        navigate("/transport_options", {
-            state: {
-                from: option.from,
-                to: option.to,
-                plan,
-            },
+        const queryParams = new URLSearchParams({
+            from: JSON.stringify(option.from),
+            to: JSON.stringify(option.to),
+            plan: JSON.stringify(plan),
         });
+        router.push(`/transport_options?${queryParams.toString()}`);
     };
 
     if (!plan) return <div>Loading...</div>;
 
    
     return (
-        <div className= "p-4" >
-            <h1 className="text-xl font-bold mb-4" >
-                Select a Route in { plan.place_name }
+        <div className="p-4">
+            <h1 className="text-xl font-bold mb-4">
+                Select a Route in {plan.place_name}
             </h1>
 
             {routeOptions.length === 0 ? (
-                <div>No valid route options found.< /div>
+                <div>No valid route options found.</div>
             ) : (
-                <ul className= "flex flex-col gap-3" >
-                {
-                    routeOptions.map((opt, index) => (
-                    <li
-                        key= { index }
-                        className = "cursor-pointer p-3 rounded border bg-gray-100 hover:bg-gray-200"
-                        onClick = {() => handleSelect(opt)}
-                    >
-                        { opt.label }
-                    </li>
-                }
+                <ul className="flex flex-col gap-3">
+                    {routeOptions.map((opt, index) => (
+                        <li
+                            key={index}
+                            className="cursor-pointer p-3 rounded border bg-gray-100 hover:bg-gray-200"
+                            onClick={() => handleSelect(opt)}
+                        >
+                            {opt.label}
+                        </li>
+                    ))}
                 </ul>
-              )}
+            )}
         </div>
-      );
+    );
 }
