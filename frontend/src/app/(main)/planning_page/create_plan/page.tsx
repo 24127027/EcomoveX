@@ -167,10 +167,15 @@ export default function CreatePlanPage() {
     return Number(value).toLocaleString("vi-VN");
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | null) => {
+    if (!date) return '';
     return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
   };
-  const formatDateForAPI = (date: Date) => {
+  const formatDateForAPI = (date: Date | null) => {
+    if (!date) {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0"); // Tháng bắt đầu từ 0 nên phải +1
     const day = String(date.getDate()).padStart(2, "0");

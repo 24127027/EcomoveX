@@ -216,7 +216,7 @@ function TransportSelectionContent() {
 
         const visitDate = act.date
           ? toDateOnlyString(act.date)
-          : toDateOnlyString(new Date(planInfo.date));
+          : toDateOnlyString(new Date(planInfo.start_date));
 
         return {
           id: 0,
@@ -237,10 +237,10 @@ function TransportSelectionContent() {
 
       const payload = {
         place_name: planInfo.name || "My Travel Plan",
-        start_date: toDateOnlyString(planInfo.date),
+        start_date: toDateOnlyString(planInfo.start_date),
         end_date: planInfo.end_date
           ? toDateOnlyString(planInfo.end_date)
-          : toDateOnlyString(planInfo.date),
+          : toDateOnlyString(planInfo.start_date),
         budget_limit: Number(planInfo.budget) || 0,
         destinations: destinationsPayload,
       };
