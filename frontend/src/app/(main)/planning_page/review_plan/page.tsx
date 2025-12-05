@@ -262,16 +262,24 @@ function ChatWindow({
           const res = await api.getPlanChatRoom(planId);
           setRoomId(res.room_id);
         } else {
-          // New plan - use temporary room ID (safe for PostgreSQL INTEGER)
-          // Generate random ID between 1M and 2B (within int32 range)
-          const tempRoomId = Math.floor(Math.random() * 1000000000) + 1000000;
-          setRoomId(tempRoomId);
-          console.log("📝 Using temporary room ID for new plan:", tempRoomId);
+          // New plan - DON'T create temporary room, just set null
+          // Chat feature will be disabled until plan is saved
+          setRoomId(null);
+          console.log("📝 New plan - chat disabled until saved");
         }
-      } catch (error) {
-        console.error("Failed to get plan chat room:", error);
-        // Fallback to safe random room ID if API fails
-        setRoomId(Math.floor(Math.random() * 1000000000) + 1000000);
+      } catch (error: any) {
+        console.warn(
+          "⚠️ Failed to get plan chat room (plan may not have room yet):",
+          error?.message
+        );
+        // ✅ Set null and show default message - no chat history fetch
+        setRoomId(null);
+        setMessages([
+          {
+            role: "bot",
+            text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+          },
+        ]);
       }
     };
     fetchRoom();
@@ -279,7 +287,7 @@ function ChatWindow({
 
   // 2. Fetch History
   useEffect(() => {
-    if (!roomId || !planId) return; // ✅ Only fetch history for saved plans
+    if (!roomId || !planId) return; // ✅ Only fetch history for saved plans with valid room
     const fetchHistory = async () => {
       try {
         const history = await api.getChatHistory(roomId);
@@ -304,8 +312,18 @@ function ChatWindow({
         } else {
           setMessages(formatted);
         }
-      } catch (error) {
-        console.error("Failed to fetch history:", error);
+      } catch (error: any) {
+        console.warn(
+          "⚠️ Failed to fetch chat history (user may not be room member):",
+          error?.message
+        );
+        // ✅ Set default welcome message on error
+        setMessages([
+          {
+            role: "bot",
+            text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+          },
+        ]);
       }
     };
     fetchHistory();
@@ -353,12 +371,14 @@ function ChatWindow({
       if (res.ok && res.message) {
         setMessages((prev) => [...prev, { role: "bot", text: res.message }]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to send message:", error);
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", text: "Sorry, I encountered an error." },
-      ]);
+      const errorMsg =
+        error?.message?.includes("not a member") ||
+        error?.message?.includes("403")
+          ? "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant."
+          : "Sorry, I encountered an error.";
+      setMessages((prev) => [...prev, { role: "bot", text: errorMsg }]);
     } finally {
       setIsLoading(false);
     }
@@ -704,7 +724,7 @@ function ReviewPlanContent() {
             name: currentPlan.destination,
             date: currentPlan.date,
             end_date: currentPlan.end_date || currentPlan.date,
-            budget: currentPlan.budget || 0,
+            budget: currentPlan.budget_limit || currentPlan.budget || 0,
           };
 
           let apiActivities = currentPlan.activities;
@@ -843,10 +863,40 @@ function ReviewPlanContent() {
           try {
             const membersResponse = await api.getPlanMembers(Number(id));
             // Backend now returns { plan_id, members: [...] } with full member details
-            setMembers(membersResponse.members || []);
-            console.log(
-              `👥 Loaded ${membersResponse.members?.length || 0} member(s)`
-            );
+            const loadedMembers = membersResponse.members || [];
+            setMembers(loadedMembers);
+            console.log(`👥 Loaded ${loadedMembers.length} member(s)`);
+
+            // ✅ FALLBACK: If no members and current user is owner, auto-add as owner
+            if (loadedMembers.length === 0) {
+              console.warn(
+                "⚠️ Plan has no members! Attempting to add current user as owner..."
+              );
+              try {
+                // Get current user ID
+                let currentUserId = 0;
+                const storedUser = localStorage.getItem("user_info");
+                if (storedUser) {
+                  currentUserId = JSON.parse(storedUser).id;
+                } else {
+                  const profile = await api.getUserProfile();
+                  currentUserId = profile.id;
+                  localStorage.setItem("user_info", JSON.stringify(profile));
+                }
+
+                // Add current user as owner using correct API format
+                await api.addPlanMembersWithRoles(Number(id), [
+                  { user_id: currentUserId, role: "owner" },
+                ]);
+
+                // Reload members
+                const updatedResponse = await api.getPlanMembers(Number(id));
+                setMembers(updatedResponse.members || []);
+                console.log("✅ Successfully added current user as owner");
+              } catch (addError) {
+                console.error("Failed to auto-add owner:", addError);
+              }
+            }
           } catch (error) {
             console.error("Failed to load members:", error);
           }

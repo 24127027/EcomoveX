@@ -149,36 +149,6 @@ async def websocket_endpoint(
 
 
 @router.post(
-    "/invitations/send",
-    response_model=MessageResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def send_plan_invitation(
-    invitation_data: PlanInvitationCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Gửi lời mời tham gia plan qua chat.
-    
-    - **room_id**: ID của room chat (phải là room với người được mời)
-    - **plan_id**: ID của plan muốn mời
-    - **invitee_id**: ID của người được mời
-    - **message**: Tin nhắn kèm theo (optional)
-    
-    Chỉ owner của plan mới có thể gửi lời mời.
-    """
-    return await MessageService.send_plan_invitation(
-        db,
-        sender_id=current_user["user_id"],
-        room_id=invitation_data.room_id,
-        plan_id=invitation_data.plan_id,
-        invitee_id=invitation_data.invitee_id,
-        message=invitation_data.message,
-    )
-
-
-@router.post(
     "/invitations/{message_id}/respond",
     status_code=status.HTTP_200_OK,
 )

@@ -347,7 +347,8 @@ export interface TravelPlan {
   date: string;
   end_date?: string;
   activities: PlanActivity[];
-  budget?: number;
+  budget?: number; // Legacy field
+  budget_limit?: number; // ✅ Backend field name
 }
 
 export interface PlanDestinationCreate {
@@ -710,6 +711,17 @@ class ApiClient {
     });
   }
 
+  // ✅ Add members with roles (for auto-adding owner)
+  async addPlanMembersWithRoles(
+    planId: number,
+    members: Array<{ user_id: number; role: string }>
+  ): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ ids: members }),
+    });
+  }
+
   async removePlanMembers(planId: number, memberIds: number[]): Promise<void> {
     return this.request(`/plans/${planId}/members`, {
       method: "DELETE",
@@ -790,6 +802,7 @@ class ApiClient {
         destination: p.place_name,
         date: p.start_date,
         end_date: p.end_date,
+        budget_limit: p.budget_limit, // ✅ Map budget_limit from backend
         activities: activities,
       };
     });
