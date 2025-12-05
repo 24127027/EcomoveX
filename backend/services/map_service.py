@@ -45,7 +45,7 @@ FIELD_GROUPS = {
 
 class MapService:
     @staticmethod
-    async def get_coordinates(place_id: str) -> Optional[Dict[str, float]]:
+    async def get_coordinates(place_id: str) -> Location:
         map_client = None
         try:
             map_client = await create_map_client()
@@ -54,10 +54,10 @@ class MapService:
                 fields=["geometry/location"],
             )
             if response and response.geometry and response.geometry.location:
-                return {
-                    "lat": response.geometry.location.lat,
-                    "lng": response.geometry.location.lng,
-                }
+                return Location(
+                    lat=response.geometry.location.latitude,
+                    lng=response.geometry.location.longitude,
+                )
             return None
         except Exception:
             return None

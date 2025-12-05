@@ -2,8 +2,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 
+from schemas.map_schema import Location
 from integration.route_api import create_route_api_client
 from integration.text_generator_api import create_text_generator_api
+from services.map_service import MapService
 from schemas.route_schema import (
     DirectionsRequest,
     FindRoutesRequest,
@@ -16,6 +18,7 @@ from schemas.route_schema import (
     TransportMode,
     TripMetricsResponse,
     WalkingStep,
+    RouteForPlanResponse,
 )
 from services.carbon_service import CarbonService
 from services.map_service import MapService
@@ -279,8 +282,12 @@ class RouteService:
                     await routes.close()
 
             return FindRoutesResponse(
-                origin={"lat": origin.latitude, "lng": origin.longitude},
-                destination={"lat": destination.latitude, "lng": destination.longitude},
+                origin=Location(
+                    lat=origin.latitude, lng=origin.longitude
+                ),
+                destination=Location(
+                    lat=destination.latitude, lng=destination.longitude
+                ),
                 routes=routes_dict,
                 recommendation=recommendation.recommendation,
             )
@@ -528,3 +535,46 @@ Provide a concise recommendation that balances environmental impact and convenie
             total_duration_min=round(total_duration, 0),
             details=route_details,
         )
+
+    @staticmethod
+    async def get_route_for_plan(
+        origin: str, destination: str, transport_mode: TransportMode = TransportMode.car
+) -> List[RouteForPlanResponse]:
+        try:
+            origin_coords = await MapService.get_coordinates(place_id=origin)
+            destination_coords = await MapService.get_coordinates(place_id=destination)
+
+            result = await RouteService.find_three_optimal_routes(
+                FindRoutesRequest(origin=origin_coords, destination=destination_coords),
+            )
+
+            if not result.routes:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No route found between the specified locations",
+                )
+
+            list_response = []
+            for route_type, route_data in result.routes.items():
+                list_response.append(
+                    RouteForPlanResponse(
+                        origin=origin,
+                        destination=destination,
+                        distance_km=route_data.distance,
+                        estimated_travel_time_min=route_data.duration,
+                        carbon_emission_kg=route_data.carbon,
+                        route_polyline=route_data.route_details.get(
+                            "overview_polyline", ""
+                        ),
+                        transport_mode=transport_mode,
+                        route_type=route_type,
+                    )
+                )
+            return list_response
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get route for plan: {str(e)}",
+            )
