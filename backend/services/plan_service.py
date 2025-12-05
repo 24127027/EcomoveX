@@ -447,7 +447,7 @@ class PlanService:
     async def update_budget(self, db, user_id, plan_id, budget):
         updated = await PlanRepository.update_plan_destination(
             db, plan_id, PlanUpdate(budget_limit=budget)
-        )
+        ) 
 
         if not updated:
             return {"ok": False, "message": "Không cập nhật budget."}
@@ -456,4 +456,3 @@ class PlanService:
         return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
 
 
-    
