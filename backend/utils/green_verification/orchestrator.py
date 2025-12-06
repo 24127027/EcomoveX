@@ -47,7 +47,7 @@ class GreenCoverageOrchestrator:
         cup_model_name: str = "glass_classification_model.pt",
         depth_model_type: str = "midas_v21_small_256",
         depth_model_path: Optional[str] = None,
-        green_threshold: float = 0.3,
+        green_threshold: float = 0.15,
         optimize: bool = False,
         height: Optional[int] = None,
         square: bool = False,
@@ -122,7 +122,7 @@ class GreenCoverageOrchestrator:
             )
             
         return prediction.astype(np.float32)
-
+    
     @staticmethod
     def _normalize_depth_map(depth: np.ndarray) -> np.ndarray:
         d_min = float(np.nanmin(depth))
@@ -181,16 +181,22 @@ class GreenCoverageOrchestrator:
                 veg_depth_norm = depth_norm_full[mask_bool]
                 depth_weighted = float(1.0 - np.clip(np.mean(veg_depth_norm), 0.0, 1.0))
 
-            green_score = float(green_proportion * depth_weighted)
+            # Scale green proportion để range đẹp hơn
+            gp_norm = min(green_proportion * 3.0, 1.0)
+
+            # Depth weighting mềm hơn
+            dw_norm = depth_weighted ** 0.8
+
+            green_score = gp_norm * dw_norm
+            #check if plastic appears in the image
+            if any(cup.get("material") == "plastic" for cup in cup_detections):
+                green_score *= 0.7
+            
             verified = bool(green_score >= self.green_threshold)
 
             return {
                 "url": url,
-                "combined_mask": combined_mask,
-                "green_proportion": green_proportion,
-                "green_score": green_score,
-                "verified": verified,
-                "cup_detections": cup_detections
+                "green_score": green_score
             }
 
         except Exception as e:
@@ -199,28 +205,16 @@ class GreenCoverageOrchestrator:
             traceback.print_exc()
             return {"url": url, "error": str(e), "verified": False}
 
-    def process_image_list(self, image_urls: List[str]) -> List[Dict[str, Any]]:
-        results = []
-        for url in image_urls:
+    def process_image_list(self, urls: List[str]) -> List[Dict[str, Any]]:
+        scores = []
+        for url in urls:
             res = self.process_single_image(url)
-            results.append(res)
-        return results
+            scores.append(res["green_score"])
 
-# if __name__ == "__main__":
-#     # Test
-#     test_urls = ["https://lh3.googleusercontent.com/p/AF1QipOPePZD8_itqgm0X-nRoQFKGDlmKnMXtIdGUvzb=w203-h304-k-no"]
-    
-#     orch = GreenCoverageOrchestrator(
-#         segmentation_model="best.pt",
-#         cup_model_name="glass_classification_model.pt",
-#         depth_model_type="midas_v21_small_256"
-#     )
-    
-#     data = orch.process_image_list(test_urls)
-#     for item in data:
-#         print(f"\nURL: {item['url']}")
-#         if "error" in item:
-#             print(f"Error: {item['error']}")
-#         else:
-#             print(f"Green Score: {item['green_score']:.4f}")
-#             print(f"Cup Detections: {item['cup_detections']}")
+        total_score = float(np.mean(scores)) if scores else 0.0
+
+        return {
+            "total_score": total_score,
+            "verified": total_score >= self.green_threshold
+        }
+

@@ -3,6 +3,7 @@
 import os
 
 import cv2
+from matplotlib import transforms
 import numpy as np
 import torch
 from model_loader import default_models, load_model
@@ -74,7 +75,9 @@ def run(img_sources, model_type="dpt_swin2_large_384", optimize=False, height=No
     print("Device: %s" % device)
 
     model = torch.hub.load("isl-org/MiDaS", model_type)
-    transform = torch.hub.load("isl-org/MiDaS", "transforms")
+    transforms = torch.hub.load("isl-org/MiDaS", "transforms")
+    transform = transforms.depth_transform
+
     
     model.to(device)
     # get input

@@ -97,31 +97,15 @@ class CupDetectorScorer:
                     else str(cls_id)
                 )
 
-                # Lấy tọa độ xyxy (pixel)
-                xyxy = box.xyxy.cpu().numpy()[0] # [x1, y1, x2, y2]
-                x1, y1, x2, y2 = xyxy
-
-                # Tính tâm (centroid)
-                center_x = (x1 + x2) / 2
-                center_y = (y1 + y2) / 2
-
-                # --- NORMALIZE POINTS (Yêu cầu quan trọng) ---
-                # Giá trị từ 0.0 đến 1.0
-                norm_x = center_x / W
-                norm_y = center_y / H
-                
-                # Normalize bounding box (nếu cần dùng xywh normalized)
-                norm_w = (x2 - x1) / W
-                norm_h = (y2 - y1) / H
+                material = class_name.lower()
 
                 detection_info = {
-                    "label": class_name,
-                    "confidence": conf,
-                    "bbox_pixel": [float(x1), float(y1), float(x2), float(y2)],
-                    "centroid_pixel": [float(center_x), float(center_y)],
-                    "normalized_point": [float(norm_x), float(norm_y)], # ĐÂY LÀ ĐIỂM BẠN CẦN
-                    "normalized_bbox": [float(norm_x), float(norm_y), float(norm_w), float(norm_h)] # xywh format
-                }
-                detections.append(detection_info)
+            "label": class_name,
+            "material": material,
+            "confidence": conf,
+        }
+
+        detections.append(detection_info)
 
         return detections
+    

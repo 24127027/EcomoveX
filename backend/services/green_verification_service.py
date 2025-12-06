@@ -116,3 +116,24 @@ class GreenVerificationService:
 
         summary = orchestrator.get_summary_stats(raw_results)
         return GreenVerificationResponse(results=processed_results, summary=summary)
+    
+    '''
+    DATA FLOW
+    - Fetch place using place_id
+    - Get associated image URLs
+    - For each image URL:
+        - Run segmentation model to get green mask
+        - Run depth model to get depth map
+        - Calculate green coverage metrics
+        - Run cup detection model to find cups
+    - Return results with green scores and add status
+    '''
+    
+    
+    '''
+    Input: place_id
+    Output: {
+        score,
+        verified: bool
+        }
+    '''
