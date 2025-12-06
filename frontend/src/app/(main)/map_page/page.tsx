@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Navigation,
   Check,
+  BookmarkPlus,
 } from "lucide-react";
 import {
   api,
@@ -17,6 +18,7 @@ import {
   PlaceDetails,
   Position,
   PlaceSearchResult,
+  SavedDestination,
 } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
@@ -147,6 +149,12 @@ function MapContent() {
   });
   const [enableTransition, setEnableTransition] = useState(true);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
+  const [savedPlaceIds, setSavedPlaceIds] = useState<string[]>([]);
+  const [saveFeedback, setSaveFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
@@ -167,6 +175,31 @@ function MapContent() {
       setSearchQuery(urlQuery);
     }
   }, [urlQuery]);
+
+  useEffect(() => {
+    setSaveFeedback(null);
+  }, [selectedLocation?.place_id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSavedDestinations = async () => {
+      try {
+        const savedList: SavedDestination[] = await api.getSavedDestinations();
+        if (!isMounted) return;
+        const ids = savedList.map((destination) => destination.destination_id);
+        setSavedPlaceIds(ids);
+      } catch (error) {
+        console.error("Failed to load saved destinations:", error);
+      }
+    };
+
+    loadSavedDestinations();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -390,6 +423,12 @@ function MapContent() {
       ? locations
       : [];
 
+  const isPlaceSaved = (placeId: string) => savedPlaceIds.includes(placeId);
+
+  const isCurrentLocationSaved = selectedLocation
+    ? isPlaceSaved(selectedLocation.place_id)
+    : false;
+
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
 
@@ -516,6 +555,40 @@ function MapContent() {
       );
 
       router.back();
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    if (!selectedLocation || isSavingLocation) return;
+
+    const locationId = selectedLocation.place_id;
+    if (isPlaceSaved(locationId)) {
+      setSaveFeedback({
+        type: "success",
+        message: "Bạn đã lưu địa điểm này trước đó.",
+      });
+      return;
+    }
+
+    setIsSavingLocation(true);
+    setSaveFeedback(null);
+
+    try {
+      await api.saveDestination(locationId);
+      setSavedPlaceIds((prev) =>
+        prev.includes(locationId) ? prev : [...prev, locationId]
+      );
+      setSaveFeedback({
+        type: "success",
+        message: "Đã lưu địa điểm vào danh sách yêu thích!",
+      });
+    } catch (error: any) {
+      console.error("Failed to save location:", error);
+      const message =
+        error?.message || "Không thể lưu địa điểm. Vui lòng thử lại sau.";
+      setSaveFeedback({ type: "error", message });
+    } finally {
+      setIsSavingLocation(false);
     }
   };
 
@@ -769,25 +842,66 @@ function MapContent() {
                             ★ {selectedLocation.rating.toFixed(1)}
                           </span>
                         )}
+                      {isCurrentLocationSaved && (
+                        <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded-full font-semibold">
+                          Saved
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {isPickerMode ? (
+                <div className="flex flex-col sm:flex-row gap-2">
                   <button
-                    onClick={handlePickLocation}
-                    className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
+                    onClick={handleSaveLocation}
+                    disabled={isSavingLocation || isCurrentLocationSaved}
+                    className={`w-full border-2 border-[#53B552] rounded-full font-bold py-3 shadow-md transition-all flex items-center justify-center gap-2 text-base active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isCurrentLocationSaved
+                        ? "bg-[#53B552] text-white"
+                        : "text-[#53B552] bg-white"
+                    }`}
                   >
-                    <Check size={20} strokeWidth={3} />
-                    <span>Select This Location</span>
+                    <BookmarkPlus
+                      size={18}
+                      className={
+                        isCurrentLocationSaved ? "text-white" : "text-[#53B552]"
+                      }
+                    />
+                    {isSavingLocation
+                      ? "Saving..."
+                      : isCurrentLocationSaved
+                      ? "Saved"
+                      : "Save Location"}
                   </button>
-                ) : (
-                  <button
-                    onClick={handleNavigateToDetail}
-                    className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
+
+                  {isPickerMode ? (
+                    <button
+                      onClick={handlePickLocation}
+                      className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      <Check size={20} strokeWidth={3} />
+                      <span>Select This Location</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleNavigateToDetail}
+                      className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
+                    >
+                      View Details
+                    </button>
+                  )}
+                </div>
+
+                {saveFeedback && (
+                  <p
+                    className={`text-sm mt-2 font-semibold ${
+                      saveFeedback.type === "success"
+                        ? "text-green-700"
+                        : "text-red-500"
+                    }`}
                   >
-                    View Details
-                  </button>
+                    {saveFeedback.message}
+                  </p>
                 )}
               </div>
             ) : (
@@ -871,6 +985,11 @@ function MapContent() {
                           loading="lazy"
                           decoding="async"
                         />
+                        {isPlaceSaved(location.place_id) && (
+                          <span className="absolute top-2 right-2 bg-[#53B552] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                            Saved
+                          </span>
+                        )}
                       </div>
                       <div className="p-3">
                         <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">

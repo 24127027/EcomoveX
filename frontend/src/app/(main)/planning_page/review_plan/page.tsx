@@ -38,6 +38,7 @@ import {
   Plus,
   BrainCircuit,
   MessageSquare,
+  AlertCircle,
   X,
   Trash2,
   Send,
@@ -229,69 +230,161 @@ function TimeSlotContainer({
 // ==========================================
 // 3. CHATBOT COMPONENT
 // ==========================================
+const DEFAULT_AI_WELCOME =
+  "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?";
+
+const getAiRoomName = (userId: number) => `AI Assistant 🤖 (${userId})`;
+const getAiRoomStorageKey = (userId: number) => `ai_assistant_room_${userId}`;
+
 function ChatWindow({
   onClose,
   planId,
+  userId: externalUserId,
 }: {
   onClose: () => void;
   planId: number | null;
+  userId?: number | null;
 }) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
   >([
     {
       role: "bot",
-      text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+      text: DEFAULT_AI_WELCOME,
     },
-  ]); // ✅ Default welcome message
+  ]);
   const [input, setInput] = useState("");
   const [roomId, setRoomId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<number | null>(externalUserId ?? null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRoomLoading, setIsRoomLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [roomError, setRoomError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 1. Fetch Room ID
   useEffect(() => {
-    const fetchRoom = async () => {
-      try {
-        if (planId) {
-          // Existing plan - get room from backend
-          const res = await api.getPlanChatRoom(planId);
-          setRoomId(res.room_id);
-        } else {
-          // New plan - DON'T create temporary room, just set null
-          // Chat feature will be disabled until plan is saved
-          setRoomId(null);
-          console.log("📝 New plan - chat disabled until saved");
+    if (typeof externalUserId === "number" && externalUserId !== userId) {
+      setUserId(externalUserId);
+    }
+  }, [externalUserId, userId]);
+
+  useEffect(() => {
+    if (userId || typeof externalUserId === "number") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveUser = async () => {
+      let resolvedId: number | null = null;
+
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("user_info");
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            resolvedId = parsed?.id ?? null;
+          } catch (error) {
+            console.warn("Failed to parse user_info from storage", error);
+          }
         }
-      } catch (error: any) {
-        console.warn(
-          "⚠️ Failed to get plan chat room (plan may not have room yet):",
-          error?.message
-        );
-        // ✅ Set null and show default message - no chat history fetch
-        setRoomId(null);
-        setMessages([
-          {
-            role: "bot",
-            text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
-          },
-        ]);
+      }
+
+      if (!resolvedId) {
+        try {
+          const profile = await api.getUserProfile();
+          if (cancelled) return;
+          resolvedId = profile.id;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("user_info", JSON.stringify(profile));
+          }
+        } catch (error) {
+          if (cancelled) return;
+          console.error("Failed to resolve user profile", error);
+          setRoomError(
+            "Unable to identify your profile. Please log in again to use the assistant."
+          );
+          return;
+        }
+      }
+
+      if (!cancelled && resolvedId) {
+        setUserId(resolvedId);
       }
     };
-    fetchRoom();
-  }, [planId]);
 
-  // 2. Fetch History
+    resolveUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [externalUserId, userId]);
+
+  const ensureChatbotRoom = useCallback(async (resolvedUserId: number) => {
+    setRoomError(null);
+    setIsRoomLoading(true);
+    try {
+      let cachedRoomId: number | null = null;
+      const storageKey = getAiRoomStorageKey(resolvedUserId);
+
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          cachedRoomId = Number(stored);
+        }
+      }
+
+      if (cachedRoomId) {
+        setRoomId(cachedRoomId);
+        setIsRoomLoading(false);
+        return;
+      }
+
+      const preferredName = getAiRoomName(resolvedUserId);
+      const rooms = await api.getAllRooms();
+      const existing = rooms.find((room) => room.name === preferredName);
+
+      if (existing) {
+        setRoomId(existing.id);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, String(existing.id));
+        }
+        setIsRoomLoading(false);
+        return;
+      }
+
+      const createdRoom = await api.createGroupRoom(preferredName, []);
+      setRoomId(createdRoom.id);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(storageKey, String(createdRoom.id));
+      }
+    } catch (error) {
+      console.error("Failed to initialize chatbot room", error);
+      setRoomError(
+        "Unable to prepare the AI assistant right now. Please try again in a moment."
+      );
+    } finally {
+      setIsRoomLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!roomId || !planId) return; // ✅ Only fetch history for saved plans with valid room
+    if (!userId) return;
+    ensureChatbotRoom(userId);
+  }, [ensureChatbotRoom, userId]);
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    let cancelled = false;
     const fetchHistory = async () => {
+      setIsHistoryLoading(true);
       try {
         const history = await api.getChatHistory(roomId);
-        // Assuming sender_id === 0 is bot (SYSTEM_BOT_ID)
+        if (cancelled) return;
         const formatted = history
           .sort(
             (a, b) =>
@@ -306,70 +399,56 @@ function ChatWindow({
           setMessages([
             {
               role: "bot",
-              text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+              text: DEFAULT_AI_WELCOME,
             },
           ]);
         } else {
           setMessages(formatted);
         }
-      } catch (error: any) {
-        console.warn(
-          "⚠️ Failed to fetch chat history (user may not be room member):",
-          error?.message
-        );
-        // ✅ Set default welcome message on error
-        setMessages([
-          {
-            role: "bot",
-            text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
-          },
-        ]);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("⚠️ Failed to fetch chat history:", error);
+          setMessages([
+            {
+              role: "bot",
+              text: DEFAULT_AI_WELCOME,
+            },
+          ]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHistoryLoading(false);
+        }
       }
     };
+
     fetchHistory();
-  }, [roomId, planId]); // ✅ Add planId dependency
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
 
   const handleSend = async () => {
-    if (!input.trim() || !roomId || !planId || isLoading) return; // ✅ Require saved plan
+    if (!input.trim() || !roomId || !userId || isLoading) return;
     const userMsg = input;
-    setInput(""); // Clear input first
+    setInput("");
     setIsLoading(true);
     setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
 
     try {
-      let userId = 0;
-      const storedUser = localStorage.getItem("user_info");
-      if (storedUser) {
-        try {
-          userId = JSON.parse(storedUser).id;
-        } catch (e) {
-          console.error("Error parsing user_info", e);
-        }
-      }
-
-      if (!userId) {
-        try {
-          const profile = await api.getUserProfile();
-          userId = profile.id;
-          localStorage.setItem("user_info", JSON.stringify(profile));
-        } catch (e) {
-          console.error("Failed to fetch user profile", e);
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "bot",
-              text: "Error: Could not identify user. Please log in again.",
-            },
-          ]);
-          setIsLoading(false);
-          return;
-        }
-      }
-
       const res = await api.sendBotMessage(userId, roomId, userMsg);
+      const botText = res?.message || res?.detail;
 
-      if (res.ok && res.message) {
-        setMessages((prev) => [...prev, { role: "bot", text: res.message }]);
+      if (botText) {
+        setMessages((prev) => [...prev, { role: "bot", text: botText }]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "bot",
+            text: "I couldn't get a response from the assistant. Please try again shortly.",
+          },
+        ]);
       }
     } catch (error: any) {
       console.error("Failed to send message:", error);
@@ -383,6 +462,14 @@ function ChatWindow({
       setIsLoading(false);
     }
   };
+
+  const inputDisabled =
+    !roomId || !userId || isLoading || isRoomLoading || !!roomError;
+  const placeholder = !roomId
+    ? "Connecting to your AI assistant..."
+    : planId
+    ? "Ask me to change schedule..."
+    : "Ask anything about your trip—even before saving";
 
   return (
     <div className="h-full flex flex-col bg-white border-t border-gray-200 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
@@ -398,7 +485,28 @@ function ChatWindow({
         </button>
       </div>
 
+      {!planId && (
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <AlertCircle size={16} className="mt-0.5" />
+          <span>
+            Save your plan whenever you want me to apply changes automatically.
+            I can still brainstorm ideas with you right now.
+          </span>
+        </div>
+      )}
+
+      {roomError && (
+        <div className="mx-4 mt-3 rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
+          {roomError}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F5F7F5]">
+        {(isHistoryLoading || isRoomLoading) && (
+          <div className="text-xs text-gray-500 italic">
+            Getting things ready...
+          </div>
+        )}
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -438,17 +546,13 @@ function ChatWindow({
               handleSend();
             }
           }}
-          placeholder={
-            planId
-              ? "Ask me to change schedule..."
-              : "Save your plan first to use AI assistant"
-          }
-          disabled={!planId}
+          placeholder={placeholder}
+          disabled={inputDisabled}
           className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
-          disabled={!planId}
+          disabled={inputDisabled}
           className="bg-[#53B552] text-white p-2 rounded-full hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send size={18} />
@@ -467,6 +571,7 @@ function ReviewPlanContent() {
 
   // Store planId in state to persist across renders
   const [planId, setPlanId] = useState<string | null>(null);
+  const [planIdResolved, setPlanIdResolved] = useState(false);
 
   useEffect(() => {
     // Try to get from URL first
@@ -494,7 +599,11 @@ function ReviewPlanContent() {
       setPlanId(null);
       sessionStorage.removeItem("EDITING_PLAN_ID");
     }
-  }, [searchParams, planId]);
+
+    if (!planIdResolved) {
+      setPlanIdResolved(true);
+    }
+  }, [searchParams, planId, planIdResolved]);
 
   const toLocalISOString = (dateInput: string | Date) => {
     const date = new Date(dateInput);
@@ -600,6 +709,7 @@ function ReviewPlanContent() {
   const aiGenerationAttemptedRef = useRef(false); // Track if AI generation was attempted
   const aiResultsSetRef = useRef(false); // ✅ Track if AI results were just set (prevent overwrite)
   const initialLoadDoneRef = useRef(false); // ✅ Track if initial data load completed
+  const lastLoadedPlanIdRef = useRef<string | null>(null);
 
   const [planInfo, setPlanInfo] = useState({
     name: "My Awesome Trip",
@@ -607,6 +717,25 @@ function ReviewPlanContent() {
     end_date: new Date().toISOString(),
     budget: 0,
   });
+
+  useEffect(() => {
+    if (!planIdResolved) {
+      return;
+    }
+
+    if (lastLoadedPlanIdRef.current === planId) {
+      return;
+    }
+
+    lastLoadedPlanIdRef.current = planId;
+    initialLoadDoneRef.current = false;
+    aiGenerationAttemptedRef.current = false;
+    aiResultsSetRef.current = false;
+    setAiGenerationDone(false);
+    setIsAIGenerating(false);
+    setAiError(null);
+    console.log("♻️ Plan context reset", { planId });
+  }, [planId, planIdResolved]);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
 
   // Member Management State
@@ -641,12 +770,12 @@ function ReviewPlanContent() {
 
   // Clear AI generation flags on mount (run once)
   useEffect(() => {
-    console.log("🧹 Clearing AI generation flags on mount");
+    console.log("🧹 Clearing AI generation flags on mount/plan change");
     sessionStorage.removeItem("ai_generated_temp_plan");
     if (planId) {
       sessionStorage.removeItem(`ai_generated_plan_${planId}`);
     }
-  }, []); // ✅ Empty deps - run once on mount
+  }, [planId]);
 
   // Check ownership when user or plan owner changes
   useEffect(() => {
@@ -683,6 +812,11 @@ function ReviewPlanContent() {
 
   // --- INIT DATA ---
   useEffect(() => {
+    if (!planIdResolved) {
+      console.log("⏳ Waiting for planId resolution before loading data");
+      return;
+    }
+
     console.log("🔄 INIT DATA useEffect triggered", {
       planId,
       initialLoadDone: initialLoadDoneRef.current,
@@ -697,6 +831,13 @@ function ReviewPlanContent() {
     const loadPlanDetail = async (id: string) => {
       try {
         setIsAiProcessing(true);
+
+        // ✅ IMPORTANT: Clear sessionStorage when loading existing plan
+        // This prevents mixing data from previous plans
+        sessionStorage.removeItem(STORAGE_KEY_RAW);
+        sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
+        sessionStorage.removeItem("selected_add_slot");
+        console.log("🧹 Cleared sessionStorage for fresh plan load");
 
         // 1. Gọi API lấy danh sách
         const allPlans = await api.getPlans();
@@ -730,6 +871,8 @@ function ReviewPlanContent() {
           let apiActivities = currentPlan.activities;
 
           // 2. CHECK SESSION: Gộp địa điểm mới thêm (nếu có)
+          // ✅ NOTE: sessionStorage was cleared above, so this only applies
+          // when user adds new destinations AFTER the plan is loaded
           const rawData = sessionStorage.getItem(STORAGE_KEY_RAW);
           if (rawData) {
             try {
@@ -905,6 +1048,8 @@ function ReviewPlanContent() {
         console.error("Error loading plan:", error);
       } finally {
         setIsAiProcessing(false);
+        initialLoadDoneRef.current = true;
+        console.log("✅ Existing plan data load completed");
       }
     };
 
@@ -942,7 +1087,7 @@ function ReviewPlanContent() {
       initialLoadDoneRef.current = true;
       console.log("✅ Initial load completed");
     }
-  }, [planId]);
+  }, [planId, planIdResolved]);
 
   const runAiSimulation = () => {
     setIsAiProcessing(true);
@@ -1452,7 +1597,7 @@ function ReviewPlanContent() {
     } finally {
       setIsAIGenerating(false);
     }
-  }, []); // Empty deps - function will use latest activities via closure
+  }, [planInfo, planId, aiGenerationDone, isAIGenerating]);
 
   // Auto-trigger AI plan generation on initial load
   useEffect(() => {
@@ -1467,6 +1612,7 @@ function ReviewPlanContent() {
     // Only run if we have activities and haven't generated yet
     if (
       activities.length >= 2 &&
+      !planId &&
       !aiGenerationDone &&
       !isAIGenerating &&
       !isAiProcessing // Don't run during fake AI animation
@@ -1486,16 +1632,17 @@ function ReviewPlanContent() {
         aiGenerationDone,
         isAIGenerating,
         isAiProcessing,
-        reason:
-          activities.length < 2
-            ? "Not enough activities"
-            : aiGenerationDone
-            ? "Already generated"
-            : isAIGenerating
-            ? "Currently generating"
-            : isAiProcessing
-            ? "AI animation in progress"
-            : "Unknown",
+        reason: planId
+          ? "Editing existing plan"
+          : activities.length < 2
+          ? "Not enough activities"
+          : aiGenerationDone
+          ? "Already generated"
+          : isAIGenerating
+          ? "Currently generating"
+          : isAiProcessing
+          ? "AI animation in progress"
+          : "Unknown",
       });
     }
   }, [
@@ -2043,6 +2190,7 @@ function ReviewPlanContent() {
             <ChatWindow
               onClose={handleToggleChat}
               planId={planId ? Number(planId) : null}
+              userId={currentUser?.id ?? null}
             />
           </div>
         )}

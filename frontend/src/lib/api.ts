@@ -25,6 +25,7 @@ interface AuthResponse {
   user_id: number;
   username: string;
   email: string;
+  role?: "Admin" | "User" | string;
 }
 
 interface ValidationError {
