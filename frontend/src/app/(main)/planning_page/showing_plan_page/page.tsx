@@ -482,7 +482,7 @@ function PlanningContent() {
               </span>
             </Link>
             <Link
-              href="/track_page/leaderboard"
+              href="/track_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
               <Route size={24} strokeWidth={2} />
