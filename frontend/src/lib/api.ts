@@ -208,6 +208,22 @@ export interface RouteForPlanResponse {
   route_type: string;
 }
 
+// Route Response from backend /plans/{plan_id}/routes
+export interface RouteResponse {
+  plan_id: number;
+  origin_plan_destination_id: number;
+  destination_plan_destination_id: number;
+  distance_km: number;
+  carbon_emission_kg: number;
+}
+
+// Basic plan info for track page
+export interface PlanBasicInfo {
+  id: number;
+  place_name: string;
+  budget_limit: number | null;
+}
+
 // Backend Plan Destination Type (matches PlanDestinationResponse from backend)
 export interface PlanDestinationResponse {
   id: number;
@@ -1132,6 +1148,27 @@ class ApiClient {
         destinations,
         transport_mode: transportMode,
       }),
+    });
+  }
+
+  // Get all plans (basic info only for track page)
+  async getAllPlansBasic(): Promise<{ plans: PlanBasicInfo[] }> {
+    return this.request<{ plans: PlanBasicInfo[] }>("/plans/", {
+      method: "GET",
+    });
+  }
+
+  // Get routes for a specific plan
+  async getPlanRoutes(planId: number): Promise<RouteResponse[]> {
+    return this.request<RouteResponse[]>(`/plans/${planId}/routes`, {
+      method: "GET",
+    });
+  }
+
+  // Get plan details with destinations
+  async getPlanDetails(planId: number): Promise<Plan> {
+    return this.request<Plan>(`/plans/${planId}`, {
+      method: "GET",
     });
   }
 

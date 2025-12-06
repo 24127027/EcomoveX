@@ -1,26 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Home, MapPin, User, Bot, Route, ChevronDown, Check, X, ArrowLeft, Leaf, Trophy, Sparkles, Medal, Crown } from 'lucide-react';
+import { Home, MapPin, User, Bot, Route, ChevronDown, Check, X, ArrowLeft, Leaf, Trophy } from 'lucide-react';
+import { api, PlanBasicInfo, RouteResponse, Plan, PlanDestinationResponse } from '@/lib/api';
 
 // Types
-interface Plan {
-  id: number;
-  place_name: string;
-  budget_limit: number;
-}
-
-interface RouteData {
-  user_id: number;
+interface ExtendedRouteData {
   plan_id: number;
-  origin_id: number;
-  destination_id: number;
+  origin_plan_destination_id: number;
+  destination_plan_destination_id: number;
   distance_km: number;
   carbon_emission_kg: number;
-  origin_name: string;
-  destination_name: string;
-  visit_date: string;
-  time_slot: string;
+  origin_name?: string;
+  destination_name?: string;
+  visit_date?: string;
+  time_slot?: string;
 }
 
 interface TransportOption {
@@ -30,92 +24,8 @@ interface TransportOption {
   icon: string;
 }
 
-// Mock API responses
-const mockPlans = {
-  plans: [
-    { id: 1, place_name: "Ho Chi Minh City Tour", budget_limit: 500 },
-    { id: 2, place_name: "Mekong Delta Adventure", budget_limit: 300 },
-    { id: 3, place_name: "Cu Chi Tunnels Visit", budget_limit: 150 }
-  ]
-};
-
-const mockRoutes = [
-  {
-    user_id: 1,
-    plan_id: 1,
-    origin_id: 1,
-    destination_id: 2,
-    distance_km: 5.2,
-    carbon_emission_kg: 1.8,
-    origin_name: "Ben Thanh Market",
-    destination_name: "Notre-Dame Cathedral",
-    visit_date: "2024-12-15",
-    time_slot: "morning"
-  },
-  {
-    user_id: 1,
-    plan_id: 1,
-    origin_id: 2,
-    destination_id: 3,
-    distance_km: 3.8,
-    carbon_emission_kg: 1.3,
-    origin_name: "Notre-Dame Cathedral",
-    destination_name: "War Remnants Museum",
-    visit_date: "2024-12-15",
-    time_slot: "morning"
-  },
-  {
-    user_id: 1,
-    plan_id: 1,
-    origin_id: 3,
-    destination_id: 4,
-    distance_km: 2.5,
-    carbon_emission_kg: 0.9,
-    origin_name: "War Remnants Museum",
-    destination_name: "Independence Palace",
-    visit_date: "2024-12-15",
-    time_slot: "afternoon"
-  },
-  {
-    user_id: 1,
-    plan_id: 1,
-    origin_id: 4,
-    destination_id: 5,
-    distance_km: 4.1,
-    carbon_emission_kg: 1.4,
-    origin_name: "Independence Palace",
-    destination_name: "Bitexco Tower",
-    visit_date: "2024-12-15",
-    time_slot: "afternoon"
-  },
-  {
-    user_id: 1,
-    plan_id: 1,
-    origin_id: 5,
-    destination_id: 6,
-    distance_km: 6.3,
-    carbon_emission_kg: 2.2,
-    origin_name: "Bitexco Tower",
-    destination_name: "Saigon Opera House",
-    visit_date: "2024-12-15",
-    time_slot: "evening"
-  },
-  {
-    user_id: 1,
-    plan_id: 1,
-    origin_id: 6,
-    destination_id: 7,
-    distance_km: 3.2,
-    carbon_emission_kg: 1.1,
-    origin_name: "Saigon Opera House",
-    destination_name: "Bui Vien Street",
-    visit_date: "2024-12-16",
-    time_slot: "morning"
-  }
-];
-
 const transportOptions = [
-  { id: 'walk', name: 'Walk', carbon: 0, icon: '🚶' },
+  { id: 'walking', name: 'Walk', carbon: 0, icon: '🚶' },
   { id: 'bike', name: 'Bike', carbon: 0, icon: '🚲' },
   { id: 'motorbike', name: 'Motorbike', carbon: 0.8, icon: '🛵' },
   { id: 'bus', name: 'Bus', carbon: 0.5, icon: '🚌' },
@@ -125,22 +35,37 @@ const transportOptions = [
 const timeSlots = ['morning', 'afternoon', 'evening'];
 
 export default function RouteTracker() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [plans, setPlans] = useState<PlanBasicInfo[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<PlanBasicInfo | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [routes, setRoutes] = useState<RouteData[]>([]);
+  const [routes, setRoutes] = useState<ExtendedRouteData[]>([]);
   const [currentRouteIndex, setCurrentRouteIndex] = useState(0);
   const [totalCarbon, setTotalCarbon] = useState(0);
   const [showTransportOptions, setShowTransportOptions] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('2024-12-15');
+  const [selectedDate, setSelectedDate] = useState('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('morning');
-  const [availableDates, setAvailableDates] = useState(['2024-12-15', '2024-12-16', '2024-12-17']);
-  const [filteredRoutes, setFilteredRoutes] = useState<RouteData[]>([]);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [filteredRoutes, setFilteredRoutes] = useState<ExtendedRouteData[]>([]);
   const [co2Saved, setCo2Saved] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch plans on mount
   useEffect(() => {
-    setPlans(mockPlans.plans);
+    const fetchPlans = async () => {
+      try {
+        setLoading(true);
+        const response = await api.getAllPlansBasic();
+        setPlans(response.plans);
+      } catch (err) {
+        console.error('Error fetching plans:', err);
+        setError('Failed to load plans');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlans();
     
     // Get CO2 from URL parameter or use mock data
     const params = new URLSearchParams(window.location.search);
@@ -151,38 +76,102 @@ export default function RouteTracker() {
         setCo2Saved(savedValue);
       }
     } else {
-      // Mock number for demonstration
       setCo2Saved(12.5);
     }
   }, []);
 
+  // Fetch routes and plan details when a plan is selected
   useEffect(() => {
     if (selectedPlan) {
-      const planRoutes = mockRoutes.filter(r => r.plan_id === selectedPlan.id);
-      setRoutes(planRoutes);
+      const fetchPlanData = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          
+          // Fetch plan details and routes in parallel
+          const [planDetails, planRoutes] = await Promise.all([
+            api.getPlanDetails(selectedPlan.id),
+            api.getPlanRoutes(selectedPlan.id)
+          ]);
+
+          // Create a map of plan destination id to destination info
+          const destMap = new Map<number, PlanDestinationResponse>();
+          planDetails.destinations.forEach(dest => {
+            destMap.set(dest.id, dest);
+          });
+
+          // Enrich routes with destination info
+          const enrichedRoutes: ExtendedRouteData[] = planRoutes.map(route => {
+            const originDest = destMap.get(route.origin_plan_destination_id);
+            const destDest = destMap.get(route.destination_plan_destination_id);
+            
+            // Use destination's visit date and time slot (the place you're going TO)
+            return {
+              ...route,
+              origin_name: originDest ? `Destination ${originDest.order_in_day}` : `ID ${route.origin_plan_destination_id}`,
+              destination_name: destDest ? `Destination ${destDest.order_in_day}` : `ID ${route.destination_plan_destination_id}`,
+              visit_date: destDest?.visit_date || originDest?.visit_date,
+              time_slot: destDest?.time_slot || originDest?.time_slot
+            };
+          });
+
+          console.log('Plan Details:', planDetails);
+          console.log('Plan Routes:', planRoutes);
+          console.log('Enriched Routes:', enrichedRoutes);
+
+          setRoutes(enrichedRoutes);
+
+          // Extract unique dates and sort them
+          const dates = Array.from(new Set(
+            enrichedRoutes
+              .map(r => r.visit_date)
+              .filter((d): d is string => !!d)
+          )).sort();
+          
+          console.log('Available Dates:', dates);
+          
+          setAvailableDates(dates);
+          if (dates.length > 0) {
+            setSelectedDate(dates[0]);
+            setSelectedTimeSlot('morning');
+          } else {
+            console.warn('No dates found in routes');
+          }
+        } catch (err) {
+          console.error('Error fetching plan data:', err);
+          setError('Failed to load plan routes');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchPlanData();
     }
   }, [selectedPlan]);
 
+  // Filter routes by date and time slot
   useEffect(() => {
-    if (routes.length > 0) {
-      const filtered = routes.filter(r => 
-        r.visit_date === selectedDate && r.time_slot === selectedTimeSlot
-      );
+    if (routes.length > 0 && selectedDate && selectedTimeSlot) {
+      const filtered = routes.filter(r => {
+        const dateMatch = r.visit_date === selectedDate;
+        const timeMatch = r.time_slot === selectedTimeSlot;
+        return dateMatch && timeMatch;
+      });
       setFilteredRoutes(filtered);
       setCurrentRouteIndex(0);
+    } else {
+      setFilteredRoutes([]);
     }
   }, [routes, selectedDate, selectedTimeSlot]);
 
   const currentRoute = filteredRoutes[currentRouteIndex];
 
-  const handlePlanSelect = (plan: Plan) => {
+  const handlePlanSelect = (plan: PlanBasicInfo) => {
     setSelectedPlan(plan);
     setShowDropdown(false);
     setTotalCarbon(0);
     setCurrentRouteIndex(0);
-    setSelectedDate('2024-12-15');
     setSelectedTimeSlot('morning');
-    setIsCompleted(false);
   };
 
   const handleFollowingRoute = (isFollowing: boolean) => {
@@ -235,9 +224,10 @@ export default function RouteTracker() {
     }
 
     // No more routes - Plan completed! Show summary
+    setCo2Saved(prevSaved => prevSaved + totalCarbon);
     setSelectedPlan(null);
     setCurrentRouteIndex(0);
-    setSelectedDate('2024-12-15');
+    setSelectedDate('');
     setSelectedTimeSlot('morning');
   };
 
@@ -366,34 +356,53 @@ export default function RouteTracker() {
             </>
           ) : (
             <>
-              {/* Date & Time Selection */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <select
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-3 py-2.5 text-green-600 border-2 border-green-500 rounded-lg bg-white font-medium text-sm"
-                >
-                  {availableDates.map((date) => (
-                    <option key={date} value={date}>
-                      {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </option>
-                  ))}
-                </select>
+              {/* Loading/Error States */}
+              {loading && (
+                <div className="text-center py-8">
+                  <div className="text-green-600 mb-2">Loading plan data...</div>
+                </div>
+              )}
+              
+              {error && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
+                  <div className="text-red-600 font-medium">{error}</div>
+                </div>
+              )}
 
-                <select
-                  value={selectedTimeSlot}
-                  onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                  className="px-3 py-2.5 text-green-600 border-2 border-green-500 rounded-lg bg-white font-medium text-sm"
-                >
-                  <option value="">All times</option>
-                  <option value="morning">Morning</option>
-                  <option value="afternoon">Afternoon</option>
-                  <option value="evening">Evening</option>
-                </select>
-              </div>
+              {!loading && !error && (
+                <>
+                  {/* Date & Time Selection */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <select
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="px-3 py-2.5 text-green-600 border-2 border-green-500 rounded-lg bg-white font-medium text-sm"
+                      disabled={availableDates.length === 0}
+                    >
+                      {availableDates.length === 0 ? (
+                        <option value="">No dates available</option>
+                      ) : (
+                        availableDates.map((date) => (
+                          <option key={date} value={date}>
+                            {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </option>
+                        ))
+                      )}
+                    </select>
 
-              {/* Current Route Display */}
-              {currentRoute ? (
+                    <select
+                      value={selectedTimeSlot}
+                      onChange={(e) => setSelectedTimeSlot(e.target.value)}
+                      className="px-3 py-2.5 text-green-600 border-2 border-green-500 rounded-lg bg-white font-medium text-sm"
+                    >
+                      <option value="morning">Morning</option>
+                      <option value="afternoon">Afternoon</option>
+                      <option value="evening">Evening</option>
+                    </select>
+                  </div>
+
+                  {/* Current Route Display */}
+                  {currentRoute ? (
                 <div className="space-y-4">
                   {/* Route Card */}
                   <div className="bg-green-50 border-2 border-green-200 rounded-xl p-5">
@@ -500,14 +509,16 @@ export default function RouteTracker() {
                 </div>
               )}
 
-              {/* Back to Overview Button */}
-              <button
-                onClick={handleBackToOverview}
-                className="w-full mt-6 flex items-center justify-center gap-2 bg-white border-2 border-green-500 text-green-600 font-semibold py-3 rounded-lg hover:bg-green-50 transition-colors"
-              >
-                <ArrowLeft size={20} />
-                Back to Overview
-              </button>
+                  {/* Back to Overview Button */}
+                  <button
+                    onClick={handleBackToOverview}
+                    className="w-full mt-6 flex items-center justify-center gap-2 bg-white border-2 border-green-500 text-green-600 font-semibold py-3 rounded-lg hover:bg-green-50 transition-colors"
+                  >
+                    <ArrowLeft size={20} />
+                    Back to Overview
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>

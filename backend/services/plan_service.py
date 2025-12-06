@@ -656,10 +656,9 @@ class PlanService:
 
             return RouteResponse(
                 plan_id=new_route.plan_id,
-                origin_place_id=new_route.origin_place_id,
-                destination_place_id=new_route.destination_place_id,
+                origin_plan_destination_id=new_route.origin_place_id,
+                destination_plan_destination_id=new_route.destination_place_id,
                 distance_km=new_route.distance_km,
-                mode=new_route.mode,
                 carbon_emission_kg=new_route.carbon_emission_kg,
             )
         except HTTPException:
@@ -689,10 +688,9 @@ class PlanService:
             return [
                 RouteResponse(
                     plan_id=route.plan_id,
-                    origin_place_id=route.origin_place_id,
-                    destination_place_id=route.destination_place_id,
+                    origin_plan_destination_id=route.origin_place_id,
+                    destination_plan_destination_id=route.destination_place_id,
                     distance_km=route.distance_km,
-                    mode=route.mode,
                     carbon_emission_kg=route.carbon_emission_kg,
                 )
                 for route in routes
@@ -734,10 +732,9 @@ class PlanService:
 
             return RouteResponse(
                 plan_id=route.plan_id,
-                origin_place_id=route.origin_place_id,
-                destination_place_id=route.destination_place_id,
+                origin_plan_destination_id=route.origin_place_id,
+                destination_plan_destination_id=route.destination_place_id,
                 distance_km=route.distance_km,
-                mode=route.mode,
                 carbon_emission_kg=route.carbon_emission_kg,
             )
         except HTTPException:
