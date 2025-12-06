@@ -618,7 +618,7 @@ export default function HomePage() {
               <span className="text-[10px] font-bold mt-1">Home</span>
             </Link>
             <Link
-              href="/track_page/leaderboard"
+              href="/track_page"
               className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
             >
               <Route size={24} strokeWidth={1.5} />
