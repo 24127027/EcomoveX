@@ -11,6 +11,82 @@ from services.room_service import RoomService
 
 class FriendService:
     @staticmethod
+    async def send_friend_request_by_username(
+        db: AsyncSession, user_id: int, username: str
+    ) -> FriendResponse:
+        """
+        Gửi lời mời kết bạn bằng username thay vì friend_id
+        
+        Args:
+            user_id: ID của người gửi lời mời
+            username: Username của người muốn kết bạn
+        
+        Returns:
+            FriendResponse
+        
+        Raises:
+            HTTPException 404: Không tìm thấy user với username này
+            HTTPException 400: Không thể kết bạn với chính mình hoặc đã là bạn
+        """
+        try:
+            # 1. Tìm user theo username (exact match)
+            users = await UserRepository.search_users(db, username, limit=10)
+            
+            # Tìm exact match với username
+            friend_user = None
+            for user in users:
+                if user.username.lower() == username.lower():
+                    friend_user = user
+                    break
+            
+            if not friend_user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with username '{username}' not found",
+                )
+            
+            # 2. Kiểm tra không gửi cho chính mình
+            if user_id == friend_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot send friend request to yourself",
+                )
+            
+            # 3. Kiểm tra đã là bạn chưa
+            existing = await FriendRepository.get_friendship(db, user_id, friend_user.id)
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Friendship with '{username}' already exists",
+                )
+            
+            # 4. Gửi friend request
+            friendship = await FriendRepository.send_friend_request(
+                db, user_id, friend_user.id
+            )
+            if not friendship:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to send friend request",
+                )
+            
+            return FriendResponse(
+                user_id=user_id,
+                friend_id=friend_user.id,
+                status=friendship.status,
+                created_at=friendship.created_at,
+            )
+        
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"ERROR: send_friend_request_by_username - {type(e).__name__}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error sending friend request by username: {str(e)}",
+            )
+
+    @staticmethod
     async def send_friend_request(
         db: AsyncSession, user_id: int, friend_id: int
     ) -> FriendResponse:

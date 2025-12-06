@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -130,8 +130,8 @@ const ReviewItem = ({
   </div>
 );
 
-// --- MAIN PAGE ---
-export default function PlaceDetailPage() {
+// --- CONTENT COMPONENT (Logic cũ chuyển vào đây) ---
+function PlaceDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const placeId = searchParams.get("place_id");
@@ -231,7 +231,6 @@ export default function PlaceDetailPage() {
     }
   };
 
-  // ... (Các hàm handleImageUpload, removeImage, submitReview GIỮ NGUYÊN) ...
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
@@ -624,5 +623,20 @@ export default function PlaceDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// --- MAIN PAGE WRAPPER ---
+export default function PlaceDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#53B552]"></div>
+        </div>
+      }
+    >
+      <PlaceDetailContent />
+    </Suspense>
   );
 }

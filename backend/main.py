@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 # Import database setup
 from database.db import engine
@@ -119,6 +121,26 @@ async def health_check():
 
 
 # Global exception handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    print(f"❌ Validation Error:")
+    print(f"   URL: {request.url}")
+    print(f"   Method: {request.method}")
+    print(f"   Errors: {errors}")
+    
+    # Try to get body
+    try:
+        body = await request.body()
+        print(f"   Body: {body.decode()}")
+    except:
+        pass
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors}
+    )
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     print(f"HTTPException: {exc.status_code} - {exc.detail}")

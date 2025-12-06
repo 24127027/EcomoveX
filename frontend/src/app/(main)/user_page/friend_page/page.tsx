@@ -20,6 +20,8 @@ import {
   Send,
   MessageCircle,
   Route, // Icon chat
+  ImagePlus,
+  Download,
 } from "lucide-react";
 import { Jost } from "next/font/google";
 import {
@@ -62,6 +64,7 @@ export default function FriendsPage() {
   const [inputMessage, setInputMessage] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null); // Để auto scroll
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- STATE CHO PLAN INVITATION ---
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -73,6 +76,13 @@ export default function FriendsPage() {
   const [joinedMessageIds, setJoinedMessageIds] = useState<Set<number>>(
     new Set()
   );
+  const [declinedMessageIds, setDeclinedMessageIds] = useState<Set<number>>(
+    new Set()
+  );
+  // Track invitation status: messageId -> "accepted" | "rejected" | "pending"
+  const [invitationStatuses, setInvitationStatuses] = useState<
+    Map<number, string>
+  >(new Map());
 
   // --- 1. FETCH DATA BAN ĐẦU ---
   const fetchData = async () => {
@@ -164,6 +174,24 @@ export default function FriendsPage() {
       const history = await api.getChatHistory(roomId);
       setMessages(history.reverse());
 
+      // BƯỚC 3: Load invitation statuses cho plan_invitation messages
+      const invitationMessages = history.filter(
+        (msg) => msg.message_type === "plan_invitation"
+      );
+
+      const statusMap = new Map<number, string>();
+      for (const msg of invitationMessages) {
+        try {
+          const statusData = await api.getInvitationStatus(msg.id);
+          if (statusData && statusData.status) {
+            statusMap.set(msg.id, statusData.status);
+          }
+        } catch (error) {
+          console.log(`Could not load status for invitation ${msg.id}`);
+        }
+      }
+      setInvitationStatuses(statusMap);
+
       connectWebSocket(roomId);
     } catch (error) {
       console.error("Failed to open chat:", error);
@@ -246,59 +274,33 @@ export default function FriendsPage() {
     try {
       setAddLoading(true);
 
-      // 1. Tìm user ID từ username
-      let targetUser;
-      try {
-        targetUser = await api.getUserByUsername(inputUsername.trim());
-      } catch (error) {
-        setFeedback({ text: "User not found", type: "error" });
-        setAddLoading(false);
-        return;
-      }
+      // Gửi trực tiếp bằng username (backend sẽ xử lý tất cả validation)
+      await api.sendFriendRequestByUsername(inputUsername.trim());
 
-      if (!targetUser) {
-        setFeedback({ text: "User not found", type: "error" });
-        setAddLoading(false);
-        return;
-      }
-
-      const idToSend = targetUser.id;
-
-      // 2. Kiểm tra các điều kiện
-      if (currentUserId && idToSend === currentUserId) {
-        setFeedback({ text: "You cannot add yourself", type: "error" });
-        setAddLoading(false);
-        return;
-      }
-
-      const isAlreadySent = sentRequests.some(
-        (req) => req.friend_id === idToSend
-      );
-      if (isAlreadySent) {
-        setFeedback({ text: "Request already sent!", type: "error" });
-        setAddLoading(false);
-        return;
-      }
-
-      const isAlreadyFriend = friends.some((f) => {
-        const displayId = currentUserId === f.user_id ? f.friend_id : f.user_id;
-        return displayId === idToSend;
+      setFeedback({
+        text: "Friend request sent successfully!",
+        type: "success",
       });
-
-      if (isAlreadyFriend) {
-        setFeedback({ text: "Already your friend", type: "error" });
-        setAddLoading(false);
-        return;
-      }
-
-      // 3. Gửi lời mời
-      await api.sendFriendRequest(idToSend);
-      setFeedback({ text: "Request sent successfully", type: "success" });
       setInputUsername("");
-      fetchData();
+      fetchData(); // Refresh data
     } catch (error: any) {
       console.error("Send request error:", error);
-      setFeedback({ text: "Failed to send request", type: "error" });
+
+      // Parse error message từ backend
+      const errorMessage = error.message || "Failed to send request";
+
+      if (errorMessage.includes("not found")) {
+        setFeedback({ text: "User not found", type: "error" });
+      } else if (errorMessage.includes("yourself")) {
+        setFeedback({ text: "Cannot send request to yourself", type: "error" });
+      } else if (errorMessage.includes("already exists")) {
+        setFeedback({
+          text: "Already friends or request pending",
+          type: "error",
+        });
+      } else {
+        setFeedback({ text: errorMessage, type: "error" });
+      }
     } finally {
       setAddLoading(false);
     }
@@ -350,13 +352,22 @@ export default function FriendsPage() {
   const handleOpenPlanModal = async () => {
     try {
       const plans = await api.getPlans();
-      // Filter valid plans (at least 2 destinations AND user is owner)
-      const validPlans = plans.filter(
-        (plan) =>
-          plan.activities &&
-          plan.activities.length >= 2 &&
-          plan.user_id === currentUserId
-      );
+
+      // Filter valid plans: user must be OWNER and plan must have at least 1 destination
+      const validPlans = plans.filter((plan) => {
+        // Check ownership first
+        const isOwner = plan.user_id === currentUserId;
+
+        if (!isOwner) return false;
+
+        // Check if plan has destinations (activities or destinations)
+        const hasDestinations =
+          (plan.activities && plan.activities.length > 0) ||
+          ((plan as any).destinations && (plan as any).destinations.length > 0);
+
+        return hasDestinations;
+      });
+
       setMyPlans(validPlans);
       setShowPlanModal(true);
     } catch (error) {
@@ -365,9 +376,9 @@ export default function FriendsPage() {
   };
 
   const handleSendInvitation = async () => {
-    if (!selectedPlanId || !activeRoomId) return;
+    if (!selectedPlanId || !activeRoomId || !currentUserId) return;
     try {
-      await api.sendPlanInvitation(activeRoomId, selectedPlanId);
+      await api.sendPlanInvitation(currentUserId, activeRoomId, selectedPlanId);
       setShowPlanModal(false);
       setSelectedPlanId(null);
       // Message will be received via websocket
@@ -380,9 +391,11 @@ export default function FriendsPage() {
   const handleJoinPlan = async (planId: number, messageId: number) => {
     setProcessingMessageId(messageId);
     try {
-      await api.joinPlan(planId);
+      // Accept invitation - backend will automatically add user to plan_members
+      await api.acceptInvitation(messageId);
       setFeedback({ text: "Joined plan successfully!", type: "success" });
       setJoinedMessageIds((prev) => new Set(prev).add(messageId));
+      setInvitationStatuses((prev) => new Map(prev).set(messageId, "accepted"));
     } catch (error) {
       console.error("Failed to join plan:", error);
       setFeedback({ text: "Failed to join plan", type: "error" });
@@ -395,12 +408,51 @@ export default function FriendsPage() {
     setProcessingMessageId(messageId);
     try {
       await api.declineInvitation(messageId);
-      // Message update will be received via websocket
+
+      // Update local state to show declined status
+      setDeclinedMessageIds((prev) => new Set(prev).add(messageId));
+      setInvitationStatuses((prev) => new Map(prev).set(messageId, "rejected"));
+
+      setFeedback({ text: "Invitation declined", type: "success" });
     } catch (error) {
       console.error("Failed to decline invitation:", error);
       setFeedback({ text: "Failed to decline invitation", type: "error" });
     } finally {
       setProcessingMessageId(null);
+    }
+  }; // Hàm xử lý gửi file (hình ảnh)
+  const handleSendFile = async (file: File) => {
+    if (!activeRoomId || !currentUserId) return;
+
+    try {
+      // Use API to upload file instead of WebSocket base64
+      await api.sendMessage(activeRoomId, undefined, file, undefined, "file");
+      // Message will be received via WebSocket broadcast
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("Failed to send file:", error);
+      setFeedback({ text: "Failed to send image", type: "error" });
+    }
+  };
+
+  const handleDownload = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `image-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      window.open(url, "_blank");
     }
   };
 
@@ -491,7 +543,7 @@ export default function FriendsPage() {
                 messages.map((msg, index) => {
                   const isMe = msg.sender_id === currentUserId;
 
-                  if (msg.message_type === "invitation") {
+                  if (msg.message_type === "plan_invitation") {
                     return (
                       <div
                         key={index}
@@ -518,18 +570,53 @@ export default function FriendsPage() {
                                 Invitation Declined
                               </span>
                             ) : (
-                              msg.content
+                              (() => {
+                                try {
+                                  const invitationData = JSON.parse(
+                                    msg.content || "{}"
+                                  );
+                                  return (
+                                    invitationData.message ||
+                                    "You've been invited to join a travel plan!"
+                                  );
+                                } catch {
+                                  return msg.content;
+                                }
+                              })()
                             )}
                           </p>
-                          {!isMe &&
-                            msg.plan_id &&
-                            msg.content !== "Invitation Declined" && (
-                              <>
-                                {joinedMessageIds.has(msg.id) ? (
-                                  <div className="text-center text-green-600 font-bold py-2 bg-green-50 rounded-lg border border-green-100">
-                                    Joined ✅
-                                  </div>
-                                ) : (
+
+                          {/* Show status for both sender and receiver */}
+                          {msg.plan_id &&
+                            (() => {
+                              const status = invitationStatuses.get(msg.id);
+
+                              // For receiver (not sender)
+                              if (!isMe) {
+                                if (
+                                  joinedMessageIds.has(msg.id) ||
+                                  status === "accepted"
+                                ) {
+                                  return (
+                                    <div className="text-center text-green-600 font-bold py-2 bg-green-50 rounded-lg border border-green-100">
+                                      Joined ✅
+                                    </div>
+                                  );
+                                }
+
+                                if (
+                                  declinedMessageIds.has(msg.id) ||
+                                  status === "rejected"
+                                ) {
+                                  return (
+                                    <div className="text-center text-red-600 font-bold py-2 bg-red-50 rounded-lg border border-red-100">
+                                      Declined ❌
+                                    </div>
+                                  );
+                                }
+
+                                // Show buttons if pending
+                                return (
                                   <div className="flex flex-col gap-2">
                                     <button
                                       onClick={() =>
@@ -568,9 +655,34 @@ export default function FriendsPage() {
                                       )}
                                     </button>
                                   </div>
-                                )}
-                              </>
-                            )}
+                                );
+                              }
+
+                              // For sender - show status of invitation
+                              if (status === "accepted") {
+                                return (
+                                  <div className="text-center text-green-600 font-semibold py-2 bg-green-50 rounded-lg border border-green-100">
+                                    ✅ Accepted by invitee
+                                  </div>
+                                );
+                              }
+
+                              if (status === "rejected") {
+                                return (
+                                  <div className="text-center text-gray-500 font-semibold py-2 bg-gray-50 rounded-lg border border-gray-200">
+                                    ❌ Declined by invitee
+                                  </div>
+                                );
+                              }
+
+                              // Pending status for sender
+                              return (
+                                <div className="text-center text-blue-600 font-semibold py-2 bg-blue-50 rounded-lg border border-blue-100">
+                                  ⏳ Waiting for response...
+                                </div>
+                              );
+                            })()}
+
                           <div className="text-[10px] mt-2 text-right text-gray-400">
                             {new Date(msg.timestamp).toLocaleTimeString([], {
                               hour: "2-digit",
@@ -596,7 +708,30 @@ export default function FriendsPage() {
                             : "bg-white text-gray-700 rounded-tl-none shadow-sm border border-gray-100"
                         }`}
                       >
-                        {msg.content}
+                        {msg.message_type === "file" ? (
+                          msg.content ? (
+                            <div className="relative group">
+                              <img
+                                src={msg.content}
+                                alt="Sent image"
+                                className="rounded-lg max-w-full h-auto"
+                              />
+                              <button
+                                onClick={() => handleDownload(msg.content!)}
+                                className="absolute bottom-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                                title="Download"
+                              >
+                                <Download size={16} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="italic text-gray-400">
+                              Image not available
+                            </span>
+                          )
+                        ) : (
+                          msg.content
+                        )}
                         <div
                           className={`text-[10px] mt-1 text-right ${
                             isMe ? "text-green-100" : "text-gray-400"
@@ -639,6 +774,22 @@ export default function FriendsPage() {
               >
                 <Send size={20} />
               </button>
+
+              {/* Nút gửi hình ảnh */}
+              <label className="bg-gray-100 p-3 rounded-xl hover:bg-gray-200 cursor-pointer text-gray-500 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleSendFile(e.target.files[0]);
+                    }
+                  }}
+                />
+                <ImagePlus size={20} />
+              </label>
             </div>
           </div>
         )}
