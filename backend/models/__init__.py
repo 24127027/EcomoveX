@@ -4,7 +4,7 @@ from .friend import Friend
 from .message import Message, RoomContext
 from .metadata import Metadata
 from .mission import Mission, UserMission
-from .plan import Plan, PlanDestination, PlanMember
+from .plan import Plan, PlanDestination, PlanMember, Route
 from .review import Review, ReviewFile
 from .room import Room, RoomDirect, RoomMember
 from .user import User, UserActivity
@@ -33,4 +33,5 @@ __all__ = [
     "RoomDirect",
     "RoomContext",
     "Preference",
+    "Route",
 ]

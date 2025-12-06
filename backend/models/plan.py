@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SQLEnum,
 )
+from schemas.route_schema import TransportMode
 from sqlalchemy.orm import relationship
 
 from database.db import Base
@@ -58,6 +59,9 @@ class Plan(Base):
     members = relationship(
         "PlanMember", back_populates="plan", cascade="all, delete-orphan"
     )
+    routes = relationship(
+        "Route", back_populates="plan", cascade="all, delete-orphan"
+    )
     room = relationship("Room", back_populates="plan", uselist=False)
 
 
@@ -87,6 +91,18 @@ class PlanDestination(Base):
 
     plan = relationship("Plan", back_populates="destinations")
     destination = relationship("Destination", back_populates="plan_destinations")
+    routes_from = relationship(
+        "Route",
+        foreign_keys="[Route.origin_place_id]",
+        back_populates="origin_plan_destination",
+        cascade="all, delete-orphan",
+    )
+    routes_to = relationship(
+        "Route",
+        foreign_keys="[Route.destination_place_id]",
+        back_populates="destination_plan_destination",
+        cascade="all, delete-orphan",
+    )
 
 
 class PlanMember(Base):
@@ -110,3 +126,34 @@ class PlanMember(Base):
 
     user = relationship("User", back_populates="plan_members")
     plan = relationship("Plan", back_populates="members")
+
+
+class Route(Base):
+    __tablename__ = "routes"
+    __table_args__ = (
+        Index("ix_route_origin_place", "origin_place_id"),
+        Index("ix_route_dest_place", "destination_place_id"),
+    )
+
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    origin_place_id = Column(
+        Integer,
+        ForeignKey("plan_destinations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    destination_place_id = Column(
+        Integer,
+        ForeignKey("plan_destinations.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    distance_km = Column(Float, nullable=False)
+    mode = Column(SQLEnum(TransportMode), default=TransportMode.car, nullable=False)
+    carbon_emission_kg = Column(Float, nullable=False)
+
+    plan = relationship("Plan", back_populates="routes")
+    origin_plan_destination = relationship(
+        "PlanDestination", foreign_keys=[origin_place_id], back_populates="routes_from"
+    )
+    destination_plan_destination = relationship(
+        "PlanDestination", foreign_keys=[destination_place_id], back_populates="routes_to"
+    )

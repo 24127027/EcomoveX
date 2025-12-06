@@ -23,26 +23,19 @@ class RouteType(str, Enum):
 
 
 class RouteCreate(BaseModel):
-    origin_id: int
-    destination_id: str
+    plan_id: int
+    origin_plan_destination_id: int
+    destination_plan_destination_id: int
     distance_km: float = Field(..., ge=0)
-    estimated_travel_time_min: float = Field(..., ge=0)
     carbon_emission_kg: float = Field(..., ge=0)
 
 
-class RouteUpdate(BaseModel):
-    distance_km: Optional[float] = Field(None, ge=0)
-    estimated_travel_time_min: Optional[float] = Field(None, ge=0)
-    carbon_emission_kg: Optional[float] = Field(None, ge=0)
-
-
 class RouteResponse(BaseModel):
-    origin_id: int
-    destination_id: str
+    plan_id: int
+    origin_plan_destination_id: int
+    destination_plan_destination_id: int
     distance_km: float
-    estimated_travel_time_min: float
     carbon_emission_kg: float
-    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

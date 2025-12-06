@@ -1,26 +1,38 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
 from schemas.message_schema import CommonMessageResponse
 from schemas.plan_schema import (
+    AllPlansResponse,
     MemberCreate,
     MemberDelete,
     PlanCreate,
     PlanMemberCreate,
+    PlanMemberDetailResponse,
     PlanMemberResponse,
     PlanResponse,
     PlanUpdate,
 )
+from schemas.route_schema import RouteCreate, RouteResponse
+from models.plan import PlanRole
 from services.plan_service import PlanService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/plans", tags=["Plans"])
 
 
-@router.get("/", response_model=List[PlanResponse], status_code=status.HTTP_200_OK)
+@router.get("/{plan_id}", response_model=PlanResponse, status_code=status.HTTP_200_OK)
+async def get_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
+    return await PlanService.get_plan_by_id(db, current_user["user_id"], plan_id)
+
+
+@router.get("/", response_model=AllPlansResponse, status_code=status.HTTP_200_OK)
 async def get_plans(
     db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
@@ -114,4 +126,41 @@ async def join_plan(
 ):
     return await PlanService.add_plan_member(
         db, user_id, plan_id, MemberCreate(PlanMemberCreate(current_user["user_id"]))
+    )
+
+
+@router.get(
+    "/{plan_id}/routes",
+    response_model=List[RouteResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_all_routes(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get all routes for a specific plan"""
+    return await PlanService.get_all_routes_by_plan_id(
+        db, current_user["user_id"], plan_id
+    )
+
+
+@router.get(
+    "/{plan_id}/routes/{origin_plan_destination_id}-{destination_plan_destination_id}",
+    response_model=RouteResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_route(
+    plan_id: int,
+    origin_plan_destination_id: int,
+    destination_plan_destination_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return await PlanService.get_route_by_origin_and_destination(
+        db,
+        current_user["user_id"],
+        plan_id,
+        origin_plan_destination_id,
+        destination_plan_destination_id,
     )
