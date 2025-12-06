@@ -2,16 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-/**
- * Edit Plan Page - Redirects to Review Plan
- *
- * This page exists to provide a cleaner URL for editing existing plans.
- * It redirects to /planning_page/review_plan with the plan ID.
- *
- * Usage: /planning_page/edit_plan?id=123
- */
-export default function EditPlanPage() {
+function EditPlanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planId = searchParams.get("id");
@@ -33,5 +26,12 @@ export default function EditPlanPage() {
         <p className="text-gray-600">Loading plan...</p>
       </div>
     </div>
+  );
+}
+export default function EditPlanPage() {  
+return (
+    <Suspense >
+      <EditPlanContent/>
+    </Suspense>
   );
 }

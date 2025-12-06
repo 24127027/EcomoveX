@@ -11,13 +11,13 @@ import {
   Fuel,
   Leaf,
   Check,
-  ArrowRight,
   TrendingUp,
   AlertCircle,
   Save,
 } from "lucide-react";
 import { Jost } from "next/font/google";
 import { api } from "@/lib/api";
+import type { PlanActivity } from "@/lib/api";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
@@ -94,7 +94,7 @@ function TransportSelectionContent() {
           return;
         }
 
-        const parsed = JSON.parse(activities);
+        const parsed = JSON.parse(activities) as PlanActivity[];
 
         // Calculate distance based on number of transitions
         let totalDist = 0;
@@ -102,7 +102,9 @@ function TransportSelectionContent() {
           const transitions = parsed.length - 1;
           totalDist = transitions * 8;
 
-          const timeSlots = new Set(parsed.map((a: any) => a.time_slot));
+          const timeSlots = new Set(
+            parsed.map((activity) => activity.time_slot)
+          );
           if (timeSlots.size > 1) {
             totalDist += (timeSlots.size - 1) * 5;
           }
@@ -174,7 +176,6 @@ function TransportSelectionContent() {
 
     setIsSaving(true);
     try {
-      // Get activities from sessionStorage
       const activitiesRaw = sessionStorage.getItem("current_plan_activities");
       const planInfoRaw = sessionStorage.getItem("temp_plan_info");
 
@@ -182,8 +183,14 @@ function TransportSelectionContent() {
         throw new Error("Missing plan data");
       }
 
-      const activities = JSON.parse(activitiesRaw);
-      const planInfo = JSON.parse(planInfoRaw);
+      const activities = JSON.parse(activitiesRaw) as PlanActivity[];
+      const planInfo = JSON.parse(planInfoRaw) as {
+        name?: string;
+        date?: string;
+        start_date?: string;
+        end_date?: string;
+        budget?: number | string;
+      };
 
       if (activities.length < 2) {
         alert(
@@ -193,8 +200,12 @@ function TransportSelectionContent() {
         return;
       }
 
-      // Prepare destinations payload
-      const destinationsPayload = activities.map((act: any, index: number) => {
+      const planStartDate = planInfo.start_date || planInfo.date;
+      if (!planStartDate) {
+        throw new Error("Plan start date is missing");
+      }
+
+      const destinationsPayload = activities.map((act, index) => {
         let validType = "attraction";
         const typeLower = (act.type || "").toLowerCase();
 
@@ -209,14 +220,14 @@ function TransportSelectionContent() {
         const lastDashIndex = realDestinationId.lastIndexOf("-");
         if (lastDashIndex !== -1) {
           const suffix = realDestinationId.substring(lastDashIndex + 1);
-          if (!isNaN(Number(suffix))) {
+          if (!Number.isNaN(Number(suffix))) {
             realDestinationId = realDestinationId.substring(0, lastDashIndex);
           }
         }
 
         const visitDate = act.date
           ? toDateOnlyString(act.date)
-          : toDateOnlyString(new Date(planInfo.date));
+          : toDateOnlyString(planStartDate);
 
         return {
           id: 0,
@@ -237,28 +248,30 @@ function TransportSelectionContent() {
 
       const payload = {
         place_name: planInfo.name || "My Travel Plan",
-        start_date: toDateOnlyString(planInfo.date),
+        start_date: toDateOnlyString(planStartDate),
         end_date: planInfo.end_date
           ? toDateOnlyString(planInfo.end_date)
-          : toDateOnlyString(planInfo.date),
+          : toDateOnlyString(planStartDate),
         budget_limit: Number(planInfo.budget) || 0,
         destinations: destinationsPayload,
       };
 
-      console.log("💾 Saving plan with transport:", selectedTransport);
-
+      const storedPlanId = planId || sessionStorage.getItem("EDITING_PLAN_ID");
       let savedPlan;
-      if (planId) {
-        // Update existing plan
-        savedPlan = await api.updatePlan(Number(planId), payload);
+
+      if (storedPlanId) {
+        savedPlan = await api.updatePlan(Number(storedPlanId), payload);
         alert("✅ Plan updated successfully!");
       } else {
-        // Create new plan
         savedPlan = await api.createPlan(payload);
         alert("✅ Plan created successfully!");
       }
 
-      // Save transport selection
+      const finalPlanId = savedPlan?.id || storedPlanId;
+      if (!storedPlanId && savedPlan?.id) {
+        sessionStorage.setItem("EDITING_PLAN_ID", String(savedPlan.id));
+      }
+
       const transportData = {
         transportType: selectedTransport,
         totalDistance,
@@ -270,15 +283,16 @@ function TransportSelectionContent() {
         JSON.stringify(transportData)
       );
 
-      // Navigate to showing_plan_page
       router.push(
         `/planning_page/showing_plan_page${
-          savedPlan.id ? `?id=${savedPlan.id}` : ""
+          finalPlanId ? `?id=${finalPlanId}` : ""
         }`
       );
-    } catch (error: any) {
-      console.error("❌ Save error:", error);
-      alert(`Failed to save plan: ${error.message}`);
+    } catch (error: unknown) {
+      console.error("Failed to save plan:", error);
+      const message =
+        error instanceof Error ? error.message : "Unexpected error occurred.";
+      alert(`Failed to save plan: ${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -477,7 +491,7 @@ function TransportSelectionContent() {
             {isSaving ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Saving Plan...
+                Saving...
               </>
             ) : (
               <>

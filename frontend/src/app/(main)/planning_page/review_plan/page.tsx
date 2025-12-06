@@ -747,7 +747,7 @@ function ReviewPlanContent() {
 
   // Split Screen State
   const [isChatOpen, setIsChatOpen] = useState(true); // ✅ Mở mặc định để show gợi ý
-  const [planHeightPercent, setPlanHeightPercent] = useState(100);
+  const [planHeightPercent, setPlanHeightPercent] = useState(60);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
@@ -832,8 +832,12 @@ function ReviewPlanContent() {
       try {
         setIsAiProcessing(true);
 
+        // Preserve any pending additions before clearing storage (user may have just returned from add_destinations)
+        const pendingRawData = sessionStorage.getItem(STORAGE_KEY_RAW);
+        const pendingSelectedSlot = sessionStorage.getItem("selected_add_slot");
+
         // ✅ IMPORTANT: Clear sessionStorage when loading existing plan
-        // This prevents mixing data from previous plans
+        // This prevents mixing data from previous plans while still allowing us to reapply pending additions
         sessionStorage.removeItem(STORAGE_KEY_RAW);
         sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
         sessionStorage.removeItem("selected_add_slot");
@@ -873,7 +877,7 @@ function ReviewPlanContent() {
           // 2. CHECK SESSION: Gộp địa điểm mới thêm (nếu có)
           // ✅ NOTE: sessionStorage was cleared above, so this only applies
           // when user adds new destinations AFTER the plan is loaded
-          const rawData = sessionStorage.getItem(STORAGE_KEY_RAW);
+          const rawData = pendingRawData;
           if (rawData) {
             try {
               // --- FIX LỖI TẠI ĐÂY ---
@@ -920,8 +924,7 @@ function ReviewPlanContent() {
               let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" =
                 "Morning";
 
-              const selectedSlotData =
-                sessionStorage.getItem("selected_add_slot");
+              const selectedSlotData = pendingSelectedSlot;
               if (selectedSlotData) {
                 try {
                   const slot = JSON.parse(selectedSlotData);
