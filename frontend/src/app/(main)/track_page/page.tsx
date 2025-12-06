@@ -246,14 +246,6 @@ export default function RouteTracker() {
     setCurrentRouteIndex(0);
   };
 
-  const handleStartTracking = () => {
-    if (!selectedPlan) {
-      alert('Please select a plan first!');
-      return;
-    }
-    // Plan is already selected, routes will be loaded
-  };
-
   return (
     <div className="w-full h-screen flex justify-center bg-gray-50 overflow-hidden">
       <div className="w-full max-w-md mx-auto bg-white flex flex-col h-screen relative">
@@ -263,9 +255,11 @@ export default function RouteTracker() {
             <Leaf className="text-green-600" size={24} />
             <h1 className="text-xl font-extrabold text-green-600">ROUTE TRACK</h1>
           </div>
-          <div className="bg-green-100 px-3 py-1 rounded-full">
-            <span className="text-sm font-bold text-green-700">{totalCarbon.toFixed(1)} kg CO₂</span>
-          </div>
+          {selectedPlan && (
+            <div className="bg-green-100 px-3 py-1 rounded-full">
+              <span className="text-sm font-bold text-green-700">{totalCarbon.toFixed(1)} kg CO₂</span>
+            </div>
+          )}
         </div>
 
         {/* Main Content */}
@@ -305,29 +299,20 @@ export default function RouteTracker() {
 
           {!selectedPlan ? (
             <>
-              {/* Start Tracking Button */}
-              <button
-                className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed mb-4"
-                onClick={handleStartTracking}
-                disabled={!selectedPlan}
-              >
-                Start Tracking
-              </button>
-
               {/* Helper Text */}
               <p className="text-xs text-green-600 mb-8 text-center">
-                Select a plan above and start tracking your carbon footprint
+                Select a plan above to start tracking your carbon footprint
               </p>
 
               {/* LARGE CO2 PANEL - THE MAIN FEATURE */}
               <div className="mb-8">
                 {/* Decorative Earth Image Above Panel */}
-                <div className="relative mb-[-60px] z-10 flex justify-center">
-                  <div className="bg-white rounded-full w-32 h-32 flex items-center justify-center shadow-lg">
+                <div className="relative mb-[-40px] z-10 flex justify-center">
+                  <div className="bg-white rounded-full w-20 h-20 flex items-center justify-center shadow-lg">
                     <img
-                      src="/images/gaia.png"
+                      src="https://img.freepik.com/free-vector/pixel-art-design-earth-vector-illustration-colorful-planet-earth-pixel-style-isolated_118339-977.jpg?w=2000"
                       alt="Protected Earth"
-                      className="w-28 h-28 object-contain"
+                      className="w-16 h-16 object-contain rounded-full"
                     />
                   </div>
                 </div>
