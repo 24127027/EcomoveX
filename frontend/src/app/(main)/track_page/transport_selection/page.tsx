@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, PersonStanding, Bike, Bus, Car, Train, LucideIcon, MapPin, Route, Home, Bot, User, X } from 'lucide-react';
 import Link from 'next/link';
-import { Jost, Abhaya_Libre } from 'next/font/google';    
+import { Jost, Abhaya_Libre } from 'next/font/google';
 import { useRouter } from 'next/navigation';
 
 const jost_medium = Jost({
@@ -44,7 +44,6 @@ interface TransportMode {
     id: string;
     name: string;
     icon: LucideIcon;
-    time: string;
     apiMode: string;
 }
 
@@ -52,20 +51,19 @@ interface TransportOptionProps {
     mode: TransportMode;
     emission: string;
     saved: string;
-    time: string;
+    time: number;
     distance: number;
     onAccept: (mode: TransportMode, emission: string, saved: string) => void;
 }
 
 // Constants
 const TRANSPORT_MODES: TransportMode[] = [
-    { id: 'walking', name: 'Walk', icon: PersonStanding, time: '20 min', apiMode: 'walking' },
-    { id: 'motorbike', name: 'Motorbike', icon: Bike, time: '5 min', apiMode: 'motorbike' },
-    { id: 'bus', name: 'Bus', icon: Bus, time: '10 min', apiMode: 'bus' },
-    { id: 'car', name: 'Car', icon: Car, time: '5 min', apiMode: 'car' }
+    { id: 'walking', name: 'Walk', icon: PersonStanding, apiMode: 'walking' },
+    { id: 'motorbike', name: 'Motorbike', icon: Bike, apiMode: 'motorbike' },
+    { id: 'bus', name: 'Bus', icon: Bus, apiMode: 'bus' },
+    { id: 'car', name: 'Car', icon: Car, apiMode: 'car' }
 ];
 
-const DEFAULT_DISTANCE = 4.5;
 const API_ENDPOINT = "http://127.0.0.1:8000/carbon/estimate";
 
 // Confirmation Modal Component
@@ -142,7 +140,7 @@ const TransportOption: React.FC<TransportOptionProps> = ({ mode, emission, saved
                     <span className={`${jost_medium.className} text-black whitespace-nowrap`}>{mode.name}</span>
                 </div>
                 <div className="text-right">
-                    <div className={`${abhayaLibre.className} text-sm text-black whitespace-nowrap`}>{time}</div>
+                    <div className={`${abhayaLibre.className} text-sm text-black whitespace-nowrap`}>{time}min</div>
                     <div className={`${abhayaLibre.className} text-sm text-black whitespace-nowrap`}>{distance}km</div>
                 </div>
             </div>
@@ -180,14 +178,29 @@ const TransportOption: React.FC<TransportOptionProps> = ({ mode, emission, saved
 const TransportCO2Page = () => {
     const router = useRouter();
     const [emissions, setEmissions] = useState<Record<string, EmissionData>>({});
-    const [fromAddress, setFromAddress] = useState('428 Truong Sa, Ward 2, District Phu Nhuan, HCMC');
-    const [toAddress, setToAddress] = useState('227 Nguyen Van Cu, Ward 4, District 5, HCMC');
-    const [distance] = useState(DEFAULT_DISTANCE);
+    const [fromAddress, setFromAddress] = useState('');
+    const [toAddress, setToAddress] = useState('');
+    const [distance, setDistance] = useState(0.0);
     const [loading, setLoading] = useState(true);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedMode, setSelectedMode] = useState<TransportMode | null>(null);
     const [selectedEmission, setSelectedEmission] = useState('0.0');
     const [selectedSaved, setSelectedSaved] = useState('0.0');
+    const [travelTime, setTravelTime] = useState(0.0);
+
+    // Load query params
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const from = params.get('from');
+        const to = params.get('to');
+        const dist = params.get('distance');
+        const time = params.get('travel_time');
+
+        if (from) setFromAddress(from);
+        if (to) setToAddress(to);
+        if (dist) setDistance(parseFloat(dist));
+        if (time) setTravelTime(parseFloat(time));
+    }, []);
 
     useEffect(() => {
         if (!distance || distance <= 0) {
@@ -266,7 +279,7 @@ const TransportCO2Page = () => {
                     const emission = rawEmissions[mode.id] || 0;
                     const saved = Math.max(0, carEmission - emission);
 
-                    emissionData[mode.id] = { 
+                    emissionData[mode.id] = {
                         carbon_emission_kg: Number(emission.toFixed(2)),
                         carbon_saved_kg: Number(saved.toFixed(2))
                     };
@@ -284,7 +297,7 @@ const TransportCO2Page = () => {
         };
 
         fetchEmissions();
-    }, [distance]);  
+    }, [distance]);
 
     const handleAccept = (mode: TransportMode, emission: string, saved: string) => {
         setSelectedMode(mode);
@@ -323,12 +336,12 @@ const TransportCO2Page = () => {
         if (mode.id === 'car') {
             router.push(`/track_page/result/not_save_CO2?${params.toString()}`);
         }
-        else 
+        else
             router.push(`/track_page/result/save_CO2?${params.toString()}`);
     };
 
     const handleBackClick = () => {
-        router.push("/track_page/leaderboard");
+        router.back();
     };
 
     return (
@@ -353,18 +366,12 @@ const TransportCO2Page = () => {
                                     <div className="w-4 h-4 border-2 border-green-500 rounded-full bg-white"></div>
                                 </div>
                                 <div className={`${abhayaLibre.className} flex-1 space-y-3 text-black text-sm`}>
-                                    <input
-                                        type="text"
-                                        value={fromAddress}
-                                        onChange={(e) => setFromAddress(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 rounded-lg"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={toAddress}
-                                        onChange={(e) => setToAddress(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 rounded-lg"
-                                    />
+                                    <div className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50">
+                                        {fromAddress || 'Loading...'}
+                                    </div>
+                                    <div className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50">
+                                        {toAddress || 'Loading...'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -385,7 +392,7 @@ const TransportCO2Page = () => {
                                 mode={mode}
                                 emission={emissions[mode.id]?.carbon_emission_kg?.toFixed(1) || '0.0'}
                                 saved={emissions[mode.id]?.carbon_saved_kg?.toFixed(1) || '0.0'}
-                                time={mode.time}
+                                time={travelTime}
                                 distance={distance}
                                 onAccept={handleAccept}
                             />
@@ -449,5 +456,5 @@ const TransportCO2Page = () => {
     );
 };
 
-export { jost_medium, jost_semibold, abhayaLibre }; 
+export { jost_medium, jost_semibold, abhayaLibre };
 export default TransportCO2Page;

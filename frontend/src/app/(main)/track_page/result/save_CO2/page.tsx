@@ -3,6 +3,7 @@
 import { Home, MapPin, Calendar, MessageSquare, User, Route, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { Jost } from 'next/font/google';
+import { useRouter } from 'next/navigation'; 
 import { useSearchParams } from 'next/navigation';
 
 const jost_medium = Jost({
@@ -34,6 +35,11 @@ export default function EcoTripResult() {
     const searchParams = useSearchParams();
     const emission = searchParams.get("emission");
     const saved = searchParams.get("saved");
+    const router = useRouter();
+
+    const handleGoToTrack = () => {
+        router.push(`/track_page_leaderboard?saved=${saved}`);
+    };
 
     return (
         <div className="w-full h-screen bg-gray-200 flex justify-center overflow-hidden">
@@ -88,17 +94,12 @@ export default function EcoTripResult() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="w-full max-w-sm flex flex-col gap-3">
-                            <Link href="/track_page/leaderboard">
-                                <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl border-2 border-green-600 transition-colors">
-                                    Go to Track
-                                </button>
-                            </Link>
-
-                            <button className="w-full bg-white hover:bg-gray-50 text-green-600 font-semibold py-3 rounded-xl border-2 border-green-600 transition-colors">
-                                Open Google Maps
-                            </button>
-                        </div>
+                        <button
+                            onClick={handleGoToTrack}
+                            className="bg-green-500 text-white px-6 py-3 rounded-lg font-semibold"
+                        >
+                            Go to Track
+                        </button>
                     </div>
                 </div>
 

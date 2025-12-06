@@ -7,9 +7,9 @@ import {
 } from "next/font/google";
 import React, { useState, useEffect } from 'react';
 import { Home, MapPin, Calendar, MessageCircle, User, Search, Leaf, Bot, Route, ChevronDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { api, TravelPlan } from "@/lib/api"; 
+import { api, Plan } from "@/lib/api"; 
 
 const jost_bold = Jost({
     subsets: ["latin"],
@@ -42,18 +42,29 @@ const lalezar = Lalezar({
 }); 
 export default function TrackPage() {
     const router = useRouter();
-    const [plans, setPlans] = useState<TravelPlan[]>([]);
-    const [selectedPlan, setSelectedPlan] = useState<TravelPlan | null>(null);
+    const searchParams = useSearchParams();
+    const [plans, setPlans] = useState<Plan[]>([]);
+    const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
     const [showDropdown, setShowDropdown] = useState(false);
     const [loading, setLoading] = useState(true);
     const [co2Saved, setCo2Saved] = useState(0);
     const [error, setError] = useState<string>("");
 
     useEffect(() => {
+        const savedParam = searchParams.get('saved');
+        if (savedParam) {
+            const savedValue = parseFloat(savedParam);
+            if (!isNaN(savedValue)) {
+                setCo2Saved(savedValue);
+            }
+        }
+    }, [searchParams]);
+
+    useEffect(() => {
         const fetchPlans = async () => {
             try {
                 setLoading(true);
-                const data = await api.getPlans();   // ← gọi hàm bạn đã viết
+                const data = await api.getPlan();   
                 setPlans(data);
             } catch (err: any) {
                 console.error(err);
@@ -66,7 +77,7 @@ export default function TrackPage() {
         fetchPlans();
     }, []);
 
-    const handlePlanSelect = (plan: TravelPlan) => {
+    const handlePlanSelect = (plan: Plan) => {
         setSelectedPlan(plan);
         setShowDropdown(false);
     };
@@ -89,7 +100,7 @@ export default function TrackPage() {
             route: selectedPlan.route ? JSON.stringify(selectedPlan.route) : "",
         });
 
-        router.push(`/track_page/route_options?${params.toString()}`);
+        router.push(`/track_page/route_selection?${params.toString()}`);
     };
 
     const formatDate = (dateString: string) => {
@@ -163,13 +174,13 @@ export default function TrackPage() {
                                 <div className="space-y-2">
                                     <div>
                                         <div className="text-xs text-gray-500 mb-1">Destination</div>
-                                        <div className="font-semibold text-gray-800">{selectedPlan.destination}</div>
+                                        <div className="font-semibold text-gray-800">{selectedPlan.place_name}</div>
                                     </div>
 
                                     <div className="flex gap-4">
                                         <div className="flex-1">
                                             <div className="text-xs text-gray-500 mb-1">Start Date</div>
-                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.date)}</div>
+                                            <div className="text-sm text-gray-800">{formatDate(selectedPlan.start_date)}</div>
                                         </div>
                                         <div className="flex-1">
                                             <div className="text-xs text-gray-500 mb-1">End Date</div>
@@ -178,7 +189,6 @@ export default function TrackPage() {
                                             </div>
                                         </div>
                                     </div>
-
                                 </div>
                             </div>
                         )}
@@ -221,17 +231,6 @@ export default function TrackPage() {
                             </div>
                         </div>
 
-                        {/* Quick Stats */}
-                        <div className="grid grid-cols-2 gap-4 mt-6">
-                            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                            <div className="text-gray-500 text-sm mb-1">Trips</div>
-                            <div className="text-2xl font-bold text-gray-800">0</div>
-                            </div>
-                            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                            <div className="text-gray-500 text-sm mb-1">Trees Saved</div>
-                            <div className="text-2xl font-bold text-green-600">0</div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 

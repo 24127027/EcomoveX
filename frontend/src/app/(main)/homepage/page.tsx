@@ -514,7 +514,7 @@ export default function HomePage() {
             </Link>
 
             <Link
-                href="/track_page/transport_options"
+                href="/track_page/leaderboard"
                 className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
             >
                 <Route className="size-6" strokeWidth={2.0} />

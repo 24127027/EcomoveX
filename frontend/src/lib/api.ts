@@ -296,6 +296,17 @@ export interface PlanActivity {
 
 export interface TravelPlan {
     id: number;
+    user_id?: number; // Owner ID
+    destination: string;
+    date: string;
+    end_date?: string;
+    activities: PlanActivity[];
+    budget?: number; // Legacy field
+    budget_limit?: number; // ✅ Backend field name
+}
+
+export interface Plan {
+    id: number;
     place_name: string;
     start_date: string;
     end_date: string;
@@ -583,10 +594,40 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify(data),
     });
-  }
+    }
 
-  async getPlans(): Promise<TravelPlan[]> {
-    const plans = await this.request<TravelPlan[]>("/plans/", {
+    async getPlans(): Promise<TravelPlan[]> {
+        const plans = await this.request<PlanResponse[]>("/plans/", {
+            method: "GET",
+        });
+        return plans.map((p) => ({
+            id: p.id,
+            destination: p.place_name,
+            date: p.start_date,
+            end_date: p.end_date,
+            activities: p.destinations.map((d, index) => {
+                let slot = "Morning";
+                const hour = new Date(d.visit_date).getHours();
+
+                if (hour >= 12 && hour < 18) slot = "Afternoon";
+                if (hour >= 18) slot = "Evening";
+
+                return {
+                    id: `${d.destination_id}-${index}`,
+                    original_id: d.id,
+                    title: d.note || "Destination",
+                    address: "",
+                    image_url: "",
+                    time_slot: slot as "Morning" | "Afternoon" | "Evening",
+                    date: d.visit_date,
+                    type: d.destination_type,
+                };
+            }),
+        }));
+    }
+
+  async getPlan(): Promise<Plan[]> {
+    const plans = await this.request<Plan[]>("/plans/", {
       method: "GET",
     });
     return plans.map((p) => ({

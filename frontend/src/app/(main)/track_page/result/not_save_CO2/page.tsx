@@ -94,10 +94,6 @@ export default function EcoTripResult_NotSaveCO2() {
                                     Go to Track
                                 </button>
                             </Link>
-
-                            <button className="w-full bg-white hover:bg-gray-50 text-green-600 font-semibold py-3 rounded-xl border-2 border-green-600 transition-colors">
-                                Open Google Maps
-                            </button>
                         </div>
                     </div>
                 </div>
