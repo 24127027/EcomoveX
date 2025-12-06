@@ -115,11 +115,6 @@ export default function SigninPage() {
         }
       }
 
-      const overrideRole = getOverriddenRole(form.email);
-      if (overrideRole) {
-        role = overrideRole;
-      }
-
       if (role) {
         localStorage.setItem("user_role", role);
       }
