@@ -5,14 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Home,
-  MapPin,
-  Bot,
-  User,
   ChevronRight,
   Sun,
   Loader2,
   Map,
+  MapPin,
   Plus,
   Calendar,
   Clock,
@@ -23,6 +20,8 @@ import {
 } from "lucide-react";
 import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
 import { api, TravelPlan, PlanActivity } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 
 // --- Font Setup ---
 const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
@@ -44,7 +43,7 @@ const parseDate = (dateStr: string) => {
   return new Date(dateStr);
 };
 
-// --- CONTENT COMPONENT (Logic cũ chuyển vào đây) ---
+// --- CONTENT COMPONENT ---
 function PlanningContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,7 +51,7 @@ function PlanningContent() {
     "Incoming" | "Future" | "Previous"
   >("Incoming");
 
-  // State quản lý danh sách
+  // Plan list state
   const [incomingPlan, setIncomingPlan] = useState<TravelPlan | null>(null);
   const [futurePlans, setFuturePlans] = useState<TravelPlan[]>([]);
   const [previousPlans, setPreviousPlans] = useState<TravelPlan[]>([]);
@@ -227,6 +226,12 @@ function PlanningContent() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
+        <MobileNavMenu
+          items={PRIMARY_NAV_LINKS}
+          activeKey="planning"
+          className="top-4 left-4"
+          buttonLabel="Menu"
+        />
         {/* --- HEADER --- */}
         <div className="px-6 pt-10 pb-4 bg-[#F5F7F5] shrink-0">
           <h1
@@ -285,7 +290,7 @@ function PlanningContent() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Nút xóa cho Incoming Plan */}
+                        {/* Delete button for the incoming plan */}
                         {currentUserId &&
                           incomingPlan.user_id === currentUserId && (
                             <button
@@ -469,54 +474,20 @@ function PlanningContent() {
           </Link>
         </main>
 
-        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20 shrink-0">
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Home size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Home
-              </span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Route size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center text-[#53B552]"
-            >
-              <MapPin size={24} strokeWidth={2.5} />
-              <span className={`${jost.className} text-xs font-bold mt-1`}>
-                Planning
-              </span>
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Bot size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Ecobot
-              </span>
-            </Link>
-            <Link
-              href="/user_page/main_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <User size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                User
-              </span>
-            </Link>
+        <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center mt-auto">
+          <div className="flex justify-center items-center gap-2 mb-4">
+            <Map className="text-green-600 size-5" />
+            <span className={`${knewave.className} text-xl text-gray-800`}>
+              Plan Smarter
+            </span>
+          </div>
+          <p className={`${jost.className} text-gray-400 text-xs mb-4`}>
+            Keep building greener journeys and share them with friends.
+          </p>
+          <div className="flex justify-center gap-6 text-xs font-medium text-gray-500">
+            <a href="#">Support</a>
+            <a href="#">Privacy</a>
+            <a href="#">Terms</a>
           </div>
         </footer>
       </div>

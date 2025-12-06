@@ -14,17 +14,91 @@ import {
   Star,
   Eye,
   Check,
-  ArrowRight, // Icon cho nút Finish
+  ArrowRight, // Icon for finish button
 } from "lucide-react";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
-import { api, PlaceDetails, AutocompletePrediction, Position } from "@/lib/api";
+import {
+  api,
+  PlaceDetails,
+  AutocompletePrediction,
+  Position,
+  PlaceSearchResult,
+} from "@/lib/api";
 import { Jost } from "next/font/google";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 const STORAGE_KEY = "temp_plan_destinations";
 const CURRENT_VIEWING_KEY = "current_viewing_place";
-const STORAGE_KEY_INFO = "temp_plan_info"; // NEW: Key để đọc plan info
+const STORAGE_KEY_INFO = "temp_plan_info"; // Key for persisted plan info
+
+type ListedPlace = PlaceDetails & { distanceText?: string };
+
+const toRadians = (value: number) => (value * Math.PI) / 180;
+
+const calculateDistanceKm = (from: Position, to: Position) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLng = toRadians(to.lng - from.lng);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusKm * c;
+};
+
+const formatDistanceText = (from: Position, to?: Position) => {
+  if (!to) return undefined;
+  const distanceKm = calculateDistanceKm(from, to);
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m away`;
+  }
+  return `${distanceKm.toFixed(1)} km away`;
+};
+
+const convertTextSearchResult = (
+  result: PlaceSearchResult,
+  origin: Position
+): ListedPlace => {
+  const fallbackLocation = origin;
+  const location = result.location || fallbackLocation;
+
+  return {
+    place_id: result.id,
+    name: result.displayName?.text || "Unnamed place",
+    formatted_address: result.formattedAddress || "",
+    geometry: {
+      location,
+    },
+    types: result.types || [],
+    photos: result.photos
+      ? [
+          {
+            photo_url: result.photos.photo_url,
+            width: result.photos.size[0],
+            height: result.photos.size[1],
+          },
+        ]
+      : [],
+    sustainable_certified: false,
+    distanceText: formatDistanceText(origin, location),
+  };
+};
+
+const enhanceDetailsWithDistance = (
+  details: PlaceDetails,
+  origin: Position
+): ListedPlace => {
+  const location = details.geometry?.location;
+  return {
+    ...details,
+    distanceText: location ? formatDistanceText(origin, location) : undefined,
+  };
+};
 
 // District coordinates mapping for Ho Chi Minh City
 const DISTRICT_COORDINATES: { [key: string]: { lat: number; lng: number } } = {
@@ -54,10 +128,7 @@ const DISTRICT_COORDINATES: { [key: string]: { lat: number; lng: number } } = {
 };
 
 export default function AddDestinationPage() {
-  const [showWelcome, setShowWelcome] = useState(true); // [NEW] Hiện modal hướng dẫn
-  const [initialSuggestions, setInitialSuggestions] = useState<
-    AutocompletePrediction[]
-  >([]);
+  const [showWelcome, setShowWelcome] = useState(true); // Show onboarding modal
   const router = useRouter();
   const { isLoaded } = useGoogleMaps();
 
@@ -72,17 +143,24 @@ export default function AddDestinationPage() {
     []
   );
   const [showSelectedList, setShowSelectedList] = useState(false);
-  const [showSavedList, setShowSavedList] = useState(false); // NEW: Saved destinations dropdown
+  const [showSavedList, setShowSavedList] = useState(false); // Controls saved destinations dropdown
   const [savedDestinations, setSavedDestinations] = useState<PlaceDetails[]>(
     []
-  ); // NEW: Saved destinations data
-  const [isLoadingSaved, setIsLoadingSaved] = useState(false); // NEW: Loading state
+  );
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [predictions, setPredictions] = useState<AutocompletePrediction[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<PlaceDetails | null>(
     null
   );
   const [isSearching, setIsSearching] = useState(false);
+  const [greenSuggestions, setGreenSuggestions] = useState<ListedPlace[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [searchResults, setSearchResults] = useState<ListedPlace[]>([]);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [lastSearchQuery, setLastSearchQuery] = useState("");
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
   // Default Location (HCM)
   const [userLocation, setUserLocation] = useState<Position>({
@@ -101,7 +179,7 @@ export default function AddDestinationPage() {
     if (storedList) {
       try {
         const parsed = JSON.parse(storedList);
-        // ✅ Clean up place_id by removing suffix like "-0", "-1", "-2"
+        // Clean up place_id by removing numeric suffixes ("-0", "-1", etc.)
         const cleaned = parsed.map((dest: PlaceDetails) => {
           let placeId = dest.place_id;
           const lastDashIndex = placeId.lastIndexOf("-");
@@ -141,7 +219,7 @@ export default function AddDestinationPage() {
       });
     }
 
-    // NEW: Check if user selected a district in create_plan page
+    // Center map on a district selected during plan creation
     const planInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
     if (planInfo) {
       try {
@@ -149,7 +227,7 @@ export default function AddDestinationPage() {
         if (parsed.district && DISTRICT_COORDINATES[parsed.district]) {
           const districtPos = DISTRICT_COORDINATES[parsed.district];
           setUserLocation(districtPos);
-          console.log(`📍 Moving map to ${parsed.district}:`, districtPos);
+          console.log(`Moving map to ${parsed.district}:`, districtPos);
         }
       } catch (e) {
         console.error("Error parsing plan info:", e);
@@ -195,31 +273,40 @@ export default function AddDestinationPage() {
   }, []);
 
   useEffect(() => {
-    if (!userLocation || !sessionTokenRef.current) return;
+    let isCancelled = false;
 
     const fetchGreenSuggestions = async () => {
+      setIsLoadingSuggestions(true);
+      setSuggestionError(null);
       try {
-        // Tìm kiếm các từ khóa liên quan đến du lịch xanh
-        const res = await api.autocomplete({
-          query: "Green tourism nature", // Hoặc "Du lịch sinh thái"
-          user_location: userLocation,
-          radius: 10000, // Tìm rộng hơn chút (10km)
-          session_token: sessionTokenRef.current,
+        const res = await api.textSearchPlace({
+          query: "eco friendly park nature",
+          location: userLocation,
+          radius: 8000,
         });
 
-        if (res && res.predictions) {
-          setInitialSuggestions(res.predictions.slice(0, 5));
-          // Nếu chưa nhập gì thì gán luôn vào predictions để hiển thị ngay
-          if (!searchQuery) {
-            setPredictions(res.predictions.slice(0, 5));
-          }
-        }
+        if (isCancelled) return;
+        const mapped = (res.places || []).map((place) =>
+          convertTextSearchResult(place, userLocation)
+        );
+        setGreenSuggestions(mapped);
       } catch (error) {
-        console.error("Initial Green Search Error:", error);
+        if (!isCancelled) {
+          console.error("Initial green search failed:", error);
+          setSuggestionError("Could not load nearby green destinations.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingSuggestions(false);
+        }
       }
     };
 
     fetchGreenSuggestions();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [userLocation]);
   // --- MAP SETUP ---
   useEffect(() => {
@@ -241,9 +328,9 @@ export default function AddDestinationPage() {
     });
 
     googleMapRef.current = map;
-  }, [isLoaded]);
+  }, [isLoaded, userLocation]);
 
-  // Marker Logic (Tự động pan/zoom khi selectedLocation thay đổi)
+  // Marker logic: automatically pan/zoom when the selection changes
   useEffect(() => {
     if (
       !googleMapRef.current ||
@@ -296,20 +383,66 @@ export default function AddDestinationPage() {
     return () => clearTimeout(searchTimeoutRef.current);
   }, [searchQuery, userLocation]);
 
-  const handleSelectPrediction = async (prediction: AutocompletePrediction) => {
-    setSearchQuery(prediction.description);
-    setPredictions([]);
-    setIsSearching(true);
+  useEffect(() => {
+    if (searchQuery === "") {
+      setSearchResults([]);
+      setLastSearchQuery("");
+      setSearchError(null);
+    }
+  }, [searchQuery]);
 
+  const executeTextSearch = async (rawQuery: string) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setLastSearchQuery("");
+      setSearchError(null);
+      return;
+    }
+
+    setIsLoadingResults(true);
+    setSearchError(null);
+    try {
+      const response = await api.textSearchPlace({
+        query: trimmed,
+        location: userLocation,
+        radius: 8000,
+      });
+
+      const mapped = (response.places || []).map((place) =>
+        convertTextSearchResult(place, userLocation)
+      );
+      setSearchResults(mapped);
+      setLastSearchQuery(trimmed);
+
+      if (mapped.length === 0) {
+        setSearchError("No locations found. Try a different keyword.");
+      }
+    } catch (error) {
+      console.error("Text search failed:", error);
+      setSearchError("Couldn't load search results. Please try again.");
+    } finally {
+      setIsLoadingResults(false);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    executeTextSearch(searchQuery);
+  };
+
+  const focusPlaceById = async (placeId: string) => {
+    setIsSearching(true);
     try {
       const details = await api.getPlaceDetails(
-        prediction.place_id,
+        placeId,
         sessionTokenRef.current,
         ["basic", "contact", "atmosphere"]
       );
 
-      setSelectedLocation(details);
-      sessionStorage.setItem(CURRENT_VIEWING_KEY, JSON.stringify(details));
+      const enriched = enhanceDetailsWithDistance(details, userLocation);
+      setSelectedLocation(enriched);
+      sessionStorage.setItem(CURRENT_VIEWING_KEY, JSON.stringify(enriched));
       refreshSessionToken();
     } catch (error) {
       console.error("Details Error:", error);
@@ -319,6 +452,12 @@ export default function AddDestinationPage() {
     }
   };
 
+  const handleSelectPrediction = (prediction: AutocompletePrediction) => {
+    setSearchQuery(prediction.description);
+    setPredictions([]);
+    focusPlaceById(prediction.place_id);
+  };
+
   // --- ACTIONS ---
 
   const handleCloseDetail = () => {
@@ -326,11 +465,12 @@ export default function AddDestinationPage() {
     sessionStorage.removeItem(CURRENT_VIEWING_KEY);
   };
 
-  // [NEW] Hàm xử lý khi click vào item trong list đã chọn
+  // Handle click on an item from the selected list
   const handleClickSavedItem = (place: PlaceDetails) => {
-    setSelectedLocation(place); // Set cái này thì useEffect sẽ tự pan map tới đó
-    sessionStorage.setItem(CURRENT_VIEWING_KEY, JSON.stringify(place));
-    setShowSelectedList(false); // Đóng list dropdown để user xem map
+    const enriched = enhanceDetailsWithDistance(place, userLocation);
+    setSelectedLocation(enriched);
+    sessionStorage.setItem(CURRENT_VIEWING_KEY, JSON.stringify(enriched));
+    setShowSelectedList(false);
   };
 
   const handleAddLocation = () => {
@@ -375,28 +515,22 @@ export default function AddDestinationPage() {
   };
 
   const handleFinish = () => {
-    // [UPDATE] Validate ít nhất 2 địa điểm
+    // Validate minimum number of destinations
     if (addedDestinations.length < 2) {
-      // Dùng window.confirm hoặc alert tùy ý, alert cho đơn giản
       alert(
         `You need at least 2 destinations to continue! (Current: ${addedDestinations.length})`
       );
       return;
     }
 
-    // ✅ Get planId from sessionStorage to check if EDIT or CREATE mode
+    // Determine whether we are editing an existing plan
     const planId = sessionStorage.getItem("EDITING_PLAN_ID");
 
     if (planId) {
-      // ✅ EDIT MODE: Keep destinations in storage for review_plan to merge with API data
-      // Storage will be cleared AFTER save in review_plan
-      console.log(
-        `📎 EDIT MODE: Returning to review_plan with planId: ${planId}`
-      );
+      console.log(`EDIT MODE: Returning to review_plan with planId: ${planId}`);
       router.push(`/planning_page/review_plan?id=${planId}`);
     } else {
-      // ✅ CREATE MODE: Keep destinations in storage for review_plan to use
-      console.log(`📝 CREATE MODE: Keeping destinations in storage`);
+      console.log(`CREATE MODE: Keeping destinations in storage`);
       router.push("/planning_page/review_plan");
     }
   };
@@ -405,7 +539,7 @@ export default function AddDestinationPage() {
     selectedLocation &&
     addedDestinations.some((d) => d.place_id === selectedLocation.place_id);
 
-  // ✅ Debug: Log only when selectedLocation changes
+  // Debug: log when the selected location changes
   useEffect(() => {
     if (selectedLocation) {
       const isAdded = addedDestinations.some(
@@ -420,6 +554,21 @@ export default function AddDestinationPage() {
     }
   }, [selectedLocation, addedDestinations]);
 
+  const hasSearchResults = searchResults.length > 0;
+  const listPlaces = hasSearchResults ? searchResults : greenSuggestions;
+  const isListLoading = hasSearchResults
+    ? isLoadingResults
+    : isLoadingSuggestions;
+  const listTitle = hasSearchResults
+    ? `Search results${lastSearchQuery ? ` for "${lastSearchQuery}"` : ""}`
+    : "🌿 Green destinations nearby";
+  const listSubtitle = hasSearchResults
+    ? "Tap a place to preview and add it to your plan"
+    : "Start with these eco-friendly highlights";
+  const emptyStateMessage = hasSearchResults
+    ? searchError || "No locations found. Try searching again."
+    : suggestionError || "We couldn't load suggestions right now.";
+
   return (
     <div className="min-h-screen w-full bg-gray-200 flex justify-center items-center sm:py-0">
       <div className="w-full max-w-md bg-white h-screen relative flex flex-col overflow-hidden shadow-2xl">
@@ -433,7 +582,10 @@ export default function AddDestinationPage() {
           </button>
 
           <div className="flex-1 relative">
-            <div className="flex items-center bg-gray-100 rounded-full px-3 py-2.5 transition-all focus-within:ring-2 focus-within:ring-green-100">
+            <form
+              onSubmit={handleSearchSubmit}
+              className="flex items-center bg-gray-100 rounded-full px-3 py-2.5 transition-all focus-within:ring-2 focus-within:ring-green-100"
+            >
               <Search size={18} className="text-gray-500 mr-2" />
               <input
                 type="text"
@@ -444,6 +596,7 @@ export default function AddDestinationPage() {
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => {
                     setSearchQuery("");
                     setPredictions([]);
@@ -453,34 +606,35 @@ export default function AddDestinationPage() {
                   <X size={16} className="text-gray-400" />
                 </button>
               )}
-            </div>
+              <button
+                type="submit"
+                className="ml-1 flex items-center justify-center w-9 h-9 rounded-full bg-[#53B552] text-white shadow-sm hover:bg-green-600 active:scale-95 transition-all"
+                aria-label="Confirm search"
+              >
+                <ArrowRight size={16} strokeWidth={3} />
+              </button>
+            </form>
 
             {/* Prediction Dropdown */}
-            {(predictions.length > 0 ||
-              (searchQuery === "" && initialSuggestions.length > 0)) && (
+            {predictions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl z-50 overflow-hidden border border-gray-100 max-h-64 overflow-y-auto">
-                {/* [NEW] Header nhỏ để phân biệt gợi ý hay kết quả tìm kiếm */}
+                {/* Header to separate suggestions from explicit search results */}
                 <div className="bg-gray-50 px-3 py-2 border-b border-gray-100">
                   <p
                     className={`${jost.className} text-xs font-bold text-green-600 uppercase tracking-wide`}
                   >
-                    {searchQuery ? "Search Results" : "🌿 Green Places Nearby"}
+                    Search Results
                   </p>
                 </div>
 
-                {(searchQuery ? predictions : initialSuggestions).map((p) => (
+                {predictions.map((p) => (
                   <div
                     key={p.place_id}
                     onClick={() => handleSelectPrediction(p)}
                     className="p-3 hover:bg-green-50 active:bg-green-100 cursor-pointer border-b border-gray-50 last:border-0 flex items-start gap-3 transition-colors"
                   >
                     <div className="bg-gray-100 p-1.5 rounded-full shrink-0">
-                      {/* Đổi icon lá cây nếu là gợi ý ban đầu */}
-                      {!searchQuery ? (
-                        <MapPin size={16} className="text-green-500" />
-                      ) : (
-                        <MapPin size={16} className="text-gray-500" />
-                      )}
+                      <MapPin size={16} className="text-gray-500" />
                     </div>
                     <div>
                       <p
@@ -584,7 +738,7 @@ export default function AddDestinationPage() {
                     addedDestinations.map((dest, idx) => (
                       <div
                         key={`${dest.place_id}-${idx}`}
-                        // [UPDATE] Click vào item để xem chi tiết
+                        // Clicking an item focuses it on the map
                         onClick={() => handleClickSavedItem(dest)}
                         className="flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:bg-green-50"
                       >
@@ -620,7 +774,7 @@ export default function AddDestinationPage() {
                     ))
                   )}
                 </div>
-                {/* [UPDATE] Đã bỏ nút Finish ở trong này ra ngoài */}
+                {/* Finish button moved outside the dropdown */}
               </div>
             )}
 
@@ -707,11 +861,7 @@ export default function AddDestinationPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedLocation(dest);
-                                sessionStorage.setItem(
-                                  CURRENT_VIEWING_KEY,
-                                  JSON.stringify(dest)
-                                );
+                                handleClickSavedItem(dest);
                                 setShowSavedList(false);
                               }}
                               className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors"
@@ -748,10 +898,11 @@ export default function AddDestinationPage() {
               <Loader2 className="animate-spin text-[#53B552]" size={40} />
             </div>
           )}
+        </div>
 
-          {/* BOTTOM CARD: DETAIL INFO */}
-          {selectedLocation ? (
-            <div className="absolute bottom-6 left-4 right-4 bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] p-4 z-10 animate-in slide-in-from-bottom-10 duration-300">
+        <div className="bg-white border-t border-gray-100">
+          {selectedLocation && (
+            <div className="px-4 py-4 border-b border-gray-100">
               <div className="flex gap-4">
                 <div className="w-20 h-20 rounded-xl bg-gray-200 overflow-hidden shrink-0 shadow-inner">
                   <img
@@ -847,21 +998,106 @@ export default function AddDestinationPage() {
                 </div>
               </div>
             </div>
-          ) : (
-            // [UPDATE] Nút Finish "Floating" hiện ra khi KHÔNG có thẻ chi tiết nào mở
-            // Chỉ hiện nếu đã add ít nhất 1 địa điểm để user biết là cần bấm vào đây
-            addedDestinations.length > 0 && (
-              <div className="absolute bottom-6 right-4 z-10 animate-in slide-in-from-bottom-5 duration-300">
-                <button
-                  onClick={handleFinish}
-                  className={`${jost.className} bg-[#53B552] hover:bg-green-600 text-white shadow-[0_4px_15px_rgba(83,181,82,0.4)] 
-                        px-6 py-3.5 rounded-full font-bold text-sm flex items-center gap-2 transition-all active:scale-[0.95]`}
+          )}
+
+          <div className="px-4 py-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p
+                  className={`${jost.className} text-[11px] font-bold uppercase tracking-wide text-gray-500`}
                 >
-                  <span>Finish & Review ({addedDestinations.length})</span>
-                  <ArrowRight size={18} />
-                </button>
+                  {listTitle}
+                </p>
+                <p className={`${jost.className} text-xs text-gray-500 mt-0.5`}>
+                  {listSubtitle}
+                </p>
               </div>
-            )
+              {hasSearchResults && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchResults([]);
+                    setLastSearchQuery("");
+                    setSearchError(null);
+                  }}
+                  className={`${jost.className} text-xs font-semibold text-green-600 hover:text-green-700`}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-60 overflow-y-auto pr-1 space-y-3">
+              {isListLoading ? (
+                <div className="py-6 flex flex-col items-center justify-center text-gray-500">
+                  <Loader2
+                    className="animate-spin text-green-500 mb-2"
+                    size={22}
+                  />
+                  <p className={`${jost.className} text-xs`}>
+                    {hasSearchResults
+                      ? "Fetching matching places..."
+                      : "Loading green highlights..."}
+                  </p>
+                </div>
+              ) : listPlaces.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className={`${jost.className} text-xs text-gray-500`}>
+                    {emptyStateMessage}
+                  </p>
+                </div>
+              ) : (
+                listPlaces.map((place) => (
+                  <button
+                    key={place.place_id}
+                    onClick={() => focusPlaceById(place.place_id)}
+                    className="w-full flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-all text-left"
+                  >
+                    <div className="w-14 h-14 rounded-xl bg-gray-200 overflow-hidden shrink-0">
+                      <img
+                        src={
+                          place.photos?.[0]?.photo_url ||
+                          "https://via.placeholder.com/120"
+                        }
+                        alt={place.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={`${jost.className} text-sm font-semibold text-gray-900 truncate`}
+                      >
+                        {place.name}
+                      </p>
+                      <p className="text-xs text-gray-500 line-clamp-1">
+                        {place.formatted_address}
+                      </p>
+                      {place.distanceText && (
+                        <p className="text-[10px] text-green-600 font-semibold mt-1">
+                          {place.distanceText}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 text-xs font-semibold text-green-600">
+                      <span>{hasSearchResults ? "View" : "Pick"}</span>
+                      <Plus size={16} />
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {!selectedLocation && addedDestinations.length > 0 && (
+            <div className="px-4 pb-6">
+              <button
+                onClick={handleFinish}
+                className={`${jost.className} w-full bg-[#53B552] hover:bg-green-600 text-white shadow-[0_4px_15px_rgba(83,181,82,0.4)] px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]`}
+              >
+                <span>Finish & Review ({addedDestinations.length})</span>
+                <ArrowRight size={18} />
+              </button>
+            </div>
           )}
         </div>
         {showWelcome && (
@@ -881,7 +1117,7 @@ export default function AddDestinationPage() {
               <h2
                 className={`${jost.className} text-xl font-bold text-gray-800 mb-2`}
               >
-                Let's plan your trip!
+                Let’s plan your trip!
               </h2>
               <p
                 className={`${jost.className} text-gray-500 text-sm mb-6 leading-relaxed`}
@@ -900,7 +1136,7 @@ export default function AddDestinationPage() {
                 onClick={() => setShowWelcome(false)}
                 className={`${jost.className} w-full bg-[#53B552] hover:bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95`}
               >
-                Got it, let's go!
+                Got it, let’s go!
               </button>
             </div>
           </div>

@@ -8,10 +8,6 @@ import {
   Jost,
 } from "next/font/google";
 import {
-  Home,
-  MapPin,
-  Bot,
-  User,
   Search,
   Heart,
   Map,
@@ -21,6 +17,7 @@ import {
   Loader2,
   Route,
   Star,
+  Leaf,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,6 +29,13 @@ import {
   UserRewardResponse,
   GreenPlaceRecommendation,
 } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
+
+type Coordinates = {
+  lat: number;
+  lng: number;
+};
 
 // --- FONTS ---
 export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
@@ -67,7 +71,6 @@ const DEFAULT_LNG = 106.6953;
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
-  const [requestCount, setRequestCount] = useState(0);
 
   // State for Plan & Rewards
   const [upcomingPlan, setUpcomingPlan] = useState<TravelPlan | null>(null);
@@ -86,50 +89,22 @@ export default function HomePage() {
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  // --- HÀM LẤY VỊ TRÍ TỐI ƯU (PROMISE WRAPPER) ---
-  const getUserLocation = async (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
+  const getUserLocation = (): Promise<Coordinates> =>
+    new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Geolocation not supported"));
+        reject(new Error("Geolocation is not supported"));
         return;
       }
-
-      // Cấu hình 1: Ưu tiên chính xác cao, thử nhanh trong 5s
-      const highAccuracyOptions = {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 60000, // Chấp nhận vị trí cũ trong 1 phút (cache)
-      };
-
       navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => {
-          console.warn(
-            "High accuracy GPS failed, trying low accuracy...",
-            err.message
-          );
-
-          // Cấu hình 2: Nếu thất bại, thử lấy vị trí qua Wifi/Cell (kém chính xác hơn nhưng nhanh)
-          const lowAccuracyOptions = {
-            enableHighAccuracy: false,
-            timeout: 10000, // Cho phép đợi lâu hơn chút
-            maximumAge: Infinity, // Lấy bất kỳ vị trí cache nào có thể
-          };
-
-          navigator.geolocation.getCurrentPosition(
-            (pos) =>
-              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            (err2) => reject(err2), // Nếu vẫn lỗi thì mới reject
-            lowAccuracyOptions
-          );
-        },
-        highAccuracyOptions
+        (position) =>
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          }),
+        (error) => reject(error)
       );
     });
-  };
 
-  // --- FETCH DATA ---
   useEffect(() => {
     let isMounted = true;
 
@@ -201,16 +176,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // ... (Giữ nguyên các useEffect fetchRequests, fetchUpcomingPlan, fetchRewardData)
-  useEffect(() => {
-    const f = async () => {
-      try {
-        const l = await api.getPendingRequests();
-        setRequestCount(l.length);
-      } catch {}
-    };
-    f();
-  }, []);
+  // ... (Giữ nguyên các useEffect fetchUpcomingPlan, fetchRewardData)
   useEffect(() => {
     const f = async () => {
       try {
@@ -331,6 +297,12 @@ export default function HomePage() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-gray-50 h-screen flex flex-col overflow-hidden shadow-2xl relative">
+        <MobileNavMenu
+          items={PRIMARY_NAV_LINKS}
+          activeKey="home"
+          className="top-4 left-4"
+          buttonLabel="Menu"
+        />
         {/* --- HEADER --- */}
         <header className="bg-[#53B552] px-4 pt-5 pb-6 shadow-md shrink-0 z-10">
           <form
@@ -605,57 +577,20 @@ export default function HomePage() {
           </section>
         </main>
 
-        <footer
-          className={`bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20`}
-        >
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center justify-center w-1/4 text-green-600"
-            >
-              <Home className="size-6" strokeWidth={2.0} />
-              <span className="text-[10px] font-bold mt-1">Home</span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Route size={24} strokeWidth={1.5} />
-              <span
-                className={`${jost.className} text-[10px] font-medium mt-1`}
-              >
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <MapPin className="size-6" strokeWidth={1.5} />
-              <span className="text-[10px] font-medium mt-1">Planning</span>
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Bot className="size-6" strokeWidth={1.5} />
-              <span className="text-[10px] font-medium mt-1">Ecobot</span>
-            </Link>
-            <Link
-              href="user_page/main_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors relative"
-            >
-              <div className="relative">
-                <User className="size-6" strokeWidth={1.5} />
-                {requestCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-in zoom-in">
-                    {requestCount > 9 ? "9+" : requestCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] font-medium mt-1">User</span>
-            </Link>
+        <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center">
+          <div className="flex justify-center items-center gap-2 mb-4">
+            <Leaf className="text-green-600 size-5" />
+            <span className={`${knewave.className} text-xl text-gray-800`}>
+              EcomoveX
+            </span>
+          </div>
+          <p className={`${poppins.className} text-gray-400 text-xs mb-6`}>
+            © 2025 EcomoveX. All rights reserved.
+          </p>
+          <div className="flex justify-center gap-6 text-xs font-medium text-gray-500">
+            <a href="#">Privacy</a>
+            <a href="#">Terms</a>
+            <a href="#">Support</a>
           </div>
         </footer>
       </div>

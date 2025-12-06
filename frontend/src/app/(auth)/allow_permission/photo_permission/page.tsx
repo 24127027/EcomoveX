@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Image as ImageIcon } from "lucide-react";
-import { Knewave, Josefin_Sans, Abhaya_Libre, Jost } from "next/font/google";
+import { Knewave, Abhaya_Libre, Jost } from "next/font/google";
 
 const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
-const josefin_sans = Josefin_Sans({ subsets: ["latin"], weight: ["700"] });
 const abhaya_libre = Abhaya_Libre({
   subsets: ["latin"],
   weight: ["400", "700"],
@@ -15,19 +14,18 @@ const jost = Jost({ subsets: ["latin"], weight: ["700"] });
 
 export default function PhotoPermissionPage() {
   const router = useRouter();
-  const [isChecking, setIsChecking] = useState(true);
+  const shouldRequestPhotoPermission = useMemo(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return localStorage.getItem("photoPermission") !== "granted";
+  }, []);
 
   useEffect(() => {
-    // Kiểm tra xem đã cho phép chưa
-    const hasPermission = localStorage.getItem("photoPermission");
-
-    // Nếu đã cấp quyền rồi -> Chuyển thẳng vào Homepage
-    if (hasPermission === "granted") {
+    if (!shouldRequestPhotoPermission) {
       router.push("/homepage");
-    } else {
-      setIsChecking(false);
     }
-  }, [router]);
+  }, [router, shouldRequestPhotoPermission]);
 
   const handleAllow = () => {
     // Lưu trạng thái đã cho phép vào LocalStorage
@@ -44,7 +42,7 @@ export default function PhotoPermissionPage() {
     router.push("/homepage");
   };
 
-  if (isChecking) return null;
+  if (!shouldRequestPhotoPermission) return null;
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">

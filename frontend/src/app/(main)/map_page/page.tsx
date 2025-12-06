@@ -3,10 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import {
   Search,
-  Home,
   MapPin,
-  Bot,
-  User,
   ChevronLeft,
   Navigation,
   Check,
@@ -23,6 +20,11 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
 import { flushSync } from "react-dom";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { MAP_NAV_LINKS } from "@/constants/navLinks";
+import { Jost } from "next/font/google";
+
+const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
@@ -95,14 +97,6 @@ const convertSearchResultToDetails = (
     rating: 0,
   };
 };
-
-function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>(undefined);
-  useEffect(() => {
-    ref.current = value;
-  });
-  return ref.current;
-}
 
 const generateSessionToken = () => {
   if (window.google?.maps?.places) {
@@ -697,50 +691,88 @@ function MapContent() {
   }, [isDragging]);
 
   return (
-    <div className="min-h-screen w-full bg-white sm:bg-gray-200 sm:flex sm:justify-center">
-      <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-2xl">
-        <div className="flex-1 relative bg-[#E9F5EB] w-full overflow-hidden">
-          <div className="absolute top-5 left-4 right-4 z-10 search-container">
-            <div className="bg-white rounded-full shadow-lg flex items-center p-3 transition-transform active:scale-95">
-              <div onClick={() => router.back()} className="cursor-pointer">
-                <ChevronLeft className="text-gray-500 mr-2 hover:text-green-600" />
+    <div
+      className={`min-h-screen w-full bg-linear-to-b from-[#F4F9F4] via-[#EFF6F2] to-[#E3F1EB] sm:flex sm:justify-center ${jost.className}`}
+    >
+      <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-[0_30px_80px_rgba(10,126,70,0.15)] sm:rounded-3xl">
+        {!isPickerMode && (
+          <MobileNavMenu
+            items={MAP_NAV_LINKS}
+            activeKey="planning"
+            buttonLabel="Menu"
+            variant="flat"
+            positionClassName="absolute top-5 left-5 sm:top-6 sm:left-6"
+            className="drop-shadow-sm"
+          />
+        )}
+        <div className="flex-1 relative w-full overflow-hidden">
+          <div className="absolute top-5 left-4 right-4 sm:left-8 sm:right-8 z-10 search-container space-y-3">
+            <div className="bg-white/90 backdrop-blur-xl border border-green-100 rounded-2xl shadow-[0_15px_45px_rgba(16,185,129,0.15)] p-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.back()}
+                  className="p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="flex-1">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-green-600 font-semibold">
+                    Explore greener spots
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Tìm kiếm & lưu lại những điểm đến bạn yêu thích
+                  </p>
+                </div>
               </div>
-
-              <Search size={18} className="text-green-600 mr-2" />
-              <input
-                type="text"
-                placeholder="Search for a location..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleTextSearch}
-                onFocus={() => {
-                  flushSync(() => {
-                    setEnableTransition(false);
-                    setSheetHeight(8);
-                  });
-                  if (window.google?.maps) {
-                    const token =
-                      new google.maps.places.AutocompleteSessionToken();
-                    setSessionToken(token.toString());
-                  }
-                  setIsSearchFocused(true);
-                  setTimeout(() => setEnableTransition(true), 50);
-                }}
-                className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
-              />
-              {isSearching && (
-                <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
-              )}
+              <div className="mt-4 bg-white rounded-xl border border-gray-100 flex items-center px-4 py-2.5 shadow-inner">
+                <Search size={18} className="text-green-600 mr-2" />
+                <input
+                  type="text"
+                  placeholder="Bạn muốn đi đâu hôm nay?"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleTextSearch}
+                  onFocus={() => {
+                    flushSync(() => {
+                      setEnableTransition(false);
+                      setSheetHeight(8);
+                    });
+                    if (window.google?.maps) {
+                      const token =
+                        new google.maps.places.AutocompleteSessionToken();
+                      setSessionToken(token.toString());
+                    }
+                    setIsSearchFocused(true);
+                    setTimeout(() => setEnableTransition(true), 50);
+                  }}
+                  className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
+                />
+                {isSearching && (
+                  <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                )}
+              </div>
+              <div className="mt-3 flex gap-2 overflow-x-auto text-xs text-gray-600">
+                {["Coffee", "Park", "Vegan", "Museums", "Co-working"].map(
+                  (label) => (
+                    <span
+                      key={label}
+                      className="px-3 py-1 rounded-full bg-green-50 text-green-700 font-semibold whitespace-nowrap border border-green-100"
+                    >
+                      {label}
+                    </span>
+                  )
+                )}
+              </div>
             </div>
 
             {/* Autocomplete Dropdown */}
             {isSearchFocused && autocompletePredictions.length > 0 && (
-              <div className="mt-2 bg-white rounded-2xl shadow-xl overflow-hidden max-h-96 overflow-y-auto">
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-h-96 overflow-y-auto border border-green-50">
                 {autocompletePredictions.map((prediction) => (
                   <div
                     key={prediction.place_id}
                     onClick={() => handleSelectPrediction(prediction)}
-                    className="p-4 hover:bg-gray-50 active:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                    className="p-4 hover:bg-green-50/60 active:bg-green-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
                   >
                     <div className="flex items-start gap-3">
                       <MapPin
@@ -765,19 +797,25 @@ function MapContent() {
           {/* Current Location Button */}
           <button
             onClick={handleCurrentLocation}
-            className="absolute top-24 right-4 z-10 bg-white p-3 rounded-full shadow-lg hover:bg-gray-50 transition-colors active:scale-95"
+            className="absolute top-36 right-8 z-20 bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-[0_8px_24px_rgba(15,118,110,0.2)] border border-white/60 hover:bg-white transition-colors active:scale-95"
           >
             <Navigation size={20} className="text-green-600" />
           </button>
 
           {/* Google Map */}
-          <div ref={mapRef} className="w-full h-full" />
+          <div className="absolute inset-0 pt-32 pb-8 px-4 sm:px-8">
+            <div className="w-full h-full rounded-[32px] bg-gradient-to-br from-[#D9F1E7] via-[#D6ECE2] to-[#CFE4DB] shadow-[0_30px_80px_rgba(16,185,129,0.2)] border border-white/60 overflow-hidden">
+              <div ref={mapRef} className="w-full h-full" />
+            </div>
+          </div>
 
           {!mapLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#E9F5EB]">
-              <div className="text-center">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
-                <p className="text-gray-600 font-semibold">Loading map...</p>
+                <p className="text-gray-600 font-semibold">
+                  Đang tải bản đồ...
+                </p>
               </div>
             </div>
           )}
@@ -790,7 +828,7 @@ function MapContent() {
             height: `${sheetHeight}vh`,
             touchAction: "none",
           }}
-          className={`bg-white rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.15)] z-10 shrink-0 relative overflow-hidden ${
+          className={`bg-[#F7FBF8] rounded-t-[32px] border border-green-50 shadow-[0_-25px_60px_rgba(15,118,110,0.12)] z-10 shrink-0 relative overflow-hidden ${
             isDragging || !enableTransition
               ? ""
               : "transition-all duration-300 ease-out"
@@ -802,7 +840,7 @@ function MapContent() {
             onTouchStart={handleDragStart}
             onMouseDown={handleDragStart}
           >
-            <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
+            <div className="w-16 h-1.5 bg-green-200 rounded-full"></div>
           </div>
 
           {/* Content Area */}
@@ -818,22 +856,28 @@ function MapContent() {
           >
             {selectedLocation ? (
               <div className="mb-4">
-                <div className="bg-[#F9FFF9] border border-green-100 rounded-xl p-4 mb-3 flex items-start gap-3 shadow-sm">
-                  <div className="bg-green-100 p-2.5 rounded-full shrink-0 mt-0.5">
+                <div className="bg-gradient-to-br from-white via-[#F2FBF5] to-[#E4F6EB] border border-white shadow-[0_20px_50px_rgba(15,118,110,0.12)] rounded-3xl p-4 mb-4 flex items-start gap-3">
+                  <div className="bg-green-600/10 p-3 rounded-2xl shrink-0 mt-0.5">
                     <MapPin size={20} className="text-green-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-green-700 text-xs font-bold mb-1 uppercase tracking-wide">
-                      Selected Location
-                    </p>
-                    <p className="text-gray-900 text-base font-bold leading-tight mb-1 truncate">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-green-700 text-[11px] font-bold mb-1 uppercase tracking-[0.3em]">
+                        Selected location
+                      </p>
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-white text-gray-500 border border-gray-100">
+                        {selectedLocation.types[0]?.replace(/_/g, " ") ||
+                          "Spot"}
+                      </span>
+                    </div>
+                    <p className="text-gray-900 text-lg font-bold leading-tight mb-1 truncate">
                       {selectedLocation.name}
                     </p>
-                    <p className="text-gray-600 text-sm leading-tight line-clamp-2">
+                    <p className="text-gray-500 text-sm leading-tight line-clamp-2">
                       {selectedLocation.formatted_address}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                      <span className="text-xs bg-white text-green-700 px-2.5 py-1 rounded-full font-semibold border border-green-100">
                         {selectedLocation.distanceText}
                       </span>
                       {selectedLocation.rating &&
@@ -851,20 +895,20 @@ function MapContent() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={handleSaveLocation}
                     disabled={isSavingLocation || isCurrentLocationSaved}
-                    className={`w-full border-2 border-[#53B552] rounded-full font-bold py-3 shadow-md transition-all flex items-center justify-center gap-2 text-base active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+                    className={`w-full border border-green-200 rounded-2xl font-semibold py-3.5 shadow-[0_10px_30px_rgba(15,118,110,0.18)] transition-all flex items-center justify-center gap-2 text-base active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
                       isCurrentLocationSaved
-                        ? "bg-[#53B552] text-white"
-                        : "text-[#53B552] bg-white"
+                        ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+                        : "text-green-700 bg-white"
                     }`}
                   >
                     <BookmarkPlus
                       size={18}
                       className={
-                        isCurrentLocationSaved ? "text-white" : "text-[#53B552]"
+                        isCurrentLocationSaved ? "text-white" : "text-green-600"
                       }
                     />
                     {isSavingLocation
@@ -877,7 +921,7 @@ function MapContent() {
                   {isPickerMode ? (
                     <button
                       onClick={handlePickLocation}
-                      className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
+                      className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white text-lg font-bold py-3.5 rounded-2xl shadow-[0_15px_35px_rgba(15,118,110,0.25)] transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                       <Check size={20} strokeWidth={3} />
                       <span>Select This Location</span>
@@ -885,7 +929,7 @@ function MapContent() {
                   ) : (
                     <button
                       onClick={handleNavigateToDetail}
-                      className="w-full bg-[#53B552] hover:bg-green-600 active:bg-green-700 text-white text-lg font-bold py-3 rounded-full shadow-lg transition-all transform active:scale-[0.98]"
+                      className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white text-lg font-bold py-3.5 rounded-2xl shadow-[0_15px_35px_rgba(15,118,110,0.25)] transition-all transform active:scale-[0.98]"
                     >
                       View Details
                     </button>
@@ -907,13 +951,25 @@ function MapContent() {
             ) : (
               <>
                 {!isSearchFocused && (
-                  <div className="mb-4">
-                    <h3 className="text-gray-900 text-lg font-bold mb-1">
+                  <div className="mb-4 space-y-3">
+                    <div className="bg-white rounded-3xl border border-green-50 shadow-[0_12px_35px_rgba(15,118,110,0.12)] p-4">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-green-600 font-semibold">
+                        curated for you
+                      </p>
+                      <p className="text-gray-900 text-lg font-bold mt-1">
+                        Khám phá những địa điểm xanh quanh bạn
+                      </p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Chạm vào bản đồ hoặc danh sách bên dưới để xem chi tiết
+                        và lưu vào kế hoạch.
+                      </p>
+                    </div>
+                    <h3 className="text-gray-900 text-lg font-bold">
                       {searchResults.length > 0
                         ? "Search Results"
                         : "Nearby Eco Locations"}
                     </h3>
-                    <p className="text-gray-500 text-sm mb-3">
+                    <p className="text-gray-500 text-sm">
                       {searchResults.length > 0
                         ? `Found ${searchResults.length} results`
                         : "Select a location from the map or list below"}
@@ -958,18 +1014,18 @@ function MapContent() {
             {!isSearching &&
               !isSearchFocused &&
               displayedLocations.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 pb-2">
+                <div className="grid grid-cols-1 gap-3 pb-2">
                   {displayedLocations.map((location) => (
                     <div
                       key={location.place_id}
                       onClick={() => handleCardClick(location)}
-                      className={`bg-white rounded-xl overflow-hidden shadow-md cursor-pointer transition-all transform active:scale-[0.95] ${
+                      className={`bg-white/90 rounded-2xl border border-green-50 overflow-hidden shadow-[0_12px_30px_rgba(15,118,110,0.08)] cursor-pointer transition-all transform active:scale-[0.97] ${
                         selectedLocation?.place_id === location.place_id
                           ? "ring-2 ring-green-500"
                           : ""
                       }`}
                     >
-                      <div className="relative h-28 bg-gray-200">
+                      <div className="relative h-28 bg-gray-200 overflow-hidden">
                         <img
                           src={
                             location.photos?.[0]?.photo_url
@@ -985,6 +1041,7 @@ function MapContent() {
                           loading="lazy"
                           decoding="async"
                         />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
                         {isPlaceSaved(location.place_id) && (
                           <span className="absolute top-2 right-2 bg-[#53B552] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
                             Saved
@@ -999,7 +1056,7 @@ function MapContent() {
                           {location.distanceText}
                         </p>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
+                          <span className="text-[11px] bg-green-50 text-green-700 px-2 py-1 rounded-full font-semibold">
                             {location.types[0]?.replace(/_/g, " ") || "Place"}
                           </span>
                           {location.rating && location.rating > 0 && (
@@ -1017,36 +1074,26 @@ function MapContent() {
         </div>
 
         {!isPickerMode && (
-          <footer className="bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.05)] shrink-0 z-20">
-            <div className="h-0.5 bg-linear-to-r from-transparent via-green-300 to-transparent opacity-70"></div>
-            <div className="flex justify-around items-center px-2 pt-2 pb-3">
-              <a
-                href="/homepage"
-                className="flex flex-col items-center justify-center w-1/4 text-green-600"
-              >
-                <Home className="size-6" strokeWidth={2.0} />
-                <span className="text-xs font-medium mt-0.5">Home</span>
+          <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center shrink-0">
+            <div className="flex justify-center items-center gap-2 mb-4">
+              <Navigation className="text-green-600 size-5" />
+              <span className="text-lg font-semibold text-gray-800">
+                Explore Greener Paths
+              </span>
+            </div>
+            <p className="text-gray-400 text-xs mb-4">
+              Discover eco-friendly places, save your favorites, and plan your
+              next visit with confidence.
+            </p>
+            <div className="flex justify-center gap-6 text-xs font-medium text-gray-500">
+              <a href="#" className="hover:text-gray-700">
+                Support
               </a>
-              <a
-                href="/planning_page/showing_plan/page"
-                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-              >
-                <MapPin className="size-6" strokeWidth={2.0} />
-                <span className="text-xs font-medium mt-0.5">Planning</span>
+              <a href="#" className="hover:text-gray-700">
+                Privacy
               </a>
-              <a
-                href="/ecobot_page"
-                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-              >
-                <Bot className="size-6" strokeWidth={1.5} />
-                <span className="text-xs font-medium mt-0.5">Ecobot</span>
-              </a>
-              <a
-                href="/user_page/main_page"
-                className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-              >
-                <User className="size-6" strokeWidth={1.5} />
-                <span className="text-xs font-medium mt-0.5">User</span>
+              <a href="#" className="hover:text-gray-700">
+                Terms
               </a>
             </div>
           </footer>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { Knewave, Josefin_Sans, Abhaya_Libre, Jost } from "next/font/google";
@@ -19,22 +19,21 @@ export default function LocationPermissionPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // State để kiểm tra xem đã check xong localStorage chưa (tránh nháy màn hình)
-  const [isChecking, setIsChecking] = useState(true);
+  const shouldRequestLocationPermission = useMemo(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    const hasLocation = localStorage.getItem("userLocation");
+    const hasSkipped = localStorage.getItem("locationSkipped");
+    return !(hasLocation || hasSkipped);
+  }, []);
 
   // 1. KIỂM TRA TRẠNG THÁI KHI COMPONENT MOUNT
   useEffect(() => {
-    const hasLocation = localStorage.getItem("userLocation");
-    const hasSkipped = localStorage.getItem("locationSkipped");
-
-    // Nếu đã có vị trí HOẶC người dùng đã từng bấm bỏ qua -> Chuyển sang bước Photo Permission
-    if (hasLocation || hasSkipped) {
+    if (!shouldRequestLocationPermission) {
       router.push("/allow_permission/photo_permission");
-    } else {
-      // Nếu chưa có gì -> Hiển thị giao diện xin phép
-      setIsChecking(false);
     }
-  }, [router]);
+  }, [router, shouldRequestLocationPermission]);
 
   const handleAllowLocation = () => {
     setLoading(true);
@@ -79,8 +78,8 @@ export default function LocationPermissionPage() {
     router.push("/allow_permission/photo_permission");
   };
 
-  // Nếu đang kiểm tra localStorage thì không render gì cả
-  if (isChecking) {
+  // Nếu đã có quyền thì chỉ cần điều hướng (effect phía trên), không render gì thêm
+  if (!shouldRequestLocationPermission) {
     return null;
   }
 

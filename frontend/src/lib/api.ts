@@ -63,10 +63,73 @@ export interface Position {
   lng: number;
 }
 
+export type TransportModeType =
+  | "car"
+  | "motorbike"
+  | "walking"
+  | "metro"
+  | "bus"
+  | "train";
+
+export interface RouteLocation {
+  lat: number;
+  lng: number;
+}
+
+export type RouteTypeOption = "fastest" | "low_carbon" | "smart_combination";
+
+export interface RouteStepDetails {
+  distance: number;
+  duration: number;
+  start_location: Position;
+  end_location: Position;
+  travel_mode: TransportModeType;
+  polyline?: string;
+}
+
+export interface RouteLegDetails {
+  distance: number;
+  duration: number;
+  steps: RouteStepDetails[];
+}
+
+export interface RouteDetails {
+  overview_polyline: string;
+  legs: RouteLegDetails[];
+}
+
+export interface RouteOption {
+  type: RouteTypeOption | string;
+  mode: TransportModeType[];
+  distance: number;
+  duration: number;
+  carbon: number;
+  route_details: RouteDetails;
+}
+
+export interface FindRoutesResponse {
+  origin: RouteLocation;
+  destination: RouteLocation;
+  routes: Record<RouteTypeOption | string, RouteOption>;
+  recommendation: string;
+}
+
 // --- NEW TEXT SEARCH TYPES START ---
 export interface LocalizedText {
   text: string;
   languageCode?: string;
+}
+
+export interface AutocompleteMatchedSubstring {
+  length: number;
+  offset: number;
+}
+
+export interface AutocompleteStructuredFormatting {
+  main_text: string;
+  secondary_text?: string;
+  main_text_matched_substrings?: AutocompleteMatchedSubstring[];
+  secondary_text_matched_substrings?: AutocompleteMatchedSubstring[];
 }
 
 export interface PhotoInfo {
@@ -123,9 +186,9 @@ export interface AutocompleteRequest {
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
-  structured_formatting?: Record<string, any>;
+  structured_formatting?: AutocompleteStructuredFormatting;
   types: string[];
-  matched_substrings?: Array<Record<string, any>>;
+  matched_substrings?: AutocompleteMatchedSubstring[];
   distance?: number;
 }
 
@@ -155,7 +218,7 @@ export interface PlaceDetails {
   price_level?: number;
   opening_hours?: {
     open_now: boolean;
-    periods?: Array<Record<string, any>>;
+    periods?: OpeningHoursPeriod[];
     weekday_text?: string[];
   };
   website?: string;
@@ -164,9 +227,28 @@ export interface PlaceDetails {
     width: number;
     height: number;
   }>;
-  reviews?: Array<Record<string, any>>;
+  reviews?: PlaceReview[];
   utc_offset?: number;
   sustainable_certified: boolean;
+}
+
+export interface OpeningHoursPeriodEndpoint {
+  day: number;
+  time: string;
+}
+
+export interface OpeningHoursPeriod {
+  open: OpeningHoursPeriodEndpoint;
+  close?: OpeningHoursPeriodEndpoint;
+}
+
+export interface PlaceReview {
+  author_name: string;
+  rating: number;
+  relative_time_description?: string;
+  text?: string;
+  time?: number;
+  profile_photo_url?: string;
 }
 
 export interface ReverseGeocodeResponse {
@@ -195,6 +277,12 @@ export interface UploadResponse {
   url: string;
   blob_name: string;
   filename: string;
+}
+
+export interface ApiMessageResponse {
+  detail?: string;
+  message?: string;
+  [key: string]: unknown;
 }
 
 export class ApiValidationError extends Error {
@@ -330,6 +418,7 @@ export interface AddMemberRequest {
 export interface PlanActivity {
   id: number | string;
   original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
+  destination_id?: string; // ✅ Preserve Google Place ID for routing / maps
   title: string;
   address: string;
   image_url: string;
@@ -339,6 +428,8 @@ export interface PlanActivity {
   order_in_day?: number;
   time?: string;
   day?: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface TravelPlan {
@@ -377,6 +468,37 @@ export interface UpdatePlanRequest {
   end_date?: string;
   budget_limit?: number;
   destinations?: PlanDestinationCreate[];
+}
+
+export interface PlanGenerationDestination {
+  destination_id: string;
+  destination_type: string;
+  visit_date: string;
+  order_in_day: number;
+  time_slot: string;
+  note?: string;
+  estimated_cost?: number;
+  url?: string;
+}
+
+export interface GeneratedPlanPayload {
+  place_name: string;
+  start_date: string;
+  end_date: string;
+  budget_limit?: number;
+  destinations: PlanGenerationDestination[];
+}
+
+export interface PlanGenerationResponse {
+  success: boolean;
+  message?: string;
+  detail?: string;
+  plan?: GeneratedPlanPayload;
+}
+
+export interface BotMessageResponse {
+  message?: string;
+  detail?: string;
 }
 
 export interface DestinationCard {
@@ -503,8 +625,8 @@ class ApiClient {
     }
   }
 
-  async getCurrentUser(): Promise<any> {
-    return this.request("/auth/me", { method: "GET" });
+  async getCurrentUser(): Promise<UserProfile> {
+    return this.request<UserProfile>("/auth/me", { method: "GET" });
   }
 
   async resetPassword(email: string): Promise<void> {
@@ -521,10 +643,13 @@ class ApiClient {
     });
   }
 
-  async saveDestination(destinationId: string): Promise<any> {
-    return this.request(`/destinations/saved/${destinationId}`, {
-      method: "POST",
-    });
+  async saveDestination(destinationId: string): Promise<SavedDestination> {
+    return this.request<SavedDestination>(
+      `/destinations/saved/${destinationId}`,
+      {
+        method: "POST",
+      }
+    );
   }
 
   async unsaveDestination(destinationId: string): Promise<void> {
@@ -569,8 +694,10 @@ class ApiClient {
     });
   }
 
-  async updateCredentials(data: UserCredentialUpdate): Promise<any> {
-    return this.request("/users/me/credentials", {
+  async updateCredentials(
+    data: UserCredentialUpdate
+  ): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>("/users/me/credentials", {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -607,8 +734,8 @@ class ApiClient {
   async addDestinationToPlan(
     planId: number,
     data: PlanDestination
-  ): Promise<any> {
-    return this.request(`/plans/${planId}/destinations`, {
+  ): Promise<PlanDestination> {
+    return this.request<PlanDestination>(`/plans/${planId}/destinations`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -617,8 +744,8 @@ class ApiClient {
     destinationId: string | number,
     planId: number,
     data: { note?: string; visit_date?: string }
-  ): Promise<any> {
-    return this.request(
+  ): Promise<PlanDestination> {
+    return this.request<PlanDestination>(
       `/plans/destinations/${destinationId}?plan_id=${planId}`,
       {
         method: "PUT",
@@ -777,6 +904,7 @@ class ApiClient {
         return {
           id: `${d.destination_id}-${index}`,
           original_id: d.id,
+          destination_id: d.destination_id,
           title: d.note || "Destination",
           address: "",
           image_url: d.url || "",
@@ -843,14 +971,16 @@ class ApiClient {
     });
   }
 
-  async rejectFriendRequest(friendId: number): Promise<any> {
-    return this.request<void>(`/friends/${friendId}/reject`, {
+  async rejectFriendRequest(friendId: number): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>(`/friends/${friendId}/reject`, {
       method: "DELETE",
     });
   }
 
-  async unfriend(friendId: number): Promise<any> {
-    return this.request(`/friends/${friendId}`, { method: "DELETE" });
+  async unfriend(friendId: number): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>(`/friends/${friendId}`, {
+      method: "DELETE",
+    });
   }
 
   // --- MAP ENDPOINTS ---
@@ -1078,39 +1208,30 @@ class ApiClient {
   }
 
   // --- ROUTES ---
-  async findOptimalRoutes(
-    origins: Array<{ lat: number; lng: number }>,
-    destinations: Array<{ lat: number; lng: number }>,
-    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train"
-  ): Promise<any> {
-    return this.request<any>("/routes/find-optimal", {
+  async findOptimalRoutes(params: {
+    origin: RouteLocation;
+    destination: RouteLocation;
+    maxTimeRatio?: number;
+    language?: string;
+  }): Promise<FindRoutesResponse> {
+    const { origin, destination, maxTimeRatio = 1.3, language = "vi" } = params;
+
+    return this.request<FindRoutesResponse>("/routes/find-optimal", {
       method: "POST",
       body: JSON.stringify({
-        origins,
-        destinations,
-        transport_mode: transportMode,
+        origin: { lat: origin.lat, lng: origin.lng },
+        destination: { lat: destination.lat, lng: destination.lng },
+        max_time_ratio: maxTimeRatio,
+        language,
       }),
     });
   }
 
   // --- CHATBOT & AI ---
-  async generatePlan(planData: {
-    place_name: string;
-    start_date: string;
-    end_date: string;
-    budget_limit?: number;
-    destinations: Array<{
-      destination_id: string;
-      destination_type: string;
-      visit_date: string;
-      order_in_day: number;
-      time_slot: string;
-      note?: string;
-      estimated_cost?: number;
-      url?: string;
-    }>;
-  }): Promise<any> {
-    return this.request<any>("/chatbot/plan/generate", {
+  async generatePlan(
+    planData: GeneratedPlanPayload
+  ): Promise<PlanGenerationResponse> {
+    return this.request<PlanGenerationResponse>("/chatbot/plan/generate", {
       method: "POST",
       body: JSON.stringify(planData),
     });
@@ -1120,8 +1241,8 @@ class ApiClient {
     userId: number,
     roomId: number,
     message: string
-  ): Promise<any> {
-    return this.request<any>("/chatbot/message", {
+  ): Promise<BotMessageResponse> {
+    return this.request<BotMessageResponse>("/chatbot/message", {
       method: "POST",
       body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
     });

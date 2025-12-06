@@ -18,6 +18,7 @@ import {
 import { Jost } from "next/font/google";
 import { api } from "@/lib/api";
 import type { PlanActivity } from "@/lib/api";
+import { CenteredMobileLoader } from "../components/CenteredMobileLoader";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
@@ -303,13 +304,7 @@ function TransportSelectionContent() {
   };
 
   if (isLoading) {
-    return (
-      <div className="h-screen w-full flex justify-center bg-gray-50">
-        <div className="w-full max-w-md bg-white h-full shadow-2xl flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#53B552]"></div>
-        </div>
-      </div>
-    );
+    return <CenteredMobileLoader message="Loading transport options..." />;
   }
 
   return (
@@ -509,13 +504,7 @@ function TransportSelectionContent() {
 export default function TransportSelectionPage() {
   return (
     <Suspense
-      fallback={
-        <div className="h-screen w-full flex justify-center bg-gray-50">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#53B552]"></div>
-          </div>
-        </div>
-      }
+      fallback={<CenteredMobileLoader message="Loading transport options..." />}
     >
       <TransportSelectionContent />
     </Suspense>

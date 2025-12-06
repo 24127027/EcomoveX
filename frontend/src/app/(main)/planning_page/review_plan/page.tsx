@@ -14,7 +14,7 @@ import {
   DragOverEvent,
   DragOverlay,
   defaultDropAnimationSideEffects,
-  DropAnimation, // Import type này
+  DropAnimation,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -609,10 +609,10 @@ function ReviewPlanContent() {
     const date = new Date(dateInput);
     const offsetMs = date.getTimezoneOffset() * 60 * 1000;
     const localDate = new Date(date.getTime() - offsetMs);
-    return localDate.toISOString().slice(0, 19); // Cắt bỏ phần milliseconds và chữ Z
+    return localDate.toISOString().slice(0, 19); // Drop milliseconds and trailing Z
   };
 
-  // ✅ Helper để chuyển date thành format "YYYY-MM-DD" (chỉ date, không có time)
+  // Helper to format a date as YYYY-MM-DD (no time component)
   const toDateOnlyString = (dateInput: string | Date) => {
     const date = new Date(dateInput);
     const year = date.getFullYear();
@@ -621,7 +621,7 @@ function ReviewPlanContent() {
     return `${year}-${month}-${day}`;
   };
 
-  // --- HELPER: Phân bố activities trên các ngày trong trip ---
+  // --- HELPER: distribute activities evenly across trip dates ---
   const distributeActivitiesAcrossDays = (
     activities: PlanActivity[],
     startDateStr: string,
@@ -632,23 +632,23 @@ function ReviewPlanContent() {
     const startDate = new Date(startDateStr);
     const endDate = endDateStr ? new Date(endDateStr) : new Date(startDateStr);
 
-    // Tính số ngày trong trip
+    // Determine number of days in the trip
     const daysInTrip =
       Math.floor(
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
       ) + 1;
 
-    // Phân bố activities - chỉ điều chỉnh ngày, GIỮ NGUYÊN time slot
+    // Distribute activities by day without changing time slots
     return activities.map((activity, index) => {
-      // Xác định ngày (phân bố đều)
+      // Calculate the date for this activity
       const dayOffset = Math.min(index % daysInTrip, daysInTrip - 1);
       const activityDate = new Date(startDate);
       activityDate.setDate(activityDate.getDate() + dayOffset);
 
-      // Giữ nguyên time slot từ activity gốc
+      // Preserve the original time slot when available
       const timeSlot = activity.time_slot || "Morning";
 
-      // Set giờ ảo dựa trên time slot gốc để dễ sort sau này
+      // Set a representative hour for consistent sorting
       if (timeSlot === "Morning") activityDate.setHours(9, 0, 0);
       else if (timeSlot === "Afternoon") activityDate.setHours(14, 0, 0);
       else activityDate.setHours(19, 0, 0);
@@ -746,7 +746,7 @@ function ReviewPlanContent() {
   const [members, setMembers] = useState<PlanMemberDetail[]>([]); // ✅ Store full member objects
 
   // Split Screen State
-  const [isChatOpen, setIsChatOpen] = useState(true); // ✅ Mở mặc định để show gợi ý
+  const [isChatOpen, setIsChatOpen] = useState(true); // Open by default to showcase tips
   const [planHeightPercent, setPlanHeightPercent] = useState(60);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -793,7 +793,7 @@ function ReviewPlanContent() {
   }, [currentUser, planOwnerId, planId]);
 
   const getTimeSlot = (dateString?: string, timeStr?: string) => {
-    // ✅ Ưu tiên dùng time field từ backend, nếu không thì tính từ dateString
+    // Prefer the explicit time field from the backend, fallback to the date string
     if (timeStr) {
       const hour = parseInt(timeStr.split(":")[0]);
       if (hour >= 18) return "Evening";
@@ -801,7 +801,7 @@ function ReviewPlanContent() {
       return "Morning";
     }
 
-    if (!dateString) return "Morning"; // Mặc định
+    if (!dateString) return "Morning";
     const date = new Date(dateString);
     const hour = date.getHours();
 
@@ -864,7 +864,7 @@ function ReviewPlanContent() {
             console.log(`👤 Plan owner ID: ${currentPlan.user_id}`);
           }
 
-          // Map dữ liệu cơ bản
+          // Map core plan fields
           const apiPlanInfo = {
             name: currentPlan.destination,
             date: currentPlan.date,
@@ -874,24 +874,20 @@ function ReviewPlanContent() {
 
           let apiActivities = currentPlan.activities;
 
-          // 2. CHECK SESSION: Gộp địa điểm mới thêm (nếu có)
-          // ✅ NOTE: sessionStorage was cleared above, so this only applies
-          // when user adds new destinations AFTER the plan is loaded
+          // Merge newly added destinations from session storage, if any
+          // NOTE: storage was cleared above, so this only triggers when the user adds destinations after loading the plan
           const rawData = pendingRawData;
           if (rawData) {
             try {
-              // --- FIX LỖI TẠI ĐÂY ---
-              // Khai báo kiểu dữ liệu mở rộng có thêm visit_date
               type StoredPlace = PlaceDetails & { visit_date?: string };
 
               const rawList: StoredPlace[] = JSON.parse(rawData);
-              // -----------------------
 
               console.log(`🔍 Checking for new destinations...`);
               console.log(`   - rawList count: ${rawList.length}`);
               console.log(`   - apiActivities count: ${apiActivities.length}`);
 
-              // Lọc địa điểm mới chưa có trong list cũ
+              // Filter out places that already exist in the plan
               const newItems = rawList.filter((raw) => {
                 const isNew = !apiActivities.some((act) => {
                   // ✅ Extract place_id from act.id (remove suffix like "-0", "-1")
@@ -919,7 +915,7 @@ function ReviewPlanContent() {
 
               console.log(`   ✅ New items to add: ${newItems.length}`);
 
-              // ✅ Đọc slot đã chọn từ sessionStorage (nếu có)
+              // Default to plan start date unless the user selected a slot
               let selectedDate = apiPlanInfo.date;
               let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" =
                 "Morning";
@@ -931,20 +927,19 @@ function ReviewPlanContent() {
                   if (slot.date) selectedDate = slot.date;
                   if (slot.time_slot) selectedTimeSlot = slot.time_slot;
                   console.log(
-                    `✅ Using selected slot: ${selectedDate} ${selectedTimeSlot}`
+                    `Using selected slot: ${selectedDate} ${selectedTimeSlot}`
                   );
                 } catch (e) {
                   console.error("Error parsing selected_add_slot:", e);
                 }
               }
 
-              // --- SỬA ĐOẠN MAP NÀY ---
               const newActivitiesList = newItems.map((place) => {
-                // ✅ Dùng slot đã chọn thay vì default
+                // Start with the selected slot
                 let assignedSlot = selectedTimeSlot;
-                let assignedDate = toLocalISOString(new Date(selectedDate)); // ← Convert to ISO
+                let assignedDate = toLocalISOString(new Date(selectedDate));
 
-                // Nếu place có visit_date riêng (từ backend), ưu tiên dùng nó
+                // Respect explicit visit_date if present
                 if (place.visit_date) {
                   assignedDate = place.visit_date;
                   assignedSlot = getTimeSlot(place.visit_date) as
@@ -971,14 +966,11 @@ function ReviewPlanContent() {
                   order_in_day: 999,
                 };
               });
-              // ------------------------
 
               if (newActivitiesList.length > 0) {
-                // ❌ KHÔNG distribute activities mới - chỉ set mặc định vào Day 1 Morning
-                // Người dùng sẽ kéo thả để arrange theo ý
                 apiActivities = [...apiActivities, ...newActivitiesList];
 
-                // ✅ Xóa selected_add_slot sau khi đã merge xong
+                // Clear selected slot after merging
                 sessionStorage.removeItem("selected_add_slot");
               }
             } catch (e) {
@@ -986,11 +978,10 @@ function ReviewPlanContent() {
             }
           }
 
-          // Cập nhật State
           setPlanInfo(apiPlanInfo);
           setActivities(apiActivities);
 
-          // Lưu ngược lại Session để giữ đồng bộ
+          // Persist current plan info for other pages
           sessionStorage.setItem(
             STORAGE_KEY_INFO,
             JSON.stringify({
@@ -1056,7 +1047,7 @@ function ReviewPlanContent() {
       }
     };
 
-    // === LOGIC ĐIỀU HƯỚNG CHÍNH ===
+    // === MAIN NAVIGATION LOGIC ===
     if (planId) {
       // EDIT MODE
       loadPlanDetail(planId);
@@ -1123,11 +1114,11 @@ function ReviewPlanContent() {
     const storedInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
     const selectedSlot = sessionStorage.getItem("selected_add_slot");
 
-    // Lấy thông tin plan để biết date range
+    // Fetch plan info to determine the date range
     let planStartDate = planInfo.date;
     let planEndDate = planInfo.end_date;
 
-    // Lấy slot được chọn (nếu có)
+    // Pull the slot the user selected (if any)
     let selectedDate = planStartDate;
     let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" = "Morning";
 
@@ -1136,7 +1127,7 @@ function ReviewPlanContent() {
         const slot = JSON.parse(selectedSlot);
         selectedDate = slot.date;
         selectedTimeSlot = slot.time_slot;
-        // ⚠️ KHÔNG xóa ngay - để logic merge trong useEffect load plan cũng đọc được
+        // Do not clear immediately; the merge logic during plan load also needs this data
         // sessionStorage.removeItem("selected_add_slot");
       } catch (e) {
         console.error("Error parsing selected slot:", e);
@@ -1154,10 +1145,10 @@ function ReviewPlanContent() {
     }
 
     if (storedActivities) {
-      // ✅ Load từ STORAGE_KEY_STRUCTURED (activities đã arrange với date/time_slot)
+      // Load existing structured activities (with date/time slots)
       let currentList: PlanActivity[] = JSON.parse(storedActivities);
 
-      // Nhưng cần check xem có new items từ add_destinations không
+      // Merge in new items from add_destinations if present
       if (rawData) {
         const rawList: PlaceDetails[] = JSON.parse(rawData);
         const newItems = rawList.filter((raw) => {
@@ -1175,7 +1166,7 @@ function ReviewPlanContent() {
           });
         });
 
-        // Thêm new items vào currentList với date/time_slot được chọn
+        // Append new items using the selected date/time slot
         if (newItems.length > 0) {
           const newActivities = newItems.map((place) => ({
             id: place.place_id,
@@ -1183,14 +1174,14 @@ function ReviewPlanContent() {
             title: place.name,
             address: place.formatted_address,
             image_url: place.photos?.[0]?.photo_url || "",
-            time_slot: selectedTimeSlot, // ✅ Dùng slot được chọn
-            date: toLocalISOString(new Date(selectedDate)), // ✅ Dùng ngày được chọn
+            time_slot: selectedTimeSlot,
+            date: toLocalISOString(new Date(selectedDate)),
             type: place.types?.[0] || "place",
             order_in_day: 999,
           }));
 
           currentList = [...currentList, ...newActivities];
-          // ✅ Update lại STORAGE_KEY_STRUCTURED với new items
+          // Persist updated activities back to STORAGE_KEY_STRUCTURED
           sessionStorage.setItem(
             STORAGE_KEY_STRUCTURED,
             JSON.stringify(currentList)
@@ -1200,7 +1191,7 @@ function ReviewPlanContent() {
 
       setActivities(currentList);
     } else if (rawData) {
-      // Fallback: nếu không có structured, tạo từ raw (lần đầu)
+      // Fallback: if no structured data exists, build it from the raw list
       const rawList: PlaceDetails[] = JSON.parse(rawData);
       const initialActivities = rawList.map((place) => ({
         id: place.place_id,
@@ -1212,8 +1203,8 @@ function ReviewPlanContent() {
         type: place.types?.[0] || "place",
         order_in_day: 0,
       }));
-      // Distribute activities across days (lần đầu tiên - CHỈ khi AI simulation)
-      // ⚠️ CHỈ distribute nếu đây là lần đầu tạo plan (AI_SHOWN_KEY chưa set)
+      // Distribute activities across days only the first time an AI simulation runs
+      // This should only happen when AI_SHOWN_KEY is not set yet
       const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
       if (!hasShownAI) {
         const distributedList = distributeActivitiesAcrossDays(
@@ -1223,7 +1214,7 @@ function ReviewPlanContent() {
         );
         setActivities(distributedList);
       } else {
-        // Nếu đã distribute rồi, chỉ set như bình thường
+        // If distribution already happened, simply set the data
         setActivities(initialActivities);
       }
     }
@@ -1415,7 +1406,7 @@ function ReviewPlanContent() {
     // Use ref to get latest activities
     const currentActivities = activitiesRef.current;
 
-    // Check điều kiện
+    // Validate prerequisites
     if (
       currentActivities.length < 2 ||
       aiGenerationDone ||
@@ -1434,14 +1425,14 @@ function ReviewPlanContent() {
     // Mark as attempted immediately to prevent concurrent calls
     aiGenerationAttemptedRef.current = true;
 
-    // Check sessionStorage để đảm bảo chỉ generate 1 lần
+    // Guard against generating multiple times by checking sessionStorage
     const storageKey = planId
       ? `ai_generated_plan_${planId}`
       : `ai_generated_temp_plan`;
     const hasGenerated = sessionStorage.getItem(storageKey);
 
     if (hasGenerated === "true") {
-      console.log("✅ Plan đã được AI generate trước đó");
+      console.log("Plan was already generated by AI");
       setAiGenerationDone(true);
       return;
     }
@@ -1582,7 +1573,7 @@ function ReviewPlanContent() {
           setAiGenerationDone(true);
         }
       } else {
-        console.log("ℹ️ AI không thay đổi thứ tự, giữ nguyên plan hiện tại");
+        console.log("AI kept the current order; no changes applied");
         sessionStorage.setItem(storageKey, "true");
         setAiGenerationDone(true);
       }
@@ -1662,7 +1653,7 @@ function ReviewPlanContent() {
       alert("Only plan owner can add destinations");
       return;
     }
-    // ✅ Lưu ngày/buổi được chọn vào storage để add_destinations biết
+    // Persist the selected day and slot for the add_destinations page
     if (dayStr && timeSlot) {
       sessionStorage.setItem(
         "selected_add_slot",
@@ -1670,7 +1661,7 @@ function ReviewPlanContent() {
       );
     }
 
-    // ✅ Also save planId so add_destinations knows which plan to add to
+    // Also save the plan ID so add_destinations knows which plan to update
     if (planId) {
       sessionStorage.setItem("EDITING_PLAN_ID", planId);
       console.log(`📎 Navigating to add_destinations with planId: ${planId}`);
@@ -1683,7 +1674,7 @@ function ReviewPlanContent() {
   // src/app/(main)/planning_page/review_plan/page.tsx
 
   const handleSaveToBackend = async () => {
-    // ✅ Validate tối thiểu 2 địa điểm
+    // Require at least two destinations before saving
     if (activities.length < 2) {
       alert(
         `You need at least 2 destinations in your plan! (Current: ${activities.length})`
@@ -1758,7 +1749,7 @@ function ReviewPlanContent() {
 
       console.log("📦 Total destinations to save:", destinationsPayload.length);
 
-      // 3. Chuẩn bị dữ liệu để gửi
+      // 3. Prepare request payload
       const requestData = {
         place_name: planInfo.name,
         start_date: planInfo.date,
@@ -1767,9 +1758,9 @@ function ReviewPlanContent() {
         destinations: destinationsPayload,
       };
 
-      // === LOGIC XỬ LÝ ===
+      // === SAVE LOGIC ===
       if (planId) {
-        // --- CHẾ ĐỘ EDIT ---
+        // --- EDIT MODE ---
         console.log(`💾 EDITING PLAN ${planId}`);
         console.log(`   ✅ planId exists: "${planId}"`);
         console.log(`   - Activities to save: ${activities.length}`);
@@ -1793,7 +1784,7 @@ function ReviewPlanContent() {
 
         alert("Plan updated successfully!");
       } else {
-        // --- CHẾ ĐỘ CREATE MỚI ---
+        // --- CREATE MODE ---
         console.log(`📝 CREATING NEW PLAN`);
         console.log(`   ❌ planId is null/undefined`);
         console.log("Creating new plan...");
@@ -1802,7 +1793,7 @@ function ReviewPlanContent() {
         alert("Plan created successfully!");
       }
 
-      // 4. Dọn dẹp và chuyển hướng
+      // 4. Cleanup and redirect
       sessionStorage.removeItem(STORAGE_KEY_RAW);
       sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
       sessionStorage.removeItem(AI_SHOWN_KEY);
@@ -2045,7 +2036,7 @@ function ReviewPlanContent() {
               </div>
             </div>
 
-            {/* ⚠️ WARNING: Ít hơn 2 địa điểm */}
+            {/* ⚠️ WARNING: fewer than two destinations */}
             {activities.length < 2 && (
               <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded">
                 <p
