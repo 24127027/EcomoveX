@@ -196,6 +196,42 @@ export interface UploadResponse {
   filename: string;
 }
 
+// Route Types for Plans
+export interface RouteForPlanResponse {
+  origin: string; // place_id
+  destination: string; // place_id
+  distance_km: number;
+  estimated_travel_time_min: number;
+  carbon_emission_kg: number;
+  route_polyline: string;
+  transport_mode: string;
+  route_type: string;
+}
+
+// Backend Plan Destination Type (matches PlanDestinationResponse from backend)
+export interface PlanDestinationResponse {
+  id: number;
+  destination_id: string;
+  type: string; // DestinationType
+  order_in_day: number;
+  visit_date: string; // date string
+  estimated_cost?: number | null;
+  url?: string | null;
+  note?: string | null;
+  time_slot: string; // TimeSlot enum as string
+}
+
+// Backend Plan Response Type (matches PlanResponse from backend)
+export interface Plan {
+  id: number;
+  place_name: string;
+  start_date: string; // date string
+  end_date: string; // date string
+  budget_limit: number | null;
+  destinations: PlanDestinationResponse[];
+  route?: RouteForPlanResponse[] | null;
+}
+
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
@@ -726,6 +762,13 @@ class ApiClient {
     return this.request(`/plans/${planId}/members`, {
       method: "DELETE",
       body: JSON.stringify({ ids: memberIds }),
+    });
+  }
+
+  // Get raw plans from backend (for track pages)
+  async getRawPlans(): Promise<Plan[]> {
+    return this.request<Plan[]>("/plans/", {
+      method: "GET",
     });
   }
 

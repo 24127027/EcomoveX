@@ -112,7 +112,7 @@ class PlanService:
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info)
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
 
                     # Update URL ảnh nếu thiếu
                     if place_info.photos:
