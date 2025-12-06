@@ -117,13 +117,16 @@ class PlanService:
                     # Update URL ảnh nếu thiếu
                     if place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
+                    
+                    # Sau đó mới thêm vào Plan
+                    await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    
                 except Exception as e:
                     print(
-                        f"Warning syncing destination {dest_data.destination_id}: {e}"
+                        f"❌ ERROR: Failed to add destination {dest_data.destination_id}: {e}"
                     )
-
-                # Sau đó mới thêm vào Plan
-                await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    print(f"   Skipping this destination and continuing with others...")
+                    continue
 
             # 4. Return
             saved_destinations = await PlanRepository.get_plan_destinations(
