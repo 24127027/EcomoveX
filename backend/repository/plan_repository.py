@@ -7,6 +7,7 @@ from models.plan import (
     PlanDestination,
     PlanMember,
     PlanRole,
+    Route
 )
 from schemas.plan_schema import (
     PlanCreate,
@@ -15,6 +16,7 @@ from schemas.plan_schema import (
     PlanMemberCreate,
     PlanUpdate,
 )
+from schemas.route_schema import RouteCreate
 from models.destination import Destination
 
 
@@ -405,4 +407,54 @@ class PlanRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: ensuring destination {place_id} - {e}")
+            return None
+
+    @staticmethod
+    async def create_route(db: AsyncSession, route_data: RouteCreate) -> Route:
+        try:
+            new_route = Route(
+                plan_id=route_data.plan_id,
+                origin_place_id=route_data.origin_plan_destination_id,
+                destination_place_id=route_data.destination_plan_destination_id,
+                distance_km=route_data.distance_km,
+                carbon_emission_kg=route_data.carbon_emission_kg,
+            )
+            db.add(new_route)
+            await db.commit()
+            await db.refresh(new_route)
+            return new_route
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: creating route - {e}")
+            return None
+        
+    @staticmethod
+    async def get_all_routes_by_plan_id(db: AsyncSession, plan_id: int) -> list[Route]:
+        try:
+            result = await db.execute(
+                select(Route).where(Route.plan_id == plan_id)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving routes for plan ID {plan_id} - {e}")
+            return []
+        
+    @staticmethod
+    async def get_route_by_origin_and_destination(
+        db: AsyncSession, 
+        plan_id: int, 
+        origin_plan_destination_id: int, 
+        destination_plan_destination_id: int
+    ) -> Route | None:
+        try:
+            result = await db.execute(
+                select(Route).where(
+                    Route.plan_id == plan_id,
+                    Route.origin_place_id == origin_plan_destination_id,
+                    Route.destination_place_id == destination_plan_destination_id
+                )
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving route for plan ID {plan_id} from {origin_plan_destination_id} to {destination_plan_destination_id} - {e}")
             return None

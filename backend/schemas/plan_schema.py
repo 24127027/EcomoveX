@@ -92,6 +92,20 @@ class PlanResponse(BaseModel):
     destinations: List[PlanDestinationResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+    
+
+class PlanResponseBasic(BaseModel):
+    id: int
+    place_name: str
+    budget_limit: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AllPlansResponse(BaseModel):
+    plans: List[PlanResponseBasic] = Field(..., min_length=1)
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MemberCreate(BaseModel):
