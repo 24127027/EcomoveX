@@ -179,7 +179,7 @@ class MessageService:
             
             # Handle different message types
             if message_type == MessageType.plan_invitation:
-                # For plan invitations, use the dedicated method
+                # For plan invitations, plan_id must be provided
                 if not plan_id:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,6 +205,22 @@ class MessageService:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Could not determine invitee from room members",
+                    )
+                
+                # Validate sender is plan owner before creating message
+                is_owner = await PlanRepository.is_plan_owner(db, sender_id, plan_id)
+                if not is_owner:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only plan owner can invite members",
+                    )
+                
+                # Check if invitee is already a member
+                is_member = await PlanRepository.is_member(db, invitee_id, plan_id)
+                if is_member:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User is already a member of this plan",
                     )
                 
                 # Create plan invitation message
@@ -983,16 +999,21 @@ class MessageService:
                 )
 
             # 4. Kiểm tra room access
-            has_access = await RoomService.check_room_access(db, invitee_id, room_id)
-            if not has_access:
+            is_member_of_room = await RoomService.is_member(db, invitee_id, room_id)
+            if not is_member_of_room:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Invitee does not have access to this room",
                 )
 
-            # 5. Tạo invitation message
+            # 5. Tạo invitation message (context sẽ được tạo tự động trong repository)
             invitation_msg = await MessageRepository.create_plan_invitation_message(
-                db, sender_id, room_id, plan_id, message
+                db=db,
+                sender_id=sender_id,
+                room_id=room_id,
+                plan_id=plan_id,
+                invitee_id=invitee_id,
+                message_text=message,
             )
 
             if not invitation_msg:
@@ -1001,24 +1022,20 @@ class MessageService:
                     detail="Failed to create invitation message",
                 )
 
-            # 6. Lưu invitee_id vào context
-            context_key = f"invitation_{invitation_msg.id}"
-            await MessageRepository.save_room_context(
-                db,
-                RoomContextCreate(
-                    room_id=room_id,
-                    key=context_key,
-                    value={
-                        "status": "pending",
-                        "plan_id": plan_id,
-                        "invitee_id": invitee_id,
-                        "sender_id": sender_id,
-                    },
-                ),
+            # 6. Gửi WebSocket notification
+            import json
+            content_data = json.loads(invitation_msg.content) if invitation_msg.content else {}
+            response = MessageResponse(
+                id=invitation_msg.id,
+                sender_id=invitation_msg.sender_id,
+                room_id=invitation_msg.room_id,
+                content=invitation_msg.content,
+                message_type=invitation_msg.message_type,
+                status=invitation_msg.status,
+                timestamp=invitation_msg.created_at,
+                plan_id=content_data.get("plan_id"),
             )
-
-            # 7. Gửi WebSocket notification
-            await socket.send_message(room_id, invitation_msg)
+            await socket.broadcast(jsonable_encoder(response), room_id)
 
             return MessageResponse(
                 id=invitation_msg.id,

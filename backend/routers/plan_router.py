@@ -16,7 +16,7 @@ from schemas.plan_schema import (
     PlanResponse,
     PlanUpdate,
 )
-from schemas.route_schema import RouteCreate, RouteResponse
+from schemas.route_schema import RouteCreate, RouteResponse, TransportMode
 from models.plan import PlanRole
 from services.plan_service import PlanService
 from utils.token.authentication_util import get_current_user
@@ -139,7 +139,6 @@ async def get_all_routes(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get all routes for a specific plan"""
     return await PlanService.get_all_routes_by_plan_id(
         db, current_user["user_id"], plan_id
     )
@@ -163,4 +162,25 @@ async def get_route(
         plan_id,
         origin_plan_destination_id,
         destination_plan_destination_id,
+    )
+    
+
+@router.post(
+    "/{plan_id}/routes/{route_id}",
+    response_model=RouteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def update_route(
+    route_id: int,
+    mode: TransportMode,
+    carbon_emission_kg: float,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    return await PlanService.update_route(
+        db,
+        current_user["user_id"],
+        route_id,
+        mode,
+        carbon_emission_kg,
     )

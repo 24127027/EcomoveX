@@ -16,7 +16,7 @@ from schemas.plan_schema import (
     PlanMemberCreate,
     PlanUpdate,
 )
-from schemas.route_schema import RouteCreate
+from schemas.route_schema import RouteCreate, TransportMode
 from models.destination import Destination
 
 
@@ -458,3 +458,26 @@ class PlanRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving route for plan ID {plan_id} from {origin_plan_destination_id} to {destination_plan_destination_id} - {e}")
             return None
+        
+    @staticmethod
+    async def update_route(db: AsyncSession, route_id: int, mode: TransportMode, carbon_emission_kg: float) -> bool:
+        try:
+            result = await db.execute(
+                select(Route).where(Route.id == route_id)
+            )
+            route = result.scalar_one_or_none()
+            if not route:
+                print(f"WARNING: Route ID {route_id} not found")
+                return False
+
+            route.mode = mode
+            route.carbon_emission_kg = carbon_emission_kg
+
+            db.add(route)
+            await db.commit()
+            await db.refresh(route)
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: updating route ID {route_id} - {e}")
+            return False

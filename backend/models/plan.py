@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy import (
@@ -133,9 +134,11 @@ class Route(Base):
     __table_args__ = (
         Index("ix_route_origin_place", "origin_place_id"),
         Index("ix_route_dest_place", "destination_place_id"),
+        UniqueConstraint("plan_id", "origin_place_id", "destination_place_id", name="uq_route_plan_origin_dest"),
     )
 
-    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
     origin_place_id = Column(
         Integer,
         ForeignKey("plan_destinations.id", ondelete="CASCADE"),
@@ -144,7 +147,7 @@ class Route(Base):
     destination_place_id = Column(
         Integer,
         ForeignKey("plan_destinations.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
     )
     distance_km = Column(Float, nullable=False)
     mode = Column(SQLEnum(TransportMode), default=TransportMode.car, nullable=False)

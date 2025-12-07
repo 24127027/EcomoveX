@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, select, cast, String
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,9 +8,27 @@ from schemas.reward_schema import (
     MissionCreate,
     MissionUpdate,
 )
+from sqlalchemy.orm import selectinload
 
 
 class MissionRepository:
+    @staticmethod
+    async def search_missions(
+        db: AsyncSession, search_term: str
+    ):
+        try:
+            result = await db.execute(
+                select(Mission).where(
+                    (Mission.name.ilike(f"%{search_term}%")) |
+                    (Mission.description.ilike(f"%{search_term}%")) |
+                    (cast(Mission.action_trigger, String).ilike(f"%{search_term}%"))
+                )
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: searching missions with term '{search_term}' - {e}")
+            return []
+    
     @staticmethod
     async def get_all_missions(db: AsyncSession):
         try:

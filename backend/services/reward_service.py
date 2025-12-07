@@ -12,6 +12,33 @@ from schemas.reward_schema import (
 
 class RewardService:
     @staticmethod
+    async def search_missions(
+        db: AsyncSession, search_term: str
+    ) -> list[MissionResponse]:
+        try:
+            missions = await MissionRepository.search_missions(db, search_term)
+            mission_list = []
+            for mission in missions:
+                mission_list.append(
+                    MissionResponse(
+                        id=mission.id,
+                        name=mission.name,
+                        description=mission.description,
+                        reward_type=mission.reward_type,
+                        action_trigger=mission.action_trigger,
+                        value=mission.value,
+                    )
+                )
+            return mission_list
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error searching missions with term '{search_term}': {e}",
+            )
+    
+    @staticmethod
     async def get_all_missions(db: AsyncSession) -> list[MissionResponse]:
         try:
             missions = await MissionRepository.get_all_missions(db)
@@ -102,15 +129,6 @@ class RewardService:
         db: AsyncSession, mission_data: MissionCreate
     ) -> MissionResponse:
         try:
-            existing_mission = await MissionRepository.get_mission_by_name(
-                db, mission_data.name
-            )
-            if existing_mission:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Mission with name '{mission_data.name}' already exists",
-                )
-
             new_mission = await MissionRepository.create_mission(db, mission_data)
             if not new_mission:
                 raise HTTPException(

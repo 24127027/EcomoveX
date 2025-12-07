@@ -55,8 +55,8 @@ class MapService:
             )
             if response and response.geometry and response.geometry.location:
                 return {
-                    "lat": response.geometry.location.lat,
-                    "lng": response.geometry.location.lng,
+                    "lat": response.geometry.location.latitude,
+                    "lng": response.geometry.location.longitude,
                 }
             return None
         except Exception:

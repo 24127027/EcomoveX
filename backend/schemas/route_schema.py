@@ -28,14 +28,17 @@ class RouteCreate(BaseModel):
     destination_plan_destination_id: int
     distance_km: float = Field(..., ge=0)
     carbon_emission_kg: float = Field(..., ge=0)
+    mode: TransportMode
 
 
 class RouteResponse(BaseModel):
-    user_id: int
-    origin_id: str
-    destination_id: str
+    id: int
+    plan_id: int
+    origin_plan_destination_id: int
+    destination_plan_destination_id: int
     distance_km: float
     carbon_emission_kg: float
+    mode: TransportMode
 
     model_config = ConfigDict(from_attributes=True)
 

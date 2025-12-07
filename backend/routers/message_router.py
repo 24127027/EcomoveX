@@ -153,7 +153,7 @@ async def websocket_endpoint(
     status_code=status.HTTP_200_OK,
 )
 async def respond_to_plan_invitation(
-    message_id: int = Path(..., gt=0, description="ID của invitation message"),
+    message_id: int = Path(..., gt=0),
     action_request: InvitationActionRequest = Body(...),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -181,7 +181,7 @@ async def respond_to_plan_invitation(
     status_code=status.HTTP_200_OK,
 )
 async def get_invitation_details(
-    message_id: int = Path(..., gt=0, description="ID của invitation message"),
+    message_id: int = Path(..., gt=0),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -193,4 +193,3 @@ async def get_invitation_details(
     return await MessageService.get_invitation_details(
         db, current_user["user_id"], message_id
     )
-

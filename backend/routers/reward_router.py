@@ -18,6 +18,16 @@ router = APIRouter(prefix="/rewards", tags=["Rewards & Missions"])
 
 
 @router.get(
+    "/missions/search", response_model=List[MissionResponse], status_code=status.HTTP_200_OK
+)
+async def search_missions(
+    query: str,
+    user_db: AsyncSession = Depends(get_db),
+):
+    return await RewardService.search_missions(user_db, query)
+
+
+@router.get(
     "/missions", response_model=List[MissionResponse], status_code=status.HTTP_200_OK
 )
 async def get_all_missions(user_db: AsyncSession = Depends(get_db)):

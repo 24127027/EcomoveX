@@ -8,11 +8,13 @@ from repository.message_repository import MessageRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.map_schema import *
 from schemas.plan_schema import *
-from schemas.route_schema import RouteCreate, RouteResponse
+from schemas.route_schema import FindRoutesRequest, RouteCreate, RouteResponse, TransportMode
 from schemas.room_schema import RoomCreate, RoomMemberCreate
 from schemas.message_schema import RoomContextCreate, CommonMessageResponse
+from schemas.route_schema import RouteType
 from services.map_service import MapService
 from services.recommendation_service import RecommendationService
+from services.route_service import RouteService
 from utils.nlp.rule_engine import Intent, RuleEngine
 from models.room import RoomType, MemberRole
 from models.plan import PlanDestination
@@ -128,6 +130,7 @@ class PlanService:
             )
 
             # 3. Add Destinations (CÓ GỌI MAP SERVICE ĐỂ FIX LỖI FK)
+            saved_dest_ids = []
             for dest_data in plan_data.destinations:
                 try:
                     # Gọi MapService lấy thông tin để tạo Destination trong DB trước
@@ -143,9 +146,38 @@ class PlanService:
                     print(f"Warning syncing destination {dest_data.destination_id}: {e}")
                 
                 # Sau đó mới thêm vào Plan
-                await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                saved_dest = await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                saved_dest_ids.append(saved_dest.id)
+            
+            # 4. Create routes between consecutive destinations
+            if len(saved_dest_ids) > 1:
+                saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
+                for i in range(len(saved_destinations) - 1):
+                    origin = saved_destinations[i]
+                    destination = saved_destinations[i + 1]
+                    origin_coords = await MapService.get_coordinates(origin.destination_id)
+                    destination_coords = await MapService.get_coordinates(destination.destination_id)
+                    route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
+                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
+                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                    ))
+                    if route:
+                        selected_route = None
+                        if RouteType.smart_combination in route.routes:
+                            selected_route = route.routes[RouteType.smart_combination]
+                        else:
+                            selected_route = route.routes[RouteType.low_carbon]
+                        
+                        await PlanRepository.create_route(db, RouteCreate(
+                            plan_id=new_plan.id,
+                            origin_plan_destination_id=origin.id,
+                            destination_plan_destination_id=destination.id,
+                            distance_km=selected_route.distance,
+                            carbon_emission_kg=selected_route.carbon,
+                            mode=TransportMode.car
+                        ))
 
-            # 4. Return
+            # 5. Return
             saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
             return PlanResponse(
                 id=new_plan.id,
@@ -183,25 +215,52 @@ class PlanService:
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
             
-            # ✅ DELETE OLD DESTINATIONS FIRST
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
             print(f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations")
             
-            # ✅ ADD NEW DESTINATIONS
-            for i, dest_data in enumerate(updated_data.destinations or []):
+            saved_dest_ids = []
+            for dest_data in updated_data.destinations or []:
                 try:
-                    print(f"  📍 Adding destination {i+1}: {dest_data.destination_id}")
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info.place_id)  # ✅ Sửa: truyền place_id thay vì object
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
+                    
+                    if not dest_data.url and place_info.photos:
+                        dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
-                    print(f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}")
-                    pass
+                    print(f"Warning syncing destination {dest_data.destination_id}: {e}")
                 
-                result = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
-                print(f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}")
+                saved_dest = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
+                saved_dest_ids.append(saved_dest.id)
+            
+            if len(saved_dest_ids) > 1:
+                saved_destinations = await PlanRepository.get_plan_destinations(db, plan_id)
+                for i in range(len(saved_destinations) - 1):
+                    origin = saved_destinations[i]
+                    destination = saved_destinations[i + 1]
+                    origin_coords = await MapService.get_coordinates(origin.destination_id)
+                    destination_coords = await MapService.get_coordinates(destination.destination_id)
+                    route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
+                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
+                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                    ))
+                    if route:
+                        selected_route = None
+                        if RouteType.smart_combination in route.routes:
+                            selected_route = route.routes[RouteType.smart_combination]
+                        else:
+                            selected_route = route.routes[RouteType.low_carbon]
+                        
+                        await PlanRepository.create_route(db, RouteCreate(
+                            plan_id=plan_id,
+                            origin_plan_destination_id=origin.id,
+                            destination_plan_destination_id=destination.id,
+                            distance_km=selected_route.distance,
+                            carbon_emission_kg=selected_route.carbon,
+                            mode=TransportMode.car
+                        ))
 
             saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
             print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
@@ -585,68 +644,9 @@ class PlanService:
         return sorted_destinations
 
     @staticmethod
-    async def create_route(
-        db: AsyncSession, user_id: int, route_data: RouteCreate
-    ) -> RouteResponse:
-        """Create a new route between two destinations in a plan"""
-        try:
-            # Check if user is member of the plan
-            is_member = await PlanRepository.is_member(db, user_id, route_data.plan_id)
-            if not is_member:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only plan members can create routes",
-                )
-
-            # Verify both plan destinations exist and belong to the plan
-            origin = await PlanRepository.get_plan_destination_by_id(
-                db, route_data.origin_plan_destination_id
-            )
-            destination = await PlanRepository.get_plan_destination_by_id(
-                db, route_data.destination_plan_destination_id
-            )
-
-            if not origin or origin.plan_id != route_data.plan_id:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Origin destination not found in plan {route_data.plan_id}",
-                )
-
-            if not destination or destination.plan_id != route_data.plan_id:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Destination not found in plan {route_data.plan_id}",
-                )
-
-            # Create the route
-            new_route = await PlanRepository.create_route(db, route_data)
-            if not new_route:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create route",
-                )
-
-            return RouteResponse(
-                plan_id=new_route.plan_id,
-                origin_place_id=new_route.origin_place_id,
-                destination_place_id=new_route.destination_place_id,
-                distance_km=new_route.distance_km,
-                mode=new_route.mode,
-                carbon_emission_kg=new_route.carbon_emission_kg,
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error creating route: {e}",
-            )
-
-    @staticmethod
     async def get_all_routes_by_plan_id(
         db: AsyncSession, user_id: int, plan_id: int
     ) -> List[RouteResponse]:
-        """Get all routes for a specific plan"""
         try:
             # Check if user is member
             is_member = await PlanRepository.is_member(db, user_id, plan_id)
@@ -660,9 +660,10 @@ class PlanService:
             
             return [
                 RouteResponse(
+                    id=route.id,
                     plan_id=route.plan_id,
-                    origin_place_id=route.origin_place_id,
-                    destination_place_id=route.destination_place_id,
+                    origin_plan_destination_id=route.origin_place_id,
+                    destination_plan_destination_id=route.destination_place_id,
                     distance_km=route.distance_km,
                     mode=route.mode,
                     carbon_emission_kg=route.carbon_emission_kg,
@@ -705,9 +706,10 @@ class PlanService:
                 )
 
             return RouteResponse(
+                id=route.id,
                 plan_id=route.plan_id,
-                origin_place_id=route.origin_place_id,
-                destination_place_id=route.destination_place_id,
+                origin_plan_destination_id=route.origin_place_id,
+                destination_plan_destination_id=route.destination_place_id,
                 distance_km=route.distance_km,
                 mode=route.mode,
                 carbon_emission_kg=route.carbon_emission_kg,
@@ -718,4 +720,42 @@ class PlanService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving route: {e}",
+            )
+            
+    @staticmethod
+    async def update_route(
+        db: AsyncSession,
+        user_id: int,
+        route_id: int,
+        mode: TransportMode,
+        carbon_emission_kg: float,
+    ) -> bool:
+        try:
+            route = await PlanRepository.get_route_by_id(db, route_id)
+            if not route:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Route with ID {route_id} not found",
+                )
+            
+            is_member = await PlanRepository.is_member(db, user_id, route.plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+            
+            success = await PlanRepository.update_route(db, route_id, mode, carbon_emission_kg)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update route",
+                )
+            return success
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error updating route: {e}",
             )
