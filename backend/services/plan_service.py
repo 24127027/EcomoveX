@@ -3,8 +3,8 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models.destination import Destination
-from backend.services.destination_service import DestinationService
+from models.destination import Destination
+from services.destination_service import DestinationService
 from repository.plan_repository import PlanRepository
 from repository.room_repository import RoomRepository
 from repository.message_repository import MessageRepository

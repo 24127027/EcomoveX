@@ -20,7 +20,6 @@ from schemas.map_schema import (
 )
 from schemas.route_schema import DirectionsResponse
 from services.destination_service import DestinationService
-from services.recommendation_service import RecommendationService
 
 FIELD_GROUPS = {
     PlaceDataCategory.BASIC: [
@@ -68,8 +67,11 @@ class MapService:
 
     @staticmethod
     async def text_search_place(
-        db: AsyncSession, data: TextSearchRequest
+        db: AsyncSession, 
+        data: TextSearchRequest,
+        user_id: str
     ) -> TextSearchResponse:
+        from services.map_service import MapService
         map_client = await create_map_client()
 
         try:
@@ -82,7 +84,7 @@ class MapService:
                     )
                 except Exception:
                     pass
-
+            response = MapService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
             return response
 
         except HTTPException as he:
@@ -255,21 +257,3 @@ class MapService:
         finally:
             if map_client:
                 await map_client.close()
-
-    @staticmethod
-    async def get_nearby_places_with_cluster_ranking(db, user_id, location):
-        recs = await RecommendationService.recommend_nearby_by_cluster_tags(
-            db=db,
-            user_id=user_id,
-            current_location=location
-        )
-        return recs
-    
-    @staticmethod
-    async def sort_places_by_affinity(db, user_id, places):
-        sorted_places = await RecommendationService.sort_recommendations_by_user_cluster_affinity(
-            db=db,
-            user_id=user_id,
-            places=places
-        )
-        return sorted_places
