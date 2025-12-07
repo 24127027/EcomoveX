@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Users, MapPin, MessageSquare, BarChart3, Settings, FileText, Shield, Search, Plus, Edit, Trash2, Eye, Check, X, AlertCircle, TrendingUp, Leaf, Award, RefreshCw, ExternalLink, Bot } from 'lucide-react';
+import { Users, MapPin, MessageSquare, BarChart3, Settings, FileText, Shield, Search, Plus, Edit, Trash2, Eye, Check, X, AlertCircle, TrendingUp, Leaf, Award, RefreshCw, ExternalLink, Bot, Copy } from 'lucide-react';
 import { api, AdminUserResponse, ReviewResponse, Mission, DestinationWithCertificate, GreenVerifiedStatus } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
@@ -637,7 +637,21 @@ const AdminDashboard = () => {
                 .map((dest) => (
                 <tr key={dest.place_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
-                    <p className="text-sm font-mono text-gray-900">{dest.place_id}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-mono text-gray-900 truncate max-w-xs" title={dest.place_id}>
+                        {dest.place_id.length > 30 ? `${dest.place_id.substring(0, 30)} ...` : dest.place_id}
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(dest.place_id);
+                          alert('Place ID copied to clipboard!');
+                        }}
+                        className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Copy full Place ID"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(dest.green_verified)}`}>
