@@ -3,7 +3,8 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.plan import PlanRole, DestinationType, TimeSlot
+from models.destination import Destination
+from services.destination_service import DestinationService
 from repository.plan_repository import PlanRepository
 from repository.room_repository import RoomRepository
 from repository.message_repository import MessageRepository
@@ -670,77 +671,52 @@ class PlanService:
             )
 
     @staticmethod
-    async def get_all_routes_by_plan_id(
-        db: AsyncSession, user_id: int, plan_id: int
-    ) -> List[RouteResponse]:
-        """Get all routes for a specific plan"""
-        try:
-            # Check if user is member
-            is_member = await PlanRepository.is_member(db, user_id, plan_id)
-            if not is_member:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="User is not a member of the plan",
-                )
+    async def update_budget(self, db, user_id, plan_id, budget):
+        updated = await PlanRepository.update_plan_destination(
+            db, plan_id, PlanUpdate(budget_limit=budget)
+        ) 
 
-            routes = await PlanRepository.get_all_routes_by_plan_id(db, plan_id)
-            
-            return [
-                RouteResponse(
-                    plan_id=route.plan_id,
-                    origin_plan_destination_id=route.origin_place_id,
-                    destination_plan_destination_id=route.destination_place_id,
-                    distance_km=route.distance_km,
-                    carbon_emission_kg=route.carbon_emission_kg,
-                )
-                for route in routes
-            ]
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error retrieving routes: {e}",
-            )
+        if not updated:
+            return {"ok": False, "message": "Không cập nhật budget."}
+
+        new_state = await self.get_plan_state(db, plan_id)
+        return {"ok": True, "action": "change_budget", "budget": budget, "state": new_state}
+
+
+    async def add_place_by_text(db, user_id: int, plan_id: int, text: str) -> Destination:
+        # 1. Search
+        data = TextSearchRequest(query=text)
+        resp = await MapService.text_search_place(db, data)
+
+        if not resp.results:
+            raise HTTPException(404, f"No results for '{text}'")
+        
+        # 2. Pick first
+        first = resp.results[0]
+
+        # 3. Save to DB if needed
+        dest = await DestinationService.get_by_place_id(db, first.place_id)
+
+        return await PlanRepository.add_place(
+            db=db,
+            plan_id=plan_id,
+            place_id=first.place_id,
+            name=first.name,
+            location=first.location,
+        )
 
     @staticmethod
-    async def get_route_by_origin_and_destination(
-        db: AsyncSession,
-        user_id: int,
-        plan_id: int,
-        origin_plan_destination_id: int,
-        destination_plan_destination_id: int,
-    ) -> RouteResponse:
-        """Get a specific route between two destinations"""
-        try:
-            # Check if user is member
-            is_member = await PlanRepository.is_member(db, user_id, plan_id)
-            if not is_member:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="User is not a member of the plan",
-                )
+    async def remove_place_by_name(db, plan, text: str):
+        text_lower = text.lower()
 
-            route = await PlanRepository.get_route_by_origin_and_destination(
-                db, plan_id, origin_plan_destination_id, destination_plan_destination_id
-            )
-            if not route:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Route not found between destinations {origin_plan_destination_id} and {destination_plan_destination_id}",
-                )
+        for day in plan.days:
+            new_activities = []
+            for act in day.activities:
+                if text_lower in act.name.lower():
+                    # skip → tức là xóa
+                    continue
+                new_activities.append(act)
+            day.activities = new_activities
 
-            return RouteResponse(
-                plan_id=route.plan_id,
-                origin_plan_destination_id=route.origin_place_id,
-                destination_plan_destination_id=route.destination_place_id,
-                distance_km=route.distance_km,
-                carbon_emission_kg=route.carbon_emission_kg,
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error retrieving route: {e}",
-            )
+        await db.commit()
+        return plan

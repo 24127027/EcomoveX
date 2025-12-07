@@ -7,15 +7,10 @@ import {
   Settings,
   Users,
   Heart,
-  MapPin,
-  Home,
-  Bot,
-  User,
   Loader2,
   Trash2,
   Navigation,
   ArrowRight,
-  Route,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -27,6 +22,8 @@ import {
   PlaceDetails,
   Position,
 } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 
 interface EnrichedSavedDestination extends SavedDestination {
   details?: PlaceDetails;
@@ -61,8 +58,8 @@ export default function ProfilePage() {
   };
 
   const handleUnsave = async (placeId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Ngăn chặn click vào card (tránh mở trang detail)
-    if (unsavingId) return; // Đang xử lý cái khác thì bỏ qua
+    e.stopPropagation(); // Prevent card click from opening the detail page
+    if (unsavingId) return; // Ignore if another unsave action is in progress
 
     const confirm = window.confirm(
       "Are you sure you want to unsave this place?"
@@ -73,7 +70,7 @@ export default function ProfilePage() {
       setUnsavingId(placeId);
       await api.unsaveDestination(placeId);
 
-      // Cập nhật UI ngay lập tức: Xóa item khỏi danh sách
+      // Optimistically remove the item from the UI list
       setSavedPlaces((prev) =>
         prev.filter((item) => item.destination_id !== placeId)
       );
@@ -168,6 +165,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
         <div className="bg-[#E3F1E4] h-[180px] rounded-b-[50px] relative w-full shrink-0 overflow-hidden">
           {user?.cover_url && (
@@ -265,7 +263,7 @@ export default function ProfilePage() {
                   }
                 }
 
-                // 2. XỬ LÝ KHOẢNG CÁCH
+                // Step 2: compute the distance if possible
                 let distanceText = "";
                 if (userLocation && place.details?.geometry?.location) {
                   const dist = calculateDistance(
@@ -317,7 +315,7 @@ export default function ProfilePage() {
                         {place.details?.formatted_address || "Unknown address"}
                       </p>
 
-                      {/* Nút View Details */}
+                      {/* View details button */}
                       <button
                         onClick={() => handleViewDetails(place.destination_id)}
                         className="w-full mt-auto bg-[#E3F1E4] text-[#53B552] text-xs font-bold py-1.5 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-1"
@@ -331,59 +329,6 @@ export default function ProfilePage() {
             </div>
           )}
         </main>
-
-        {/* --- FOOTER --- */}
-        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Home size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Home
-              </span>
-            </Link>
-            <Link
-              href="/track_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              {" "}
-              <Route size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <MapPin size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Planning
-              </span>
-            </Link>
-            <Link
-              href="ecobot_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Bot size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Ecobot
-              </span>
-            </Link>
-            <Link
-              href="main_page"
-              className="flex flex-col items-center text-[#53B552]"
-            >
-              <User size={24} strokeWidth={2.5} />
-              <span className={`${jost.className} text-xs font-bold mt-1`}>
-                User
-              </span>
-            </Link>
-          </div>
-        </footer>
       </div>
     </div>
   );

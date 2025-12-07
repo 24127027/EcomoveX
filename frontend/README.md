@@ -8,18 +8,18 @@ The EcomoveX frontend provides the user interface for all eco-friendly navigatio
 
 The Next.js application follows a standard, organized file structure:
 
-* **`src/app/`**: Contains all Next.js-specific files, including pages, layouts, and routing logic.
-    * `(auth)/`: Pages related to user **authentication** (e.g., login, signup).
-    * `(main)/`: **Main application pages** and features (e.g., map, missions, user profile).
-    * `globals.css`: **Global styles** for the application.
-    * `layout.tsx`: The **Root Layout** component for the entire application.
-    * `page.tsx`: The **default landing page**.
-* **`src/components/`**: Houses all **reusable React components** used across the application (e.g., buttons, forms, navigation bars).
-* **`src/lib/`**: Contains **utility functions** and **API clients**.
-    * `api.ts`: The **API client** for communicating with the backend server.
-    * `useGoogleMaps.ts`: Logic for **integrating Google Maps** features.
-    * `validation.ts`: Utilities for **form validation**.
-* **`public/`**: Directory for **static assets** like images, fonts, and icons.
+- **`src/app/`**: Contains all Next.js-specific files, including pages, layouts, and routing logic.
+  - `(auth)/`: Pages related to user **authentication** (e.g., login, signup).
+  - `(main)/`: **Main application pages** and features (e.g., map, missions, user profile).
+  - `globals.css`: **Global styles** for the application.
+  - `layout.tsx`: The **Root Layout** component for the entire application.
+  - `page.tsx`: The **default landing page**.
+- **`src/components/`**: Houses all **reusable React components** used across the application (e.g., buttons, forms, navigation bars).
+- **`src/lib/`**: Contains **utility functions** and **API clients**.
+  - `api.ts`: The **API client** for communicating with the backend server.
+  - `useGoogleMaps.ts`: Logic for **integrating Google Maps** features.
+  - `validation.ts`: Utilities for **form validation**.
+- **`public/`**: Directory for **static assets** like images, fonts, and icons.
 
 ---
 
@@ -31,12 +31,12 @@ The frontend communicates with the backend via a RESTful API. Proper configurati
 
 Set the backend server address in the frontend's environment file (`.env`):
 
-* **File:** `.env` (in the frontend root directory)
-* **Variable:** `NEXT_PUBLIC_API_URL`
-* **Local Development Example:**
-    ```bash
-    NEXT_PUBLIC_API_URL=http://localhost:8000
-    ```
+- **File:** `.env` (in the frontend root directory)
+- **Variable:** `NEXT_PUBLIC_API_URL`
+- **Local Development Example:**
+  ```bash
+  NEXT_PUBLIC_API_URL=http://localhost:8000
+  ```
 
 #### 2. API Client Implementation
 
@@ -59,9 +59,12 @@ export const api = {
   }
 }
 ```
+
 #### 3. Enable CORS in the Backend
+
 The backend must allow the frontend's origin to make requests. This is done by setting the CORS (Cross-Origin Resource Sharing) configuration in the backend's environment file:
+
 - File: .env (in the backend root directory)
 - Variable: CORS_ORIGINS
 - Local Development Example: (Assuming frontend runs on port 3000)
-    CORS_ORIGINS=http://localhost:3000
+  CORS_ORIGINS=http://localhost:3000

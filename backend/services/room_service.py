@@ -198,12 +198,18 @@ class RoomService:
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to add member ID {member_id} to room ID {new_room.id}",
                         )
+            
+            # Include the owner in member_ids if not already present
+            all_member_ids = [user_id]
+            if data.member_ids:
+                all_member_ids.extend([mid for mid in data.member_ids if mid != user_id])
+            
             return RoomResponse(
                 id=new_room.id,
                 name=new_room.name,
                 room_type=new_room.room_type,
                 created_at=new_room.created_at,
-                member_ids=data.member_ids or [],
+                member_ids=all_member_ids,
             )
         except HTTPException:
             raise
@@ -233,8 +239,10 @@ class RoomService:
             if existing_room:
                 return RoomResponse(
                     id=existing_room.id,
+                    name=existing_room.name or "",
                     room_type=existing_room.room_type,
                     created_at=existing_room.created_at,
+                    member_ids=[],
                 )
 
             new_room = await RoomRepository.create_direct_room(db, u1_norm, u2_norm)
@@ -245,8 +253,10 @@ class RoomService:
                 )
             return RoomResponse(
                 id=new_room.id,
+                name=new_room.name or "",
                 room_type=new_room.room_type,
                 created_at=new_room.created_at,
+                member_ids=[],
             )
         except HTTPException:
             raise
