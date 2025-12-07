@@ -279,6 +279,7 @@ class MapAPI:
                             size=(photo.get("width"), photo.get("height")),
                         )
                         for photo in result.get("photos", [])
+                        if photo.get("photo_reference")  # Only process photos with valid references
                     ]
                     if result.get("photos")
                     else None
@@ -589,6 +590,10 @@ class MapAPI:
         maxwidth: int = 400,
     ) -> str:
         try:
+            if not photo_reference:
+                print("Warning: photo_reference is None or empty")
+                return ""
+            
             if photo_reference.startswith("places/"):
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
 
