@@ -75,20 +75,34 @@ export default function SettingPage() {
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* --- HEADER --- */}
-        <div className="bg-[#E3F1E4] pt-12 pb-20 px-6 rounded-b-[40px] relative z-0">
-          <div className="flex items-center gap-4">
-            <Link href="/user_page/main_page">
-              <ArrowLeft
-                className="text-gray-600 cursor-pointer hover:text-green-600 transition-colors"
-                size={28}
-              />
+        {/* --- HEADER WITH COVER --- */}
+        <div className="relative w-full h-[190px] rounded-b-[40px] overflow-hidden bg-[#E3F1E4]">
+          {user?.cover_url ? (
+            <Image
+              src={user.cover_url}
+              alt="Cover"
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="absolute inset-0 bg-linear-to-br from-green-200 via-emerald-100 to-green-300" />
+          )}
+          <div className="absolute inset-0 bg-linear-to-b from-black/10 via-black/40 to-black/60" />
+
+          <div className="relative z-10 flex items-center justify-between px-6 pt-12">
+            <Link
+              href="/user_page/main_page"
+              className="p-2 rounded-full bg-white/20 text-white hover:bg-white/40 transition"
+            >
+              <ArrowLeft size={22} />
             </Link>
             <h1
-              className={`${jost.className} text-2xl font-bold text-gray-600`}
+              className={`${jost.className} text-xl font-semibold text-white tracking-wide`}
             >
               Settings
             </h1>
+            <div className="w-10" />
           </div>
         </div>
 

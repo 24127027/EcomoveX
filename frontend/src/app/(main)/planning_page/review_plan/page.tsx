@@ -255,16 +255,32 @@ function ChatWindow({
   ]);
   const [input, setInput] = useState("");
   const [roomId, setRoomId] = useState<number | null>(null);
+  const [roomOwnerId, setRoomOwnerId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(externalUserId ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRoomLoading, setIsRoomLoading] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevUserIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (userId && prevUserIdRef.current && prevUserIdRef.current !== userId) {
+      setRoomId(null);
+      setRoomOwnerId(null);
+      setMessages([
+        {
+          role: "bot",
+          text: DEFAULT_AI_WELCOME,
+        },
+      ]);
+    }
+    prevUserIdRef.current = userId ?? null;
+  }, [userId]);
 
   useEffect(() => {
     if (typeof externalUserId === "number" && externalUserId !== userId) {
@@ -339,6 +355,7 @@ function ChatWindow({
 
       if (cachedRoomId) {
         setRoomId(cachedRoomId);
+        setRoomOwnerId(resolvedUserId);
         setIsRoomLoading(false);
         return;
       }
@@ -349,6 +366,7 @@ function ChatWindow({
 
       if (existing) {
         setRoomId(existing.id);
+        setRoomOwnerId(resolvedUserId);
         if (typeof window !== "undefined") {
           localStorage.setItem(storageKey, String(existing.id));
         }
@@ -358,6 +376,7 @@ function ChatWindow({
 
       const createdRoom = await api.createGroupRoom(preferredName, []);
       setRoomId(createdRoom.id);
+      setRoomOwnerId(resolvedUserId);
       if (typeof window !== "undefined") {
         localStorage.setItem(storageKey, String(createdRoom.id));
       }
@@ -377,7 +396,7 @@ function ChatWindow({
   }, [ensureChatbotRoom, userId]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !userId || roomOwnerId !== userId) return;
 
     let cancelled = false;
     const fetchHistory = async () => {
@@ -426,7 +445,7 @@ function ChatWindow({
     return () => {
       cancelled = true;
     };
-  }, [roomId]);
+  }, [roomId, userId, roomOwnerId]);
 
   const handleSend = async () => {
     if (!input.trim() || !roomId || !userId || isLoading) return;

@@ -92,7 +92,6 @@ export default function ProfilePage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Limit avatar size to avoid oversized uploads (example: < 2MB)
       if (file.size > 2 * 1024 * 1024) {
         alert("Please choose an image smaller than 2MB.");
         return;
@@ -184,7 +183,7 @@ export default function ProfilePage() {
 
       const promises = [];
 
-      if (username !== user?.username || newBlobName) {
+      if (username !== user?.username || newBlobName || newCoverBlobName) {
         promises.push(
           api
             .updateUserProfile({
@@ -208,7 +207,11 @@ export default function ProfilePage() {
               } else if (res.avt_url) {
                 setPreviewAvatar(res.avt_url);
               }
-              if (newCoverUrl) setPreviewCover(newCoverUrl);
+              if (newCoverUrl) {
+                setPreviewCover(newCoverUrl);
+              } else if (res.cover_url) {
+                setPreviewCover(res.cover_url);
+              }
             })
         );
       }
@@ -242,6 +245,7 @@ export default function ProfilePage() {
       setNewPassword("");
       setOldPassword("");
       setAvatarFile(null);
+      setCoverFile(null);
     } catch (error: unknown) {
       console.error("Update failed:", error);
       const message =
@@ -276,13 +280,13 @@ export default function ProfilePage() {
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        <div className="relative pt-12 pb-32 px-6 rounded-b-[40px] overflow-hidden bg-[#E3F1E4]">
+        <div className="relative w-full h-[230px] rounded-b-[40px] overflow-hidden bg-[#E3F1E4]">
           {previewCover ? (
             <Image
               src={previewCover}
               alt="Cover"
               fill
-              className="object-cover opacity-90"
+              className="object-cover"
               priority
             />
           ) : (
@@ -305,35 +309,39 @@ export default function ProfilePage() {
             onChange={handleFileChange}
           />
 
-          <div className="relative z-20 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="p-2 rounded-full bg-white/20 text-white hover:bg-white/40 transition"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <p
-              className={`${jost.className} text-white text-lg font-semibold tracking-wide`}
-            >
-              My Profile
-            </p>
-            {isEditing ? (
+          <div className="relative z-20 h-full flex flex-col px-6 pt-12 pb-8">
+            <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={handleCoverClick}
-                className="flex items-center gap-2 bg-white/20 backdrop-blur px-3 py-1.5 rounded-full text-white text-xs font-semibold hover:bg-white/40 transition"
+                onClick={() => router.back()}
+                className="p-2 rounded-full bg-white/20 text-white hover:bg-white/40 transition"
               >
-                <Camera size={16} />
-                Change cover
+                <ArrowLeft size={20} />
               </button>
-            ) : (
-              <div className="w-10" />
-            )}
+              <p
+                className={`${jost.className} text-white text-lg font-semibold tracking-wide`}
+              >
+                My Profile
+              </p>
+              {isEditing ? (
+                <button
+                  type="button"
+                  onClick={handleCoverClick}
+                  className="flex items-center gap-2 bg-white/20 backdrop-blur px-3 py-1.5 rounded-full text-white text-xs font-semibold hover:bg-white/40 transition"
+                >
+                  <Camera size={16} />
+                  Change cover
+                </button>
+              ) : (
+                <div className="w-10" />
+              )}
+            </div>
           </div>
+        </div>
 
-          <div className="relative z-20 flex flex-col items-center mt-10 gap-3">
-            <div className="relative w-32 h-32 rounded-full border-4 border-white shadow-xl overflow-hidden">
+        <div className="relative z-10 flex flex-col items-center -mt-16 px-6 gap-3">
+          <div className="p-1.5 bg-white rounded-full shadow-xl">
+            <div className="relative w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gray-100">
               <Image
                 src={avatarSrc}
                 alt="Avatar"
@@ -353,16 +361,16 @@ export default function ProfilePage() {
                 </button>
               )}
             </div>
-
-            <h2
-              className={`${abhaya_libre.className} text-2xl font-bold text-white text-center drop-shadow`}
-            >
-              {user?.username}
-            </h2>
-            <p className={`${jost.className} text-white/80 text-sm`}>
-              {user?.email}
-            </p>
           </div>
+
+          <h2
+            className={`${abhaya_libre.className} text-2xl font-bold text-[#1B3C1B] text-center`}
+          >
+            {isEditing ? username || "" : user?.username}
+          </h2>
+          <p className={`${jost.className} text-gray-500 text-sm`}>
+            {isEditing ? email || "" : user?.email}
+          </p>
         </div>
 
         <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-5">
@@ -419,7 +427,7 @@ export default function ProfilePage() {
             <label
               className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
             >
-              New Password
+              Password
             </label>
             <div
               className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
