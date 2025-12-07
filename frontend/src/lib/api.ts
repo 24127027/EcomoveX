@@ -46,7 +46,7 @@ export interface UserProfile {
   email: string;
   avt_url?: string | null;
   cover_url?: string | null;
-  role?: string;
+  role: string;
 }
 
 //Friend Types
