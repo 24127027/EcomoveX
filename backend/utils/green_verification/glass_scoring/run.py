@@ -1,11 +1,9 @@
+### cupdetection.py
 import os
-from typing import Dict, List, Optional
-
-import cv2
+from typing import Dict, List, Optional, Any
 import numpy as np
 import torch
 from ultralytics import YOLO
-
 
 class CupDetectorScorer:
     def __init__(
@@ -18,6 +16,7 @@ class CupDetectorScorer:
         self.conf_threshold = conf_threshold
         self._model: Optional[YOLO] = None
 
+        # Trọng số các loại (nếu cần tính điểm sau này)
         default_weights = {"glass": 1.0, "plastic": 0.6, "paper": 0.6}
         self.category_weights = {
             k.lower(): float(v)
@@ -28,15 +27,17 @@ class CupDetectorScorer:
             self.device = device
         else:
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        print(f"CupDetectorScorer using device: {self.device}")
+        
+        print(f"[CupDetector] Using device: {self.device}")
 
+        # Xử lý đường dẫn model
         if model_path is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            self.model_path = os.path.abspath(
-                os.path.join(
-                    script_dir, "..", "models", "glass_classification_model.pt"
-                )
-            )
+            # Giả định model nằm ở thư mục cha/models, hoặc bạn có thể trỏ thẳng file
+            self.model_path = os.path.join(script_dir, "glass_classification_model.pt") 
+            if not os.path.exists(self.model_path):
+                 # Fallback: tìm ngay tại thư mục hiện tại
+                 self.model_path = os.path.join(script_dir, "best.pt") # Ví dụ tên model
         else:
             self.model_path = model_path
 
@@ -45,56 +46,67 @@ class CupDetectorScorer:
     def _load_model(self):
         if self._model is None:
             if not os.path.exists(self.model_path):
-                raise FileNotFoundError(f"Model file not found: {self.model_path}")
+                # Chỉ cảnh báo, để orchestrator không bị crash nếu thiếu model
+                print(f"[CupDetector] Warning: Model file not found at {self.model_path}")
+                return
+            
+            print(f"[CupDetector] Loading model from {self.model_path}")
             self._model = YOLO(self.model_path)
             try:
                 self._model.to(self.device)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[CupDetector] Error moving to device: {e}")
 
-    def score_images(self, image_paths: List[str]) -> float:
-        images: List[np.ndarray] = []
-        for p in image_paths:
-            img = cv2.imread(p)
-            if img is None:
-                raise FileNotFoundError(f"Image not found: {p}")
-            images.append(cv2.resize(img, (640, 640)))
-
-        if not images:
-            return -10.0
-
+    def detect(self, img_rgb: np.ndarray) -> List[Dict[str, Any]]:
+        """
+        Detect cups/glasses and return normalized coordinates.
+        img_rgb: Numpy array (H, W, 3) - uint8 or float.
+        """
+        # Chạy inference
         self._load_model()
-        imgs_rgb = [cv2.cvtColor(img, cv2.COLOR_BGR2RGB) for img in images]
+        if self._model is None:
+            return []
 
+        H, W = img_rgb.shape[:2]
+        
+        # --- DEBUG: In ra thông tin ảnh đầu vào ---
+        print(f"[CupDetector] Input shape: {img_rgb.shape}, Max Val: {img_rgb.max()}, Min Val: {img_rgb.min()}")
+
+        # --- THAY ĐỔI Ở ĐÂY ---
+        # 1. Giảm conf xuống 0.05 hoặc 0.1 để bắt nhạy hơn
+        # 2. Bật verbose=True để xem log của YOLO
         results = self._model(
-            imgs_rgb, imgsz=640, conf=self.conf_threshold, device=self.device
+            img_rgb, 
+            imgsz=640, 
+            conf=0.25,    # <--- Giảm xuống 0.1 (10%)
+            device=self.device, 
+            verbose=False # <--- Bật lên để xem log
         )
 
-        all_scores: List[float] = []
-        for res in results:
-            for box in res.boxes:
+        detections = []
 
-                conf = (
-                    float(box.conf.item())
-                    if hasattr(box.conf, "item")
-                    else float(box.conf)
-                )
-                cls = int(box.cls.item()) if hasattr(box.cls, "item") else int(box.cls)
+        for res in results:
+            boxes = res.boxes
+            for box in boxes:
+                # Lấy thông tin cơ bản
+                conf = float(box.conf.item()) if hasattr(box.conf, "item") else float(box.conf)
+                cls_id = int(box.cls.item()) if hasattr(box.cls, "item") else int(box.cls)
+                
                 class_name = (
-                    str(self._model.names[cls])
-                    if hasattr(self._model, "names") and cls in self._model.names
-                    else str(cls)
+                    str(self._model.names[cls_id])
+                    if hasattr(self._model, "names") and cls_id in self._model.names
+                    else str(cls_id)
                 )
+
                 material = class_name.lower()
 
-                weight = float(self.category_weights.get(material, 0.5))
-                score = min(1.0, conf * weight)
-                all_scores.append(score)
+                detection_info = {
+            "label": class_name,
+            "material": material,
+            "confidence": conf,
+        }
 
-        if not all_scores:
-            return -10.0
+        detections.append(detection_info)
 
-        avg_score = float(np.mean(all_scores))
-
-        normalized = (avg_score * 20.0) - 10.0
-        return float(normalized)
+        return detections
+    
