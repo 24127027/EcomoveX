@@ -297,7 +297,7 @@ export default function RouteTracker() {
               {/* LARGE CO2 PANEL - THE MAIN FEATURE */}
               <div className="mb-8">
                 {/* Decorative Earth Image Above Panel */}
-                <div className="relative mb-[-40px] z-10 flex justify-center">
+                <div className="relative mb-10 z-10 flex justify-center">
                   <div className="bg-white rounded-full w-20 h-20 flex items-center justify-center shadow-lg">
                     <img
                       src="https://img.freepik.com/free-vector/pixel-art-design-earth-vector-illustration-colorful-planet-earth-pixel-style-isolated_118339-977.jpg?w=2000"
@@ -308,7 +308,7 @@ export default function RouteTracker() {
                 </div>
 
                 {/* Large Carbon Display Panel */}
-                <div className="bg-gradient-to-br from-green-500 via-green-600 to-green-700 rounded-3xl p-8 pt-20 shadow-2xl">
+                <div className="bg-linear-to-br from-green-500 via-green-600 to-green-700 rounded-3xl p-8 pt-20 shadow-2xl">
                   <div className="text-center">
                     <h2 className="text-3xl font-bold text-white mb-2">CO₂ Saved</h2>
                     <p className="text-lg text-green-100 mb-6 font-medium">
@@ -412,7 +412,7 @@ export default function RouteTracker() {
 
                     {/* Origin */}
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-3 h-3 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></div>
+                      <div className="w-3 h-3 bg-green-500 rounded-full mt-1.5 shrink-0"></div>
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900 text-base">{currentRoute.origin_name}</div>
                         <div className="text-sm text-gray-500">Starting point</div>
@@ -436,7 +436,7 @@ export default function RouteTracker() {
 
                     {/* Destination */}
                     <div className="flex items-start gap-3">
-                      <MapPin className="w-4 h-4 text-green-600 mt-1.5 flex-shrink-0" />
+                      <MapPin className="w-4 h-4 text-green-600 mt-1.5 shrink-0" />
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900 text-base">{currentRoute.destination_name}</div>
                         <div className="text-sm text-gray-500">Destination</div>
@@ -525,7 +525,7 @@ export default function RouteTracker() {
 
         {/* Footer Navigation */}
         <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
-          <div className="h-1 bg-gradient-to-r from-transparent via-green-200 to-transparent"></div>
+          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
           <div className="flex justify-around items-center py-3">
             <a href="/homepage" className="flex flex-col items-center justify-center w-1/5 text-gray-400 hover:text-green-600 transition-colors">
               <Home className="w-6 h-6" strokeWidth={1.5} />

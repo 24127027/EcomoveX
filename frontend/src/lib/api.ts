@@ -314,11 +314,16 @@ export interface PlanBasicInfo {
   budget_limit: number | null;
 }
 
+type PlanListResponse =
+  | { plans: Array<number | PlanBasicInfo> }
+  | Array<number | PlanBasicInfo>;
+
 // Backend Plan Destination Type (matches PlanDestinationResponse from backend)
 export interface PlanDestinationResponse {
   id: number;
   destination_id: string;
   type: string; // DestinationType
+  destination_type?: string; // legacy support from older responses
   order_in_day: number;
   visit_date: string; // date string
   estimated_cost?: number | null;
@@ -330,6 +335,7 @@ export interface PlanDestinationResponse {
 // Backend Plan Response Type (matches PlanResponse from backend)
 export interface Plan {
   id: number;
+  user_id: number;
   place_name: string;
   start_date: string; // date string
   end_date: string; // date string
@@ -502,7 +508,7 @@ export interface PlanDestinationCreate {
   destination_type: string;
   order_in_day: number;
   visit_date: string;
-  time_slot: "morning" | "afternoon" | "evening"; // ✅ Lowercase để match backend enum
+  time_slot: "morning" | "afternoon" | "evening";
   estimated_cost?: number;
   url?: string;
   note?: string;
@@ -773,6 +779,128 @@ class ApiClient {
     });
   }
   // --- PLAN ENDPOINTS ---
+  private extractPlanIdsFromPayload(
+    payload: PlanListResponse | null | undefined
+  ): number[] {
+    if (!payload) return [];
+    const planArray = Array.isArray(payload) ? payload : payload.plans;
+    if (!Array.isArray(planArray)) return [];
+
+    const ids = planArray
+      .map((plan) => {
+        if (typeof plan === "number") {
+          return plan;
+        }
+
+        if (plan && typeof plan === "object" && "id" in plan) {
+          const typedPlan = plan as PlanBasicInfo;
+          return typeof typedPlan.id === "number" ? typedPlan.id : null;
+        }
+
+        return null;
+      })
+      .filter((id): id is number => typeof id === "number");
+
+    return Array.from(new Set(ids));
+  }
+
+  private async fetchPlanIdsFromApi(): Promise<number[]> {
+    try {
+      const response = await this.request<PlanListResponse>("/plans/", {
+        method: "GET",
+      });
+      return this.extractPlanIdsFromPayload(response);
+    } catch (error) {
+      console.error("Failed to fetch plan IDs", error);
+      return [];
+    }
+  }
+
+  private async fetchPlansByIds(planIds: number[]): Promise<Plan[]> {
+    if (!planIds.length) {
+      return [];
+    }
+
+    const planPromises = planIds.map(async (planId) => {
+      try {
+        return await this.getPlanDetails(planId);
+      } catch (error) {
+        console.error(`Failed to fetch plan ${planId}`, error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(planPromises);
+    return results.filter((plan): plan is Plan => Boolean(plan));
+  }
+
+  private transformPlanToTravelPlan(plan: Plan): TravelPlan {
+    const planStartDate = new Date(`${plan.start_date}T00:00:00`);
+
+    const normalizeTimeSlot = (
+      slot: string
+    ): "Morning" | "Afternoon" | "Evening" => {
+      const lower = (slot || "morning").toLowerCase();
+      if (lower === "afternoon") return "Afternoon";
+      if (lower === "evening") return "Evening";
+      return "Morning";
+    };
+
+    const activities = (plan.destinations || []).map((d, index) => {
+      const dateObj = new Date(d.visit_date);
+      const slot = normalizeTimeSlot(d.time_slot || "morning");
+
+      const timeString = dateObj.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const actDateOnly = new Date(dateObj);
+      actDateOnly.setHours(0, 0, 0, 0);
+
+      const baseDate = new Date(planStartDate);
+      baseDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.round(
+        (actDateOnly.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const dayIndex = diffDays + 1;
+
+      return {
+        id: `${d.destination_id}-${index}`,
+        original_id: d.id,
+        destination_id: d.destination_id,
+        title: d.note || "Destination",
+        address: "",
+        image_url: d.url || "",
+        time_slot: slot,
+        date: d.visit_date,
+        time: timeString,
+        type: d.type || d.destination_type || "",
+        order_in_day: d.order_in_day ?? 0,
+        day: dayIndex >= 1 ? dayIndex : 1,
+      };
+    });
+
+    activities.sort((a, b) => {
+      const dateA = new Date(a.date!).getTime();
+      const dateB = new Date(b.date!).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+
+      return (a.order_in_day || 0) - (b.order_in_day || 0);
+    });
+
+    return {
+      id: plan.id,
+      user_id: plan.user_id,
+      destination: plan.place_name,
+      date: plan.start_date,
+      end_date: plan.end_date,
+      budget_limit: plan.budget_limit ?? undefined,
+      activities,
+    };
+  }
+
   async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
     return this.request<PlanResponse>("/plans/", {
       method: "POST",
@@ -913,9 +1041,8 @@ class ApiClient {
 
   // Get raw plans from backend (for track pages)
   async getRawPlans(): Promise<Plan[]> {
-    return this.request<Plan[]>("/plans/", {
-      method: "GET",
-    });
+    const planIds = await this.fetchPlanIdsFromApi();
+    return this.fetchPlansByIds(planIds);
   }
 
   async leavePlan(planId: number): Promise<void> {
@@ -924,78 +1051,8 @@ class ApiClient {
   }
 
   async getPlans(): Promise<TravelPlan[]> {
-    const plans = await this.request<PlanResponse[]>("/plans/", {
-      method: "GET",
-    });
-
-    return plans.map((p) => {
-      // Chuẩn hóa ngày bắt đầu chuyến đi về 00:00:00 để tính toán chính xác
-      const planStartDate = new Date(`${p.start_date}T00:00:00`);
-
-      const activities = p.destinations.map((d, index) => {
-        const dateObj = new Date(d.visit_date);
-
-        // ✅ Convert backend lowercase time_slot sang capitalize cho frontend
-        const normalizeTimeSlot = (
-          slot: string
-        ): "Morning" | "Afternoon" | "Evening" => {
-          const lower = slot.toLowerCase();
-          if (lower === "afternoon") return "Afternoon";
-          if (lower === "evening") return "Evening";
-          return "Morning";
-        };
-        const slot = normalizeTimeSlot(d.time_slot || "morning");
-
-        const timeString = dateObj.toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        // [MỚI] Logic tính thứ tự ngày (Day 1, Day 2...)
-        const actDateOnly = new Date(dateObj);
-        actDateOnly.setHours(0, 0, 0, 0);
-        planStartDate.setHours(0, 0, 0, 0);
-
-        const diffTime = actDateOnly.getTime() - planStartDate.getTime();
-        // Dùng Math.round để xử lý sai số mili-giây nếu có
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-        const dayIndex = diffDays + 1;
-
-        return {
-          id: `${d.destination_id}-${index}`,
-          original_id: d.id,
-          destination_id: d.destination_id,
-          title: d.note || "Destination",
-          address: "",
-          image_url: d.url || "",
-          time_slot: slot,
-          date: d.visit_date,
-          time: timeString,
-          type: d.destination_type,
-          order_in_day: d.order_in_day || 0,
-          day: dayIndex >= 1 ? dayIndex : 1,
-        };
-      });
-
-      activities.sort((a, b) => {
-        const dateA = new Date(a.date!).getTime();
-        const dateB = new Date(b.date!).getTime();
-        if (dateA !== dateB) return dateA - dateB;
-
-        return (a.order_in_day || 0) - (b.order_in_day || 0);
-      });
-
-      return {
-        id: p.id,
-        user_id: p.user_id, // Map owner ID
-        destination: p.place_name,
-        date: p.start_date,
-        end_date: p.end_date,
-        budget_limit: p.budget_limit, // ✅ Map budget_limit from backend
-        activities: activities,
-      };
-    });
+    const detailedPlans = await this.getRawPlans();
+    return detailedPlans.map((plan) => this.transformPlanToTravelPlan(plan));
   }
 
   // --- FRIEND ENDPOINTS ---
@@ -1290,9 +1347,14 @@ class ApiClient {
 
   // Get all plans (basic info only for track page)
   async getAllPlansBasic(): Promise<{ plans: PlanBasicInfo[] }> {
-    return this.request<{ plans: PlanBasicInfo[] }>("/plans/", {
-      method: "GET",
-    });
+    const detailedPlans = await this.getRawPlans();
+    return {
+      plans: detailedPlans.map((plan) => ({
+        id: plan.id,
+        place_name: plan.place_name,
+        budget_limit: plan.budget_limit ?? null,
+      })),
+    };
   }
 
   // Get routes for a specific plan

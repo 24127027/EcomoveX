@@ -1753,6 +1753,8 @@ function ReviewPlanContent() {
       console.log("📦 Total destinations to save:", destinationsPayload.length);
 
       // 3. Prepare request payload
+      const today = new Date().toISOString().split("T")[0];
+
       const requestData = {
         place_name: planInfo.name,
         start_date: planInfo.date || today,
