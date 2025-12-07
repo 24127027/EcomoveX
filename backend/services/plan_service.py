@@ -5,25 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.plan import PlanRole, DestinationType, TimeSlot
 from repository.plan_repository import PlanRepository
-from schemas.map_schema import PlaceDetailsRequest
-from schemas.plan_schema import (
-    IntentHandlerResponse,
-    MemberCreate,
-    MemberDelete,
-    PlanCreate,
-    PlanDestinationCreate,
-    PlanDestinationResponse,
-    PlanDestinationUpdate,
-    PlanMemberCreate,
-    PlanMemberDetailResponse,
-    PlanMemberResponse,
-    PlanResponse,
-    PlanUpdate,
-    ActionResult
-)
+from repository.room_repository import RoomRepository
+from repository.message_repository import MessageRepository
+from repository.cluster_repository import ClusterRepository
+from schemas.map_schema import *
+from schemas.plan_schema import *
+from schemas.route_schema import RouteCreate, RouteResponse
+from schemas.room_schema import RoomCreate, RoomMemberCreate
+from schemas.message_schema import RoomContextCreate, CommonMessageResponse
 from services.map_service import MapService
-from services.recommendation_service import RecommendationService
-from utils.nlp.rule_engine import Intent, RuleEngine
 from services.route_service import RouteService
 from repository.plan_repository import PlanDestination
 
@@ -50,46 +40,78 @@ class PlanService:
             )
 
     @staticmethod
-    async def get_plans_by_user(db: AsyncSession, user_id: int) -> List[PlanResponse]:
+    async def get_plans_by_user(db: AsyncSession, user_id: int) -> AllPlansResponse:
         try:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if plans is None:
-                return []
-            list_plan_responses = []
-            for plan in plans:
-                members = await PlanRepository.get_plan_members(db, plan.id)
-                owner = next((m for m in members if m.role == PlanRole.owner), None)
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                dest_infos = [
-                    PlanDestinationResponse(
-                        id=dest.id,
-                        destination_id=dest.destination_id,
-                        destination_type=dest.type,
-                        type=dest.type,
-                        visit_date=dest.visit_date,
-                        estimated_cost=dest.estimated_cost,
-                        url=dest.url,
-                        note=dest.note,
-                        order_in_day=dest.order_in_day or 0,
-                        time_slot=dest.time_slot,
+                return AllPlansResponse(plans=[])
+                
+            return AllPlansResponse(
+                plans=[
+                    PlanResponseBasic(
+                        id=plan.id,
+                        place_name=plan.place_name,
+                        budget_limit=plan.budget_limit,
                     )
-                    for dest in destinations
+                    for plan in plans
                 ]
-                plan_response = PlanResponse(
-                    id=plan.id,
-                    user_id=owner.user_id if owner else None,
-                    place_name=plan.place_name,
-                    start_date=plan.start_date,
-                    end_date=plan.end_date,
-                    budget_limit=plan.budget_limit,
-                    destinations=dest_infos,
-                )
-                list_plan_responses.append(plan_response)
-            return list_plan_responses
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving plans for user ID {user_id}: {e}",
+            )
+            
+    @staticmethod
+    async def get_plan_by_id(db: AsyncSession,user_id: int, plan_id: int) -> PlanResponse:
+        try:
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan with ID {plan_id} not found",
+                )
+            
+            destinations = await PlanRepository.get_plan_destinations(db, plan.id)
+            dest_infos = [
+                PlanDestinationResponse(
+                    id=dest.id,
+                    destination_id=dest.destination_id,
+                    type=dest.type,             
+                    visit_date=dest.visit_date,
+                    time_slot=dest.time_slot,
+                    estimated_cost=dest.estimated_cost,
+                    url=dest.url,
+                    note=dest.note,
+                    order_in_day=dest.order_in_day or 0,
+                )
+                for dest in destinations
+            ]
+            
+            # Find owner
+            owner_id = next((m.user_id for m in plan.members if m.role == PlanRole.owner), None)
+            
+            return PlanResponse(
+                id=plan.id,
+                user_id=owner_id,
+                place_name=plan.place_name,
+                start_date=plan.start_date,
+                end_date=plan.end_date,
+                budget_limit=plan.budget_limit,
+                destinations=dest_infos,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving plan ID {plan_id}: {e}",
             )
 
     @staticmethod
@@ -114,23 +136,34 @@ class PlanService:
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info)
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
 
                     # Update URL ảnh nếu thiếu
                     if place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
+                    
+                    # Sau đó mới thêm vào Plan
+                    await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    
                 except Exception as e:
                     print(
-                        f"Warning syncing destination {dest_data.destination_id}: {e}"
+                        f"❌ ERROR: Failed to add destination {dest_data.destination_id}: {e}"
                     )
-
-                # Sau đó mới thêm vào Plan
-                await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    print(f"   Skipping this destination and continuing with others...")
+                    continue
 
             # 4. Return
             saved_destinations = await PlanRepository.get_plan_destinations(
                 db, new_plan.id
             )
+            
+            list_route = []
+            for i in range(len(saved_destinations) - 1):
+                origin = saved_destinations[i].destination_id
+                destination = saved_destinations[i + 1].destination_id
+                routes = await RouteService.get_route_for_plan(origin, destination)
+                list_route.extend(routes)
+            
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -153,6 +186,7 @@ class PlanService:
                     )
                     for dest in saved_destinations
                 ],
+                route=list_route,
             )
         except HTTPException:
             raise
@@ -193,7 +227,13 @@ class PlanService:
             saved_destinations = await PlanRepository.get_plan_destinations(
                 db, updated_plan.id
             )
-            print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
+
+            list_route = []
+            for i in range(len(saved_destinations) - 1):
+                origin = saved_destinations[i].destination_id
+                destination = saved_destinations[i + 1].destination_id
+                routes = await RouteService.get_route_for_plan(origin, destination)
+                list_route.extend(routes)
 
             return PlanResponse(
                 id=updated_plan.id,
@@ -217,6 +257,7 @@ class PlanService:
                     )
                     for dest in saved_destinations
                 ],
+                route=list_route,
             )
         except HTTPException:
             raise
@@ -570,3 +611,136 @@ class PlanService:
 
         sorted_destinations = sorted(destinations, key=get_sort_key)
         return sorted_destinations
+
+    @staticmethod
+    async def create_route(
+        db: AsyncSession, user_id: int, route_data: RouteCreate
+    ) -> RouteResponse:
+        """Create a new route between two destinations in a plan"""
+        try:
+            # Check if user is member of the plan
+            is_member = await PlanRepository.is_member(db, user_id, route_data.plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only plan members can create routes",
+                )
+
+            # Verify both plan destinations exist and belong to the plan
+            origin = await PlanRepository.get_plan_destination_by_id(
+                db, route_data.origin_plan_destination_id
+            )
+            destination = await PlanRepository.get_plan_destination_by_id(
+                db, route_data.destination_plan_destination_id
+            )
+
+            if not origin or origin.plan_id != route_data.plan_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Origin destination not found in plan {route_data.plan_id}",
+                )
+
+            if not destination or destination.plan_id != route_data.plan_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Destination not found in plan {route_data.plan_id}",
+                )
+
+            # Create the route
+            new_route = await PlanRepository.create_route(db, route_data)
+            if not new_route:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create route",
+                )
+
+            return RouteResponse(
+                plan_id=new_route.plan_id,
+                origin_plan_destination_id=new_route.origin_place_id,
+                destination_plan_destination_id=new_route.destination_place_id,
+                distance_km=new_route.distance_km,
+                carbon_emission_kg=new_route.carbon_emission_kg,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error creating route: {e}",
+            )
+
+    @staticmethod
+    async def get_all_routes_by_plan_id(
+        db: AsyncSession, user_id: int, plan_id: int
+    ) -> List[RouteResponse]:
+        """Get all routes for a specific plan"""
+        try:
+            # Check if user is member
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+
+            routes = await PlanRepository.get_all_routes_by_plan_id(db, plan_id)
+            
+            return [
+                RouteResponse(
+                    plan_id=route.plan_id,
+                    origin_plan_destination_id=route.origin_place_id,
+                    destination_plan_destination_id=route.destination_place_id,
+                    distance_km=route.distance_km,
+                    carbon_emission_kg=route.carbon_emission_kg,
+                )
+                for route in routes
+            ]
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving routes: {e}",
+            )
+
+    @staticmethod
+    async def get_route_by_origin_and_destination(
+        db: AsyncSession,
+        user_id: int,
+        plan_id: int,
+        origin_plan_destination_id: int,
+        destination_plan_destination_id: int,
+    ) -> RouteResponse:
+        """Get a specific route between two destinations"""
+        try:
+            # Check if user is member
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+
+            route = await PlanRepository.get_route_by_origin_and_destination(
+                db, plan_id, origin_plan_destination_id, destination_plan_destination_id
+            )
+            if not route:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Route not found between destinations {origin_plan_destination_id} and {destination_plan_destination_id}",
+                )
+
+            return RouteResponse(
+                plan_id=route.plan_id,
+                origin_plan_destination_id=route.origin_place_id,
+                destination_plan_destination_id=route.destination_place_id,
+                distance_km=route.distance_km,
+                carbon_emission_kg=route.carbon_emission_kg,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving route: {e}",
+            )

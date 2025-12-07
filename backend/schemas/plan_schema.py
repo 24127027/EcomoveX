@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from models.plan import DestinationType, PlanRole, TimeSlot
+from schemas.route_schema import RouteForPlanResponse
 
 
 class PlanDestinationCreate(BaseModel):
@@ -50,7 +51,7 @@ class PlanCreate(BaseModel):
     start_date: date
     end_date: date
     budget_limit: Optional[float] = Field(None, gt=0)
-    destinations: List[PlanDestinationResponse] = Field(default_factory=list)
+    destinations: List[PlanDestinationCreate] = Field(default_factory=list)  
 
     @field_validator("place_name")
     @classmethod
@@ -72,7 +73,7 @@ class PlanUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     budget_limit: Optional[float] = Field(None, gt=0)
-    destinations: Optional[List[PlanDestinationResponse]] = Field(default_factory=list)
+    destinations: Optional[List[PlanDestinationCreate]] = Field(default_factory=list)  # ✅ Sửa: dùng PlanDestinationCreate
 
     @field_validator("place_name")
     @classmethod
@@ -84,12 +85,28 @@ class PlanUpdate(BaseModel):
 
 class PlanResponse(BaseModel):
     id: int
+    user_id: int  # ✅ Owner ID - REQUIRED for ownership checks
     place_name: str
     start_date: date
     end_date: date
     budget_limit: Optional[float] = None
     destinations: List[PlanDestinationResponse] = Field(default_factory=list)
+    route: Optional[List[RouteForPlanResponse]] = None
 
+    model_config = ConfigDict(from_attributes=True)
+    
+
+class PlanResponseBasic(BaseModel):
+    id: int
+    place_name: str
+    budget_limit: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AllPlansResponse(BaseModel):
+    plans: List[PlanResponseBasic] = Field(default_factory=list)
+    
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -106,6 +123,8 @@ class PlanMemberDetailResponse(BaseModel):
     plan_id: int
     role: PlanRole
     joined_at: datetime
+    username: Optional[str] = None  # ✅ Add username for display
+    email: Optional[str] = None     # ✅ Add email as fallback
 
     model_config = ConfigDict(from_attributes=True)
 

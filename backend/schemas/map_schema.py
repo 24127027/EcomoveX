@@ -70,8 +70,8 @@ class Review(BaseModel):
 
 class PlaceDetailsResponse(BaseModel):
     place_id: str
-    name: str
-    formatted_address: str
+    name: Optional[str] = None
+    formatted_address: Optional[str] = None
     address_components: Optional[List[AddressComponent]] = None
     formatted_phone_number: Optional[str] = None
     geometry: Geometry

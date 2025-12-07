@@ -48,8 +48,9 @@ const STORAGE_KEY_INFO = "temp_plan_info";
 
 export default function CreatePlanPage() {
   const router = useRouter(); // Khởi tạo router
-  const [budget, setBudget] = useState<number>(100000);
+  const [budget, setBudget] = useState<string>("100000"); // Đổi thành string để format dễ hơn
   const [destination, setDestination] = useState<string>("");
+  const [selectedDistrict, setSelectedDistrict] = useState<string>(""); // NEW: Lưu district để truyền sang map
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
   // Thêm state loading để chặn click nhiều lần
@@ -76,6 +77,7 @@ export default function CreatePlanPage() {
 
   const handleSelectLocation = (district: string) => {
     setDestination(`${district}, ${LOCATIONS[0].city}`);
+    setSelectedDistrict(district); // Lưu district để truyền sang map
     setShowDropdown(false);
   };
 
@@ -153,14 +155,27 @@ export default function CreatePlanPage() {
   };
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
-    if (val >= 0) setBudget(val);
+    const rawValue = e.target.value;
+    // Chỉ cho phép số
+    const numericValue = rawValue.replace(/[^0-9]/g, "");
+    setBudget(numericValue);
   };
 
-  const formatDate = (date: Date) => {
+  // Format budget cho hiển thị (thêm dấu phẩy)
+  const formatBudget = (value: string) => {
+    if (!value) return "";
+    return Number(value).toLocaleString("vi-VN");
+  };
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return '';
     return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
   };
-  const formatDateForAPI = (date: Date) => {
+  const formatDateForAPI = (date: Date | null) => {
+    if (!date) {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0"); // Tháng bắt đầu từ 0 nên phải +1
     const day = String(date.getDate()).padStart(2, "0");
@@ -180,12 +195,13 @@ export default function CreatePlanPage() {
       const planInfo = {
         name: `Trip to ${destination.split(",")[0]}`, // Tên mặc định: "Trip to District 1"
         destination: destination,
+        district: selectedDistrict, // NEW: Lưu district để map biết khu vực
         // Format ngày chuẩn để sau này gửi API
         start_date: formatDateForAPI(selectedRange.start),
         end_date: selectedRange.end
           ? formatDateForAPI(selectedRange.end)
           : formatDateForAPI(selectedRange.start),
-        budget: budget,
+        budget: Number(budget) || 0, // Convert string về number
       };
 
       // 2. LƯU VÀO SESSION STORAGE (Thay vì gọi API)
@@ -369,44 +385,26 @@ export default function CreatePlanPage() {
               >
                 Budget
               </span>
-              <div className="flex items-center justify-end gap-1 w-1/2">
+              <div className="flex items-center justify-end gap-2 w-3/5">
                 <input
-                  type="number"
-                  value={budget.toString()}
+                  type="text"
+                  value={formatBudget(budget)}
                   onChange={handleBudgetChange}
-                  className={`${jost.className} text-[#53B552] font-medium text-sm text-right outline-none bg-transparent border-b border-gray-200 focus:border-[#53B552] w-full`}
+                  placeholder="0"
+                  className={`${jost.className} text-[#53B552] font-medium text-sm text-right outline-none bg-transparent border-b border-gray-300 focus:border-[#53B552] w-full px-2 py-1 transition-colors`}
                 />
                 <span
-                  className={`${jost.className} text-[#53B552] font-medium text-sm`}
+                  className={`${jost.className} text-[#53B552] font-medium text-sm whitespace-nowrap`}
                 >
                   VND
                 </span>
               </div>
             </div>
-          </div>
-
-          {/* 5. TAGS */}
-          <div className="flex flex-wrap gap-3">
-            {[
-              "AdventureTravel",
-              "BeachLover",
-              "CulturalTravel",
-              "Backpacking",
-            ].map((tag, idx) => (
-              <span
-                key={idx}
-                className={`${
-                  jost.className
-                } px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-colors
-                  ${
-                    tag === "CulturalTravel" || tag === "BeachLover"
-                      ? "bg-[#E3F1E4] text-[#53B552] border border-[#53B552]"
-                      : "bg-gray-100 text-gray-500 hover:bg-green-50"
-                  }`}
-              >
-                {tag}
-              </span>
-            ))}
+            <p
+              className={`${jost.className} text-xs text-gray-400 mt-2 text-right`}
+            >
+              {budget ? `≈ $${(Number(budget) / 25000).toFixed(0)} USD` : ""}
+            </p>
           </div>
         </main>
 

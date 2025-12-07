@@ -10,12 +10,18 @@ from fastapi import (
     UploadFile,
     WebSocket,
     status,
+    Body,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
 from models.message import MessageType
-from schemas.message_schema import CommonMessageResponse, MessageResponse
+from schemas.message_schema import (
+    CommonMessageResponse,
+    InvitationActionRequest,
+    MessageResponse,
+    PlanInvitationCreate,
+)
 from services.message_service import MessageService
 from utils.token.authentication_util import get_current_user
 
@@ -102,6 +108,27 @@ async def delete_message(
     return await MessageService.delete_message(db, current_user["user_id"], message_id)
 
 
+@router.put(
+    "/{message_id}/decline",
+    status_code=status.HTTP_200_OK,
+)
+async def decline_plan_invitation(
+    message_id: int = Path(..., gt=0, description="ID of the invitation message"),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Decline a plan invitation.
+    Shortcut endpoint for rejecting invitations.
+    """
+    return await MessageService.respond_to_invitation(
+        db,
+        user_id=current_user["user_id"],
+        message_id=message_id,
+        action="rejected",
+    )
+
+
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
@@ -116,3 +143,54 @@ async def websocket_endpoint(
         await MessageService.handle_websocket_message_loop(
             websocket, db, user_id, room_id
         )
+
+
+# ======================== Plan Invitation Endpoints ========================
+
+
+@router.post(
+    "/invitations/{message_id}/respond",
+    status_code=status.HTTP_200_OK,
+)
+async def respond_to_plan_invitation(
+    message_id: int = Path(..., gt=0, description="ID của invitation message"),
+    action_request: InvitationActionRequest = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Accept hoặc reject lời mời tham gia plan.
+    
+    - **message_id**: ID của message chứa lời mời
+    - **action**: "accepted" hoặc "rejected"
+    
+    Chỉ người được mời mới có thể respond.
+    Khi accept: Tự động thêm vào plan_members với role member.
+    Khi reject: Lưu trạng thái để không hiển thị lại khi reload.
+    """
+    return await MessageService.respond_to_invitation(
+        db,
+        user_id=current_user["user_id"],
+        message_id=message_id,
+        action=action_request.action.value,
+    )
+
+
+@router.get(
+    "/invitations/{message_id}",
+    status_code=status.HTTP_200_OK,
+)
+async def get_invitation_details(
+    message_id: int = Path(..., gt=0, description="ID của invitation message"),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Lấy chi tiết lời mời plan.
+    
+    Trả về thông tin plan, người gửi, trạng thái (pending/accepted/rejected).
+    """
+    return await MessageService.get_invitation_details(
+        db, current_user["user_id"], message_id
+    )
+

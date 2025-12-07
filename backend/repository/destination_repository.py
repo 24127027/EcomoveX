@@ -34,11 +34,13 @@ class DestinationRepository:
     @staticmethod
     async def create_destination(db: AsyncSession, destination: DestinationCreate):
         try:
+            # ✅ Kiểm tra tồn tại trước
             has_existing = await DestinationRepository.get_destination_by_id(
                 db, destination.place_id
             )
             if has_existing:
                 return has_existing
+            
             new_destination = Destination(
                 place_id=destination.place_id,
             )
@@ -50,6 +52,7 @@ class DestinationRepository:
             return new_destination
         except SQLAlchemyError as e:
             await db.rollback()
+            # ✅ Nếu lỗi duplicate key, retry get (race condition)
             print(f"ERROR: Failed to create destination - {e}")
             return None
 

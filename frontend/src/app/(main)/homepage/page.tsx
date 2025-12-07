@@ -217,9 +217,11 @@ export default function HomePage() {
         const p = await api.getPlans();
         const t = new Date();
         t.setHours(0, 0, 0, 0);
+        // Filter: future plans AND have at least 2 activities
         const fp = p.filter((i) => {
           const d = parseDate(i.date);
-          return d >= t;
+          const hasEnoughActivities = i.activities && i.activities.length >= 2;
+          return d >= t && hasEnoughActivities;
         });
         fp.sort(
           (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime()
@@ -616,7 +618,7 @@ export default function HomePage() {
               <span className="text-[10px] font-bold mt-1">Home</span>
             </Link>
             <Link
-              href="/track_page/leaderboard"
+              href="/track_page"
               className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
             >
               <Route size={24} strokeWidth={1.5} />

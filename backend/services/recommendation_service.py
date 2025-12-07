@@ -345,18 +345,21 @@ class RecommendationService:
             for rec in top_recs:
                 place_id = rec["place_id"]
                 try:
+                    # ✅ Chỉ get, không create để tránh duplicate
                     existing_dest = await DestinationRepository.get_destination_by_id(
                         db, place_id
                     )
                     if existing_dest:
                         rec["destination_id"] = existing_dest.place_id
                     else:
+                        # ✅ Tạo mới nếu chưa có, hàm create_destination đã handle duplicate
                         new_dest = await DestinationRepository.create_destination(
                             db, DestinationCreate(place_id=place_id)
                         )
                         rec["destination_id"] = new_dest.place_id if new_dest else None
                 except Exception as e:
-                    print(f"Warning: Could not get/create destination {place_id}: {e}")
+                    # ✅ Log warning nhưng không raise error để không ảnh hưởng UX
+                    print(f"⚠️ Could not get/create destination {place_id}: {e}")
                     rec["destination_id"] = None
 
             return top_recs

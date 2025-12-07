@@ -24,6 +24,34 @@ const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 const STORAGE_KEY = "temp_plan_destinations";
 const CURRENT_VIEWING_KEY = "current_viewing_place";
+const STORAGE_KEY_INFO = "temp_plan_info"; // NEW: Key để đọc plan info
+
+// District coordinates mapping for Ho Chi Minh City
+const DISTRICT_COORDINATES: { [key: string]: { lat: number; lng: number } } = {
+  "District 1": { lat: 10.7756, lng: 106.7019 },
+  "District 2": { lat: 10.7897, lng: 106.7428 },
+  "District 3": { lat: 10.7839, lng: 106.6881 },
+  "District 4": { lat: 10.7577, lng: 106.702 },
+  "District 5": { lat: 10.755, lng: 106.6667 },
+  "District 6": { lat: 10.7481, lng: 106.6354 },
+  "District 7": { lat: 10.7333, lng: 106.7208 },
+  "District 8": { lat: 10.7294, lng: 106.6597 },
+  "District 10": { lat: 10.7726, lng: 106.67 },
+  "District 11": { lat: 10.7626, lng: 106.6503 },
+  "District 12": { lat: 10.8633, lng: 106.6975 },
+  "Binh Thanh District": { lat: 10.8025, lng: 106.7067 },
+  "Binh Tan District": { lat: 10.7948, lng: 106.6054 },
+  "Tan Binh District": { lat: 10.8007, lng: 106.6528 },
+  "Tan Phu District": { lat: 10.7844, lng: 106.6297 },
+  "Go Vap District": { lat: 10.8383, lng: 106.6758 },
+  "Phu Nhuan District": { lat: 10.7981, lng: 106.6831 },
+  "Thu Duc City": { lat: 10.8517, lng: 106.7636 },
+  "Cu Chi District": { lat: 11.0, lng: 106.4931 },
+  "Hoc Mon District": { lat: 10.8842, lng: 106.5925 },
+  "Binh Chanh District": { lat: 10.7139, lng: 106.605 },
+  "Nha Be District": { lat: 10.7, lng: 106.7281 },
+  "Can Gio District": { lat: 10.4078, lng: 106.9542 },
+};
 
 export default function AddDestinationPage() {
   const [showWelcome, setShowWelcome] = useState(true); // [NEW] Hiện modal hướng dẫn
@@ -44,6 +72,11 @@ export default function AddDestinationPage() {
     []
   );
   const [showSelectedList, setShowSelectedList] = useState(false);
+  const [showSavedList, setShowSavedList] = useState(false); // NEW: Saved destinations dropdown
+  const [savedDestinations, setSavedDestinations] = useState<PlaceDetails[]>(
+    []
+  ); // NEW: Saved destinations data
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false); // NEW: Loading state
   const [searchQuery, setSearchQuery] = useState("");
   const [predictions, setPredictions] = useState<AutocompletePrediction[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<PlaceDetails | null>(
@@ -107,6 +140,58 @@ export default function AddDestinationPage() {
         }
       });
     }
+
+    // NEW: Check if user selected a district in create_plan page
+    const planInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
+    if (planInfo) {
+      try {
+        const parsed = JSON.parse(planInfo);
+        if (parsed.district && DISTRICT_COORDINATES[parsed.district]) {
+          const districtPos = DISTRICT_COORDINATES[parsed.district];
+          setUserLocation(districtPos);
+          console.log(`📍 Moving map to ${parsed.district}:`, districtPos);
+        }
+      } catch (e) {
+        console.error("Error parsing plan info:", e);
+      }
+    }
+  }, []);
+
+  // --- LOAD SAVED DESTINATIONS ---
+  useEffect(() => {
+    const loadSavedDestinations = async () => {
+      setIsLoadingSaved(true);
+      try {
+        const saved = await api.getSavedDestinations();
+
+        // Fetch full details for each saved destination
+        const detailsPromises = saved.map(async (item) => {
+          try {
+            const details = await api.getPlaceDetails(item.destination_id);
+            return details;
+          } catch (error) {
+            console.error(
+              `Failed to load details for ${item.destination_id}:`,
+              error
+            );
+            return null;
+          }
+        });
+
+        const allDetails = await Promise.all(detailsPromises);
+        const validDetails = allDetails.filter(
+          (d): d is PlaceDetails => d !== null
+        );
+
+        setSavedDestinations(validDetails);
+      } catch (error) {
+        console.error("Failed to load saved destinations:", error);
+      } finally {
+        setIsLoadingSaved(false);
+      }
+    };
+
+    loadSavedDestinations();
   }, []);
 
   useEffect(() => {
@@ -415,9 +500,14 @@ export default function AddDestinationPage() {
             )}
           </div>
 
-          <div className="relative">
+          {/* LISTS CONTAINER - Vertical Stack */}
+          <div className="relative flex flex-col gap-2">
+            {/* YOUR LIST BUTTON */}
             <button
-              onClick={() => setShowSelectedList(!showSelectedList)}
+              onClick={() => {
+                setShowSelectedList(!showSelectedList);
+                setShowSavedList(false); // Close saved list when opening this
+              }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-full transition-all shadow-sm border ${
                 showSelectedList
                   ? "bg-green-100 text-green-700 border-green-200 ring-2 ring-green-100"
@@ -436,6 +526,36 @@ export default function AddDestinationPage() {
                 className={`${jost.className} text-sm font-bold hidden sm:block`}
               >
                 Your List
+              </span>
+            </button>
+
+            {/* SAVED DESTINATIONS BUTTON */}
+            <button
+              onClick={() => {
+                setShowSavedList(!showSavedList);
+                setShowSelectedList(false); // Close your list when opening this
+              }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full transition-all shadow-sm border ${
+                showSavedList
+                  ? "bg-blue-100 text-blue-700 border-blue-200 ring-2 ring-blue-100"
+                  : "bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:text-blue-600"
+              }`}
+            >
+              <div className="relative">
+                <Star
+                  size={20}
+                  className={showSavedList ? "fill-blue-500" : ""}
+                />
+                {savedDestinations.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-sm">
+                    {savedDestinations.length}
+                  </span>
+                )}
+              </div>
+              <span
+                className={`${jost.className} text-sm font-bold hidden sm:block`}
+              >
+                Saved
               </span>
             </button>
 
@@ -501,6 +621,110 @@ export default function AddDestinationPage() {
                   )}
                 </div>
                 {/* [UPDATE] Đã bỏ nút Finish ở trong này ra ngoài */}
+              </div>
+            )}
+
+            {/* Saved Destinations Dropdown */}
+            {showSavedList && (
+              <div className="absolute top-full right-0 mt-3 w-72 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] z-50 overflow-hidden border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
+                  <h3
+                    className={`${jost.className} font-bold text-blue-700 text-sm`}
+                  >
+                    Saved Destinations ({savedDestinations.length})
+                  </h3>
+                  <button onClick={() => setShowSavedList(false)}>
+                    <X size={16} className="text-gray-400 hover:text-red-500" />
+                  </button>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto p-2 space-y-2">
+                  {isLoadingSaved ? (
+                    <div className="py-6 text-center">
+                      <Loader2
+                        className="animate-spin text-blue-500 mx-auto mb-2"
+                        size={24}
+                      />
+                      <p className={`${jost.className} text-gray-400 text-xs`}>
+                        Loading saved destinations...
+                      </p>
+                    </div>
+                  ) : savedDestinations.length === 0 ? (
+                    <div className="py-6 text-center">
+                      <Star className="text-gray-300 mx-auto mb-2" size={32} />
+                      <p className={`${jost.className} text-gray-400 text-xs`}>
+                        No saved destinations yet.
+                      </p>
+                      <p
+                        className={`${jost.className} text-gray-400 text-[10px] mt-1`}
+                      >
+                        Save destinations to see them here!
+                      </p>
+                    </div>
+                  ) : (
+                    savedDestinations.map((dest, idx) => {
+                      const isAlreadyAdded = addedDestinations.some(
+                        (d) => d.place_id === dest.place_id
+                      );
+
+                      return (
+                        <div
+                          key={`${dest.place_id}-saved-${idx}`}
+                          className="flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+                        >
+                          <div className="w-10 h-10 bg-gray-200 rounded-lg overflow-hidden shrink-0">
+                            <img
+                              src={
+                                dest.photos?.[0]?.photo_url ||
+                                "https://via.placeholder.com/100"
+                              }
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div
+                            className="flex-1 min-w-0 cursor-pointer"
+                            onClick={() => {
+                              handleClickSavedItem(dest);
+                              setShowSavedList(false);
+                            }}
+                          >
+                            <p
+                              className={`${jost.className} text-xs font-bold text-gray-800 truncate`}
+                            >
+                              {dest.name}
+                            </p>
+                            <p className="text-[10px] text-gray-500 truncate">
+                              {dest.formatted_address}
+                            </p>
+                          </div>
+
+                          {isAlreadyAdded ? (
+                            <div className="p-1.5 text-green-500 bg-green-50 rounded-full">
+                              <Check size={14} />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLocation(dest);
+                                sessionStorage.setItem(
+                                  CURRENT_VIEWING_KEY,
+                                  JSON.stringify(dest)
+                                );
+                                setShowSavedList(false);
+                              }}
+                              className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors"
+                              title="View on map"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>

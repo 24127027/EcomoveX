@@ -224,6 +224,58 @@ export interface UploadResponse {
   filename: string;
 }
 
+// Route Types for Plans
+export interface RouteForPlanResponse {
+  origin: string; // place_id
+  destination: string; // place_id
+  distance_km: number;
+  estimated_travel_time_min: number;
+  carbon_emission_kg: number;
+  route_polyline: string;
+  transport_mode: string;
+  route_type: string;
+}
+
+// Route Response from backend /plans/{plan_id}/routes
+export interface RouteResponse {
+  plan_id: number;
+  origin_plan_destination_id: number;
+  destination_plan_destination_id: number;
+  distance_km: number;
+  carbon_emission_kg: number;
+}
+
+// Basic plan info for track page
+export interface PlanBasicInfo {
+  id: number;
+  place_name: string;
+  budget_limit: number | null;
+}
+
+// Backend Plan Destination Type (matches PlanDestinationResponse from backend)
+export interface PlanDestinationResponse {
+  id: number;
+  destination_id: string;
+  type: string; // DestinationType
+  order_in_day: number;
+  visit_date: string; // date string
+  estimated_cost?: number | null;
+  url?: string | null;
+  note?: string | null;
+  time_slot: string; // TimeSlot enum as string
+}
+
+// Backend Plan Response Type (matches PlanResponse from backend)
+export interface Plan {
+  id: number;
+  place_name: string;
+  start_date: string; // date string
+  end_date: string; // date string
+  budget_limit: number | null;
+  destinations: PlanDestinationResponse[];
+  route?: RouteForPlanResponse[] | null;
+}
+
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
@@ -313,7 +365,7 @@ export interface PlanDestination {
   destination_id: string;
   destination_type: string;
   visit_date: string;
-  time?: string; // ✅ Thêm time_slot (format "HH:MM")
+  time_slot: string; // ✅ Backend trả về lowercase, sẽ convert sang capitalize
   note?: string;
   url?: string;
   order_in_day?: number;
@@ -336,9 +388,18 @@ export interface PlanMember {
   display_name?: string;
 }
 
+export interface PlanMemberDetail {
+  user_id: number;
+  plan_id: number;
+  role: "owner" | "member";
+  joined_at: string;
+  username?: string; // ✅ Add username
+  email?: string; // ✅ Add email as fallback
+}
+
 export interface PlanMemberResponse {
   plan_id: number;
-  ids: number[];
+  members: PlanMemberDetail[];
 }
 
 export interface AddMemberRequest {
@@ -347,11 +408,11 @@ export interface AddMemberRequest {
 
 export interface PlanActivity {
   id: number | string;
-  original_id?: number;
+  original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
   title: string;
   address: string;
   image_url: string;
-  time_slot: "Morning" | "Afternoon" | "Evening";
+  time_slot: "Morning" | "Afternoon" | "Evening"; // ✅ Internal sử dụng capitalize
   date?: string;
   type?: string;
   order_in_day?: number;
@@ -366,7 +427,8 @@ export interface TravelPlan {
   date: string;
   end_date?: string;
   activities: PlanActivity[];
-  budget?: number;
+  budget?: number; // Legacy field
+  budget_limit?: number; // ✅ Backend field name
 }
 
 export interface PlanDestinationCreate {
@@ -375,7 +437,7 @@ export interface PlanDestinationCreate {
   destination_type: string;
   order_in_day: number;
   visit_date: string;
-  time?: string; // ✅ Thêm time_slot (format "HH:MM")
+  time_slot: "morning" | "afternoon" | "evening"; // ✅ Lowercase để match backend enum
   estimated_cost?: number;
   url?: string;
   note?: string;
@@ -704,7 +766,7 @@ class ApiClient {
     const formData = new FormData();
     formData.append("user_id", userId.toString());
     formData.append("plan_id", planId.toString());
-    formData.append("message_type", "invitation");
+    formData.append("message_type", "plan_invitation");
     formData.append("content", "Invitation to join plan");
 
     return this.request<ChatMessage>(`/messages/${roomId}`, {
@@ -713,9 +775,27 @@ class ApiClient {
     });
   }
 
+  async acceptInvitation(messageId: number): Promise<void> {
+    await this.request(`/messages/invitations/${messageId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "accepted" }),
+    });
+  }
+
   async declineInvitation(messageId: number): Promise<void> {
     await this.request(`/messages/${messageId}/decline`, {
       method: "PUT",
+    });
+  }
+
+  async getInvitationStatus(
+    messageId: number
+  ): Promise<{ status: string; plan_id: number }> {
+    return this.request(`/messages/invitations/${messageId}`, {
+      method: "GET",
     });
   }
 
@@ -736,11 +816,34 @@ class ApiClient {
     });
   }
 
+  // ✅ Add members with roles (for auto-adding owner)
+  async addPlanMembersWithRoles(
+    planId: number,
+    members: Array<{ user_id: number; role: string }>
+  ): Promise<PlanMemberResponse> {
+    return this.request<PlanMemberResponse>(`/plans/${planId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ ids: members }),
+    });
+  }
+
   async removePlanMembers(planId: number, memberIds: number[]): Promise<void> {
     return this.request(`/plans/${planId}/members`, {
       method: "DELETE",
       body: JSON.stringify({ ids: memberIds }),
     });
+  }
+
+  // Get raw plans from backend (for track pages)
+  async getRawPlans(): Promise<Plan[]> {
+    return this.request<Plan[]>("/plans/", {
+      method: "GET",
+    });
+  }
+
+  async leavePlan(planId: number): Promise<void> {
+    const profile = await this.getUserProfile();
+    return this.removePlanMembers(planId, [profile.id]);
   }
 
   async getPlans(): Promise<TravelPlan[]> {
@@ -755,20 +858,16 @@ class ApiClient {
       const activities = p.destinations.map((d, index) => {
         const dateObj = new Date(d.visit_date);
 
-        // ✅ Ưu tiên lấy time_slot từ trường 'time' của backend
-        // Nếu không có, fallback tính từ hour của visit_date
-        let slot = "Morning";
-        if (d.time) {
-          // Backend trả về time format "HH:MM"
-          const [hours] = d.time.split(":").map(Number);
-          if (hours >= 12 && hours < 18) slot = "Afternoon";
-          else if (hours >= 18) slot = "Evening";
-        } else {
-          // Fallback: tính từ visit_date hour
-          const hour = dateObj.getHours();
-          if (hour >= 12 && hour < 18) slot = "Afternoon";
-          if (hour >= 18) slot = "Evening";
-        }
+        // ✅ Convert backend lowercase time_slot sang capitalize cho frontend
+        const normalizeTimeSlot = (
+          slot: string
+        ): "Morning" | "Afternoon" | "Evening" => {
+          const lower = slot.toLowerCase();
+          if (lower === "afternoon") return "Afternoon";
+          if (lower === "evening") return "Evening";
+          return "Morning";
+        };
+        const slot = normalizeTimeSlot(d.time_slot || "morning");
 
         const timeString = dateObj.toLocaleTimeString("en-GB", {
           hour: "2-digit",
@@ -792,7 +891,7 @@ class ApiClient {
           title: d.note || "Destination",
           address: "",
           image_url: d.url || "",
-          time_slot: slot as "Morning" | "Afternoon" | "Evening",
+          time_slot: slot,
           date: d.visit_date,
           time: timeString,
           type: d.destination_type,
@@ -815,6 +914,7 @@ class ApiClient {
         destination: p.place_name,
         date: p.start_date,
         end_date: p.end_date,
+        budget_limit: p.budget_limit, // ✅ Map budget_limit from backend
         activities: activities,
       };
     });
@@ -838,6 +938,13 @@ class ApiClient {
   async sendFriendRequest(friendId: number): Promise<FriendResponse> {
     return this.request<FriendResponse>(`/friends/${friendId}/request`, {
       method: "POST",
+    });
+  }
+
+  async sendFriendRequestByUsername(username: string): Promise<FriendResponse> {
+    return this.request<FriendResponse>(`/friends/request/by-username`, {
+      method: "POST",
+      body: JSON.stringify({ username }),
     });
   }
 
@@ -1067,6 +1174,80 @@ class ApiClient {
     });
   }
 
+  // --- CARBON EMISSIONS ---
+  async estimateCarbon(
+    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train",
+    distanceKm: number,
+    passengers: number = 1
+  ): Promise<number> {
+    return this.request<number>(
+      `/carbon/estimate?transport_mode=${transportMode}&distance_km=${distanceKm}&passengers=${passengers}`,
+      {
+        method: "POST",
+      }
+    );
+  }
+
+  // --- ROUTES ---
+  async findOptimalRoutes(
+    origins: Array<{ lat: number; lng: number }>,
+    destinations: Array<{ lat: number; lng: number }>,
+    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train"
+  ): Promise<any> {
+    return this.request<any>("/routes/find-optimal", {
+      method: "POST",
+      body: JSON.stringify({
+        origins,
+        destinations,
+        transport_mode: transportMode,
+      }),
+    });
+  }
+
+  // Get all plans (basic info only for track page)
+  async getAllPlansBasic(): Promise<{ plans: PlanBasicInfo[] }> {
+    return this.request<{ plans: PlanBasicInfo[] }>("/plans/", {
+      method: "GET",
+    });
+  }
+
+  // Get routes for a specific plan
+  async getPlanRoutes(planId: number): Promise<RouteResponse[]> {
+    return this.request<RouteResponse[]>(`/plans/${planId}/routes`, {
+      method: "GET",
+    });
+  }
+
+  // Get plan details with destinations
+  async getPlanDetails(planId: number): Promise<Plan> {
+    return this.request<Plan>(`/plans/${planId}`, {
+      method: "GET",
+    });
+  }
+
+  // --- CHATBOT & AI ---
+  async generatePlan(planData: {
+    place_name: string;
+    start_date: string;
+    end_date: string;
+    budget_limit?: number;
+    destinations: Array<{
+      destination_id: string;
+      destination_type: string;
+      visit_date: string;
+      order_in_day: number;
+      time_slot: string;
+      note?: string;
+      estimated_cost?: number;
+      url?: string;
+    }>;
+  }): Promise<any> {
+    return this.request<any>("/chatbot/plan/generate", {
+      method: "POST",
+      body: JSON.stringify(planData),
+    });
+  }
+
   async sendBotMessage(
     userId: number,
     roomId: number,
@@ -1075,6 +1256,25 @@ class ApiClient {
     return this.request<any>("/chatbot/message", {
       method: "POST",
       body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
+    });
+  }
+
+  async sendMessage(
+    roomId: number,
+    content?: string,
+    file?: File,
+    planId?: number,
+    messageType: "text" | "file" | "plan_invitation" = "text"
+  ): Promise<ChatMessage> {
+    const formData = new FormData();
+    if (content) formData.append("content", content);
+    if (file) formData.append("message_file", file);
+    if (planId) formData.append("plan_id", String(planId));
+    formData.append("message_type", messageType);
+
+    return this.request<ChatMessage>(`/messages/${roomId}`, {
+      method: "POST",
+      body: formData,
     });
   }
 

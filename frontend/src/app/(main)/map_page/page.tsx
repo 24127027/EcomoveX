@@ -109,8 +109,8 @@ const generateSessionToken = () => {
   return crypto.randomUUID();
 };
 
-// --- MAIN COMPONENT ---
-function MapPageContent() {
+// --- LOGIC COMPONENT (Đã đổi tên và tách ra) ---
+function MapContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isLoaded, loadError } = useGoogleMaps();
@@ -119,7 +119,6 @@ function MapPageContent() {
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
 
-  // [NEW] Xác định chế độ Picker
   const mode = searchParams.get("mode");
   const isPickerMode = mode === "picker";
 
@@ -169,14 +168,6 @@ function MapPageContent() {
     }
   }, [urlQuery]);
 
-  // useEffect(() => {
-  //   if (!urlQuery) {
-  //     fetchRecommendations();
-  //     initialLoadRef.current = false;
-  //   }
-  // }, [userLocation]);
-
-  // Autocomplete Effect
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -225,12 +216,9 @@ function MapPageContent() {
     };
   }, [searchQuery, userLocation, isSearchFocused]);
 
-  // --- HANDLERS ---
-
   const executeSearch = async (query: string) => {
     if (!query.trim()) return;
 
-    // Tắt loading recommendations ngay lập tức để tránh xung đột spinner
     setIsLoadingRecommendations(false);
     setIsSearching(true);
     setIsSearchFocused(false);
@@ -250,7 +238,6 @@ function MapPageContent() {
 
       setSearchResults(adaptedResults);
 
-      // Logic zoom map vào kết quả
       if (adaptedResults.length > 0) {
         setSheetHeight(65);
         if (googleMapRef.current && window.google) {
@@ -260,7 +247,6 @@ function MapPageContent() {
               bounds.extend(p.geometry.location);
             }
           });
-          // Nếu chỉ có 1 kết quả thì zoom gần, nhiều thì fit bounds
           if (adaptedResults.length === 1) {
             googleMapRef.current.setCenter(adaptedResults[0].geometry.location);
             googleMapRef.current.setZoom(16);
@@ -269,7 +255,7 @@ function MapPageContent() {
           }
         }
       } else {
-        setSheetHeight(40); // Không có kết quả thì thu gọn sheet
+        setSheetHeight(40);
       }
     } catch (error) {
       console.error("Text search failed:", error);
@@ -281,18 +267,15 @@ function MapPageContent() {
   const handleTextSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.currentTarget.blur();
-      executeSearch(searchQuery); // Gọi hàm đã tách ở trên
+      executeSearch(searchQuery);
     }
   };
 
-  // 2. THÊM useEffect NÀY: Tự động tìm kiếm khi có urlQuery (từ Homepage)
   useEffect(() => {
     if (urlQuery) {
-      // Nếu có query từ URL, chạy tìm kiếm ngay
       setSearchQuery(urlQuery);
       executeSearch(urlQuery);
     } else {
-      // Nếu không có query, chạy logic gợi ý (recommendations) như cũ
       fetchRecommendations();
       initialLoadRef.current = false;
     }
@@ -407,7 +390,6 @@ function MapPageContent() {
       ? locations
       : [];
 
-  // --- MAP INITIALIZATION ---
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return;
 
@@ -429,7 +411,6 @@ function MapPageContent() {
     setMapLoaded(true);
   }, [isLoaded]);
 
-  // Marker Management
   useEffect(() => {
     if (!googleMapRef.current || !mapLoaded) return;
 
@@ -956,17 +937,17 @@ function MapPageContent() {
   );
 }
 
+// --- MAIN WRAPPER COMPONENT ---
 export default function MapPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
-          <p className="text-gray-600 font-semibold">Loading map...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-green-600">
+          Loading map configuration...
         </div>
-      </div>
-    }>
-      <MapPageContent />
+      }
+    >
+      <MapContent />
     </Suspense>
   );
 }

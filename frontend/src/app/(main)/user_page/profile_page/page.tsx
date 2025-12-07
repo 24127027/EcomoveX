@@ -514,7 +514,7 @@ export default function ProfilePage() {
               </span>
             </Link>
             <Link
-              href="/track_page/leaderboard"
+              href="/track_page"
               className="flex flex-col items-center text-gray-400 hover:text-green-600"
             >
               {" "}

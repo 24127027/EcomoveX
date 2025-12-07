@@ -33,6 +33,55 @@ class RouteAPI:
         self.base_url = "https://routes.googleapis.com/directions/v2:computeRoutes"
         self.client = httpx.AsyncClient(timeout=10)
 
+    @staticmethod
+    def _parse_transit_details(transit_data: Dict[str, Any]) -> Optional[Any]:
+        """Parse Google Routes API transitDetails into TransitStepDetail schema."""
+        if not transit_data:
+            return None
+        
+        try:
+            from schemas.route_schema import TransitStepDetail
+            
+            stop_details = transit_data.get("stopDetails", {})
+            arrival_stop = stop_details.get("arrivalStop", {})
+            departure_stop = stop_details.get("departureStop", {})
+            
+            # Extract location from stops
+            arrival_location = arrival_stop.get("location", {}).get("latLng", {})
+            departure_location = departure_stop.get("location", {}).get("latLng", {})
+            
+            # Extract transit line info
+            transit_line = transit_data.get("transitLine", {})
+            line_name = (
+                transit_line.get("nameShort") or 
+                transit_line.get("name") or 
+                "N/A"
+            )
+            
+            return TransitStepDetail(
+                arrival_stop=(
+                    arrival_stop.get("name", ""),
+                    Location(
+                        latitude=arrival_location.get("latitude", 0),
+                        longitude=arrival_location.get("longitude", 0),
+                    ),
+                ),
+                departure_stop=(
+                    departure_stop.get("name", ""),
+                    Location(
+                        latitude=departure_location.get("latitude", 0),
+                        longitude=departure_location.get("longitude", 0),
+                    ),
+                ),
+                arrival_time=stop_details.get("arrivalTime", {}),
+                departure_time=stop_details.get("departureTime", {}),
+                headway=transit_data.get("headsign"),
+                line=line_name,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to parse transit details: {e}")
+            return None
+
     async def close(self):
         await self.client.aclose()
 
@@ -177,7 +226,9 @@ class RouteAPI:
                                 polyline=step_data.get("polyline", {}).get(
                                     "encodedPolyline"
                                 ),
-                                transit_details=step_data.get("transitDetails"),
+                                transit_details=RouteAPI._parse_transit_details(
+                                    step_data.get("transitDetails")
+                                ),
                             )
                         )
 
@@ -466,7 +517,9 @@ class RouteAPI:
                                 polyline=step_data.get("polyline", {}).get(
                                     "encodedPolyline"
                                 ),
-                                transit_details=step_data.get("transitDetails"),
+                                transit_details=RouteAPI._parse_transit_details(
+                                    step_data.get("transitDetails")
+                                ),
                             )
                         )
 

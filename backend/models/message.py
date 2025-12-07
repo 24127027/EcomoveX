@@ -22,6 +22,7 @@ from database.db import Base
 class MessageType(str, Enum):
     text = "text"
     file = "file"
+    plan_invitation = "plan_invitation"
 
 
 class MessageStatus(str, Enum):
