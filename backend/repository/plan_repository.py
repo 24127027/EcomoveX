@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models.plan import (
     Plan,
@@ -76,7 +77,11 @@ class PlanRepository:
     @staticmethod
     async def get_plan_by_id(db: AsyncSession, plan_id: int):
         try:
-            result = await db.execute(select(Plan).where(Plan.id == plan_id))
+            result = await db.execute(
+                select(Plan)
+                .options(selectinload(Plan.members))
+                .where(Plan.id == plan_id)
+            )
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving plan ID {plan_id} - {e}")
@@ -457,6 +462,17 @@ class PlanRepository:
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving route for plan ID {plan_id} from {origin_plan_destination_id} to {destination_plan_destination_id} - {e}")
+            return None
+        
+    @staticmethod
+    async def get_route_by_id(db: AsyncSession, route_id: int) -> Route:
+        try:
+            result = await db.execute(
+                select(Route).where(Route.id == route_id)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving route ID {route_id} - {e}")
             return None
         
     @staticmethod

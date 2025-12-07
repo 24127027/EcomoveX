@@ -8,13 +8,9 @@ import {
   Jost,
 } from "next/font/google";
 import {
-  Home,
-  MapPin,
-  Bot,
-  User,
   Search,
   Heart,
-  Map,
+  Map as MapIcon,
   Calendar,
   ArrowRight,
   Trophy,
@@ -24,7 +20,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   api,
@@ -32,6 +28,13 @@ import {
   UserRewardResponse,
   GreenPlaceRecommendation,
 } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
+
+type Coordinates = {
+  lat: number;
+  lng: number;
+};
 
 // --- FONTS ---
 export const gotu = Gotu({ subsets: ["latin"], weight: ["400"] });
@@ -63,11 +66,12 @@ const parseDate = (dateStr: string) => {
 // Tọa độ mặc định (TP.HCM) dùng khi lỗi GPS
 const DEFAULT_LAT = 10.7769;
 const DEFAULT_LNG = 106.6953;
+const LOCATION_TIMEOUT_MS = 10_000;
+const LAST_LOCATION_STORAGE_KEY = "ecomovex:last-location";
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
-  const [requestCount, setRequestCount] = useState(0);
 
   // State for Plan & Rewards
   const [upcomingPlan, setUpcomingPlan] = useState<TravelPlan | null>(null);
@@ -81,136 +85,200 @@ export default function HomePage() {
     []
   );
   const [loadingGreenPlaces, setLoadingGreenPlaces] = useState(true);
+  const [cachedLocation, setCachedLocation] = useState<Coordinates | null>(
+    null
+  );
 
   // State Saved Locations
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  // --- HÀM LẤY VỊ TRÍ TỐI ƯU (PROMISE WRAPPER) ---
-  const getUserLocation = async (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
+  const rememberLocation = useCallback(
+    (coords: Coordinates, options?: { persist?: boolean }) => {
+      setCachedLocation(coords);
+      if (options?.persist === false || typeof window === "undefined") return;
+      try {
+        sessionStorage.setItem(
+          LAST_LOCATION_STORAGE_KEY,
+          JSON.stringify(coords)
+        );
+      } catch (error) {
+        console.warn("Unable to cache location:", error);
+      }
+    },
+    [setCachedLocation]
+  );
+
+  const readStoredLocation = useCallback((): Coordinates | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem(LAST_LOCATION_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.lat === "number" && typeof parsed?.lng === "number") {
+        return parsed;
+      }
+    } catch (error) {
+      console.warn("Unable to read cached location:", error);
+    }
+    return null;
+  }, []);
+
+  const getUserLocation = (): Promise<Coordinates> =>
+    new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Geolocation not supported"));
+        reject(new Error("Geolocation is not supported"));
         return;
       }
-
-      // Cấu hình 1: Ưu tiên chính xác cao, thử nhanh trong 5s
-      const highAccuracyOptions = {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 60000, // Chấp nhận vị trí cũ trong 1 phút (cache)
-      };
-
       navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => {
-          console.warn(
-            "High accuracy GPS failed, trying low accuracy...",
-            err.message
-          );
-
-          // Cấu hình 2: Nếu thất bại, thử lấy vị trí qua Wifi/Cell (kém chính xác hơn nhưng nhanh)
-          const lowAccuracyOptions = {
-            enableHighAccuracy: false,
-            timeout: 10000, // Cho phép đợi lâu hơn chút
-            maximumAge: Infinity, // Lấy bất kỳ vị trí cache nào có thể
-          };
-
-          navigator.geolocation.getCurrentPosition(
-            (pos) =>
-              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            (err2) => reject(err2), // Nếu vẫn lỗi thì mới reject
-            lowAccuracyOptions
-          );
-        },
-        highAccuracyOptions
+        (position) =>
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          }),
+        (error) => reject(error)
       );
     });
-  };
 
-  // --- FETCH DATA ---
   useEffect(() => {
     let isMounted = true;
+    let requestCounter = 0;
+    let lastResolvedRequest = 0;
+    let hasRenderedOnce = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const fetchAllData = async () => {
-      setLoadingGreenPlaces(true);
-
-      // 1. Xác định toạ độ (Real GPS -> Default)
-      let lat = DEFAULT_LAT;
-      let lng = DEFAULT_LNG;
-
+    const syncSavedDestinations = async () => {
       try {
-        const pos = await getUserLocation();
-        lat = pos.lat;
-        lng = pos.lng;
-        console.log("📍 Using REAL User Location:", lat, lng);
-      } catch (error) {
-        console.warn("⚠️ Cannot get location, using DEFAULT:", error);
-      }
-
-      // 2. Gọi API lấy địa điểm xanh
-      try {
-        const recommendations = await api.getNearbyGreenPlaces(lat, lng, 10, 5);
-
-        if (isMounted && recommendations && recommendations.length > 0) {
-          // Lấy ảnh & Rating song song
-          const placesWithPhotos = await Promise.all(
-            recommendations.map(async (place) => {
-              try {
-                if (!place.photo_url) {
-                  const details = await api.getPlaceDetails(place.place_id);
-                  return {
-                    ...place,
-                    photo_url:
-                      details.photos?.[0]?.photo_url ||
-                      "/images/tao-dan-park.png",
-                    rating: details.rating || place.rating,
-                  };
-                }
-                return place;
-              } catch {
-                return { ...place, photo_url: "/images/tao-dan-park.png" };
-              }
-            })
-          );
-          setGreenPlaces(placesWithPhotos);
-
-          // Check saved status
-          try {
-            const savedList = await api.getSavedDestinations();
-            setSavedPlaceIds(new Set(savedList.map((i) => i.destination_id)));
-          } catch (e) {
-            console.error(e);
-          }
-        } else {
-          if (isMounted) setGreenPlaces([]);
+        const savedList = await api.getSavedDestinations();
+        if (isMounted) {
+          setSavedPlaceIds(new Set(savedList.map((i) => i.destination_id)));
         }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    const enhancePlacePhotos = async (
+      basePlaces: GreenPlaceRecommendation[]
+    ) => {
+      const needingDetails = basePlaces.filter((place) => !place.photo_url);
+      if (needingDetails.length === 0) return;
+
+      const detailEntries = await Promise.allSettled(
+        needingDetails.map(async (place) => {
+          const details = await api.getPlaceDetails(place.place_id);
+          return {
+            ...place,
+            photo_url:
+              details.photos?.[0]?.photo_url || "/images/tao-dan-park.png",
+            rating: details.rating || place.rating,
+          };
+        })
+      );
+
+      if (!isMounted) return;
+
+      const replacementMap = new Map<string, GreenPlaceRecommendation>();
+      detailEntries.forEach((result) => {
+        if (result.status === "fulfilled") {
+          replacementMap.set(result.value.place_id, result.value);
+        }
+      });
+
+      if (replacementMap.size === 0) return;
+
+      setGreenPlaces((prev) => {
+        if (!Array.isArray(prev) || prev.length === 0) return prev;
+        return prev.map((place) => replacementMap.get(place.place_id) ?? place);
+      });
+    };
+
+    const loadGreenPlaces = async (
+      coords: Coordinates,
+      options: { showLoader?: boolean } = {}
+    ) => {
+      const { showLoader = true } = options;
+      const currentRequestId = ++requestCounter;
+      if (showLoader && isMounted) setLoadingGreenPlaces(true);
+      try {
+        const recommendations = await api.getNearbyGreenPlaces(
+          coords.lat,
+          coords.lng,
+          10,
+          5
+        );
+
+        if (!isMounted || currentRequestId < lastResolvedRequest) return;
+
+        setGreenPlaces(Array.isArray(recommendations) ? recommendations : []);
+        lastResolvedRequest = currentRequestId;
+
+        syncSavedDestinations();
+        enhancePlacePhotos(recommendations || []).catch((photoError) =>
+          console.error("Photo enhancement error:", photoError)
+        );
       } catch (error) {
         console.error("API Error:", error);
         if (isMounted) setGreenPlaces([]);
       } finally {
-        if (isMounted) setLoadingGreenPlaces(false);
+        if (showLoader && isMounted) setLoadingGreenPlaces(false);
       }
     };
 
-    fetchAllData();
+    const defaultCoords = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
+
+    const kickOffLoad = (coords: Coordinates, forceLoader = false) => {
+      const showLoader = forceLoader || !hasRenderedOnce;
+      loadGreenPlaces(coords, { showLoader });
+      hasRenderedOnce = true;
+    };
+
+    const hydratedFromStorage = (() => {
+      const stored = readStoredLocation();
+      if (!stored) return false;
+      rememberLocation(stored);
+      kickOffLoad(stored, true);
+      return true;
+    })();
+
+    if (!hydratedFromStorage) {
+      fallbackTimer = setTimeout(() => {
+        if (!isMounted || hasRenderedOnce) return;
+        rememberLocation(defaultCoords, { persist: false });
+        kickOffLoad(defaultCoords, true);
+      }, LOCATION_TIMEOUT_MS);
+    }
+
+    getUserLocation()
+      .then((pos) => {
+        if (!isMounted) return;
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        rememberLocation(pos);
+        kickOffLoad(pos);
+      })
+      .catch((error) => {
+        console.warn("⚠️ Cannot get location, using DEFAULT:", error);
+        if (!isMounted) return;
+        if (!hasRenderedOnce) {
+          if (fallbackTimer) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
+          rememberLocation(defaultCoords, { persist: false });
+          kickOffLoad(defaultCoords, true);
+        }
+      });
 
     return () => {
       isMounted = false;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
     };
-  }, []);
+  }, [readStoredLocation, rememberLocation]);
 
-  // ... (Giữ nguyên các useEffect fetchRequests, fetchUpcomingPlan, fetchRewardData)
-  useEffect(() => {
-    const f = async () => {
-      try {
-        const l = await api.getPendingRequests();
-        setRequestCount(l.length);
-      } catch {}
-    };
-    f();
-  }, []);
+  // ... (Giữ nguyên các useEffect fetchUpcomingPlan, fetchRewardData)
   useEffect(() => {
     const f = async () => {
       try {
@@ -299,38 +367,55 @@ export default function HomePage() {
     }
   };
 
+  const buildMapHref = (query?: string, coords?: Coordinates | null) => {
+    const params = new URLSearchParams();
+    if (query && query.length > 0) params.set("q", query);
+    if (coords) {
+      params.set("lat", coords.lat.toString());
+      params.set("lng", coords.lng.toString());
+    }
+    const search = params.toString();
+    return search ? `/map_page?${search}` : "/map_page";
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim())
-      router.push(`/map_page?q=${encodeURIComponent(searchQuery.trim())}`);
-    else router.push("/map_page");
+    const trimmed = searchQuery.trim();
+    router.push(buildMapHref(trimmed || undefined));
   };
 
-  const handleSearchNearby = async () => {
-    try {
-      // Dùng lại hàm getUserLocation xịn sò ở trên
-      const pos = await getUserLocation();
-      router.push(`/map_page?q=eco-friendly&lat=${pos.lat}&lng=${pos.lng}`);
-    } catch {
-      alert("Please enable location services to search nearby.");
-      router.push("/map_page?q=eco-friendly");
+  const handleSearchNearby = () => {
+    if (cachedLocation) {
+      router.push(buildMapHref("eco-friendly", cachedLocation));
+      return;
     }
+
+    router.push(buildMapHref("eco-friendly"));
+    getUserLocation()
+      .then((pos) => rememberLocation(pos))
+      .catch(() => {
+        alert("Please enable location services to search nearby.");
+      });
   };
 
-  const handleTagClick = async (tag: string) => {
-    try {
-      const pos = await getUserLocation();
-      router.push(
-        `/map_page?q=${encodeURIComponent(tag)}&lat=${pos.lat}&lng=${pos.lng}`
-      );
-    } catch {
-      router.push(`/map_page?q=${encodeURIComponent(tag)}`);
+  const handleTagClick = (tag: string) => {
+    if (cachedLocation) {
+      router.push(buildMapHref(tag, cachedLocation));
+      return;
     }
+
+    router.push(buildMapHref(tag));
+    getUserLocation()
+      .then((pos) => rememberLocation(pos))
+      .catch(() => {
+        // ignore; default map already opened
+      });
   };
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-gray-50 h-screen flex flex-col overflow-hidden shadow-2xl relative">
+        <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="home" />
         {/* --- HEADER --- */}
         <header className="bg-[#53B552] px-4 pt-5 pb-6 shadow-md shrink-0 z-10">
           <form
@@ -351,7 +436,7 @@ export default function HomePage() {
                 onClick={() => router.push("/map_page")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 transition-colors"
               >
-                <Map className="size-5 text-green-600" />
+                <MapIcon className="size-5 text-green-600" />
               </button>
             </div>
             <div
@@ -361,7 +446,7 @@ export default function HomePage() {
             </div>
           </form>
           <div className="flex justify-center gap-3 mt-4 flex-wrap">
-            {["Café", "Restaurant", "Park", "Hotel", "Shopping"].map((i) => (
+            {["Cafe", "Restaurant", "Park", "Hotel", "Shopping"].map((i) => (
               <button
                 key={i}
                 onClick={() => handleTagClick(i)}
@@ -604,60 +689,6 @@ export default function HomePage() {
             </div>
           </section>
         </main>
-
-        <footer
-          className={`bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20`}
-        >
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center justify-center w-1/4 text-green-600"
-            >
-              <Home className="size-6" strokeWidth={2.0} />
-              <span className="text-[10px] font-bold mt-1">Home</span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Route size={24} strokeWidth={1.5} />
-              <span
-                className={`${jost.className} text-[10px] font-medium mt-1`}
-              >
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <MapPin className="size-6" strokeWidth={1.5} />
-              <span className="text-[10px] font-medium mt-1">Planning</span>
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Bot className="size-6" strokeWidth={1.5} />
-              <span className="text-[10px] font-medium mt-1">Ecobot</span>
-            </Link>
-            <Link
-              href="user_page/main_page"
-              className="flex flex-col items-center justify-center w-1/4 text-gray-400 hover:text-green-600 transition-colors relative"
-            >
-              <div className="relative">
-                <User className="size-6" strokeWidth={1.5} />
-                {requestCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-in zoom-in">
-                    {requestCount > 9 ? "9+" : requestCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] font-medium mt-1">User</span>
-            </Link>
-          </div>
-        </footer>
       </div>
     </div>
   );

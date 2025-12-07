@@ -5,14 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Home,
-  MapPin,
-  Bot,
-  User,
   ChevronRight,
   Sun,
   Loader2,
   Map,
+  MapPin,
   Plus,
   Calendar,
   Clock,
@@ -23,6 +20,8 @@ import {
 } from "lucide-react";
 import { Jost, Abhaya_Libre, Knewave } from "next/font/google";
 import { api, TravelPlan, PlanActivity } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 
 // --- Font Setup ---
 const knewave = Knewave({ subsets: ["latin"], weight: ["400"] });
@@ -44,7 +43,7 @@ const parseDate = (dateStr: string) => {
   return new Date(dateStr);
 };
 
-// --- CONTENT COMPONENT (Logic cũ chuyển vào đây) ---
+// --- CONTENT COMPONENT ---
 function PlanningContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,7 +51,7 @@ function PlanningContent() {
     "Incoming" | "Future" | "Previous"
   >("Incoming");
 
-  // State quản lý danh sách
+  // Plan list state
   const [incomingPlan, setIncomingPlan] = useState<TravelPlan | null>(null);
   const [futurePlans, setFuturePlans] = useState<TravelPlan[]>([]);
   const [previousPlans, setPreviousPlans] = useState<TravelPlan[]>([]);
@@ -227,6 +226,7 @@ function PlanningContent() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
+        <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="planning" />
         {/* --- HEADER --- */}
         <div className="px-6 pt-10 pb-4 bg-[#F5F7F5] shrink-0">
           <h1
@@ -256,7 +256,7 @@ function PlanningContent() {
         </div>
 
         {/* --- MAIN CONTENT --- */}
-        <main className="flex-1 overflow-y-auto px-4 pb-24 scroll-smooth">
+        <main className="flex-1 overflow-y-auto px-4 pb-40 scroll-smooth">
           {loading && (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
               <Loader2 className="animate-spin" size={32} />
@@ -285,7 +285,7 @@ function PlanningContent() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Nút xóa cho Incoming Plan */}
+                        {/* Delete button for the incoming plan */}
                         {currentUserId &&
                           incomingPlan.user_id === currentUserId && (
                             <button
@@ -460,7 +460,7 @@ function PlanningContent() {
 
           <Link href="/planning_page/create_plan">
             <button
-              className="absolute bottom-24 right-6 bg-[#53B552] text-white p-4 rounded-full shadow-xl hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 z-30 flex items-center justify-center group"
+              className="absolute bottom-60 right-6 bg-[#53B552] text-white p-4 rounded-full shadow-xl hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 z-30 flex items-center justify-center group"
               title="Create New Plan"
             >
               <Plus size={28} />
@@ -468,57 +468,6 @@ function PlanningContent() {
             </button>
           </Link>
         </main>
-
-        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20 shrink-0">
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Home size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Home
-              </span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Route size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center text-[#53B552]"
-            >
-              <MapPin size={24} strokeWidth={2.5} />
-              <span className={`${jost.className} text-xs font-bold mt-1`}>
-                Planning
-              </span>
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Bot size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Ecobot
-              </span>
-            </Link>
-            <Link
-              href="/user_page/main_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <User size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                User
-              </span>
-            </Link>
-          </div>
-        </footer>
       </div>
     </div>
   );

@@ -32,9 +32,11 @@ router = APIRouter(prefix="/map", tags=["Map & Navigation"])
     "/text-search", response_model=TextSearchResponse, status_code=status.HTTP_200_OK
 )
 async def text_search_place(
-    request: TextSearchRequest, user_db: AsyncSession = Depends(get_db)
+    request: TextSearchRequest, 
+    user_db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    result = await MapService.text_search_place(user_db, request)
+    result = await MapService.text_search_place(user_db, request, current_user["user_id"])
     return result
 
 

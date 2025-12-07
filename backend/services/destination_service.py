@@ -3,10 +3,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models.destination import GreenVerifiedStatus
 from repository.destination_repository import DestinationRepository
 from schemas.destination_schema import (
     DestinationCreate,
     DestinationEmbeddingCreate,
+    DestinationResponse,
     DestinationUpdate,
     UserSavedDestinationResponse,
 )
@@ -310,4 +312,35 @@ class DestinationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error bulk unsaving destinations: {e}",
+            )
+
+    @staticmethod
+    async def get_all_destinations(
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 100,
+        verified_status: Optional[GreenVerifiedStatus] = None,
+    ) -> List[DestinationResponse]:
+        """Get all destinations with optional filtering by verification status (Admin only)"""
+        try:
+            if verified_status:
+                destinations = await DestinationRepository.get_destinations_by_green_status(
+                    db, verified_status, skip, limit
+                )
+            else:
+                destinations = await DestinationRepository.get_all_destinations(
+                    db, skip, limit
+                )
+            
+            return [
+                DestinationResponse(
+                    place_id=dest.place_id,
+                    green_verified=dest.green_verified,
+                )
+                for dest in destinations
+            ]
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to retrieve destinations: {e}",
             )

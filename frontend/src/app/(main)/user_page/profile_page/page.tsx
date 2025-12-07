@@ -2,21 +2,12 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  Home,
-  MapPin,
-  Bot,
-  User,
-  Loader2,
-  Plus,
-  Camera,
-  Route,
-} from "lucide-react";
+import { ArrowLeft, Loader2, Camera } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
 import { useRouter } from "next/navigation";
 import { api, UserProfile } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 
 const jost = Jost({ subsets: ["latin"] });
 const abhaya_libre = Abhaya_Libre({
@@ -101,7 +92,6 @@ export default function ProfilePage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Giới hạn kích thước ảnh để tránh nổ Database (ví dụ < 2MB)
       if (file.size > 2 * 1024 * 1024) {
         alert("Please choose an image smaller than 2MB.");
         return;
@@ -123,7 +113,7 @@ export default function ProfilePage() {
     }
   };
 
-  // 3. Validation (Giữ nguyên)
+  // 3. Validation logic
   const validateForm = () => {
     let isValid = true;
     const newErrors: { email?: string; password?: string } = {};
@@ -149,7 +139,7 @@ export default function ProfilePage() {
 
   // 4. Handle Save
   const handleEditToggle = async () => {
-    // A. Bật Edit Mode (Giữ nguyên)
+    // A. Enable edit mode (existing behavior)
     if (!isEditing) {
       if (user) {
         setUsername(user.username);
@@ -193,7 +183,7 @@ export default function ProfilePage() {
 
       const promises = [];
 
-      if (username !== user?.username || newBlobName) {
+      if (username !== user?.username || newBlobName || newCoverBlobName) {
         promises.push(
           api
             .updateUserProfile({
@@ -217,7 +207,11 @@ export default function ProfilePage() {
               } else if (res.avt_url) {
                 setPreviewAvatar(res.avt_url);
               }
-              if (newCoverUrl) setPreviewCover(newCoverUrl);
+              if (newCoverUrl) {
+                setPreviewCover(newCoverUrl);
+              } else if (res.cover_url) {
+                setPreviewCover(res.cover_url);
+              }
             })
         );
       }
@@ -234,10 +228,12 @@ export default function ProfilePage() {
               new_password: isPasswordChanged ? newPassword : undefined,
             })
             .then((res) => {
-              if (res.email)
+              const updatedEmail = res.email;
+              if (typeof updatedEmail === "string") {
                 setUser((prev) =>
-                  prev ? { ...prev, email: res.email } : null
+                  prev ? { ...prev, email: updatedEmail } : null
                 );
+              }
             })
         );
       }
@@ -249,18 +245,21 @@ export default function ProfilePage() {
       setNewPassword("");
       setOldPassword("");
       setAvatarFile(null);
-    } catch (error: any) {
+      setCoverFile(null);
+    } catch (error: unknown) {
       console.error("Update failed:", error);
-      if (
-        error.message &&
-        error.message.toLowerCase().includes("old password")
-      ) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to update profile.";
+
+      if (message.toLowerCase().includes("old password")) {
         setErrors((prev) => ({
           ...prev,
           password: "Incorrect current password.",
         }));
       } else {
-        alert(error.message || "Failed to update profile.");
+        alert(message);
       }
     } finally {
       setIsSaving(false);
@@ -275,11 +274,26 @@ export default function ProfilePage() {
     );
 
   const needsAuth = email !== user?.email || newPassword.length > 0;
+  const avatarSrc = previewAvatar || "/images/default-avatar.png";
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        <div className="relative pt-12 pb-24 px-6 rounded-b-[40px] overflow-hidden z-0 bg-[#E3F1E4]">
+        <div className="relative w-full h-[230px] rounded-b-[40px] overflow-hidden bg-[#E3F1E4]">
+          {previewCover ? (
+            <Image
+              src={previewCover}
+              alt="Cover"
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="absolute inset-0 bg-linear-to-br from-green-200 via-emerald-100 to-green-300" />
+          )}
+          <div className="absolute inset-0 bg-linear-to-b from-black/10 via-black/40 to-black/60" />
+
           <input
             type="file"
             hidden
@@ -287,47 +301,6 @@ export default function ProfilePage() {
             accept="image/*"
             onChange={handleCoverFileChange}
           />
-
-          {previewCover && (
-            <Image
-              src={previewCover}
-              alt="Cover"
-              fill
-              className="object-cover opacity-90"
-              priority
-            />
-          )}
-
-          {isEditing && (
-            <div
-              onClick={handleCoverClick}
-              className="absolute inset-0 bg-black/20 hover:bg-black/40 transition-colors cursor-pointer flex items-center justify-center z-10"
-            >
-              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full text-white border border-white/50">
-                <Camera size={24} />
-              </div>
-            </div>
-          )}
-
-          <div className="relative z-20 flex items-center gap-4">
-            <Link href="/user_page/main_page">
-              <ArrowLeft
-                className={`cursor-pointer hover:text-green-600 ${
-                  previewCover ? "text-white drop-shadow-md" : "text-gray-600"
-                }`}
-                size={28}
-              />
-            </Link>
-            <h1
-              className={`${jost.className} text-2xl font-bold ${
-                previewCover ? "text-white drop-shadow-md" : "text-gray-600"
-              }`}
-            >
-              My Profile
-            </h1>
-          </div>
-        </div>
-        <div className="relative z-10 -mt-16 flex flex-col items-center">
           <input
             type="file"
             hidden
@@ -336,38 +309,68 @@ export default function ProfilePage() {
             onChange={handleFileChange}
           />
 
-          <div className="p-1.5 bg-white rounded-full shadow-md relative group">
-            <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-inner bg-gray-100">
-              <Image
-                src={previewAvatar || "/images/default-avatar.png"}
-                alt="Avatar"
-                fill
-                className="object-cover"
-              />
-              {isEditing && (
-                <div
-                  onClick={handleAvatarClick}
-                  className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+          <div className="relative z-20 h-full flex flex-col px-6 pt-12 pb-8">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="p-2 rounded-full bg-white/20 text-white hover:bg-white/40 transition"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <p
+                className={`${jost.className} text-white text-lg font-semibold tracking-wide`}
+              >
+                My Profile
+              </p>
+              {isEditing ? (
+                <button
+                  type="button"
+                  onClick={handleCoverClick}
+                  className="flex items-center gap-2 bg-white/20 backdrop-blur px-3 py-1.5 rounded-full text-white text-xs font-semibold hover:bg-white/40 transition"
                 >
-                  <Camera className="text-white" size={32} />
-                </div>
+                  <Camera size={16} />
+                  Change cover
+                </button>
+              ) : (
+                <div className="w-10" />
               )}
             </div>
-            {isEditing && (
-              <div
-                onClick={handleAvatarClick}
-                className="absolute bottom-1 right-1 bg-[#53B552] text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-green-600 transition-transform active:scale-90 z-20"
-              >
-                <Plus size={20} strokeWidth={3} />
-              </div>
-            )}
+          </div>
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center -mt-16 px-6 gap-3">
+          <div className="p-1.5 bg-white rounded-full shadow-xl">
+            <div className="relative w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gray-100">
+              <Image
+                src={avatarSrc}
+                alt="Avatar"
+                fill
+                sizes="128px"
+                className="object-cover"
+                priority
+              />
+
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={handleAvatarClick}
+                  className="absolute bottom-2 right-2 bg-white/90 text-[#53B552] p-2 rounded-full shadow-md hover:bg-white"
+                >
+                  <Camera size={16} />
+                </button>
+              )}
+            </div>
           </div>
 
           <h2
-            className={`${abhaya_libre.className} mt-3 text-2xl font-bold text-[#53B552]`}
+            className={`${abhaya_libre.className} text-2xl font-bold text-[#1B3C1B] text-center`}
           >
-            {user?.username}
+            {isEditing ? username || "" : user?.username}
           </h2>
+          <p className={`${jost.className} text-gray-500 text-sm`}>
+            {isEditing ? email || "" : user?.email}
+          </p>
         </div>
 
         <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-5">
@@ -424,7 +427,7 @@ export default function ProfilePage() {
             <label
               className={`${abhaya_libre.className} bg-[#6AC66B] text-white px-4 py-1 rounded-t-xl w-fit text-base font-bold ml-1`}
             >
-              New Password
+              Password
             </label>
             <div
               className={`bg-white rounded-xl p-3 shadow-sm border transition-all ${
@@ -500,57 +503,6 @@ export default function ProfilePage() {
             </button>
           </div>
         </main>
-
-        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Home size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Home
-              </span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              {" "}
-              <Route size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <MapPin size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Planning
-              </span>
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Bot size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Ecobot
-              </span>
-            </Link>
-            <div className="flex flex-col items-center text-[#53B552]">
-              <Link href="/user_page/main_page">
-                <User size={24} strokeWidth={2.5} />
-                <span className={`${jost.className} text-xs font-bold mt-1`}>
-                  User
-                </span>
-              </Link>
-            </div>
-          </div>
-        </footer>
       </div>
     </div>
   );

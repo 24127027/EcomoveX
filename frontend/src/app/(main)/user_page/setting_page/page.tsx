@@ -7,18 +7,16 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChevronRight,
-  Home,
-  MapPin,
-  Bot,
   User,
   Globe,
   LogOut,
   Trash2,
   Loader2,
-  Route,
 } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
 import { api, UserProfile } from "@/lib/api";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 
 // --- Font Setup ---
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "700"] });
@@ -75,21 +73,36 @@ export default function SettingPage() {
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* --- HEADER --- */}
-        <div className="bg-[#E3F1E4] pt-12 pb-20 px-6 rounded-b-[40px] relative z-0">
-          <div className="flex items-center gap-4">
-            <Link href="/user_page/main_page">
-              <ArrowLeft
-                className="text-gray-600 cursor-pointer hover:text-green-600 transition-colors"
-                size={28}
-              />
+        {/* --- HEADER WITH COVER --- */}
+        <div className="relative w-full h-[190px] rounded-b-[40px] overflow-hidden bg-[#E3F1E4]">
+          {user?.cover_url ? (
+            <Image
+              src={user.cover_url}
+              alt="Cover"
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="absolute inset-0 bg-linear-to-br from-green-200 via-emerald-100 to-green-300" />
+          )}
+          <div className="absolute inset-0 bg-linear-to-b from-black/10 via-black/40 to-black/60" />
+
+          <div className="relative z-10 flex items-center justify-between px-6 pt-12">
+            <Link
+              href="/user_page/main_page"
+              className="p-2 rounded-full bg-white/20 text-white hover:bg-white/40 transition"
+            >
+              <ArrowLeft size={22} />
             </Link>
             <h1
-              className={`${jost.className} text-2xl font-bold text-gray-600`}
+              className={`${jost.className} text-xl font-semibold text-white tracking-wide`}
             >
               Settings
             </h1>
+            <div className="w-10" />
           </div>
         </div>
 
@@ -172,58 +185,6 @@ export default function SettingPage() {
             />
           </div>
         </main>
-
-        {/* --- FOOTER --- */}
-        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Home size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Home
-              </span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              {" "}
-              <Route size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <MapPin size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Planning
-              </span>
-            </Link>
-            <Link
-              href="#"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600 transition-colors"
-            >
-              <Bot size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Ecobot
-              </span>
-            </Link>
-            <div className="flex flex-col items-center text-[#53B552]">
-              <Link href="/user_page/main_page">
-                <User size={24} strokeWidth={2.5} />
-                <span className={`${jost.className} text-xs font-bold mt-1`}>
-                  User
-                </span>
-              </Link>
-            </div>
-          </div>
-        </footer>
 
         {/* --- MODAL: DELETE ACCOUNT --- */}
         {showDeleteModal && (

@@ -14,7 +14,7 @@ import {
   DragOverEvent,
   DragOverlay,
   defaultDropAnimationSideEffects,
-  DropAnimation, // Import type này
+  DropAnimation,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -38,6 +38,7 @@ import {
   Plus,
   BrainCircuit,
   MessageSquare,
+  AlertCircle,
   X,
   Trash2,
   Send,
@@ -229,69 +230,180 @@ function TimeSlotContainer({
 // ==========================================
 // 3. CHATBOT COMPONENT
 // ==========================================
+const DEFAULT_AI_WELCOME =
+  "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?";
+
+const getAiRoomName = (userId: number) => `AI Assistant 🤖 (${userId})`;
+const getAiRoomStorageKey = (userId: number) => `ai_assistant_room_${userId}`;
+
 function ChatWindow({
   onClose,
   planId,
+  userId: externalUserId,
 }: {
   onClose: () => void;
   planId: number | null;
+  userId?: number | null;
 }) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
   >([
     {
       role: "bot",
-      text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+      text: DEFAULT_AI_WELCOME,
     },
-  ]); // ✅ Default welcome message
+  ]);
   const [input, setInput] = useState("");
   const [roomId, setRoomId] = useState<number | null>(null);
+  const [roomOwnerId, setRoomOwnerId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<number | null>(externalUserId ?? null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRoomLoading, setIsRoomLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [roomError, setRoomError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevUserIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 1. Fetch Room ID
   useEffect(() => {
-    const fetchRoom = async () => {
-      try {
-        if (planId) {
-          // Existing plan - get room from backend
-          const res = await api.getPlanChatRoom(planId);
-          setRoomId(res.room_id);
-        } else {
-          // New plan - DON'T create temporary room, just set null
-          // Chat feature will be disabled until plan is saved
-          setRoomId(null);
-          console.log("📝 New plan - chat disabled until saved");
+    if (userId && prevUserIdRef.current && prevUserIdRef.current !== userId) {
+      setRoomId(null);
+      setRoomOwnerId(null);
+      setMessages([
+        {
+          role: "bot",
+          text: DEFAULT_AI_WELCOME,
+        },
+      ]);
+    }
+    prevUserIdRef.current = userId ?? null;
+  }, [userId]);
+
+  useEffect(() => {
+    if (typeof externalUserId === "number" && externalUserId !== userId) {
+      setUserId(externalUserId);
+    }
+  }, [externalUserId, userId]);
+
+  useEffect(() => {
+    if (userId || typeof externalUserId === "number") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveUser = async () => {
+      let resolvedId: number | null = null;
+
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("user_info");
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            resolvedId = parsed?.id ?? null;
+          } catch (error) {
+            console.warn("Failed to parse user_info from storage", error);
+          }
         }
-      } catch (error: any) {
-        console.warn(
-          "⚠️ Failed to get plan chat room (plan may not have room yet):",
-          error?.message
-        );
-        // ✅ Set null and show default message - no chat history fetch
-        setRoomId(null);
-        setMessages([
-          {
-            role: "bot",
-            text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
-          },
-        ]);
+      }
+
+      if (!resolvedId) {
+        try {
+          const profile = await api.getUserProfile();
+          if (cancelled) return;
+          resolvedId = profile.id;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("user_info", JSON.stringify(profile));
+          }
+        } catch (error) {
+          if (cancelled) return;
+          console.error("Failed to resolve user profile", error);
+          setRoomError(
+            "Unable to identify your profile. Please log in again to use the assistant."
+          );
+          return;
+        }
+      }
+
+      if (!cancelled && resolvedId) {
+        setUserId(resolvedId);
       }
     };
-    fetchRoom();
-  }, [planId]);
 
-  // 2. Fetch History
+    resolveUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [externalUserId, userId]);
+
+  const ensureChatbotRoom = useCallback(async (resolvedUserId: number) => {
+    setRoomError(null);
+    setIsRoomLoading(true);
+    try {
+      let cachedRoomId: number | null = null;
+      const storageKey = getAiRoomStorageKey(resolvedUserId);
+
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          cachedRoomId = Number(stored);
+        }
+      }
+
+      if (cachedRoomId) {
+        setRoomId(cachedRoomId);
+        setRoomOwnerId(resolvedUserId);
+        setIsRoomLoading(false);
+        return;
+      }
+
+      const preferredName = getAiRoomName(resolvedUserId);
+      const rooms = await api.getAllRooms();
+      const existing = rooms.find((room) => room.name === preferredName);
+
+      if (existing) {
+        setRoomId(existing.id);
+        setRoomOwnerId(resolvedUserId);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, String(existing.id));
+        }
+        setIsRoomLoading(false);
+        return;
+      }
+
+      const createdRoom = await api.createGroupRoom(preferredName, []);
+      setRoomId(createdRoom.id);
+      setRoomOwnerId(resolvedUserId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(storageKey, String(createdRoom.id));
+      }
+    } catch (error) {
+      console.error("Failed to initialize chatbot room", error);
+      setRoomError(
+        "Unable to prepare the AI assistant right now. Please try again in a moment."
+      );
+    } finally {
+      setIsRoomLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!roomId || !planId) return; // ✅ Only fetch history for saved plans with valid room
+    if (!userId) return;
+    ensureChatbotRoom(userId);
+  }, [ensureChatbotRoom, userId]);
+
+  useEffect(() => {
+    if (!roomId || !userId || roomOwnerId !== userId) return;
+
+    let cancelled = false;
     const fetchHistory = async () => {
+      setIsHistoryLoading(true);
       try {
         const history = await api.getChatHistory(roomId);
-        // Assuming sender_id === 0 is bot (SYSTEM_BOT_ID)
+        if (cancelled) return;
         const formatted = history
           .sort(
             (a, b) =>
@@ -306,70 +418,56 @@ function ChatWindow({
           setMessages([
             {
               role: "bot",
-              text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
+              text: DEFAULT_AI_WELCOME,
             },
           ]);
         } else {
           setMessages(formatted);
         }
-      } catch (error: any) {
-        console.warn(
-          "⚠️ Failed to fetch chat history (user may not be room member):",
-          error?.message
-        );
-        // ✅ Set default welcome message on error
-        setMessages([
-          {
-            role: "bot",
-            text: "👋 Hello! I'm your AI travel assistant.\n\n💡 Tips:\n• Drag & drop destinations to rearrange them\n• Click + to add destinations to different time slots\n• I can help optimize your schedule for better routes!\n\nHow can I help you plan your trip?",
-          },
-        ]);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("⚠️ Failed to fetch chat history:", error);
+          setMessages([
+            {
+              role: "bot",
+              text: DEFAULT_AI_WELCOME,
+            },
+          ]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHistoryLoading(false);
+        }
       }
     };
+
     fetchHistory();
-  }, [roomId, planId]); // ✅ Add planId dependency
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, userId, roomOwnerId]);
 
   const handleSend = async () => {
-    if (!input.trim() || !roomId || !planId || isLoading) return; // ✅ Require saved plan
+    if (!input.trim() || !roomId || !userId || isLoading) return;
     const userMsg = input;
-    setInput(""); // Clear input first
+    setInput("");
     setIsLoading(true);
     setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
 
     try {
-      let userId = 0;
-      const storedUser = localStorage.getItem("user_info");
-      if (storedUser) {
-        try {
-          userId = JSON.parse(storedUser).id;
-        } catch (e) {
-          console.error("Error parsing user_info", e);
-        }
-      }
-
-      if (!userId) {
-        try {
-          const profile = await api.getUserProfile();
-          userId = profile.id;
-          localStorage.setItem("user_info", JSON.stringify(profile));
-        } catch (e) {
-          console.error("Failed to fetch user profile", e);
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "bot",
-              text: "Error: Could not identify user. Please log in again.",
-            },
-          ]);
-          setIsLoading(false);
-          return;
-        }
-      }
-
       const res = await api.sendBotMessage(userId, roomId, userMsg);
+      const botText = res?.message || res?.detail;
 
-      if (res.ok && res.message) {
-        setMessages((prev) => [...prev, { role: "bot", text: res.message }]);
+      if (botText) {
+        setMessages((prev) => [...prev, { role: "bot", text: botText }]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "bot",
+            text: "I couldn't get a response from the assistant. Please try again shortly.",
+          },
+        ]);
       }
     } catch (error: any) {
       console.error("Failed to send message:", error);
@@ -383,6 +481,14 @@ function ChatWindow({
       setIsLoading(false);
     }
   };
+
+  const inputDisabled =
+    !roomId || !userId || isLoading || isRoomLoading || !!roomError;
+  const placeholder = !roomId
+    ? "Connecting to your AI assistant..."
+    : planId
+    ? "Ask me to change schedule..."
+    : "Ask anything about your trip—even before saving";
 
   return (
     <div className="h-full flex flex-col bg-white border-t border-gray-200 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
@@ -398,7 +504,28 @@ function ChatWindow({
         </button>
       </div>
 
+      {!planId && (
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <AlertCircle size={16} className="mt-0.5" />
+          <span>
+            Save your plan whenever you want me to apply changes automatically.
+            I can still brainstorm ideas with you right now.
+          </span>
+        </div>
+      )}
+
+      {roomError && (
+        <div className="mx-4 mt-3 rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
+          {roomError}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F5F7F5]">
+        {(isHistoryLoading || isRoomLoading) && (
+          <div className="text-xs text-gray-500 italic">
+            Getting things ready...
+          </div>
+        )}
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -438,17 +565,13 @@ function ChatWindow({
               handleSend();
             }
           }}
-          placeholder={
-            planId
-              ? "Ask me to change schedule..."
-              : "Save your plan first to use AI assistant"
-          }
-          disabled={!planId}
+          placeholder={placeholder}
+          disabled={inputDisabled}
           className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
-          disabled={!planId}
+          disabled={inputDisabled}
           className="bg-[#53B552] text-white p-2 rounded-full hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send size={18} />
@@ -467,6 +590,7 @@ function ReviewPlanContent() {
 
   // Store planId in state to persist across renders
   const [planId, setPlanId] = useState<string | null>(null);
+  const [planIdResolved, setPlanIdResolved] = useState(false);
 
   useEffect(() => {
     // Try to get from URL first
@@ -494,16 +618,20 @@ function ReviewPlanContent() {
       setPlanId(null);
       sessionStorage.removeItem("EDITING_PLAN_ID");
     }
-  }, [searchParams, planId]);
+
+    if (!planIdResolved) {
+      setPlanIdResolved(true);
+    }
+  }, [searchParams, planId, planIdResolved]);
 
   const toLocalISOString = (dateInput: string | Date) => {
     const date = new Date(dateInput);
     const offsetMs = date.getTimezoneOffset() * 60 * 1000;
     const localDate = new Date(date.getTime() - offsetMs);
-    return localDate.toISOString().slice(0, 19); // Cắt bỏ phần milliseconds và chữ Z
+    return localDate.toISOString().slice(0, 19); // Drop milliseconds and trailing Z
   };
 
-  // ✅ Helper để chuyển date thành format "YYYY-MM-DD" (chỉ date, không có time)
+  // Helper to format a date as YYYY-MM-DD (no time component)
   const toDateOnlyString = (dateInput: string | Date) => {
     const date = new Date(dateInput);
     const year = date.getFullYear();
@@ -512,7 +640,7 @@ function ReviewPlanContent() {
     return `${year}-${month}-${day}`;
   };
 
-  // --- HELPER: Phân bố activities trên các ngày trong trip ---
+  // --- HELPER: distribute activities evenly across trip dates ---
   const distributeActivitiesAcrossDays = (
     activities: PlanActivity[],
     startDateStr: string,
@@ -523,23 +651,23 @@ function ReviewPlanContent() {
     const startDate = new Date(startDateStr);
     const endDate = endDateStr ? new Date(endDateStr) : new Date(startDateStr);
 
-    // Tính số ngày trong trip
+    // Determine number of days in the trip
     const daysInTrip =
       Math.floor(
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
       ) + 1;
 
-    // Phân bố activities - chỉ điều chỉnh ngày, GIỮ NGUYÊN time slot
+    // Distribute activities by day without changing time slots
     return activities.map((activity, index) => {
-      // Xác định ngày (phân bố đều)
+      // Calculate the date for this activity
       const dayOffset = Math.min(index % daysInTrip, daysInTrip - 1);
       const activityDate = new Date(startDate);
       activityDate.setDate(activityDate.getDate() + dayOffset);
 
-      // Giữ nguyên time slot từ activity gốc
+      // Preserve the original time slot when available
       const timeSlot = activity.time_slot || "Morning";
 
-      // Set giờ ảo dựa trên time slot gốc để dễ sort sau này
+      // Set a representative hour for consistent sorting
       if (timeSlot === "Morning") activityDate.setHours(9, 0, 0);
       else if (timeSlot === "Afternoon") activityDate.setHours(14, 0, 0);
       else activityDate.setHours(19, 0, 0);
@@ -600,13 +728,33 @@ function ReviewPlanContent() {
   const aiGenerationAttemptedRef = useRef(false); // Track if AI generation was attempted
   const aiResultsSetRef = useRef(false); // ✅ Track if AI results were just set (prevent overwrite)
   const initialLoadDoneRef = useRef(false); // ✅ Track if initial data load completed
+  const lastLoadedPlanIdRef = useRef<string | null>(null);
 
   const [planInfo, setPlanInfo] = useState({
     name: "My Awesome Trip",
-    date: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
-    end_date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0], // YYYY-MM-DD format
+    end_date: new Date().toISOString().split("T")[0],
     budget: 0,
   });
+
+  useEffect(() => {
+    if (!planIdResolved) {
+      return;
+    }
+
+    if (lastLoadedPlanIdRef.current === planId) {
+      return;
+    }
+
+    lastLoadedPlanIdRef.current = planId;
+    initialLoadDoneRef.current = false;
+    aiGenerationAttemptedRef.current = false;
+    aiResultsSetRef.current = false;
+    setAiGenerationDone(false);
+    setIsAIGenerating(false);
+    setAiError(null);
+    console.log("♻️ Plan context reset", { planId });
+  }, [planId, planIdResolved]);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
 
   // Member Management State
@@ -617,8 +765,8 @@ function ReviewPlanContent() {
   const [members, setMembers] = useState<PlanMemberDetail[]>([]); // ✅ Store full member objects
 
   // Split Screen State
-  const [isChatOpen, setIsChatOpen] = useState(true); // ✅ Mở mặc định để show gợi ý
-  const [planHeightPercent, setPlanHeightPercent] = useState(100);
+  const [isChatOpen, setIsChatOpen] = useState(true); // Open by default to showcase tips
+  const [planHeightPercent, setPlanHeightPercent] = useState(60);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
@@ -641,12 +789,12 @@ function ReviewPlanContent() {
 
   // Clear AI generation flags on mount (run once)
   useEffect(() => {
-    console.log("🧹 Clearing AI generation flags on mount");
+    console.log("🧹 Clearing AI generation flags on mount/plan change");
     sessionStorage.removeItem("ai_generated_temp_plan");
     if (planId) {
       sessionStorage.removeItem(`ai_generated_plan_${planId}`);
     }
-  }, []); // ✅ Empty deps - run once on mount
+  }, [planId]);
 
   // Check ownership when user or plan owner changes
   useEffect(() => {
@@ -664,7 +812,7 @@ function ReviewPlanContent() {
   }, [currentUser, planOwnerId, planId]);
 
   const getTimeSlot = (dateString?: string, timeStr?: string) => {
-    // ✅ Ưu tiên dùng time field từ backend, nếu không thì tính từ dateString
+    // Prefer the explicit time field from the backend, fallback to the date string
     if (timeStr) {
       const hour = parseInt(timeStr.split(":")[0]);
       if (hour >= 18) return "Evening";
@@ -672,7 +820,7 @@ function ReviewPlanContent() {
       return "Morning";
     }
 
-    if (!dateString) return "Morning"; // Mặc định
+    if (!dateString) return "Morning";
     const date = new Date(dateString);
     const hour = date.getHours();
 
@@ -683,6 +831,11 @@ function ReviewPlanContent() {
 
   // --- INIT DATA ---
   useEffect(() => {
+    if (!planIdResolved) {
+      console.log("⏳ Waiting for planId resolution before loading data");
+      return;
+    }
+
     console.log("🔄 INIT DATA useEffect triggered", {
       planId,
       initialLoadDone: initialLoadDoneRef.current,
@@ -697,6 +850,17 @@ function ReviewPlanContent() {
     const loadPlanDetail = async (id: string) => {
       try {
         setIsAiProcessing(true);
+
+        // Preserve any pending additions before clearing storage (user may have just returned from add_destinations)
+        const pendingRawData = sessionStorage.getItem(STORAGE_KEY_RAW);
+        const pendingSelectedSlot = sessionStorage.getItem("selected_add_slot");
+
+        // ✅ IMPORTANT: Clear sessionStorage when loading existing plan
+        // This prevents mixing data from previous plans while still allowing us to reapply pending additions
+        sessionStorage.removeItem(STORAGE_KEY_RAW);
+        sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
+        sessionStorage.removeItem("selected_add_slot");
+        console.log("🧹 Cleared sessionStorage for fresh plan load");
 
         // 1. Gọi API lấy danh sách
         const allPlans = await api.getPlans();
@@ -719,7 +883,7 @@ function ReviewPlanContent() {
             console.log(`👤 Plan owner ID: ${currentPlan.user_id}`);
           }
 
-          // Map dữ liệu cơ bản
+          // Map core plan fields
           const apiPlanInfo = {
             name: currentPlan.destination,
             date: currentPlan.date,
@@ -729,22 +893,20 @@ function ReviewPlanContent() {
 
           let apiActivities = currentPlan.activities;
 
-          // 2. CHECK SESSION: Gộp địa điểm mới thêm (nếu có)
-          const rawData = sessionStorage.getItem(STORAGE_KEY_RAW);
+          // Merge newly added destinations from session storage, if any
+          // NOTE: storage was cleared above, so this only triggers when the user adds destinations after loading the plan
+          const rawData = pendingRawData;
           if (rawData) {
             try {
-              // --- FIX LỖI TẠI ĐÂY ---
-              // Khai báo kiểu dữ liệu mở rộng có thêm visit_date
               type StoredPlace = PlaceDetails & { visit_date?: string };
 
               const rawList: StoredPlace[] = JSON.parse(rawData);
-              // -----------------------
 
               console.log(`🔍 Checking for new destinations...`);
               console.log(`   - rawList count: ${rawList.length}`);
               console.log(`   - apiActivities count: ${apiActivities.length}`);
 
-              // Lọc địa điểm mới chưa có trong list cũ
+              // Filter out places that already exist in the plan
               const newItems = rawList.filter((raw) => {
                 const isNew = !apiActivities.some((act) => {
                   // ✅ Extract place_id from act.id (remove suffix like "-0", "-1")
@@ -772,33 +934,31 @@ function ReviewPlanContent() {
 
               console.log(`   ✅ New items to add: ${newItems.length}`);
 
-              // ✅ Đọc slot đã chọn từ sessionStorage (nếu có)
+              // Default to plan start date unless the user selected a slot
               let selectedDate = apiPlanInfo.date;
               let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" =
                 "Morning";
 
-              const selectedSlotData =
-                sessionStorage.getItem("selected_add_slot");
+              const selectedSlotData = pendingSelectedSlot;
               if (selectedSlotData) {
                 try {
                   const slot = JSON.parse(selectedSlotData);
                   if (slot.date) selectedDate = slot.date;
                   if (slot.time_slot) selectedTimeSlot = slot.time_slot;
                   console.log(
-                    `✅ Using selected slot: ${selectedDate} ${selectedTimeSlot}`
+                    `Using selected slot: ${selectedDate} ${selectedTimeSlot}`
                   );
                 } catch (e) {
                   console.error("Error parsing selected_add_slot:", e);
                 }
               }
 
-              // --- SỬA ĐOẠN MAP NÀY ---
               const newActivitiesList = newItems.map((place) => {
-                // ✅ Dùng slot đã chọn thay vì default
+                // Start with the selected slot
                 let assignedSlot = selectedTimeSlot;
-                let assignedDate = toLocalISOString(new Date(selectedDate)); // ← Convert to ISO
+                let assignedDate = toLocalISOString(new Date(selectedDate));
 
-                // Nếu place có visit_date riêng (từ backend), ưu tiên dùng nó
+                // Respect explicit visit_date if present
                 if (place.visit_date) {
                   assignedDate = place.visit_date;
                   assignedSlot = getTimeSlot(place.visit_date) as
@@ -825,14 +985,11 @@ function ReviewPlanContent() {
                   order_in_day: 999,
                 };
               });
-              // ------------------------
 
               if (newActivitiesList.length > 0) {
-                // ❌ KHÔNG distribute activities mới - chỉ set mặc định vào Day 1 Morning
-                // Người dùng sẽ kéo thả để arrange theo ý
                 apiActivities = [...apiActivities, ...newActivitiesList];
 
-                // ✅ Xóa selected_add_slot sau khi đã merge xong
+                // Clear selected slot after merging
                 sessionStorage.removeItem("selected_add_slot");
               }
             } catch (e) {
@@ -840,11 +997,10 @@ function ReviewPlanContent() {
             }
           }
 
-          // Cập nhật State
           setPlanInfo(apiPlanInfo);
           setActivities(apiActivities);
 
-          // Lưu ngược lại Session để giữ đồng bộ
+          // Persist current plan info for other pages
           sessionStorage.setItem(
             STORAGE_KEY_INFO,
             JSON.stringify({
@@ -905,10 +1061,12 @@ function ReviewPlanContent() {
         console.error("Error loading plan:", error);
       } finally {
         setIsAiProcessing(false);
+        initialLoadDoneRef.current = true;
+        console.log("✅ Existing plan data load completed");
       }
     };
 
-    // === LOGIC ĐIỀU HƯỚNG CHÍNH ===
+    // === MAIN NAVIGATION LOGIC ===
     if (planId) {
       // EDIT MODE
       loadPlanDetail(planId);
@@ -918,7 +1076,7 @@ function ReviewPlanContent() {
       if (storedInfo) {
         try {
           const parsed = JSON.parse(storedInfo);
-          const today = new Date().toISOString().split('T')[0];
+          const today = new Date().toISOString().split("T")[0];
           setPlanInfo({
             name: parsed.name || "My Trip",
             date: parsed.start_date || today,
@@ -943,7 +1101,7 @@ function ReviewPlanContent() {
       initialLoadDoneRef.current = true;
       console.log("✅ Initial load completed");
     }
-  }, [planId]);
+  }, [planId, planIdResolved]);
 
   const runAiSimulation = () => {
     setIsAiProcessing(true);
@@ -976,11 +1134,11 @@ function ReviewPlanContent() {
     const storedInfo = sessionStorage.getItem(STORAGE_KEY_INFO);
     const selectedSlot = sessionStorage.getItem("selected_add_slot");
 
-    // Lấy thông tin plan để biết date range
+    // Fetch plan info to determine the date range
     let planStartDate = planInfo.date;
     let planEndDate = planInfo.end_date;
 
-    // Lấy slot được chọn (nếu có)
+    // Pull the slot the user selected (if any)
     let selectedDate = planStartDate;
     let selectedTimeSlot: "Morning" | "Afternoon" | "Evening" = "Morning";
 
@@ -989,7 +1147,7 @@ function ReviewPlanContent() {
         const slot = JSON.parse(selectedSlot);
         selectedDate = slot.date;
         selectedTimeSlot = slot.time_slot;
-        // ⚠️ KHÔNG xóa ngay - để logic merge trong useEffect load plan cũng đọc được
+        // Do not clear immediately; the merge logic during plan load also needs this data
         // sessionStorage.removeItem("selected_add_slot");
       } catch (e) {
         console.error("Error parsing selected slot:", e);
@@ -1007,10 +1165,10 @@ function ReviewPlanContent() {
     }
 
     if (storedActivities) {
-      // ✅ Load từ STORAGE_KEY_STRUCTURED (activities đã arrange với date/time_slot)
+      // Load existing structured activities (with date/time slots)
       let currentList: PlanActivity[] = JSON.parse(storedActivities);
 
-      // Nhưng cần check xem có new items từ add_destinations không
+      // Merge in new items from add_destinations if present
       if (rawData) {
         const rawList: PlaceDetails[] = JSON.parse(rawData);
         const newItems = rawList.filter((raw) => {
@@ -1028,7 +1186,7 @@ function ReviewPlanContent() {
           });
         });
 
-        // Thêm new items vào currentList với date/time_slot được chọn
+        // Append new items using the selected date/time slot
         if (newItems.length > 0) {
           const newActivities = newItems.map((place) => ({
             id: place.place_id,
@@ -1036,14 +1194,14 @@ function ReviewPlanContent() {
             title: place.name,
             address: place.formatted_address,
             image_url: place.photos?.[0]?.photo_url || "",
-            time_slot: selectedTimeSlot, // ✅ Dùng slot được chọn
-            date: toLocalISOString(new Date(selectedDate)), // ✅ Dùng ngày được chọn
+            time_slot: selectedTimeSlot,
+            date: toLocalISOString(new Date(selectedDate)),
             type: place.types?.[0] || "place",
             order_in_day: 999,
           }));
 
           currentList = [...currentList, ...newActivities];
-          // ✅ Update lại STORAGE_KEY_STRUCTURED với new items
+          // Persist updated activities back to STORAGE_KEY_STRUCTURED
           sessionStorage.setItem(
             STORAGE_KEY_STRUCTURED,
             JSON.stringify(currentList)
@@ -1053,7 +1211,7 @@ function ReviewPlanContent() {
 
       setActivities(currentList);
     } else if (rawData) {
-      // Fallback: nếu không có structured, tạo từ raw (lần đầu)
+      // Fallback: if no structured data exists, build it from the raw list
       const rawList: PlaceDetails[] = JSON.parse(rawData);
       const initialActivities = rawList.map((place) => ({
         id: place.place_id,
@@ -1065,8 +1223,8 @@ function ReviewPlanContent() {
         type: place.types?.[0] || "place",
         order_in_day: 0,
       }));
-      // Distribute activities across days (lần đầu tiên - CHỈ khi AI simulation)
-      // ⚠️ CHỈ distribute nếu đây là lần đầu tạo plan (AI_SHOWN_KEY chưa set)
+      // Distribute activities across days only the first time an AI simulation runs
+      // This should only happen when AI_SHOWN_KEY is not set yet
       const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
       if (!hasShownAI) {
         const distributedList = distributeActivitiesAcrossDays(
@@ -1076,7 +1234,7 @@ function ReviewPlanContent() {
         );
         setActivities(distributedList);
       } else {
-        // Nếu đã distribute rồi, chỉ set như bình thường
+        // If distribution already happened, simply set the data
         setActivities(initialActivities);
       }
     }
@@ -1268,7 +1426,7 @@ function ReviewPlanContent() {
     // Use ref to get latest activities
     const currentActivities = activitiesRef.current;
 
-    // Check điều kiện
+    // Validate prerequisites
     if (
       currentActivities.length < 2 ||
       aiGenerationDone ||
@@ -1287,14 +1445,14 @@ function ReviewPlanContent() {
     // Mark as attempted immediately to prevent concurrent calls
     aiGenerationAttemptedRef.current = true;
 
-    // Check sessionStorage để đảm bảo chỉ generate 1 lần
+    // Guard against generating multiple times by checking sessionStorage
     const storageKey = planId
       ? `ai_generated_plan_${planId}`
       : `ai_generated_temp_plan`;
     const hasGenerated = sessionStorage.getItem(storageKey);
 
     if (hasGenerated === "true") {
-      console.log("✅ Plan đã được AI generate trước đó");
+      console.log("Plan was already generated by AI");
       setAiGenerationDone(true);
       return;
     }
@@ -1435,7 +1593,7 @@ function ReviewPlanContent() {
           setAiGenerationDone(true);
         }
       } else {
-        console.log("ℹ️ AI không thay đổi thứ tự, giữ nguyên plan hiện tại");
+        console.log("AI kept the current order; no changes applied");
         sessionStorage.setItem(storageKey, "true");
         setAiGenerationDone(true);
       }
@@ -1453,7 +1611,7 @@ function ReviewPlanContent() {
     } finally {
       setIsAIGenerating(false);
     }
-  }, []); // Empty deps - function will use latest activities via closure
+  }, [planInfo, planId, aiGenerationDone, isAIGenerating]);
 
   // Auto-trigger AI plan generation on initial load
   useEffect(() => {
@@ -1468,6 +1626,7 @@ function ReviewPlanContent() {
     // Only run if we have activities and haven't generated yet
     if (
       activities.length >= 2 &&
+      !planId &&
       !aiGenerationDone &&
       !isAIGenerating &&
       !isAiProcessing // Don't run during fake AI animation
@@ -1487,16 +1646,17 @@ function ReviewPlanContent() {
         aiGenerationDone,
         isAIGenerating,
         isAiProcessing,
-        reason:
-          activities.length < 2
-            ? "Not enough activities"
-            : aiGenerationDone
-            ? "Already generated"
-            : isAIGenerating
-            ? "Currently generating"
-            : isAiProcessing
-            ? "AI animation in progress"
-            : "Unknown",
+        reason: planId
+          ? "Editing existing plan"
+          : activities.length < 2
+          ? "Not enough activities"
+          : aiGenerationDone
+          ? "Already generated"
+          : isAIGenerating
+          ? "Currently generating"
+          : isAiProcessing
+          ? "AI animation in progress"
+          : "Unknown",
       });
     }
   }, [
@@ -1513,7 +1673,7 @@ function ReviewPlanContent() {
       alert("Only plan owner can add destinations");
       return;
     }
-    // ✅ Lưu ngày/buổi được chọn vào storage để add_destinations biết
+    // Persist the selected day and slot for the add_destinations page
     if (dayStr && timeSlot) {
       sessionStorage.setItem(
         "selected_add_slot",
@@ -1521,7 +1681,7 @@ function ReviewPlanContent() {
       );
     }
 
-    // ✅ Also save planId so add_destinations knows which plan to add to
+    // Also save the plan ID so add_destinations knows which plan to update
     if (planId) {
       sessionStorage.setItem("EDITING_PLAN_ID", planId);
       console.log(`📎 Navigating to add_destinations with planId: ${planId}`);
@@ -1534,7 +1694,7 @@ function ReviewPlanContent() {
   // src/app/(main)/planning_page/review_plan/page.tsx
 
   const handleSaveToBackend = async () => {
-    // ✅ Validate tối thiểu 2 địa điểm
+    // Require at least two destinations before saving
     if (activities.length < 2) {
       alert(
         `You need at least 2 destinations in your plan! (Current: ${activities.length})`
@@ -1578,7 +1738,8 @@ function ReviewPlanContent() {
           }
         }
 
-        const fallbackDate = planInfo.date || new Date().toISOString().split('T')[0];
+        const fallbackDate =
+          planInfo.date || new Date().toISOString().split("T")[0];
         const visitDate = act.date
           ? toDateOnlyString(act.date)
           : toDateOnlyString(new Date(fallbackDate));
@@ -1610,8 +1771,9 @@ function ReviewPlanContent() {
 
       console.log("📦 Total destinations to save:", destinationsPayload.length);
 
-      // 3. Chuẩn bị dữ liệu để gửi
-      const today = new Date().toISOString().split('T')[0];
+      // 3. Prepare request payload
+      const today = new Date().toISOString().split("T")[0];
+
       const requestData = {
         place_name: planInfo.name,
         start_date: planInfo.date || today,
@@ -1620,9 +1782,9 @@ function ReviewPlanContent() {
         destinations: destinationsPayload,
       };
 
-      // === LOGIC XỬ LÝ ===
+      // === SAVE LOGIC ===
       if (planId) {
-        // --- CHẾ ĐỘ EDIT ---
+        // --- EDIT MODE ---
         console.log(`💾 EDITING PLAN ${planId}`);
         console.log(`   ✅ planId exists: "${planId}"`);
         console.log(`   - Activities to save: ${activities.length}`);
@@ -1646,7 +1808,7 @@ function ReviewPlanContent() {
 
         alert("Plan updated successfully!");
       } else {
-        // --- CHẾ ĐỘ CREATE MỚI ---
+        // --- CREATE MODE ---
         console.log(`📝 CREATING NEW PLAN`);
         console.log(`   ❌ planId is null/undefined`);
         console.log("Creating new plan...");
@@ -1655,7 +1817,7 @@ function ReviewPlanContent() {
         alert("Plan created successfully!");
       }
 
-      // 4. Dọn dẹp và chuyển hướng
+      // 4. Cleanup and redirect
       sessionStorage.removeItem(STORAGE_KEY_RAW);
       sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
       sessionStorage.removeItem(AI_SHOWN_KEY);
@@ -1889,16 +2051,20 @@ function ReviewPlanContent() {
                   <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
                     <CalendarDays size={16} />{" "}
                     <span>
-                      {planInfo.date ? new Date(planInfo.date).toLocaleDateString() : 'No date'}
+                      {planInfo.date
+                        ? new Date(planInfo.date).toLocaleDateString()
+                        : "No date"}
                       <span className="mx-2 text-gray-300">→</span>
-                      {planInfo.end_date ? new Date(planInfo.end_date).toLocaleDateString() : 'No date'}
+                      {planInfo.end_date
+                        ? new Date(planInfo.end_date).toLocaleDateString()
+                        : "No date"}
                     </span>
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* ⚠️ WARNING: Ít hơn 2 địa điểm */}
+            {/* ⚠️ WARNING: fewer than two destinations */}
             {activities.length < 2 && (
               <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded">
                 <p
@@ -2046,6 +2212,7 @@ function ReviewPlanContent() {
             <ChatWindow
               onClose={handleToggleChat}
               planId={planId ? Number(planId) : null}
+              userId={currentUser?.id ?? null}
             />
           </div>
         )}

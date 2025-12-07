@@ -103,9 +103,29 @@ export default function SigninPage() {
 
       localStorage.setItem("access_token", response.access_token);
       localStorage.setItem("user_id", response.user_id.toString());
+      localStorage.setItem("user_role", response.role || "");
 
-      router.push("/allow_permission/location_permission");
-    } catch (err: any) {
+      let role = response.role;
+      if (!role) {
+        try {
+          const profile = await api.getUserProfile();
+          role = profile.role || "";
+        } catch (profileError) {
+          console.warn("Failed to fetch user profile for role", profileError);
+        }
+      }
+
+      if (role) {
+        localStorage.setItem("user_role", role);
+      }
+
+      const isAdmin = (role || "").toLowerCase() === "admin";
+      if (isAdmin) {
+        router.push("/admin");
+      } else {
+        router.push("/allow_permission/location_permission");
+      }
+    } catch (err: unknown) {
       console.error("Login error:", err);
 
       if (err instanceof ApiHttpError) {

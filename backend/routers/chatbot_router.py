@@ -3,9 +3,9 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from schemas.plan_schema import PlanCreate, PlanUpdate
+from schemas.plan_schema import PlanCreate
 from database.db import get_db
-from schemas.message_schema import ChatMessage
+from schemas.message_schema import ChatMessage, ChatbotResponse
 from services.agents.chatbot_service import ChatbotService
 from services.agents.planner_agent import PlannerAgent
 
@@ -54,7 +54,7 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
         "message": "Plan validated successfully"
     }
 
-@router.post("/message", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post("/message", response_model=ChatbotResponse, status_code=status.HTTP_200_OK)
 async def send_message(chat_msg: ChatMessage, db: AsyncSession = Depends(get_db)):
     service = ChatbotService()
     result = await service.handle_user_message(

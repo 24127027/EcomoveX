@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; // Import router để chuyển trang
-import { ChevronLeft, ChevronRight, MapPin, Loader2 } from "lucide-react"; // Thêm icon Loader2
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, MapPin, Loader2 } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
-import { api } from "@/lib/api"; // Import API client từ thư mục lib
+import { api } from "@/lib/api";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 const abhaya_libre = Abhaya_Libre({
@@ -47,13 +47,12 @@ const LOCATIONS = [
 const STORAGE_KEY_INFO = "temp_plan_info";
 
 export default function CreatePlanPage() {
-  const router = useRouter(); // Khởi tạo router
-  const [budget, setBudget] = useState<string>("100000"); // Đổi thành string để format dễ hơn
+  const router = useRouter();
+  const [budget, setBudget] = useState<string>("100000");
   const [destination, setDestination] = useState<string>("");
-  const [selectedDistrict, setSelectedDistrict] = useState<string>(""); // NEW: Lưu district để truyền sang map
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
-  // Thêm state loading để chặn click nhiều lần
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -77,7 +76,7 @@ export default function CreatePlanPage() {
 
   const handleSelectLocation = (district: string) => {
     setDestination(`${district}, ${LOCATIONS[0].city}`);
-    setSelectedDistrict(district); // Lưu district để truyền sang map
+    setSelectedDistrict(district);
     setShowDropdown(false);
   };
 
@@ -156,12 +155,11 @@ export default function CreatePlanPage() {
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
-    // Chỉ cho phép số
+    // Accept digits only
     const numericValue = rawValue.replace(/[^0-9]/g, "");
     setBudget(numericValue);
   };
 
-  // Format budget cho hiển thị (thêm dấu phẩy)
   const formatBudget = (value: string) => {
     if (!value) return "";
     return Number(value).toLocaleString("vi-VN");
@@ -177,43 +175,41 @@ export default function CreatePlanPage() {
       return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     }
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0"); // Tháng bắt đầu từ 0 nên phải +1
+    const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
-  // --- XỬ LÝ SỰ KIỆN TẠO PLAN ---
+  // --- PLAN CREATION HANDLER ---
   const handleCreatePlan = () => {
-    // Bỏ async vì không gọi API nữa
-    // Validate dữ liệu cơ bản
+    // Basic validation
     if (!destination || !selectedRange.start) return;
 
-    setIsLoading(true); // Vẫn có thể để loading nhẹ để UX mượt hơn
+    setIsLoading(true);
 
     try {
-      // 1. CHUẨN BỊ DỮ LIỆU
+      // 1. Prepare payload
       const planInfo = {
-        name: `Trip to ${destination.split(",")[0]}`, // Tên mặc định: "Trip to District 1"
+        name: `Trip to ${destination.split(",")[0]}`,
         destination: destination,
-        district: selectedDistrict, // NEW: Lưu district để map biết khu vực
-        // Format ngày chuẩn để sau này gửi API
+        district: selectedDistrict,
         start_date: formatDateForAPI(selectedRange.start),
         end_date: selectedRange.end
           ? formatDateForAPI(selectedRange.end)
           : formatDateForAPI(selectedRange.start),
-        budget: Number(budget) || 0, // Convert string về number
+        budget: Number(budget) || 0,
       };
 
-      // 2. LƯU VÀO SESSION STORAGE (Thay vì gọi API)
+      // 2. Persist to session storage (no API call yet)
       sessionStorage.setItem(STORAGE_KEY_INFO, JSON.stringify(planInfo));
 
-      // Lưu ý: Có thể cần xóa dữ liệu cũ của các bước sau để tránh bị trộn lẫn plan cũ
+      // Clear previous planning data to avoid mixing contexts
       sessionStorage.removeItem("temp_plan_destinations");
       sessionStorage.removeItem("current_plan_activities");
       sessionStorage.removeItem("has_shown_ai_gen");
-      sessionStorage.removeItem("EDITING_PLAN_ID"); // ✅ Clear old plan ID to ensure CREATE mode
+      sessionStorage.removeItem("EDITING_PLAN_ID");
 
-      // 3. CHUYỂN HƯỚNG
+      // 3. Navigate to the next step
       console.log(
         "Saved info to storage, moving to Add Destinations:",
         planInfo
@@ -411,8 +407,8 @@ export default function CreatePlanPage() {
         {/* BOTTOM BUTTON */}
         <div className="absolute bottom-20 left-0 right-0 px-5 bg-linear-to-t from-[#F5F7F5] via-[#F5F7F5] to-transparent pt-4 pb-2">
           <button
-            onClick={handleCreatePlan} // Gắn sự kiện click
-            disabled={!destination || !selectedRange.start || isLoading} // Disable khi đang load
+            onClick={handleCreatePlan}
+            disabled={!destination || !selectedRange.start || isLoading}
             className={`${jost.className} w-full bg-[#53B552] text-white text-xl font-bold py-3.5 rounded-xl shadow-lg 
             hover:bg-green-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
           >

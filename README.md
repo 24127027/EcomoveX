@@ -73,7 +73,8 @@ utils/            # Config, helpers, and common utilities
 
 ### **Prerequisites**
 Make sure the following are installed:
-- Node.js **v16+**
+- Node.js **v16**
+- Tailwind CSS **v4**
 - Python **v3.10**
 - PostgreSQL
 - Virtual environment tool (**uv**, venv, etc.)
@@ -90,21 +91,39 @@ npm run dev
 ---
 
 ### **2. Backend Setup**
-#### 1. Initialize Database:
-- Ensure your PostgreSQL service is running.
-- Run the database initialization script in virtual enviroment.
-```bash
-    cd backend
-    python database/create_all_database.py
-```
-#### 2. Start the Backend Server:
+
+#### 1. Create Virtual Environment:
 ```bash
 cd backend
 uv venv -p 3.10
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -r requirements.txt
+```
+
+#### 2. Initialize Database:
+- Ensure your PostgreSQL service is running.
+- Run the database initialization script:
+```bash
+python database/create_all_database.py
+```
+
+#### 3. Start the Backend Server:
+```bash
 uvicorn main:app --reload
 ```
+
+#### 4. Create Admin User (Optional):
+After setting up the database, you can promote a user to Admin role:
+
+```bash
+# List all existing users
+python create_admin.py --list
+
+# Promote a specific user to Admin by email
+python create_admin.py admin@example.com
+```
+
+**Note:** Make sure the user exists in the database before promoting them to Admin. You can create a regular user through the registration endpoint first.
 
 ---
 
@@ -129,6 +148,8 @@ DB_PORT=                 # Database port (e.g. 5432)
 DB_NAME=                 # PostgreSQL database name
 DB_USER=                 # Database username
 DB_PASS=                 # Database password
+
+FIRST_ADMIN_EMAIL=       # Admin email
 
 CORS_ORIGINS=            # Comma-separated list of allowed frontend origins
 

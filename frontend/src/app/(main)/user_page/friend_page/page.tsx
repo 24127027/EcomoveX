@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Jost } from "next/font/google";
 import {
   ArrowLeft,
   UserPlus,
@@ -10,20 +11,14 @@ import {
   Check,
   X,
   Search,
-  Users,
   Loader2,
-  User,
-  Bot,
-  Home,
-  MapPin,
   AlertTriangle,
   Send,
   MessageCircle,
-  Route, // Icon chat
+  Route,
   ImagePlus,
   Download,
 } from "lucide-react";
-import { Jost } from "next/font/google";
 import {
   api,
   FriendResponse,
@@ -32,10 +27,16 @@ import {
   TravelPlan,
 } from "@/lib/api";
 
+import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
+type PlanWithDestinations = TravelPlan & {
+  destinations?: Array<{ id: number }>;
+};
+
 export default function FriendsPage() {
-  // --- STATE CƠ BẢN ---
+  // --- CORE STATE ---
   const [activeTab, setActiveTab] = useState<"friends" | "requests" | "sent">(
     "friends"
   );
@@ -56,17 +57,17 @@ export default function FriendsPage() {
   } | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
-  // --- STATE CHO CHAT (MỚI) ---
+  // --- CHAT STATE (NEW) ---
   const [activeChatFriend, setActiveChatFriend] =
     useState<FriendResponse | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Để auto scroll
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Keeps the chat scrolled to the latest message
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- STATE CHO PLAN INVITATION ---
+  // --- PLAN INVITATION STATE ---
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [myPlans, setMyPlans] = useState<TravelPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
@@ -84,7 +85,7 @@ export default function FriendsPage() {
     Map<number, string>
   >(new Map());
 
-  // --- 1. FETCH DATA BAN ĐẦU ---
+  // --- INITIAL DATA FETCH ---
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -135,7 +136,7 @@ export default function FriendsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Hàm mở Chat
+  // Open chat and ensure a conversation room exists
   const openChat = async (friend: FriendResponse) => {
     if (!currentUserId) return;
     setActiveChatFriend(friend);
@@ -147,34 +148,34 @@ export default function FriendsPage() {
     try {
       let roomId: number;
 
-      // BƯỚC 1: Lấy tất cả phòng và tìm thủ công (Client-side filtering)
-      // Vì  không có API "check room", ta phải lấy hết về rồi tự soi.
+      // STEP 1: Fetch all rooms and manually find the matching one (client-side filtering)
+      // Because there's no check-room API, we load everything and filter locally.
       const allRooms = await api.getAllRooms();
 
-      // Tìm phòng nào có chứa friendId trong danh sách thành viên
+      // Find the room that already contains this friend in the member list
       const existingRoom = allRooms.find(
         (room) => room.member_ids && room.member_ids.includes(friendId)
       );
 
       if (existingRoom) {
-        // -> Đã có phòng: Dùng luôn ID đó
+        // Room already exists: reuse its ID
         console.log("Found existing room:", existingRoom.id);
         roomId = existingRoom.id;
       } else {
-        // -> Chưa có: Gọi API tạo phòng mới (Dùng hàm create_room có sẵn)
+        // Otherwise create a new room via the existing create_room helper
         console.log("No room found. Creating new room...");
-        // Tạo phòng tên "Chat" với thành viên là friendId
+        // Create a "Private Chat" room with this friend as a member
         const newRoom = await api.createGroupRoom("Private Chat", [friendId]);
         roomId = newRoom.id;
       }
 
       setActiveRoomId(roomId);
 
-      // BƯỚC 2: Lấy lịch sử & Kết nối Socket (Giữ nguyên)
+      // STEP 2: Load history and connect the socket
       const history = await api.getChatHistory(roomId);
       setMessages(history.reverse());
 
-      // BƯỚC 3: Load invitation statuses cho plan_invitation messages
+      // STEP 3: Load invitation statuses for plan_invitation messages
       const invitationMessages = history.filter(
         (msg) => msg.message_type === "plan_invitation"
       );
@@ -187,7 +188,7 @@ export default function FriendsPage() {
             statusMap.set(msg.id, statusData.status);
           }
         } catch (error) {
-          console.log(`Could not load status for invitation ${msg.id}`);
+          console.log(`Could not load status for invitation ${msg.id}`, error);
         }
       }
       setInvitationStatuses(statusMap);
@@ -200,7 +201,7 @@ export default function FriendsPage() {
   };
 
   const connectWebSocket = (roomId: number) => {
-    // Đóng kết nối cũ nếu có
+    // Close the previous connection if one exists
     if (socketRef.current) {
       socketRef.current.close();
     }
@@ -261,9 +262,8 @@ export default function FriendsPage() {
       socketRef.current = null;
     }
   };
-
-  // --- 4. LOGIC QUẢN LÝ BẠN BÈ (CŨ) ---
-  // --- 4. LOGIC QUẢN LÝ BẠN BÈ (MỚI - DÙNG USERNAME) ---
+  // --- LEGACY FRIEND LOGIC (REFERENCE) ---
+  // --- CURRENT FRIEND LOGIC (USERNAME-BASED) ---
   const handleSendRequest = async () => {
     setFeedback(null);
     if (!inputUsername.trim()) {
@@ -274,7 +274,7 @@ export default function FriendsPage() {
     try {
       setAddLoading(true);
 
-      // Gửi trực tiếp bằng username (backend sẽ xử lý tất cả validation)
+      // Send directly by username; backend handles all validation
       await api.sendFriendRequestByUsername(inputUsername.trim());
 
       setFeedback({
@@ -283,11 +283,12 @@ export default function FriendsPage() {
       });
       setInputUsername("");
       fetchData(); // Refresh data
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Send request error:", error);
 
-      // Parse error message từ backend
-      const errorMessage = error.message || "Failed to send request";
+      // Parse the error returned by the backend
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to send request";
 
       if (errorMessage.includes("not found")) {
         setFeedback({ text: "User not found", type: "error" });
@@ -317,7 +318,8 @@ export default function FriendsPage() {
       await api.unfriend(deleteTargetId);
       setFeedback({ text: "Friend removed", type: "success" });
       fetchData();
-    } catch (e) {
+    } catch (error) {
+      console.error("Failed to remove friend", error);
       setFeedback({ text: "Failed to remove friend", type: "error" });
     } finally {
       setDeleteTargetId(null);
@@ -328,19 +330,25 @@ export default function FriendsPage() {
     try {
       await api.acceptFriendRequest(id);
       fetchData();
-    } catch (e) {}
+    } catch (error) {
+      console.error("Failed to accept request", error);
+    }
   };
   const handleReject = async (id: number) => {
     try {
       await api.rejectFriendRequest(id);
       fetchData();
-    } catch (e) {}
+    } catch (error) {
+      console.error("Failed to reject request", error);
+    }
   };
   const handleCancelRequest = async (id: number) => {
     try {
       await api.unfriend(id);
       fetchData();
-    } catch (e) {}
+    } catch (error) {
+      console.error("Failed to cancel request", error);
+    }
   };
 
   const getDisplayId = (item: FriendResponse) => {
@@ -354,7 +362,7 @@ export default function FriendsPage() {
       const plans = await api.getPlans();
 
       // Filter valid plans: user must be OWNER and plan must have at least 1 destination
-      const validPlans = plans.filter((plan) => {
+      const validPlans = plans.filter((plan: PlanWithDestinations) => {
         // Check ownership first
         const isOwner = plan.user_id === currentUserId;
 
@@ -363,7 +371,7 @@ export default function FriendsPage() {
         // Check if plan has destinations (activities or destinations)
         const hasDestinations =
           (plan.activities && plan.activities.length > 0) ||
-          ((plan as any).destinations && (plan as any).destinations.length > 0);
+          (plan.destinations && plan.destinations.length > 0);
 
         return hasDestinations;
       });
@@ -409,7 +417,7 @@ export default function FriendsPage() {
     try {
       await api.declineInvitation(messageId);
 
-      // Update local state to show declined status
+      // Update local state to reflect the declined status
       setDeclinedMessageIds((prev) => new Set(prev).add(messageId));
       setInvitationStatuses((prev) => new Map(prev).set(messageId, "rejected"));
 
@@ -420,7 +428,7 @@ export default function FriendsPage() {
     } finally {
       setProcessingMessageId(null);
     }
-  }; // Hàm xử lý gửi file (hình ảnh)
+  }; // Handle sending image/file attachments
   const handleSendFile = async (file: File) => {
     if (!activeRoomId || !currentUserId) return;
 
@@ -458,8 +466,9 @@ export default function FriendsPage() {
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
+      <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        {/* --- MODAL XÓA BẠN --- */}
+        {/* --- FRIEND REMOVAL MODAL --- */}
         {deleteTargetId && (
           <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-6 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
@@ -491,7 +500,7 @@ export default function FriendsPage() {
           </div>
         )}
 
-        {/* --- MODAL CHAT (MỚI) --- */}
+        {/* --- CHAT MODAL (NEW) --- */}
         {activeChatFriend && (
           <div className="absolute inset-0 z-40 bg-[#F5F7F5] flex flex-col animate-in slide-in-from-right duration-300">
             {/* Chat Header */}
@@ -775,7 +784,7 @@ export default function FriendsPage() {
                 <Send size={20} />
               </button>
 
-              {/* Nút gửi hình ảnh */}
+              {/* Image upload button */}
               <label className="bg-gray-100 p-3 rounded-xl hover:bg-gray-200 cursor-pointer text-gray-500 transition-colors">
                 <input
                   type="file"
@@ -794,7 +803,7 @@ export default function FriendsPage() {
           </div>
         )}
 
-        {/* --- HEADER CHÍNH --- */}
+        {/* --- MAIN HEADER --- */}
         <div className="bg-[#E3F1E4] px-6 pb-6 pt-8 rounded-b-[40px] shadow-sm shrink-0 z-10">
           <div className="flex items-center justify-between mb-4">
             <Link href="/user_page/main_page">
@@ -854,7 +863,7 @@ export default function FriendsPage() {
 
         {/* --- TABS --- */}
         <div className="px-6 mt-2 flex gap-4 border-b border-gray-200 shrink-0 overflow-x-auto no-scrollbar">
-          {/* Code Tab Friends/Requests/Sent cũ của bạn (giữ nguyên logic hiển thị activeTab) */}
+          {/* Existing Friends/Requests/Sent tabs (keep activeTab logic) */}
           <button
             onClick={() => setActiveTab("friends")}
             className={`pb-2 text-sm font-bold ${
@@ -908,7 +917,7 @@ export default function FriendsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* TAB FRIENDS - CẬP NHẬT NÚT CHAT */}
+              {/* Friends tab - chat button */}
               {activeTab === "friends" &&
                 (friends.length === 0 ? (
                   <p className="text-center text-gray-400 mt-10">
@@ -944,14 +953,14 @@ export default function FriendsPage() {
 
                         {/* BUTTONS: CHAT & UNFRIEND */}
                         <div className="flex gap-2">
-                          {/* Nút Chat Mới */}
+                          {/* Chat button */}
                           <button
                             onClick={() => openChat(item)}
                             className="p-2 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition"
                           >
                             <MessageCircle size={20} />
                           </button>
-                          {/* Nút Xóa bạn */}
+                          {/* Remove friend button */}
                           <button
                             onClick={() => handleUnfriendClick(displayId)}
                             className="p-2 bg-red-50 text-red-400 rounded-full hover:bg-red-100 transition"
@@ -964,7 +973,7 @@ export default function FriendsPage() {
                   })
                 ))}
 
-              {/* TAB REQUESTS (GIỮ NGUYÊN) */}
+              {/* Requests tab (existing UI) */}
               {activeTab === "requests" &&
                 (requests.length === 0 ? (
                   <p className="text-center text-gray-400 mt-10">
@@ -976,7 +985,7 @@ export default function FriendsPage() {
                       key={req.friend_id}
                       className="bg-white p-3 rounded-2xl shadow-sm flex items-center justify-between"
                     >
-                      {/* ... UI Request cũ ... */}
+                      {/* Existing request UI ... */}
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full bg-gray-100 relative overflow-hidden">
                           <Image
@@ -1014,7 +1023,7 @@ export default function FriendsPage() {
                   ))
                 ))}
 
-              {/* TAB SENT (GIỮ NGUYÊN) */}
+              {/* Sent tab (existing UI) */}
               {activeTab === "sent" &&
                 (sentRequests.length === 0 ? (
                   <p className="text-center text-gray-400 mt-10">
@@ -1058,50 +1067,6 @@ export default function FriendsPage() {
           )}
         </main>
 
-        {/* --- FOOTER (Giữ nguyên) --- */}
-        <footer className="bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.05)] sticky bottom-0 w-full z-20">
-          <div className="h-1 bg-linear-to-r from-transparent via-green-200 to-transparent"></div>
-          <div className="flex justify-around items-center py-3">
-            <Link
-              href="/homepage"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Home size={24} />
-              <span className="text-xs">Home</span>
-            </Link>
-            <Link
-              href="/track_page/leaderboard"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              {" "}
-              <Route size={24} strokeWidth={2} />
-              <span className={`${jost.className} text-xs font-medium mt-1`}>
-                Track
-              </span>
-            </Link>
-            <Link
-              href="/planning_page/showing_plan_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <MapPin size={24} />
-              <span className="text-xs">Planning</span>
-            </Link>
-            <Link
-              href="/ecobot_page"
-              className="flex flex-col items-center text-gray-400 hover:text-green-600"
-            >
-              <Bot size={24} />
-              <span className="text-xs">Ecobot</span>
-            </Link>
-            <div className="flex flex-col items-center text-[#53B552]">
-              <Link href="/user_page/main_page">
-                <User size={24} strokeWidth={2.5} />
-                <span className="text-xs font-bold mt-1">User</span>
-              </Link>
-            </div>
-          </div>
-        </footer>
-
         {/* PLAN SELECTION MODAL */}
         {showPlanModal && (
           <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
@@ -1123,7 +1088,7 @@ export default function FriendsPage() {
               <div className="max-h-[60vh] overflow-y-auto space-y-3 mb-4">
                 {myPlans.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">
-                    You don't have any plans yet.
+                    You don&apos;t have any plans yet.
                   </p>
                 ) : (
                   myPlans.map((plan) => (

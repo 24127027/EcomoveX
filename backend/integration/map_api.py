@@ -1,5 +1,6 @@
 from typing import Optional
 
+import asyncio
 import httpx
 
 from schemas.destination_schema import Bounds, Location
@@ -44,7 +45,14 @@ class MapAPI:
 
         self.base_url = "https://maps.googleapis.com/maps/api"
         self.new_base_url = "https://places.googleapis.com/v1/places/"
-        self.client = httpx.AsyncClient(timeout=30.0)
+        
+        # Create client with better timeout and connection settings
+        # Increase timeout and add retries for flaky connections
+        self.client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            verify=True,  # Ensure SSL verification is enabled
+        )
 
     async def text_search_place(self, request: TextSearchRequest) -> TextSearchResponse:
         url = f"{self.new_base_url}:searchText"
@@ -77,44 +85,65 @@ class MapAPI:
         if request.place_types:
             body["includedType"] = request.place_types
 
-        try:
-            response = await self.client.post(url, headers=headers, json=body)
-            response.raise_for_status()
+        # Retry logic for transient network errors
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self.client.post(url, headers=headers, json=body)
+                response.raise_for_status()
 
-            data = response.json()
+                data = response.json()
 
-            if "places" in data:
-                for place in data["places"]:
-                    raw_photos = place.get("photos", [])
+                if "places" in data:
+                    for place in data["places"]:
+                        raw_photos = place.get("photos", [])
 
-                    if (
-                        raw_photos
-                        and isinstance(raw_photos, list)
-                        and len(raw_photos) > 0
-                    ):
-                        first_photo = raw_photos[0]
+                        if (
+                            raw_photos
+                            and isinstance(raw_photos, list)
+                            and len(raw_photos) > 0
+                        ):
+                            first_photo = raw_photos[0]
 
-                        ref = first_photo.get("name")
+                            ref = first_photo.get("name")
 
-                        final_url = await self.generate_place_photo_url(ref)
+                            final_url = await self.generate_place_photo_url(ref)
 
-                        width = first_photo.get("widthPx", 0)
-                        height = first_photo.get("heightPx", 0)
+                            width = first_photo.get("widthPx", 0)
+                            height = first_photo.get("heightPx", 0)
 
-                        place["photos"] = {
-                            "photo_url": final_url,
-                            "size": (width, height),
-                        }
-                    else:
-                        place["photos"] = None
+                            place["photos"] = {
+                                "photo_url": final_url,
+                                "size": (width, height),
+                            }
+                        else:
+                            place["photos"] = None
 
-            return TextSearchResponse(**data)
-        except httpx.HTTPStatusError as e:
-            print(f"Google Places API Error: {e.response.text}")
-            raise e
-        except Exception as e:
-            print(f"An error occurred: {str(e)}")
-            raise e
+                return TextSearchResponse(**data)
+                
+            except httpx.ConnectError as e:
+                if attempt < max_retries:
+                    print(f"Network connection error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+                    await asyncio.sleep(0.5)  # Brief delay before retry
+                    continue
+                print(f"Network connection error in text_search_place after {max_retries + 1} attempts: {str(e)}")
+                print(f"URL: {url}")
+                raise ValueError(f"Network connection error: Unable to reach Google Places API after {max_retries + 1} attempts. Check your internet connection.")
+            except httpx.TimeoutException as e:
+                if attempt < max_retries:
+                    print(f"Timeout error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+                    await asyncio.sleep(0.5)
+                    continue
+                print(f"Timeout error in text_search_place: {str(e)}")
+                raise ValueError(f"Request timeout: Google Places API took too long to respond.")
+            except httpx.HTTPStatusError as e:
+                print(f"Google Places API Error: {e.response.text}")
+                raise ValueError(f"Google Places API returned error {e.response.status_code}: {e.response.text}")
+            except Exception as e:
+                print(f"Unexpected error in text_search_place: {type(e).__name__}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                raise e
 
     async def close(self):
         await self.client.aclose()
@@ -198,13 +227,19 @@ class MapAPI:
 
             data = response.json()
             if data.get("status") != "OK":
+                print(f"API Error Status: {data.get('status')}, Full response: {data}")
                 raise ValueError(f"Error fetching place details: {data.get('status')}")
             result = data.get("result", {})
+            
+            if not result.get("place_id"):
+                print(f"WARNING: place_id is None in response for place_id={place_id}")
+                print(f"Full result: {result}")
+                print(f"API Status: {data.get('status')}")
 
             return PlaceDetailsResponse(
-                place_id=result.get("place_id"),
-                name=result.get("name"),
-                formatted_address=result.get("formatted_address"),
+                place_id=result.get("place_id") or place_id,  # Fallback to input place_id
+                name=result.get("name") or "",
+                formatted_address=result.get("formatted_address") or "",
                 address_components=[
                     AddressComponent(
                         name=comp.get("long_name"), types=comp.get("types", [])
@@ -273,6 +308,7 @@ class MapAPI:
                             size=(photo.get("width"), photo.get("height")),
                         )
                         for photo in result.get("photos", [])
+                        if photo.get("photo_reference")  # Only process photos with valid references
                     ]
                     if result.get("photos")
                     else None
@@ -287,8 +323,19 @@ class MapAPI:
                 ),
                 utc_offset=result.get("utc_offset"),
             )
+        except httpx.ConnectError as e:
+            print(f"Network connection error in get_place_details: {str(e)}")
+            raise ValueError(f"Network connection error: Unable to reach Google Places API")
+        except httpx.TimeoutException as e:
+            print(f"Timeout error in get_place_details: {str(e)}")
+            raise ValueError(f"Request timeout: Google Places API took too long to respond")
+        except httpx.HTTPStatusError as e:
+            print(f"HTTP error in get_place_details: {e.response.status_code} - {e.response.text}")
+            raise ValueError(f"Google Places API error: {e.response.status_code}")
         except Exception as e:
-            print(f"Error in get_place_details: {e}")
+            print(f"Error in get_place_details: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise e
 
     async def reverse_geocode(
@@ -583,6 +630,10 @@ class MapAPI:
         maxwidth: int = 400,
     ) -> str:
         try:
+            if not photo_reference:
+                print("Warning: photo_reference is None or empty")
+                return ""
+            
             if photo_reference.startswith("places/"):
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
 

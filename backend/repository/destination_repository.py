@@ -53,14 +53,6 @@ class DestinationRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             # ✅ Nếu lỗi duplicate key, retry get (race condition)
-            error_str = str(e)
-            if "duplicate key" in error_str or "UniqueViolationError" in error_str:
-                print(f"⚠️ Duplicate key detected for {destination.place_id}, fetching existing...")
-                existing = await DestinationRepository.get_destination_by_id(
-                    db, destination.place_id
-                )
-                if existing:
-                    return existing
             print(f"ERROR: Failed to create destination - {e}")
             return None
 

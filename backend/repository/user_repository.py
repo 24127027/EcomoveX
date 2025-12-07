@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from models.user import Rank, User, UserActivity
+from models.user import Rank, Role, User, UserActivity
 from schemas.user_schema import (
     UserActivityCreate,
     UserCreate,
@@ -14,6 +14,7 @@ from schemas.user_schema import (
     UserProfileUpdate,
     UserUpdateEcoPoint,
 )
+from utils.config import settings
 
 
 class UserRepository:
@@ -86,12 +87,20 @@ class UserRepository:
                     f"'{user_data.username}' already exists"
                 )
                 return None
+            
+            # Check if this should be an admin based on FIRST_ADMIN_EMAIL
+            user_role = Role.user.value  # Default role (use .value for string)
+            if settings.FIRST_ADMIN_EMAIL and user_data.email == settings.FIRST_ADMIN_EMAIL:
+                user_role = Role.admin.value
+                print(f"INFO: Creating admin user for {user_data.email}")
+            
             new_user = User(
                 username=user_data.username,
                 email=user_data.email,
                 password=user_data.password,
                 eco_point=0,
                 rank=Rank.bronze.value,
+                role=user_role,
             )
             db.add(new_user)
             await db.commit()
@@ -246,3 +255,57 @@ class UserRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: Failed to search users with term '{search_term}' - {e}")
             return []
+
+    @staticmethod
+    async def admin_update_password(
+        db: AsyncSession, user_id: int, new_password: str
+    ) -> bool:
+        """
+        Admin updates a user's password without requiring the old password.
+        """
+        try:
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return False
+
+            user.password = new_password
+            await db.commit()
+            return True
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to update password for user ID {user_id} - {e}")
+            return False
+
+    @staticmethod
+    async def admin_update_role(db: AsyncSession, user_id: int, new_role) -> User:
+        """
+        Admin updates a user's role.
+        """
+        try:
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return None
+
+            user.role = new_role
+            await db.commit()
+            await db.refresh(user)
+            return user
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to update role for user ID {user_id} - {e}")
+            return None
+
+        
+    @staticmethod
+    async def get_user_by_email(db: AsyncSession, email: str):
+        try:
+            result = await db.execute(select(User).where(User.email == email))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: Failed to retrieve user by email {email} - {e}")
+            return None

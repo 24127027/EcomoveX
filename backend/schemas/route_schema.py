@@ -83,8 +83,8 @@ class FindRoutesRequest(BaseModel):
 
 
 class FindRoutesResponse(BaseModel):
-    origin: Dict[str, float]
-    destination: Dict[str, float]
+    origin: Location
+    destination: Location
     routes: Dict[RouteType, RouteData]
     recommendation: str
 
@@ -161,3 +161,18 @@ class TripMetricsResponse(BaseModel):
     total_distance_km: float = Field(default=0.0)
     total_duration_min: float = Field(default=0.0)
     details: List[Dict[str, Any]] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+    
+    
+class RouteForPlanResponse(BaseModel):
+    origin: str # place_id
+    destination: str # place_id
+    distance_km: float
+    estimated_travel_time_min: float
+    carbon_emission_kg: float
+    route_polyline: str
+    transport_mode: TransportMode = TransportMode.car
+    route_type: RouteType = RouteType.fastest
+
+    model_config = ConfigDict(from_attributes=True)

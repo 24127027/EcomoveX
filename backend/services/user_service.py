@@ -387,3 +387,75 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving activities for user {user_id}: {e}",
             )
+
+    @staticmethod
+    async def admin_update_password(
+        db: AsyncSession, user_id: int, new_password: str
+    ) -> bool:
+        try:
+            user = await UserRepository.get_user_by_id(db, user_id)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            success = await UserRepository.admin_update_password(
+                db, user_id, new_password
+            )
+            return success
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error updating password for user {user_id}: {e}",
+            )
+
+    @staticmethod
+    async def admin_update_role(
+        db: AsyncSession, user_id: int, new_role
+    ) -> UserResponse:
+        try:
+            user = await UserRepository.get_user_by_id(db, user_id)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            updated_user = await UserRepository.admin_update_role(db, user_id, new_role)
+            if not updated_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to update role for user {user_id}",
+                )
+
+            avt_url = None
+            cover_url = None
+            if updated_user.avt_blob_name:
+                avt_url = await StorageService.generate_signed_url(
+                    updated_user.avt_blob_name
+                )
+            if updated_user.cover_blob_name:
+                cover_url = await StorageService.generate_signed_url(
+                    updated_user.cover_blob_name
+                )
+
+            return UserResponse(
+                id=updated_user.id,
+                username=updated_user.username,
+                email=updated_user.email,
+                eco_point=updated_user.eco_point,
+                rank=updated_user.rank,
+                role=updated_user.role,
+                avt_url=avt_url,
+                cover_url=cover_url,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error updating role for user {user_id}: {e}",
+            )

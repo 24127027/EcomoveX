@@ -25,6 +25,7 @@ interface AuthResponse {
   user_id: number;
   username: string;
   email: string;
+  role?: "Admin" | "User" | string;
 }
 
 interface ValidationError {
@@ -45,7 +46,7 @@ export interface UserProfile {
   email: string;
   avt_url?: string | null;
   cover_url?: string | null;
-  role?: string;
+  role: string;
 }
 
 //Friend Types
@@ -62,10 +63,73 @@ export interface Position {
   lng: number;
 }
 
+export type TransportModeType =
+  | "car"
+  | "motorbike"
+  | "walking"
+  | "metro"
+  | "bus"
+  | "train";
+
+export interface RouteLocation {
+  lat: number;
+  lng: number;
+}
+
+export type RouteTypeOption = "fastest" | "low_carbon" | "smart_combination";
+
+export interface RouteStepDetails {
+  distance: number;
+  duration: number;
+  start_location: Position;
+  end_location: Position;
+  travel_mode: TransportModeType;
+  polyline?: string;
+}
+
+export interface RouteLegDetails {
+  distance: number;
+  duration: number;
+  steps: RouteStepDetails[];
+}
+
+export interface RouteDetails {
+  overview_polyline: string;
+  legs: RouteLegDetails[];
+}
+
+export interface RouteOption {
+  type: RouteTypeOption | string;
+  mode: TransportModeType[];
+  distance: number;
+  duration: number;
+  carbon: number;
+  route_details: RouteDetails;
+}
+
+export interface FindRoutesResponse {
+  origin: RouteLocation;
+  destination: RouteLocation;
+  routes: Record<RouteTypeOption | string, RouteOption>;
+  recommendation: string;
+}
+
 // --- NEW TEXT SEARCH TYPES START ---
 export interface LocalizedText {
   text: string;
   languageCode?: string;
+}
+
+export interface AutocompleteMatchedSubstring {
+  length: number;
+  offset: number;
+}
+
+export interface AutocompleteStructuredFormatting {
+  main_text: string;
+  secondary_text?: string;
+  main_text_matched_substrings?: AutocompleteMatchedSubstring[];
+  secondary_text_matched_substrings?: AutocompleteMatchedSubstring[];
 }
 
 export interface PhotoInfo {
@@ -122,9 +186,9 @@ export interface AutocompleteRequest {
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
-  structured_formatting?: Record<string, any>;
+  structured_formatting?: AutocompleteStructuredFormatting;
   types: string[];
-  matched_substrings?: Array<Record<string, any>>;
+  matched_substrings?: AutocompleteMatchedSubstring[];
   distance?: number;
 }
 
@@ -154,7 +218,7 @@ export interface PlaceDetails {
   price_level?: number;
   opening_hours?: {
     open_now: boolean;
-    periods?: Array<Record<string, any>>;
+    periods?: OpeningHoursPeriod[];
     weekday_text?: string[];
   };
   website?: string;
@@ -163,9 +227,28 @@ export interface PlaceDetails {
     width: number;
     height: number;
   }>;
-  reviews?: Array<Record<string, any>>;
+  reviews?: PlaceReview[];
   utc_offset?: number;
   sustainable_certified: boolean;
+}
+
+export interface OpeningHoursPeriodEndpoint {
+  day: number;
+  time: string;
+}
+
+export interface OpeningHoursPeriod {
+  open: OpeningHoursPeriodEndpoint;
+  close?: OpeningHoursPeriodEndpoint;
+}
+
+export interface PlaceReview {
+  author_name: string;
+  rating: number;
+  relative_time_description?: string;
+  text?: string;
+  time?: number;
+  profile_photo_url?: string;
 }
 
 export interface ReverseGeocodeResponse {
@@ -190,10 +273,102 @@ export interface SavedDestination {
   image_url?: string;
 }
 
+// Destination certificate/verification types
+export type GreenVerifiedStatus = "Green Certified" | "Not Green Verified" | "AI Green Verified";
+
+export interface DestinationWithCertificate {
+  place_id: string;
+  green_verified: GreenVerifiedStatus;
+}
+
+export interface CertificateUpdateRequest {
+  destination_id: string;
+  new_status: GreenVerifiedStatus;
+}
+
+export interface ExternalApiCheckResult {
+  destination_id: string;
+  passed: boolean;
+  score?: number;
+  details?: string;
+}
+
+export interface AiCheckResult {
+  destination_id: string;
+  verified: boolean;
+  confidence?: number;
+  green_score?: number;
+}
+
 export interface UploadResponse {
   url: string;
   blob_name: string;
   filename: string;
+}
+
+export interface ApiMessageResponse {
+  detail?: string;
+  message?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+// Route Types for Plans
+export interface RouteForPlanResponse {
+  origin: string; // place_id
+  destination: string; // place_id
+  distance_km: number;
+  estimated_travel_time_min: number;
+  carbon_emission_kg: number;
+  route_polyline: string;
+  transport_mode: string;
+  route_type: string;
+}
+
+// Route Response from backend /plans/{plan_id}/routes
+export interface RouteResponse {
+  plan_id: number;
+  origin_plan_destination_id: number;
+  destination_plan_destination_id: number;
+  distance_km: number;
+  carbon_emission_kg: number;
+}
+
+// Basic plan info for track page
+export interface PlanBasicInfo {
+  id: number;
+  place_name: string;
+  budget_limit: number | null;
+}
+
+type PlanListResponse =
+  | { plans: Array<number | PlanBasicInfo> }
+  | Array<number | PlanBasicInfo>;
+
+// Backend Plan Destination Type (matches PlanDestinationResponse from backend)
+export interface PlanDestinationResponse {
+  id: number;
+  destination_id: string;
+  type: string; // DestinationType
+  destination_type?: string; // legacy support from older responses
+  order_in_day: number;
+  visit_date: string; // date string
+  estimated_cost?: number | null;
+  url?: string | null;
+  note?: string | null;
+  time_slot: string; // TimeSlot enum as string
+}
+
+// Backend Plan Response Type (matches PlanResponse from backend)
+export interface Plan {
+  id: number;
+  user_id: number;
+  place_name: string;
+  start_date: string; // date string
+  end_date: string; // date string
+  budget_limit: number | null;
+  destinations: PlanDestinationResponse[];
+  route?: RouteForPlanResponse[] | null;
 }
 
 export class ApiValidationError extends Error {
@@ -329,6 +504,7 @@ export interface AddMemberRequest {
 export interface PlanActivity {
   id: number | string;
   original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
+  destination_id?: string; // ✅ Preserve Google Place ID for routing / maps
   title: string;
   address: string;
   image_url: string;
@@ -338,6 +514,8 @@ export interface PlanActivity {
   order_in_day?: number;
   time?: string;
   day?: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface TravelPlan {
@@ -357,7 +535,7 @@ export interface PlanDestinationCreate {
   destination_type: string;
   order_in_day: number;
   visit_date: string;
-  time_slot: "morning" | "afternoon" | "evening"; // ✅ Lowercase để match backend enum
+  time_slot: "morning" | "afternoon" | "evening";
   estimated_cost?: number;
   url?: string;
   note?: string;
@@ -376,6 +554,38 @@ export interface UpdatePlanRequest {
   end_date?: string;
   budget_limit?: number;
   destinations?: PlanDestinationCreate[];
+}
+
+export interface PlanGenerationDestination {
+  destination_id: string;
+  destination_type: string;
+  visit_date: string;
+  order_in_day: number;
+  time_slot: string;
+  note?: string;
+  estimated_cost?: number;
+  url?: string;
+}
+
+export interface GeneratedPlanPayload {
+  place_name: string;
+  start_date: string;
+  end_date: string;
+  budget_limit?: number;
+  destinations: PlanGenerationDestination[];
+}
+
+export interface PlanGenerationResponse {
+  success: boolean;
+  message?: string;
+  detail?: string;
+  plan?: GeneratedPlanPayload;
+  warnings?: string[];
+}
+
+export interface BotMessageResponse {
+  message?: string;
+  detail?: string;
 }
 
 export interface DestinationCard {
@@ -400,6 +610,31 @@ export interface ReviewStatisticsResponse {
   average_rating: number;
   total_reviews: number;
   rating_distribution: Record<string, number>;
+}
+
+// --- ADMIN TYPES ---
+export interface UserFilterParams {
+  role?: string;
+  status?: string;
+  search?: string;
+  created_from?: string;
+  created_to?: string;
+  skip?: number;
+  limit?: number;
+}
+
+export interface AdminUserResponse extends UserProfile {
+  eco_point: number;
+  rank: string;
+  created_at?: string;
+  last_login?: string;
+}
+
+export interface DashboardStats {
+  total_users: number;
+  active_destinations: number;
+  pending_reviews: number;
+  eco_impact_score: number;
 }
 
 // --- API CLIENT CLASS ---
@@ -502,8 +737,8 @@ class ApiClient {
     }
   }
 
-  async getCurrentUser(): Promise<any> {
-    return this.request("/auth/me", { method: "GET" });
+  async getCurrentUser(): Promise<UserProfile> {
+    return this.request<UserProfile>("/auth/me", { method: "GET" });
   }
 
   async resetPassword(email: string): Promise<void> {
@@ -520,10 +755,13 @@ class ApiClient {
     });
   }
 
-  async saveDestination(destinationId: string): Promise<any> {
-    return this.request(`/destinations/saved/${destinationId}`, {
-      method: "POST",
-    });
+  async saveDestination(destinationId: string): Promise<SavedDestination> {
+    return this.request<SavedDestination>(
+      `/destinations/saved/${destinationId}`,
+      {
+        method: "POST",
+      }
+    );
   }
 
   async unsaveDestination(destinationId: string): Promise<void> {
@@ -568,8 +806,10 @@ class ApiClient {
     });
   }
 
-  async updateCredentials(data: UserCredentialUpdate): Promise<any> {
-    return this.request("/users/me/credentials", {
+  async updateCredentials(
+    data: UserCredentialUpdate
+  ): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>("/users/me/credentials", {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -591,6 +831,128 @@ class ApiClient {
     });
   }
   // --- PLAN ENDPOINTS ---
+  private extractPlanIdsFromPayload(
+    payload: PlanListResponse | null | undefined
+  ): number[] {
+    if (!payload) return [];
+    const planArray = Array.isArray(payload) ? payload : payload.plans;
+    if (!Array.isArray(planArray)) return [];
+
+    const ids = planArray
+      .map((plan) => {
+        if (typeof plan === "number") {
+          return plan;
+        }
+
+        if (plan && typeof plan === "object" && "id" in plan) {
+          const typedPlan = plan as PlanBasicInfo;
+          return typeof typedPlan.id === "number" ? typedPlan.id : null;
+        }
+
+        return null;
+      })
+      .filter((id): id is number => typeof id === "number");
+
+    return Array.from(new Set(ids));
+  }
+
+  private async fetchPlanIdsFromApi(): Promise<number[]> {
+    try {
+      const response = await this.request<PlanListResponse>("/plans/", {
+        method: "GET",
+      });
+      return this.extractPlanIdsFromPayload(response);
+    } catch (error) {
+      console.error("Failed to fetch plan IDs", error);
+      return [];
+    }
+  }
+
+  private async fetchPlansByIds(planIds: number[]): Promise<Plan[]> {
+    if (!planIds.length) {
+      return [];
+    }
+
+    const planPromises = planIds.map(async (planId) => {
+      try {
+        return await this.getPlanDetails(planId);
+      } catch (error) {
+        console.error(`Failed to fetch plan ${planId}`, error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(planPromises);
+    return results.filter((plan): plan is Plan => Boolean(plan));
+  }
+
+  private transformPlanToTravelPlan(plan: Plan): TravelPlan {
+    const planStartDate = new Date(`${plan.start_date}T00:00:00`);
+
+    const normalizeTimeSlot = (
+      slot: string
+    ): "Morning" | "Afternoon" | "Evening" => {
+      const lower = (slot || "morning").toLowerCase();
+      if (lower === "afternoon") return "Afternoon";
+      if (lower === "evening") return "Evening";
+      return "Morning";
+    };
+
+    const activities = (plan.destinations || []).map((d, index) => {
+      const dateObj = new Date(d.visit_date);
+      const slot = normalizeTimeSlot(d.time_slot || "morning");
+
+      const timeString = dateObj.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const actDateOnly = new Date(dateObj);
+      actDateOnly.setHours(0, 0, 0, 0);
+
+      const baseDate = new Date(planStartDate);
+      baseDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.round(
+        (actDateOnly.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const dayIndex = diffDays + 1;
+
+      return {
+        id: `${d.destination_id}-${index}`,
+        original_id: d.id,
+        destination_id: d.destination_id,
+        title: d.note || "Destination",
+        address: "",
+        image_url: d.url || "",
+        time_slot: slot,
+        date: d.visit_date,
+        time: timeString,
+        type: d.type || d.destination_type || "",
+        order_in_day: d.order_in_day ?? 0,
+        day: dayIndex >= 1 ? dayIndex : 1,
+      };
+    });
+
+    activities.sort((a, b) => {
+      const dateA = new Date(a.date!).getTime();
+      const dateB = new Date(b.date!).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+
+      return (a.order_in_day || 0) - (b.order_in_day || 0);
+    });
+
+    return {
+      id: plan.id,
+      user_id: plan.user_id,
+      destination: plan.place_name,
+      date: plan.start_date,
+      end_date: plan.end_date,
+      budget_limit: plan.budget_limit ?? undefined,
+      activities,
+    };
+  }
+
   async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
     return this.request<PlanResponse>("/plans/", {
       method: "POST",
@@ -606,8 +968,8 @@ class ApiClient {
   async addDestinationToPlan(
     planId: number,
     data: PlanDestination
-  ): Promise<any> {
-    return this.request(`/plans/${planId}/destinations`, {
+  ): Promise<PlanDestination> {
+    return this.request<PlanDestination>(`/plans/${planId}/destinations`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -616,8 +978,8 @@ class ApiClient {
     destinationId: string | number,
     planId: number,
     data: { note?: string; visit_date?: string }
-  ): Promise<any> {
-    return this.request(
+  ): Promise<PlanDestination> {
+    return this.request<PlanDestination>(
       `/plans/destinations/${destinationId}?plan_id=${planId}`,
       {
         method: "PUT",
@@ -729,83 +1091,20 @@ class ApiClient {
     });
   }
 
+  // Get raw plans from backend (for track pages)
+  async getRawPlans(): Promise<Plan[]> {
+    const planIds = await this.fetchPlanIdsFromApi();
+    return this.fetchPlansByIds(planIds);
+  }
+
   async leavePlan(planId: number): Promise<void> {
     const profile = await this.getUserProfile();
     return this.removePlanMembers(planId, [profile.id]);
   }
 
   async getPlans(): Promise<TravelPlan[]> {
-    const plans = await this.request<PlanResponse[]>("/plans/", {
-      method: "GET",
-    });
-
-    return plans.map((p) => {
-      // Chuẩn hóa ngày bắt đầu chuyến đi về 00:00:00 để tính toán chính xác
-      const planStartDate = new Date(`${p.start_date}T00:00:00`);
-
-      const activities = p.destinations.map((d, index) => {
-        const dateObj = new Date(d.visit_date);
-
-        // ✅ Convert backend lowercase time_slot sang capitalize cho frontend
-        const normalizeTimeSlot = (
-          slot: string
-        ): "Morning" | "Afternoon" | "Evening" => {
-          const lower = slot.toLowerCase();
-          if (lower === "afternoon") return "Afternoon";
-          if (lower === "evening") return "Evening";
-          return "Morning";
-        };
-        const slot = normalizeTimeSlot(d.time_slot || "morning");
-
-        const timeString = dateObj.toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        // [MỚI] Logic tính thứ tự ngày (Day 1, Day 2...)
-        const actDateOnly = new Date(dateObj);
-        actDateOnly.setHours(0, 0, 0, 0);
-        planStartDate.setHours(0, 0, 0, 0);
-
-        const diffTime = actDateOnly.getTime() - planStartDate.getTime();
-        // Dùng Math.round để xử lý sai số mili-giây nếu có
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-        const dayIndex = diffDays + 1;
-
-        return {
-          id: `${d.destination_id}-${index}`,
-          original_id: d.id,
-          title: d.note || "Destination",
-          address: "",
-          image_url: d.url || "",
-          time_slot: slot,
-          date: d.visit_date,
-          time: timeString,
-          type: d.destination_type,
-          order_in_day: d.order_in_day || 0,
-          day: dayIndex >= 1 ? dayIndex : 1,
-        };
-      });
-
-      activities.sort((a, b) => {
-        const dateA = new Date(a.date!).getTime();
-        const dateB = new Date(b.date!).getTime();
-        if (dateA !== dateB) return dateA - dateB;
-
-        return (a.order_in_day || 0) - (b.order_in_day || 0);
-      });
-
-      return {
-        id: p.id,
-        user_id: p.user_id, // Map owner ID
-        destination: p.place_name,
-        date: p.start_date,
-        end_date: p.end_date,
-        budget_limit: p.budget_limit, // ✅ Map budget_limit from backend
-        activities: activities,
-      };
-    });
+    const detailedPlans = await this.getRawPlans();
+    return detailedPlans.map((plan) => this.transformPlanToTravelPlan(plan));
   }
 
   // --- FRIEND ENDPOINTS ---
@@ -842,14 +1141,16 @@ class ApiClient {
     });
   }
 
-  async rejectFriendRequest(friendId: number): Promise<any> {
-    return this.request<void>(`/friends/${friendId}/reject`, {
+  async rejectFriendRequest(friendId: number): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>(`/friends/${friendId}/reject`, {
       method: "DELETE",
     });
   }
 
-  async unfriend(friendId: number): Promise<any> {
-    return this.request(`/friends/${friendId}`, { method: "DELETE" });
+  async unfriend(friendId: number): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>(`/friends/${friendId}`, {
+      method: "DELETE",
+    });
   }
 
   // --- MAP ENDPOINTS ---
@@ -889,7 +1190,7 @@ class ApiClient {
     return res.id;
   }
   async getAllRooms(): Promise<RoomResponse[]> {
-    return this.request<RoomResponse[]>("/rooms/rooms", {
+    return this.request<RoomResponse[]>("/rooms/", {
       method: "GET",
     });
   }
@@ -918,7 +1219,7 @@ class ApiClient {
     name: string,
     memberIds: number[]
   ): Promise<RoomResponse> {
-    return this.request<RoomResponse>("/rooms/rooms", {
+    return this.request<RoomResponse>("/rooms/", {
       method: "POST",
       body: JSON.stringify({
         name: name,
@@ -1077,39 +1378,56 @@ class ApiClient {
   }
 
   // --- ROUTES ---
-  async findOptimalRoutes(
-    origins: Array<{ lat: number; lng: number }>,
-    destinations: Array<{ lat: number; lng: number }>,
-    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train"
-  ): Promise<any> {
-    return this.request<any>("/routes/find-optimal", {
+  async findOptimalRoutes(params: {
+    origin: RouteLocation;
+    destination: RouteLocation;
+    maxTimeRatio?: number;
+    language?: string;
+  }): Promise<FindRoutesResponse> {
+    const { origin, destination, maxTimeRatio = 1.3, language = "vi" } = params;
+
+    return this.request<FindRoutesResponse>("/routes/find-optimal", {
       method: "POST",
       body: JSON.stringify({
-        origins,
-        destinations,
-        transport_mode: transportMode,
+        origin: { lat: origin.lat, lng: origin.lng },
+        destination: { lat: destination.lat, lng: destination.lng },
+        max_time_ratio: maxTimeRatio,
+        language,
       }),
     });
   }
 
+  // Get all plans (basic info only for track page)
+  async getAllPlansBasic(): Promise<{ plans: PlanBasicInfo[] }> {
+    const detailedPlans = await this.getRawPlans();
+    return {
+      plans: detailedPlans.map((plan) => ({
+        id: plan.id,
+        place_name: plan.place_name,
+        budget_limit: plan.budget_limit ?? null,
+      })),
+    };
+  }
+
+  // Get routes for a specific plan
+  async getPlanRoutes(planId: number): Promise<RouteResponse[]> {
+    return this.request<RouteResponse[]>(`/plans/${planId}/routes`, {
+      method: "GET",
+    });
+  }
+
+  // Get plan details with destinations
+  async getPlanDetails(planId: number): Promise<Plan> {
+    return this.request<Plan>(`/plans/${planId}`, {
+      method: "GET",
+    });
+  }
+
   // --- CHATBOT & AI ---
-  async generatePlan(planData: {
-    place_name: string;
-    start_date: string;
-    end_date: string;
-    budget_limit?: number;
-    destinations: Array<{
-      destination_id: string;
-      destination_type: string;
-      visit_date: string;
-      order_in_day: number;
-      time_slot: string;
-      note?: string;
-      estimated_cost?: number;
-      url?: string;
-    }>;
-  }): Promise<any> {
-    return this.request<any>("/chatbot/plan/generate", {
+  async generatePlan(
+    planData: GeneratedPlanPayload
+  ): Promise<PlanGenerationResponse> {
+    return this.request<PlanGenerationResponse>("/chatbot/plan/generate", {
       method: "POST",
       body: JSON.stringify(planData),
     });
@@ -1119,8 +1437,8 @@ class ApiClient {
     userId: number,
     roomId: number,
     message: string
-  ): Promise<any> {
-    return this.request<any>("/chatbot/message", {
+  ): Promise<BotMessageResponse> {
+    return this.request<BotMessageResponse>("/chatbot/message", {
       method: "POST",
       body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
     });
@@ -1144,6 +1462,172 @@ class ApiClient {
       body: formData,
     });
   }
+
+  // --- ADMIN ENDPOINTS ---
+  
+  // List all users with filters (Admin only)
+  async listAllUsers(filters?: UserFilterParams): Promise<AdminUserResponse[]> {
+    const params = new URLSearchParams();
+    if (filters?.role) params.append("role", filters.role);
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.created_from) params.append("created_from", filters.created_from);
+    if (filters?.created_to) params.append("created_to", filters.created_to);
+    if (filters?.skip !== undefined) params.append("skip", String(filters.skip));
+    if (filters?.limit !== undefined) params.append("limit", String(filters.limit));
+    
+    const queryString = params.toString();
+    return this.request<AdminUserResponse[]>(
+      `/users/users${queryString ? `?${queryString}` : ""}`,
+      { method: "GET" }
+    );
+  }
+
+  // Delete user by ID (Admin only)
+  async adminDeleteUser(userId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Add eco points to a user (Admin only)
+  async addEcoPointsToUser(userId: number, points: number): Promise<UserProfile> {
+    return this.request<UserProfile>(
+      `/users/${userId}/eco_point/add?point=${points}`,
+      { method: "POST" }
+    );
+  }
+
+  // Get all reviews (for moderation)
+  async getAllReviews(): Promise<ReviewResponse[]> {
+    return this.request<ReviewResponse[]>("/reviews/me", { method: "GET" });
+  }
+
+  // Get all missions (Admin)
+  async adminGetAllMissions(): Promise<Mission[]> {
+    return this.request<Mission[]>("/rewards/missions", { method: "GET" });
+  }
+
+  // Create mission (Admin only)
+  async createMission(data: {
+    name: string;
+    description: string;
+    reward_type: string;
+    action_trigger: string;
+    value: number;
+  }): Promise<Mission> {
+    return this.request<Mission>("/rewards/missions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Update mission (Admin only)
+  async updateMission(missionId: number, data: {
+    name?: string;
+    description?: string;
+    reward_type?: string;
+    action_trigger?: string;
+    value?: number;
+  }): Promise<Mission> {
+    return this.request<Mission>(`/rewards/missions/${missionId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Delete mission (Admin only)
+  async deleteMission(missionId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/rewards/missions/${missionId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Admin update user password (Admin only)
+  async adminUpdatePassword(userId: number, newPassword: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/users/${userId}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+  }
+
+  // Admin update user role (Admin only)
+  async adminUpdateRole(userId: number, newRole: string): Promise<UserProfile> {
+    return this.request<UserProfile>(`/users/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ new_role: newRole }),
+    });
+  }
+
+  // --- ADMIN DESTINATION/CERTIFICATE ENDPOINTS ---
+
+  // Get all destinations (Admin only)
+  async adminGetAllDestinations(params?: {
+    skip?: number;
+    limit?: number;
+    verified_status?: GreenVerifiedStatus;
+  }): Promise<DestinationWithCertificate[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append("skip", String(params.skip));
+    if (params?.limit !== undefined) queryParams.append("limit", String(params.limit));
+    if (params?.verified_status) queryParams.append("verified_status", params.verified_status);
+    
+    const queryString = queryParams.toString();
+    return this.request<DestinationWithCertificate[]>(
+      `/destinations/admin/all${queryString ? `?${queryString}` : ""}`,
+      { method: "GET" }
+    );
+  }
+
+  // Update destination certificate status (Admin only)
+  async adminUpdateCertificate(
+    destinationId: string,
+    newStatus: GreenVerifiedStatus
+  ): Promise<DestinationWithCertificate> {
+    return this.request<DestinationWithCertificate>(
+      `/destinations/admin/${destinationId}/certificate?new_status=${encodeURIComponent(newStatus)}`,
+      { method: "PUT" }
+    );
+  }
+
+  // Mock: Check destination with external API (not implemented on backend yet)
+  async adminCheckExternalApi(destinationId: string): Promise<ExternalApiCheckResult> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Mock response - randomly pass or fail
+    const passed = Math.random() > 0.3;
+    const score = passed ? Math.random() * 0.3 + 0.7 : Math.random() * 0.5;
+    
+    return {
+      destination_id: destinationId,
+      passed,
+      score,
+      details: passed 
+        ? "External verification passed: Location meets green standards" 
+        : "External verification failed: Insufficient green coverage detected",
+    };
+  }
+
+  // TODO: Implement on backend later
+  // Mock: Check destination with AI verification (not implemented on backend yet)
+  async adminCheckAiVerification(destinationId: string): Promise<AiCheckResult> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Mock response - randomly verify or not
+    const verified = Math.random() > 0.4;
+    const confidence = Math.random() * 0.3 + 0.7;
+    const green_score = verified ? Math.random() * 0.25 + 0.65 : Math.random() * 0.5;
+    
+    return {
+      destination_id: destinationId,
+      verified,
+      confidence,
+      green_score,
+    };
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);
+

@@ -15,7 +15,7 @@ from utils.token.authentication_util import get_current_user
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
 
 
-@router.get("/rooms", response_model=list[RoomResponse], status_code=status.HTTP_200_OK)
+@router.get("/", response_model=list[RoomResponse], status_code=status.HTTP_200_OK)
 async def list_rooms(
     db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
@@ -34,7 +34,7 @@ async def list_direct_rooms(
 
 
 @router.get(
-    "/rooms/{room_id}", response_model=RoomResponse, status_code=status.HTTP_200_OK
+    "/{room_id}", response_model=RoomResponse, status_code=status.HTTP_200_OK
 )
 async def get_room(
     room_id: int = Path(..., gt=0),
@@ -59,7 +59,7 @@ async def get_direct_room(
     )
 
 
-@router.post("/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
 async def create_room(
     room_data: RoomCreate,
     db: AsyncSession = Depends(get_db),
@@ -69,7 +69,7 @@ async def create_room(
 
 
 @router.post(
-    "/rooms/{room_id}/members",
+    "/{room_id}/members",
     response_model=RoomResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -85,7 +85,7 @@ async def add_users_to_room(
 
 
 @router.delete(
-    "/rooms/{room_id}/members",
+    "/{room_id}/members",
     response_model=RoomResponse,
     status_code=status.HTTP_200_OK,
 )

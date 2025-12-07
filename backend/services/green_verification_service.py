@@ -1,136 +1,80 @@
 from fastapi import HTTPException, status
 
-from utils.green_verification.greenness.orchestrator import GreenCoverageOrchestrator
-from schemas.green_verification_schema import (
-    GreenVerificationRequest,
-    GreenVerificationResponse,
-    ImageVerificationResult,
-)
+from backend.models.destination import GreenVerifiedStatus
+from backend.schemas.map_schema import PlaceDataCategory, PlaceDetailsRequest, PlaceDetailsResponse
+from backend.services.map_service import MapService
+from backend.utils.green_verification.orchestrator import GreenCoverageOrchestrator
+from schemas.green_verification_schema import GreenVerificationResponse
 
 
 class GreenVerificationService:
-    """Service for green coverage verification using segmentation and depth analysis."""
-
-    _orchestrator = None
-
+    '''
+    DATA FLOW
+    - use place_id to get place details
+    - Get associated image URLs
+    - For each image URL:
+        - Run segmentation model to get green mask
+        - Run depth model to get depth map
+        - Calculate green coverage metrics
+        - Run cup detection model to find cups
+    - Return results with green scores and status
+    
+    Input: place_id
+    Output: {
+        score: float,
+        tag: GreenVerifiedStatus
+        }
+    '''
+    
     @classmethod
-    def get_orchestrator(cls) -> GreenCoverageOrchestrator:
-        """Get or create singleton orchestrator instance."""
-        if cls._orchestrator is None:
-            try:
-                cls._orchestrator = GreenCoverageOrchestrator(
-                    segmentation_model="best.pt",
-                    depth_model_type="midas_v21_small_256",
-                    depth_model_path=None,
-                    green_threshold=0.3,  # default, can be overridden per request
-                    optimize=True,
-                )
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to initialize green verification orchestrator: {str(e)}"
-                )
-        return cls._orchestrator
-
-    @staticmethod
-    async def verify_images(
-        request: GreenVerificationRequest,
-    ) -> GreenVerificationResponse:
+    async def verify_place_green_coverage(cls, place_id: str) -> List[Dict[str, Any]]:
         """
-        Verify green coverage for a list of image URLs.
+        Verify green coverage for images associated with a place.
 
         Args:
-            request: Contains image URLs and optional threshold
+            place_id: place_id của địa điểm
 
         Returns:
-            GreenVerificationResponse with results and summary
+            List[{ url, green_score, verified }]
         """
-        try:
-            # Get orchestrator
-            orchestrator = GreenVerificationService.get_orchestrator()
 
-            # Override threshold if provided
-            original_threshold = orchestrator.green_threshold
-            if request.green_threshold is not None:
-                orchestrator.green_threshold = request.green_threshold
+        # 1. Fetch place info
+        request = PlaceDetailsRequest(
+            place_id=place_id,
+            categories=[PlaceDataCategory.BASIC]
+        )
 
-            # Process images
-            raw_results = orchestrator.process_image_list(request.image_urls)
+        place_details = await MapService.get_location_details(request)
 
-            # Convert to response format
-            results = [
-                ImageVerificationResult(
-                    url=r["url"],
-                    green_proportion=r["green_proportion"],
-                    depth_weighted=r["depth_weighted"],
-                    green_score=r["green_score"],
-                    verified=r["verified"],
-                    error=r.get("error"),
-                )
-                for r in raw_results
-            ]
+        # 2. Collect image URLs
+        image_urls = [p.photo_url for p in (place_details.photos or []) if p.photo_url]
 
-            # Get summary statistics
-            summary = orchestrator.get_summary_stats(raw_results)
-
-            # Restore original threshold
-            orchestrator.green_threshold = original_threshold
-
-            return GreenVerificationResponse(results=results, summary=summary)
-
-        except RuntimeError as re:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Green verification service unavailable: {str(re)}",
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error verifying images: {str(e)}",
+        # No images → Not Verified, score = 0
+        if not image_urls:
+            return GreenVerificationResponse(
+                green_score=0.0,
+                status=GreenVerifiedStatus.Not_Green_Verified
             )
 
-    @staticmethod
-    async def verify_single_image(
-        image_url: str, green_threshold: float = 0.3
-    ) -> ImageVerificationResult:
-        """
-        Verify green coverage for a single image URL.
+        # 3. Process images directly (bỏ GreenVerificationRequest)
+        orchestrator = GreenCoverageOrchestrator.get_instance()
 
-        Args:
-            image_url: URL of the image to verify
-            green_threshold: Threshold for verification (0-1)
+        scores = []
+        for url in image_urls:
+            res = orchestrator.process_single_image(url)
+            scores.append(res["green_score"])
 
-        Returns:
-            ImageVerificationResult
-        """
-        try:
-            orchestrator = GreenVerificationService.get_orchestrator()
+        # 4. Aggregate score (mean)
+        final_score = sum(scores) / len(scores)
 
-            # Override threshold
-            original_threshold = orchestrator.green_threshold
-            orchestrator.green_threshold = green_threshold
+        # 5. Determine status
+        if final_score >= 0.02:
+            status = GreenVerifiedStatus.AI_Green_Verified
+        else:
+            status = GreenVerifiedStatus.Not_Green_Verified
 
-            # Process single image
-            result = orchestrator.process_single_image(image_url)
-
-            # Restore threshold
-            orchestrator.green_threshold = original_threshold
-
-            return ImageVerificationResult(
-                url=result["url"],
-                green_proportion=result["green_proportion"],
-                depth_weighted=result["depth_weighted"],
-                green_score=result["green_score"],
-                verified=result["verified"],
-                error=result.get("error"),
-            )
-
-        except RuntimeError as re:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Green verification service unavailable: {str(re)}",
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error verifying image: {str(e)}",
-            )
+        # 6. Return final schema
+        return GreenVerificationResponse(
+            green_score=final_score,
+            status=status
+        )

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: Path = Path("etc/secrets/service-account.json")
 
     OPEN_ROUTER_API_KEY: str = ""
+    
+    # Admin setup - set this email to auto-promote first registration to admin
+    FIRST_ADMIN_EMAIL: str = ""
     OPEN_ROUTER_MODEL_NAME: str = "meta-llama/llama-3.3-70b-instruct"
 
     BREEAM_USERNAME: str = ""

@@ -93,12 +93,25 @@ export default function SignupPage() {
         localStorage.setItem("user_id", response.user_id.toString());
       }
 
-      router.replace("/allow_permission/location_permission");
+      localStorage.setItem("user_role", response.role);
+
+      // Redirect to admin page if user is admin
+      if (response.role === "Admin") {
+        router.replace("/admin");
+      } else {
+        router.replace("/allow_permission/location_permission");
+      }
     } catch (err: any) {
       if (err instanceof ApiValidationError) {
         setValidationErrors({
           [err.field]: err.message,
         });
+      } else if (
+        err.message?.includes("already exists") ||
+        err.message?.includes("Failed to create new user") ||
+        err.status === 500
+      ) {
+        setServerError("Username already exists. Please choose another.");
       } else {
         setServerError(getFriendlyErrorMessage(err));
       }
