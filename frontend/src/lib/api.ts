@@ -286,6 +286,58 @@ export interface ApiMessageResponse {
   [key: string]: unknown;
 }
 
+// Route Types for Plans
+export interface RouteForPlanResponse {
+  origin: string; // place_id
+  destination: string; // place_id
+  distance_km: number;
+  estimated_travel_time_min: number;
+  carbon_emission_kg: number;
+  route_polyline: string;
+  transport_mode: string;
+  route_type: string;
+}
+
+// Route Response from backend /plans/{plan_id}/routes
+export interface RouteResponse {
+  plan_id: number;
+  origin_plan_destination_id: number;
+  destination_plan_destination_id: number;
+  distance_km: number;
+  carbon_emission_kg: number;
+}
+
+// Basic plan info for track page
+export interface PlanBasicInfo {
+  id: number;
+  place_name: string;
+  budget_limit: number | null;
+}
+
+// Backend Plan Destination Type (matches PlanDestinationResponse from backend)
+export interface PlanDestinationResponse {
+  id: number;
+  destination_id: string;
+  type: string; // DestinationType
+  order_in_day: number;
+  visit_date: string; // date string
+  estimated_cost?: number | null;
+  url?: string | null;
+  note?: string | null;
+  time_slot: string; // TimeSlot enum as string
+}
+
+// Backend Plan Response Type (matches PlanResponse from backend)
+export interface Plan {
+  id: number;
+  place_name: string;
+  start_date: string; // date string
+  end_date: string; // date string
+  budget_limit: number | null;
+  destinations: PlanDestinationResponse[];
+  route?: RouteForPlanResponse[] | null;
+}
+
 export class ApiValidationError extends Error {
   constructor(public field: string, public message: string) {
     super(message);
@@ -859,6 +911,13 @@ class ApiClient {
     });
   }
 
+  // Get raw plans from backend (for track pages)
+  async getRawPlans(): Promise<Plan[]> {
+    return this.request<Plan[]>("/plans/", {
+      method: "GET",
+    });
+  }
+
   async leavePlan(planId: number): Promise<void> {
     const profile = await this.getUserProfile();
     return this.removePlanMembers(planId, [profile.id]);
@@ -1226,6 +1285,27 @@ class ApiClient {
         max_time_ratio: maxTimeRatio,
         language,
       }),
+    });
+  }
+
+  // Get all plans (basic info only for track page)
+  async getAllPlansBasic(): Promise<{ plans: PlanBasicInfo[] }> {
+    return this.request<{ plans: PlanBasicInfo[] }>("/plans/", {
+      method: "GET",
+    });
+  }
+
+  // Get routes for a specific plan
+  async getPlanRoutes(planId: number): Promise<RouteResponse[]> {
+    return this.request<RouteResponse[]>(`/plans/${planId}/routes`, {
+      method: "GET",
+    });
+  }
+
+  // Get plan details with destinations
+  async getPlanDetails(planId: number): Promise<Plan> {
+    return this.request<Plan>(`/plans/${planId}`, {
+      method: "GET",
     });
   }
 

@@ -2,8 +2,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 
+from schemas.map_schema import Location
 from integration.route_api import create_route_api_client
 from integration.text_generator_api import create_text_generator_api
+from services.map_service import MapService
 from schemas.route_schema import (
     DirectionsRequest,
     FindRoutesRequest,
@@ -16,6 +18,7 @@ from schemas.route_schema import (
     TransportMode,
     TripMetricsResponse,
     WalkingStep,
+    RouteForPlanResponse,
 )
 from services.carbon_service import CarbonService
 from services.map_service import MapService
@@ -279,8 +282,12 @@ class RouteService:
                     await routes.close()
 
             return FindRoutesResponse(
-                origin={"lat": origin.latitude, "lng": origin.longitude},
-                destination={"lat": destination.latitude, "lng": destination.longitude},
+                origin=Location(
+                    lat=origin.latitude, lng=origin.longitude
+                ),
+                destination=Location(
+                    lat=destination.latitude, lng=destination.longitude
+                ),
                 routes=routes_dict,
                 recommendation=recommendation.recommendation,
             )
@@ -528,3 +535,61 @@ Provide a concise recommendation that balances environmental impact and convenie
             total_duration_min=round(total_duration, 0),
             details=route_details,
         )
+
+    @staticmethod
+    async def get_route_for_plan(
+        origin: str, destination: str, transport_mode: TransportMode = TransportMode.car
+) -> List[RouteForPlanResponse]:
+        try:
+            origin_coords = await MapService.get_coordinates(place_id=origin)
+            destination_coords = await MapService.get_coordinates(place_id=destination)
+
+            if not origin_coords or not destination_coords:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Could not retrieve coordinates for origin or destination",
+                )
+
+            result = await RouteService.find_three_optimal_routes(
+                FindRoutesRequest(origin=origin_coords, destination=destination_coords),
+            )
+
+            if not result.routes:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No route found between the specified locations",
+                )
+
+            list_response = []
+            for route_type, route_data in result.routes.items():
+                # Filter by transport_mode if specified and not default
+                if transport_mode != TransportMode.car and transport_mode not in route_data.mode:
+                    continue
+
+                # Extract polyline from the Route object stored in route_details dict
+                polyline = ""
+                if isinstance(route_data.route_details, dict) and "overview_polyline" in route_data.route_details:
+                    polyline = route_data.route_details["overview_polyline"]
+                elif hasattr(route_data.route_details, "overview_polyline"):
+                    polyline = route_data.route_details.overview_polyline
+
+                list_response.append(
+                    RouteForPlanResponse(
+                        origin=origin,
+                        destination=destination,
+                        distance_km=route_data.distance,
+                        estimated_travel_time_min=route_data.duration,
+                        carbon_emission_kg=route_data.carbon,
+                        route_polyline=polyline,
+                        transport_mode=route_data.mode[0] if route_data.mode else transport_mode,
+                        route_type=route_type,
+                    )
+                )
+            return list_response
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get route for plan: {str(e)}",
+            )

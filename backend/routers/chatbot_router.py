@@ -3,7 +3,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from schemas.plan_schema import PlanCreate, PlanUpdate
+from schemas.plan_schema import PlanCreate
 from database.db import get_db
 from schemas.message_schema import ChatMessage
 from services.agents.chatbot_service import ChatbotService

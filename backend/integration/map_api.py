@@ -198,13 +198,19 @@ class MapAPI:
 
             data = response.json()
             if data.get("status") != "OK":
+                print(f"API Error Status: {data.get('status')}, Full response: {data}")
                 raise ValueError(f"Error fetching place details: {data.get('status')}")
             result = data.get("result", {})
+            
+            if not result.get("place_id"):
+                print(f"WARNING: place_id is None in response for place_id={place_id}")
+                print(f"Full result: {result}")
+                print(f"API Status: {data.get('status')}")
 
             return PlaceDetailsResponse(
-                place_id=result.get("place_id"),
-                name=result.get("name"),
-                formatted_address=result.get("formatted_address"),
+                place_id=result.get("place_id") or place_id,  # Fallback to input place_id
+                name=result.get("name") or "",
+                formatted_address=result.get("formatted_address") or "",
                 address_components=[
                     AddressComponent(
                         name=comp.get("long_name"), types=comp.get("types", [])

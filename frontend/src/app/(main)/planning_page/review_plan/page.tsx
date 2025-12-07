@@ -713,8 +713,8 @@ function ReviewPlanContent() {
 
   const [planInfo, setPlanInfo] = useState({
     name: "My Awesome Trip",
-    date: new Date().toISOString(),
-    end_date: new Date().toISOString(),
+    date: new Date().toISOString().split("T")[0], // YYYY-MM-DD format
+    end_date: new Date().toISOString().split("T")[0],
     budget: 0,
   });
 
@@ -1057,10 +1057,11 @@ function ReviewPlanContent() {
       if (storedInfo) {
         try {
           const parsed = JSON.parse(storedInfo);
+          const today = new Date().toISOString().split("T")[0];
           setPlanInfo({
             name: parsed.name || "My Trip",
-            date: parsed.start_date,
-            end_date: parsed.end_date,
+            date: parsed.start_date || today,
+            end_date: parsed.end_date || parsed.start_date || today,
             budget: parsed.budget || 0,
           });
         } catch (e) {
@@ -1718,9 +1719,11 @@ function ReviewPlanContent() {
           }
         }
 
+        const fallbackDate =
+          planInfo.date || new Date().toISOString().split("T")[0];
         const visitDate = act.date
           ? toDateOnlyString(act.date)
-          : toDateOnlyString(new Date(planInfo.date));
+          : toDateOnlyString(new Date(fallbackDate));
 
         const payload = {
           id: 0,
@@ -1752,8 +1755,8 @@ function ReviewPlanContent() {
       // 3. Prepare request payload
       const requestData = {
         place_name: planInfo.name,
-        start_date: planInfo.date,
-        end_date: planInfo.end_date,
+        start_date: planInfo.date || today,
+        end_date: planInfo.end_date || planInfo.date || today,
         budget_limit: Number(budget) > 0 ? Number(budget) : 1,
         destinations: destinationsPayload,
       };
@@ -2027,9 +2030,13 @@ function ReviewPlanContent() {
                   <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
                     <CalendarDays size={16} />{" "}
                     <span>
-                      {new Date(planInfo.date).toLocaleDateString()}
+                      {planInfo.date
+                        ? new Date(planInfo.date).toLocaleDateString()
+                        : "No date"}
                       <span className="mx-2 text-gray-300">→</span>
-                      {new Date(planInfo.end_date).toLocaleDateString()}
+                      {planInfo.end_date
+                        ? new Date(planInfo.end_date).toLocaleDateString()
+                        : "No date"}
                     </span>
                   </p>
                 </div>

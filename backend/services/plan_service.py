@@ -1,20 +1,21 @@
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models.plan import PlanRole, DestinationType, TimeSlot
 from repository.plan_repository import PlanRepository
 from repository.room_repository import RoomRepository
 from repository.message_repository import MessageRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.map_schema import *
 from schemas.plan_schema import *
+from schemas.route_schema import RouteCreate, RouteResponse
 from schemas.room_schema import RoomCreate, RoomMemberCreate
 from schemas.message_schema import RoomContextCreate, CommonMessageResponse
 from services.map_service import MapService
-from services.recommendation_service import RecommendationService
-from utils.nlp.rule_engine import Intent, RuleEngine
-from models.room import RoomType, MemberRole
-from models.plan import PlanDestination
+from services.route_service import RouteService
+from repository.plan_repository import PlanDestination
 
 
 class PlanService:
@@ -39,51 +40,84 @@ class PlanService:
             )
 
     @staticmethod
-    async def get_plans_by_user(db: AsyncSession, user_id: int) -> List[PlanResponse]:
+    async def get_plans_by_user(db: AsyncSession, user_id: int) -> AllPlansResponse:
         try:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if plans is None:
-                return []
-            list_plan_responses = []
-            for plan in plans:
-                destinations = await PlanRepository.get_plan_destinations(db, plan.id)
-                dest_infos = [
-                    PlanDestinationResponse(
-                        id=dest.id,
-                        destination_id=dest.destination_id,
-                        type=dest.type,             
-                        visit_date=dest.visit_date,
-                        time_slot=dest.time_slot,
-                        estimated_cost=dest.estimated_cost,
-                        url=dest.url,
-                        note=dest.note,
-                        order_in_day=dest.order_in_day or 0,
+                return AllPlansResponse(plans=[])
+                
+            return AllPlansResponse(
+                plans=[
+                    PlanResponseBasic(
+                        id=plan.id,
+                        place_name=plan.place_name,
+                        budget_limit=plan.budget_limit,
                     )
-                    for dest in destinations
+                    for plan in plans
                 ]
-                
-                # Find owner
-                owner_id = next((m.user_id for m in plan.members if m.role == PlanRole.owner), user_id)
-                
-                plan_response = PlanResponse(
-                    id=plan.id,
-                    user_id=owner_id,
-                    place_name=plan.place_name,
-                    start_date=plan.start_date,
-                    end_date=plan.end_date,
-                    budget_limit=plan.budget_limit,
-                    destinations=dest_infos,
-                )
-                list_plan_responses.append(plan_response)
-            return list_plan_responses
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving plans for user ID {user_id}: {e}",
             )
+            
+    @staticmethod
+    async def get_plan_by_id(db: AsyncSession,user_id: int, plan_id: int) -> PlanResponse:
+        try:
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Plan with ID {plan_id} not found",
+                )
+            
+            destinations = await PlanRepository.get_plan_destinations(db, plan.id)
+            dest_infos = [
+                PlanDestinationResponse(
+                    id=dest.id,
+                    destination_id=dest.destination_id,
+                    type=dest.type,             
+                    visit_date=dest.visit_date,
+                    time_slot=dest.time_slot,
+                    estimated_cost=dest.estimated_cost,
+                    url=dest.url,
+                    note=dest.note,
+                    order_in_day=dest.order_in_day or 0,
+                )
+                for dest in destinations
+            ]
+            
+            # Find owner
+            owner_id = next((m.user_id for m in plan.members if m.role == PlanRole.owner), None)
+            
+            return PlanResponse(
+                id=plan.id,
+                user_id=owner_id,
+                place_name=plan.place_name,
+                start_date=plan.start_date,
+                end_date=plan.end_date,
+                budget_limit=plan.budget_limit,
+                destinations=dest_infos,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving plan ID {plan_id}: {e}",
+            )
 
     @staticmethod
-    async def create_plan(db: AsyncSession, user_id: int, plan_data: PlanCreate) -> PlanResponse:
+    async def create_plan(
+        db: AsyncSession, user_id: int, plan_data: PlanCreate
+    ) -> PlanResponse:
         try:
             # 1. Tạo Plan
             new_plan = await PlanRepository.create_plan(db, plan_data)
@@ -102,19 +136,34 @@ class PlanService:
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info.place_id)  # ✅ Sửa: truyền place_id thay vì object
-                    
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
+
                     # Update URL ảnh nếu thiếu
-                    if not dest_data.url and place_info.photos:
+                    if place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
+                    
+                    # Sau đó mới thêm vào Plan
+                    await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    
                 except Exception as e:
-                    print(f"Warning syncing destination {dest_data.destination_id}: {e}")
-                
-                # Sau đó mới thêm vào Plan
-                await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    print(
+                        f"❌ ERROR: Failed to add destination {dest_data.destination_id}: {e}"
+                    )
+                    print(f"   Skipping this destination and continuing with others...")
+                    continue
 
             # 4. Return
-            saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
+            saved_destinations = await PlanRepository.get_plan_destinations(
+                db, new_plan.id
+            )
+            
+            list_route = []
+            for i in range(len(saved_destinations) - 1):
+                origin = saved_destinations[i].destination_id
+                destination = saved_destinations[i + 1].destination_id
+                routes = await RouteService.get_route_for_plan(origin, destination)
+                list_route.extend(routes)
+            
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -126,16 +175,18 @@ class PlanService:
                     PlanDestinationResponse(
                         id=dest.id,
                         destination_id=dest.destination_id,
+                        destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time_slot=dest.time_slot,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in saved_destinations
                 ],
+                route=list_route,
             )
         except HTTPException:
             raise
@@ -143,37 +194,47 @@ class PlanService:
             raise HTTPException(status_code=500, detail=f"Error creating plan: {e}")
 
     @staticmethod
-    async def update_plan(db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate):
+    async def update_plan(
+        db: AsyncSession, user_id: int, plan_id: int, updated_data: PlanUpdate
+    ):
         try:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if not plans or not any(p.id == plan_id for p in plans):
                 raise HTTPException(status_code=404, detail="Plan not found")
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
-            
+
             # ✅ DELETE OLD DESTINATIONS FIRST
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
-            print(f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations")
-            
             # ✅ ADD NEW DESTINATIONS
-            for i, dest_data in enumerate(updated_data.destinations or []):
+            for dest_data in updated_data.destinations:
                 try:
-                    print(f"  📍 Adding destination {i+1}: {dest_data.destination_id}")
                     place_info = await MapService.get_location_details(
                         PlaceDetailsRequest(place_id=dest_data.destination_id)
                     )
-                    await PlanRepository.ensure_destination(db, place_info.place_id)  # ✅ Sửa: truyền place_id thay vì object
+                    await PlanRepository.ensure_destination(db, place_info.place_id)
+                    if place_info.photos:
+                        dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
-                    print(f"  ⚠️ Warning syncing destination {dest_data.destination_id}: {e}")
-                    pass
-                
-                result = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
-                print(f"  ✅ Added destination {dest_data.destination_id} with ID {result.id if result else 'FAILED'}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Error syncing destination {dest_data.destination_id}: {e}",
+                    )
 
-            saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
-            print(f"✅ SAVED {len(saved_destinations)} destinations to plan {plan_id}")
-            
+                await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
+
+            saved_destinations = await PlanRepository.get_plan_destinations(
+                db, updated_plan.id
+            )
+
+            list_route = []
+            for i in range(len(saved_destinations) - 1):
+                origin = saved_destinations[i].destination_id
+                destination = saved_destinations[i + 1].destination_id
+                routes = await RouteService.get_route_for_plan(origin, destination)
+                list_route.extend(routes)
+
             return PlanResponse(
                 id=updated_plan.id,
                 user_id=user_id,
@@ -185,17 +246,21 @@ class PlanService:
                     PlanDestinationResponse(
                         id=dest.id,
                         destination_id=dest.destination_id,
+                        destination_type=dest.type,
                         type=dest.type,
                         visit_date=dest.visit_date,
-                        time_slot=dest.time_slot,
                         estimated_cost=dest.estimated_cost,
                         url=dest.url,
                         note=dest.note,
                         order_in_day=dest.order_in_day or 0,
+                        time_slot=dest.time_slot,
                     )
                     for dest in saved_destinations
                 ],
+                route=list_route,
             )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error: {e}")
 
@@ -213,8 +278,8 @@ class PlanService:
             success = await PlanRepository.delete_plan(db, plan_id)
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to delete")
-            
-            return {"message": "Plan deleted successfully"} 
+
+            return {"message": "Plan deleted successfully"}
         except HTTPException:
             raise
         except Exception as e:
@@ -251,6 +316,7 @@ class PlanService:
                     estimated_cost=dest.estimated_cost,
                     url=dest.url,
                     note=dest.note,
+                    time_slot=dest.time_slot,
                 )
                 for dest in destinations
             ]
@@ -311,6 +377,7 @@ class PlanService:
                 url=plan_dest.url,
                 note=plan_dest.note,
                 order_in_day=plan_dest.order_in_day,
+                time_slot=plan_dest.time_slot,
             )
         except HTTPException:
             raise
@@ -340,27 +407,19 @@ class PlanService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Plan with ID {plan_id} not found",
                 )
-            
-            plan_members = await PlanRepository.get_plan_members(db, plan_id)
-            
-            # ✅ Load user details for each member
-            from repository.user_repository import UserRepository
-            
-            member_details = []
-            for member in plan_members:
-                user = await UserRepository.get_user_by_id(db, member.user_id)
-                member_details.append(
+            user_plans = await PlanRepository.get_plan_members(db, plan_id)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
                     PlanMemberDetailResponse(
                         user_id=member.user_id,
-                        plan_id=member.plan_id,
+                        plan_id=plan_id,
                         role=member.role,
                         joined_at=member.joined_at,
-                        username=user.username if user else None,
-                        email=user.email if user else None
                     )
-                )
-            
-            return PlanMemberResponse(plan_id=plan_id, members=member_details)
+                    for member in user_plans
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -389,18 +448,28 @@ class PlanService:
                 )
 
             duplicates = []
-            for id in data.ids:
-                if await PlanService.is_member(db, id, plan_id):
-                    duplicates.append(id)
+            for member in data.ids:
+                if await PlanService.is_member(db, member.user_id, plan_id):
+                    duplicates.append(member.user_id)
                     continue
                 await PlanRepository.add_plan_member(
                     db,
                     plan_id,
-                    PlanMemberCreate(user_id=id, role=PlanRole.member),
+                    PlanMemberCreate(user_id=member.user_id, role=member.role),
                 )
             users = await PlanRepository.get_plan_members(db, plan_id)
-            list_ids = [user.user_id for user in users]
-            return PlanMemberResponse(plan_id=plan_id, ids=list_ids)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=user.user_id,
+                        plan_id=plan_id,
+                        role=user.role,
+                        joined_at=user.joined_at,
+                    )
+                    for user in users
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -412,7 +481,7 @@ class PlanService:
     @staticmethod
     async def remove_plan_member(
         db: AsyncSession, user_id: int, plan_id: int, data: MemberDelete
-    ) -> CommonMessageResponse:
+    ) -> PlanMemberResponse:
         try:
             plan = await PlanRepository.get_plan_by_id(db, plan_id)
             if not plan:
@@ -422,45 +491,36 @@ class PlanService:
                 )
 
             is_owner = await PlanRepository.is_plan_owner(db, user_id, plan_id)
-            
-            removed_count = 0
+            if not is_owner:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the owner can remove members from the plan",
+                )
+
             ids_not_in_plan = []
             for member_id in data.ids:
-                # Check permissions:
-                # - Owner can kick any member (except themselves)
-                # - Member can only leave (remove themselves)
-                is_self_removal = (member_id == user_id)
-                
-                if not is_owner and not is_self_removal:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You can only remove yourself from the plan",
-                    )
-                
-                # Owner cannot be removed
-                is_member_owner = await PlanRepository.is_plan_owner(db, member_id, plan_id)
+                is_member_owner = await PlanRepository.is_plan_owner(
+                    db, member_id, plan_id
+                )
                 if is_member_owner:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Owner cannot be removed from the plan",
-                    )
-                
-                # Check if member exists in plan
+                    continue
                 if not await PlanService.is_member(db, member_id, plan_id):
                     ids_not_in_plan.append(member_id)
                     continue
-                
-                # Remove member
                 await PlanRepository.remove_plan_member(db, plan_id, member_id)
-                removed_count += 1
-            
-            # Return success message
-            if removed_count == 1:
-                message = "Member removed successfully" if is_owner else "You have left the plan successfully"
-            else:
-                message = f"{removed_count} members removed successfully"
-            
-            return CommonMessageResponse(message=message)
+            users = await PlanService.get_plan_members(db, plan_id)
+            return PlanMemberResponse(
+                plan_id=plan_id,
+                members=[
+                    PlanMemberDetailResponse(
+                        user_id=user.user_id,
+                        plan_id=plan_id,
+                        role=user.role,
+                        joined_at=user.joined_at,
+                    )
+                    for user in users.members
+                ],
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -551,3 +611,136 @@ class PlanService:
 
         sorted_destinations = sorted(destinations, key=get_sort_key)
         return sorted_destinations
+
+    @staticmethod
+    async def create_route(
+        db: AsyncSession, user_id: int, route_data: RouteCreate
+    ) -> RouteResponse:
+        """Create a new route between two destinations in a plan"""
+        try:
+            # Check if user is member of the plan
+            is_member = await PlanRepository.is_member(db, user_id, route_data.plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only plan members can create routes",
+                )
+
+            # Verify both plan destinations exist and belong to the plan
+            origin = await PlanRepository.get_plan_destination_by_id(
+                db, route_data.origin_plan_destination_id
+            )
+            destination = await PlanRepository.get_plan_destination_by_id(
+                db, route_data.destination_plan_destination_id
+            )
+
+            if not origin or origin.plan_id != route_data.plan_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Origin destination not found in plan {route_data.plan_id}",
+                )
+
+            if not destination or destination.plan_id != route_data.plan_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Destination not found in plan {route_data.plan_id}",
+                )
+
+            # Create the route
+            new_route = await PlanRepository.create_route(db, route_data)
+            if not new_route:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create route",
+                )
+
+            return RouteResponse(
+                plan_id=new_route.plan_id,
+                origin_plan_destination_id=new_route.origin_place_id,
+                destination_plan_destination_id=new_route.destination_place_id,
+                distance_km=new_route.distance_km,
+                carbon_emission_kg=new_route.carbon_emission_kg,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error creating route: {e}",
+            )
+
+    @staticmethod
+    async def get_all_routes_by_plan_id(
+        db: AsyncSession, user_id: int, plan_id: int
+    ) -> List[RouteResponse]:
+        """Get all routes for a specific plan"""
+        try:
+            # Check if user is member
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+
+            routes = await PlanRepository.get_all_routes_by_plan_id(db, plan_id)
+            
+            return [
+                RouteResponse(
+                    plan_id=route.plan_id,
+                    origin_plan_destination_id=route.origin_place_id,
+                    destination_plan_destination_id=route.destination_place_id,
+                    distance_km=route.distance_km,
+                    carbon_emission_kg=route.carbon_emission_kg,
+                )
+                for route in routes
+            ]
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving routes: {e}",
+            )
+
+    @staticmethod
+    async def get_route_by_origin_and_destination(
+        db: AsyncSession,
+        user_id: int,
+        plan_id: int,
+        origin_plan_destination_id: int,
+        destination_plan_destination_id: int,
+    ) -> RouteResponse:
+        """Get a specific route between two destinations"""
+        try:
+            # Check if user is member
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+
+            route = await PlanRepository.get_route_by_origin_and_destination(
+                db, plan_id, origin_plan_destination_id, destination_plan_destination_id
+            )
+            if not route:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Route not found between destinations {origin_plan_destination_id} and {destination_plan_destination_id}",
+                )
+
+            return RouteResponse(
+                plan_id=route.plan_id,
+                origin_plan_destination_id=route.origin_place_id,
+                destination_plan_destination_id=route.destination_place_id,
+                distance_km=route.distance_km,
+                carbon_emission_kg=route.carbon_emission_kg,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving route: {e}",
+            )
