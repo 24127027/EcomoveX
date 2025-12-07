@@ -20,7 +20,7 @@ class RoomUpdate(BaseModel):
 
 class RoomResponse(BaseModel):
     id: int
-    name: Optional[str] = None
+    name: str  # Required field since RoomCreate requires it
     avatar_blob_name: Optional[str] = None
     room_type: RoomType
     created_at: datetime

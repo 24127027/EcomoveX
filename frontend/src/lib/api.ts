@@ -1138,7 +1138,7 @@ class ApiClient {
     return res.id;
   }
   async getAllRooms(): Promise<RoomResponse[]> {
-    return this.request<RoomResponse[]>("/rooms/rooms", {
+    return this.request<RoomResponse[]>("/rooms/", {
       method: "GET",
     });
   }
@@ -1167,7 +1167,7 @@ class ApiClient {
     name: string,
     memberIds: number[]
   ): Promise<RoomResponse> {
-    return this.request<RoomResponse>("/rooms/rooms", {
+    return this.request<RoomResponse>("/rooms/", {
       method: "POST",
       body: JSON.stringify({
         name: name,

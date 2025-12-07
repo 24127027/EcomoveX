@@ -1,14 +1,13 @@
-from typing import Any, Dict
-
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
+from schemas.cluster_schema import ClusteringResultResponse
 from services.cluster_service import ClusterService
 
 router = APIRouter(prefix="/clustering", tags=["clustering"])
 
 
-@router.post("/run", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post("/run", response_model=ClusteringResultResponse, status_code=status.HTTP_200_OK)
 async def trigger_clustering(db: AsyncSession = Depends(get_db)):
     return await ClusterService.run_user_clustering(db)

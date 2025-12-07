@@ -11,7 +11,6 @@ from schemas.recommendation_schema import RecommendationResponse, Recommendation
 from schemas.destination_schema import DestinationCreate
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
-from services.map_service import MapService
 from schemas.map_schema import (
     TextSearchRequest,
     Location,
@@ -73,65 +72,68 @@ class RecommendationService:
         if not is_index_ready():
             raise RuntimeError("FAISS index is not available.")
 
+    '''Change to receive TextSearchResponse and user_id'''
     @staticmethod
     async def sort_recommendations_by_user_cluster_affinity(
-        db: AsyncSession, user_id: int, recommendations: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        db: AsyncSession, user_id: int, response: TextSearchResponse
+    ) -> TextSearchResponse:
         try:
-            if not recommendations:
-                return []
+            if not response or not response.results:
+                return response
 
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
-
             if user_cluster is None:
-                return recommendations
+                return response
 
-            cluster_vector = await ClusterService.compute_cluster_embedding(
-                db, user_cluster
-            )
+            cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
             if cluster_vector is None:
-                return recommendations
+                return response
 
-            destination_ids = [rec["destination_id"] for rec in recommendations]
-            embeddings_list: Union[List[DestinationEmbedding], Dict[str, Any]] = (
-                await DestinationRepository.get_embeddings_by_ids(db, destination_ids)
-            )
+            place_ids = [p.place_id for p in response.results]
+            embeddings_list = await DestinationRepository.get_embeddings_by_ids(db, place_ids)
 
-            dest_embeddings: Dict[str, List[float]] = {}
+            # Chuẩn hoá embeddings
+            dest_embeddings = {}
             if isinstance(embeddings_list, list):
                 for emb in embeddings_list:
                     dest_embeddings[emb.destination_id] = emb.get_vector()
-            elif isinstance(embeddings_list, dict):
+            else:
                 dest_embeddings = embeddings_list
 
             cluster_vec = np.array(cluster_vector, dtype=np.float32)
 
-            for rec in recommendations:
-                dest_id = rec["destination_id"]
-                if dest_id in dest_embeddings:
-                    dest_vec = np.array(dest_embeddings[dest_id], dtype=np.float32)
+            #  Tạo một map: id → affinity (không chạm vào object)
+            affinities = {}
+
+            for place in response.results:
+                if place.place_id in dest_embeddings:
+                    dest_vec = np.array(dest_embeddings[place.place_id], dtype=np.float32)
                     affinity = float(
                         np.dot(cluster_vec, dest_vec)
-                        / (
-                            np.linalg.norm(cluster_vec) * np.linalg.norm(dest_vec)
-                            + 1e-8
-                        )
+                        / (np.linalg.norm(cluster_vec) * np.linalg.norm(dest_vec) + 1e-8)
                     )
-                    rec["cluster_affinity"] = affinity
                 else:
-                    rec["cluster_affinity"] = 0.0
+                    affinity = 0.0
 
-            recommendations.sort(
-                key=lambda x: x.get("cluster_affinity", 0), reverse=True
+                affinities[place.place_id] = affinity
+
+            #  Sort kết quả theo map affinity
+            response.results.sort(
+                key=lambda p: affinities.get(p.place_id, 0.0),
+                reverse=True
             )
 
-            return recommendations
+            return response
 
         except Exception as e:
+            print(f"Error in sort_recommendations_by_user_cluster_affinity: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error sorting recommendations by user cluster: {str(e)}",
+                detail=f"Error sorting recommendations by user cluster: {type(e).__name__}: {str(e)}",
             )
+
 
     @staticmethod
     async def recommend_for_user(
@@ -229,6 +231,9 @@ class RecommendationService:
         k: int = 10,
     ) -> List[Dict[str, Any]]:
         try:
+            # Import here to avoid circular import
+            from services.map_service import MapService
+            
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
             cluster_categories: List[str] = []
 
@@ -250,7 +255,8 @@ class RecommendationService:
                     search_request = TextSearchRequest(
                         query=category, location=current_location, radius=radius_meters
                     )
-                    result = await MapService.text_search_place(db, search_request)
+                    # Use MapService.text_search_place instead
+                    result = await MapService.text_search_place(db, search_request, user_id)
                     if result:
                         search_results.append(result)
                 except Exception as e:
