@@ -28,10 +28,10 @@ export function MobileNavMenu({
   const pathname = usePathname();
 
   const containerPosition =
-    positionClassName || "fixed bottom-0 left-1/2 -translate-x-1/2 z-50";
+    positionClassName || "fixed bottom-6 left-1/2 -translate-x-1/2 z-50";
 
   return (
-    <div className={`${containerPosition} px-4 sm:px-0 ${className}`}>
+    <div className={`${containerPosition} w-full px-4 sm:px-0 ${className}`}>
       <nav
         className="flex items-center justify-between gap-6 rounded-full bg-white px-6 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)] ring-1 ring-black/5 backdrop-blur-sm"
         aria-label="Primary navigation"
