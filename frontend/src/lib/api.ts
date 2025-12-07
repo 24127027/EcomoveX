@@ -1609,6 +1609,7 @@ class ApiClient {
     };
   }
 
+  // TODO: Implement on backend later
   // Mock: Check destination with AI verification (not implemented on backend yet)
   async adminCheckAiVerification(destinationId: string): Promise<AiCheckResult> {
     // Simulate API delay
