@@ -30,6 +30,15 @@ class MissionRepository:
             return None
 
     @staticmethod
+    async def get_mission_by_name(db: AsyncSession, name: str):
+        try:
+            result = await db.execute(select(Mission).where(Mission.name == name))
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching mission with name {name} - {e}")
+            return None
+
+    @staticmethod
     async def create_mission(db: AsyncSession, mission_data: MissionCreate):
         try:
             new_mission = Mission(

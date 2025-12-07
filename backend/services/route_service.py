@@ -505,10 +505,10 @@ Provide a concise recommendation that balances environmental impact and convenie
                 continue
 
             air_distance = RouteService._haversine_distance(
-                start_coords["lat"],
-                start_coords["lng"],
-                end_coords["lat"],
-                end_coords["lng"],
+                start_coords.latitude,
+                start_coords.longitude,
+                end_coords.latitude,
+                end_coords.longitude,
             )
 
             estimated_km = air_distance * ROAD_FACTOR
