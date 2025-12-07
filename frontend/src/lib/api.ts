@@ -25,6 +25,7 @@ interface AuthResponse {
   user_id: number;
   username: string;
   email: string;
+  role?: "Admin" | "User" | string;
 }
 
 interface ValidationError {
@@ -62,10 +63,73 @@ export interface Position {
   lng: number;
 }
 
+export type TransportModeType =
+  | "car"
+  | "motorbike"
+  | "walking"
+  | "metro"
+  | "bus"
+  | "train";
+
+export interface RouteLocation {
+  lat: number;
+  lng: number;
+}
+
+export type RouteTypeOption = "fastest" | "low_carbon" | "smart_combination";
+
+export interface RouteStepDetails {
+  distance: number;
+  duration: number;
+  start_location: Position;
+  end_location: Position;
+  travel_mode: TransportModeType;
+  polyline?: string;
+}
+
+export interface RouteLegDetails {
+  distance: number;
+  duration: number;
+  steps: RouteStepDetails[];
+}
+
+export interface RouteDetails {
+  overview_polyline: string;
+  legs: RouteLegDetails[];
+}
+
+export interface RouteOption {
+  type: RouteTypeOption | string;
+  mode: TransportModeType[];
+  distance: number;
+  duration: number;
+  carbon: number;
+  route_details: RouteDetails;
+}
+
+export interface FindRoutesResponse {
+  origin: RouteLocation;
+  destination: RouteLocation;
+  routes: Record<RouteTypeOption | string, RouteOption>;
+  recommendation: string;
+}
+
 // --- NEW TEXT SEARCH TYPES START ---
 export interface LocalizedText {
   text: string;
   languageCode?: string;
+}
+
+export interface AutocompleteMatchedSubstring {
+  length: number;
+  offset: number;
+}
+
+export interface AutocompleteStructuredFormatting {
+  main_text: string;
+  secondary_text?: string;
+  main_text_matched_substrings?: AutocompleteMatchedSubstring[];
+  secondary_text_matched_substrings?: AutocompleteMatchedSubstring[];
 }
 
 export interface PhotoInfo {
@@ -122,9 +186,9 @@ export interface AutocompleteRequest {
 export interface AutocompletePrediction {
   place_id: string;
   description: string;
-  structured_formatting?: Record<string, any>;
+  structured_formatting?: AutocompleteStructuredFormatting;
   types: string[];
-  matched_substrings?: Array<Record<string, any>>;
+  matched_substrings?: AutocompleteMatchedSubstring[];
   distance?: number;
 }
 
@@ -154,7 +218,7 @@ export interface PlaceDetails {
   price_level?: number;
   opening_hours?: {
     open_now: boolean;
-    periods?: Array<Record<string, any>>;
+    periods?: OpeningHoursPeriod[];
     weekday_text?: string[];
   };
   website?: string;
@@ -163,9 +227,28 @@ export interface PlaceDetails {
     width: number;
     height: number;
   }>;
-  reviews?: Array<Record<string, any>>;
+  reviews?: PlaceReview[];
   utc_offset?: number;
   sustainable_certified: boolean;
+}
+
+export interface OpeningHoursPeriodEndpoint {
+  day: number;
+  time: string;
+}
+
+export interface OpeningHoursPeriod {
+  open: OpeningHoursPeriodEndpoint;
+  close?: OpeningHoursPeriodEndpoint;
+}
+
+export interface PlaceReview {
+  author_name: string;
+  rating: number;
+  relative_time_description?: string;
+  text?: string;
+  time?: number;
+  profile_photo_url?: string;
 }
 
 export interface ReverseGeocodeResponse {
@@ -196,6 +279,13 @@ export interface UploadResponse {
   filename: string;
 }
 
+export interface ApiMessageResponse {
+  detail?: string;
+  message?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
 // Route Types for Plans
 export interface RouteForPlanResponse {
   origin: string; // place_id
@@ -224,11 +314,16 @@ export interface PlanBasicInfo {
   budget_limit: number | null;
 }
 
+type PlanListResponse =
+  | { plans: Array<number | PlanBasicInfo> }
+  | Array<number | PlanBasicInfo>;
+
 // Backend Plan Destination Type (matches PlanDestinationResponse from backend)
 export interface PlanDestinationResponse {
   id: number;
   destination_id: string;
   type: string; // DestinationType
+  destination_type?: string; // legacy support from older responses
   order_in_day: number;
   visit_date: string; // date string
   estimated_cost?: number | null;
@@ -240,6 +335,7 @@ export interface PlanDestinationResponse {
 // Backend Plan Response Type (matches PlanResponse from backend)
 export interface Plan {
   id: number;
+  user_id: number;
   place_name: string;
   start_date: string; // date string
   end_date: string; // date string
@@ -381,6 +477,7 @@ export interface AddMemberRequest {
 export interface PlanActivity {
   id: number | string;
   original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
+  destination_id?: string; // ✅ Preserve Google Place ID for routing / maps
   title: string;
   address: string;
   image_url: string;
@@ -390,6 +487,8 @@ export interface PlanActivity {
   order_in_day?: number;
   time?: string;
   day?: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface TravelPlan {
@@ -409,7 +508,7 @@ export interface PlanDestinationCreate {
   destination_type: string;
   order_in_day: number;
   visit_date: string;
-  time_slot: "morning" | "afternoon" | "evening"; // ✅ Lowercase để match backend enum
+  time_slot: "morning" | "afternoon" | "evening";
   estimated_cost?: number;
   url?: string;
   note?: string;
@@ -428,6 +527,38 @@ export interface UpdatePlanRequest {
   end_date?: string;
   budget_limit?: number;
   destinations?: PlanDestinationCreate[];
+}
+
+export interface PlanGenerationDestination {
+  destination_id: string;
+  destination_type: string;
+  visit_date: string;
+  order_in_day: number;
+  time_slot: string;
+  note?: string;
+  estimated_cost?: number;
+  url?: string;
+}
+
+export interface GeneratedPlanPayload {
+  place_name: string;
+  start_date: string;
+  end_date: string;
+  budget_limit?: number;
+  destinations: PlanGenerationDestination[];
+}
+
+export interface PlanGenerationResponse {
+  success: boolean;
+  message?: string;
+  detail?: string;
+  plan?: GeneratedPlanPayload;
+  warnings?: string[];
+}
+
+export interface BotMessageResponse {
+  message?: string;
+  detail?: string;
 }
 
 export interface DestinationCard {
@@ -554,8 +685,8 @@ class ApiClient {
     }
   }
 
-  async getCurrentUser(): Promise<any> {
-    return this.request("/auth/me", { method: "GET" });
+  async getCurrentUser(): Promise<UserProfile> {
+    return this.request<UserProfile>("/auth/me", { method: "GET" });
   }
 
   async resetPassword(email: string): Promise<void> {
@@ -572,10 +703,13 @@ class ApiClient {
     });
   }
 
-  async saveDestination(destinationId: string): Promise<any> {
-    return this.request(`/destinations/saved/${destinationId}`, {
-      method: "POST",
-    });
+  async saveDestination(destinationId: string): Promise<SavedDestination> {
+    return this.request<SavedDestination>(
+      `/destinations/saved/${destinationId}`,
+      {
+        method: "POST",
+      }
+    );
   }
 
   async unsaveDestination(destinationId: string): Promise<void> {
@@ -620,8 +754,10 @@ class ApiClient {
     });
   }
 
-  async updateCredentials(data: UserCredentialUpdate): Promise<any> {
-    return this.request("/users/me/credentials", {
+  async updateCredentials(
+    data: UserCredentialUpdate
+  ): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>("/users/me/credentials", {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -643,6 +779,128 @@ class ApiClient {
     });
   }
   // --- PLAN ENDPOINTS ---
+  private extractPlanIdsFromPayload(
+    payload: PlanListResponse | null | undefined
+  ): number[] {
+    if (!payload) return [];
+    const planArray = Array.isArray(payload) ? payload : payload.plans;
+    if (!Array.isArray(planArray)) return [];
+
+    const ids = planArray
+      .map((plan) => {
+        if (typeof plan === "number") {
+          return plan;
+        }
+
+        if (plan && typeof plan === "object" && "id" in plan) {
+          const typedPlan = plan as PlanBasicInfo;
+          return typeof typedPlan.id === "number" ? typedPlan.id : null;
+        }
+
+        return null;
+      })
+      .filter((id): id is number => typeof id === "number");
+
+    return Array.from(new Set(ids));
+  }
+
+  private async fetchPlanIdsFromApi(): Promise<number[]> {
+    try {
+      const response = await this.request<PlanListResponse>("/plans/", {
+        method: "GET",
+      });
+      return this.extractPlanIdsFromPayload(response);
+    } catch (error) {
+      console.error("Failed to fetch plan IDs", error);
+      return [];
+    }
+  }
+
+  private async fetchPlansByIds(planIds: number[]): Promise<Plan[]> {
+    if (!planIds.length) {
+      return [];
+    }
+
+    const planPromises = planIds.map(async (planId) => {
+      try {
+        return await this.getPlanDetails(planId);
+      } catch (error) {
+        console.error(`Failed to fetch plan ${planId}`, error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(planPromises);
+    return results.filter((plan): plan is Plan => Boolean(plan));
+  }
+
+  private transformPlanToTravelPlan(plan: Plan): TravelPlan {
+    const planStartDate = new Date(`${plan.start_date}T00:00:00`);
+
+    const normalizeTimeSlot = (
+      slot: string
+    ): "Morning" | "Afternoon" | "Evening" => {
+      const lower = (slot || "morning").toLowerCase();
+      if (lower === "afternoon") return "Afternoon";
+      if (lower === "evening") return "Evening";
+      return "Morning";
+    };
+
+    const activities = (plan.destinations || []).map((d, index) => {
+      const dateObj = new Date(d.visit_date);
+      const slot = normalizeTimeSlot(d.time_slot || "morning");
+
+      const timeString = dateObj.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const actDateOnly = new Date(dateObj);
+      actDateOnly.setHours(0, 0, 0, 0);
+
+      const baseDate = new Date(planStartDate);
+      baseDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.round(
+        (actDateOnly.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const dayIndex = diffDays + 1;
+
+      return {
+        id: `${d.destination_id}-${index}`,
+        original_id: d.id,
+        destination_id: d.destination_id,
+        title: d.note || "Destination",
+        address: "",
+        image_url: d.url || "",
+        time_slot: slot,
+        date: d.visit_date,
+        time: timeString,
+        type: d.type || d.destination_type || "",
+        order_in_day: d.order_in_day ?? 0,
+        day: dayIndex >= 1 ? dayIndex : 1,
+      };
+    });
+
+    activities.sort((a, b) => {
+      const dateA = new Date(a.date!).getTime();
+      const dateB = new Date(b.date!).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+
+      return (a.order_in_day || 0) - (b.order_in_day || 0);
+    });
+
+    return {
+      id: plan.id,
+      user_id: plan.user_id,
+      destination: plan.place_name,
+      date: plan.start_date,
+      end_date: plan.end_date,
+      budget_limit: plan.budget_limit ?? undefined,
+      activities,
+    };
+  }
+
   async createPlan(request: CreatePlanRequest): Promise<PlanResponse> {
     return this.request<PlanResponse>("/plans/", {
       method: "POST",
@@ -658,8 +916,8 @@ class ApiClient {
   async addDestinationToPlan(
     planId: number,
     data: PlanDestination
-  ): Promise<any> {
-    return this.request(`/plans/${planId}/destinations`, {
+  ): Promise<PlanDestination> {
+    return this.request<PlanDestination>(`/plans/${planId}/destinations`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -668,8 +926,8 @@ class ApiClient {
     destinationId: string | number,
     planId: number,
     data: { note?: string; visit_date?: string }
-  ): Promise<any> {
-    return this.request(
+  ): Promise<PlanDestination> {
+    return this.request<PlanDestination>(
       `/plans/destinations/${destinationId}?plan_id=${planId}`,
       {
         method: "PUT",
@@ -783,9 +1041,8 @@ class ApiClient {
 
   // Get raw plans from backend (for track pages)
   async getRawPlans(): Promise<Plan[]> {
-    return this.request<Plan[]>("/plans/", {
-      method: "GET",
-    });
+    const planIds = await this.fetchPlanIdsFromApi();
+    return this.fetchPlansByIds(planIds);
   }
 
   async leavePlan(planId: number): Promise<void> {
@@ -794,77 +1051,8 @@ class ApiClient {
   }
 
   async getPlans(): Promise<TravelPlan[]> {
-    const plans = await this.request<PlanResponse[]>("/plans/", {
-      method: "GET",
-    });
-
-    return plans.map((p) => {
-      // Chuẩn hóa ngày bắt đầu chuyến đi về 00:00:00 để tính toán chính xác
-      const planStartDate = new Date(`${p.start_date}T00:00:00`);
-
-      const activities = p.destinations.map((d, index) => {
-        const dateObj = new Date(d.visit_date);
-
-        // ✅ Convert backend lowercase time_slot sang capitalize cho frontend
-        const normalizeTimeSlot = (
-          slot: string
-        ): "Morning" | "Afternoon" | "Evening" => {
-          const lower = slot.toLowerCase();
-          if (lower === "afternoon") return "Afternoon";
-          if (lower === "evening") return "Evening";
-          return "Morning";
-        };
-        const slot = normalizeTimeSlot(d.time_slot || "morning");
-
-        const timeString = dateObj.toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        // [MỚI] Logic tính thứ tự ngày (Day 1, Day 2...)
-        const actDateOnly = new Date(dateObj);
-        actDateOnly.setHours(0, 0, 0, 0);
-        planStartDate.setHours(0, 0, 0, 0);
-
-        const diffTime = actDateOnly.getTime() - planStartDate.getTime();
-        // Dùng Math.round để xử lý sai số mili-giây nếu có
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-        const dayIndex = diffDays + 1;
-
-        return {
-          id: `${d.destination_id}-${index}`,
-          original_id: d.id,
-          title: d.note || "Destination",
-          address: "",
-          image_url: d.url || "",
-          time_slot: slot,
-          date: d.visit_date,
-          time: timeString,
-          type: d.destination_type,
-          order_in_day: d.order_in_day || 0,
-          day: dayIndex >= 1 ? dayIndex : 1,
-        };
-      });
-
-      activities.sort((a, b) => {
-        const dateA = new Date(a.date!).getTime();
-        const dateB = new Date(b.date!).getTime();
-        if (dateA !== dateB) return dateA - dateB;
-
-        return (a.order_in_day || 0) - (b.order_in_day || 0);
-      });
-
-      return {
-        id: p.id,
-        user_id: p.user_id, // Map owner ID
-        destination: p.place_name,
-        date: p.start_date,
-        end_date: p.end_date,
-        budget_limit: p.budget_limit, // ✅ Map budget_limit from backend
-        activities: activities,
-      };
-    });
+    const detailedPlans = await this.getRawPlans();
+    return detailedPlans.map((plan) => this.transformPlanToTravelPlan(plan));
   }
 
   // --- FRIEND ENDPOINTS ---
@@ -901,14 +1089,16 @@ class ApiClient {
     });
   }
 
-  async rejectFriendRequest(friendId: number): Promise<any> {
-    return this.request<void>(`/friends/${friendId}/reject`, {
+  async rejectFriendRequest(friendId: number): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>(`/friends/${friendId}/reject`, {
       method: "DELETE",
     });
   }
 
-  async unfriend(friendId: number): Promise<any> {
-    return this.request(`/friends/${friendId}`, { method: "DELETE" });
+  async unfriend(friendId: number): Promise<ApiMessageResponse> {
+    return this.request<ApiMessageResponse>(`/friends/${friendId}`, {
+      method: "DELETE",
+    });
   }
 
   // --- MAP ENDPOINTS ---
@@ -1136,26 +1326,35 @@ class ApiClient {
   }
 
   // --- ROUTES ---
-  async findOptimalRoutes(
-    origins: Array<{ lat: number; lng: number }>,
-    destinations: Array<{ lat: number; lng: number }>,
-    transportMode: "car" | "motorbike" | "bus" | "walking" | "metro" | "train"
-  ): Promise<any> {
-    return this.request<any>("/routes/find-optimal", {
+  async findOptimalRoutes(params: {
+    origin: RouteLocation;
+    destination: RouteLocation;
+    maxTimeRatio?: number;
+    language?: string;
+  }): Promise<FindRoutesResponse> {
+    const { origin, destination, maxTimeRatio = 1.3, language = "vi" } = params;
+
+    return this.request<FindRoutesResponse>("/routes/find-optimal", {
       method: "POST",
       body: JSON.stringify({
-        origins,
-        destinations,
-        transport_mode: transportMode,
+        origin: { lat: origin.lat, lng: origin.lng },
+        destination: { lat: destination.lat, lng: destination.lng },
+        max_time_ratio: maxTimeRatio,
+        language,
       }),
     });
   }
 
   // Get all plans (basic info only for track page)
   async getAllPlansBasic(): Promise<{ plans: PlanBasicInfo[] }> {
-    return this.request<{ plans: PlanBasicInfo[] }>("/plans/", {
-      method: "GET",
-    });
+    const detailedPlans = await this.getRawPlans();
+    return {
+      plans: detailedPlans.map((plan) => ({
+        id: plan.id,
+        place_name: plan.place_name,
+        budget_limit: plan.budget_limit ?? null,
+      })),
+    };
   }
 
   // Get routes for a specific plan
@@ -1173,23 +1372,10 @@ class ApiClient {
   }
 
   // --- CHATBOT & AI ---
-  async generatePlan(planData: {
-    place_name: string;
-    start_date: string;
-    end_date: string;
-    budget_limit?: number;
-    destinations: Array<{
-      destination_id: string;
-      destination_type: string;
-      visit_date: string;
-      order_in_day: number;
-      time_slot: string;
-      note?: string;
-      estimated_cost?: number;
-      url?: string;
-    }>;
-  }): Promise<any> {
-    return this.request<any>("/chatbot/plan/generate", {
+  async generatePlan(
+    planData: GeneratedPlanPayload
+  ): Promise<PlanGenerationResponse> {
+    return this.request<PlanGenerationResponse>("/chatbot/plan/generate", {
       method: "POST",
       body: JSON.stringify(planData),
     });
@@ -1199,8 +1385,8 @@ class ApiClient {
     userId: number,
     roomId: number,
     message: string
-  ): Promise<any> {
-    return this.request<any>("/chatbot/message", {
+  ): Promise<BotMessageResponse> {
+    return this.request<BotMessageResponse>("/chatbot/message", {
       method: "POST",
       body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
     });
