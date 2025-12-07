@@ -126,9 +126,12 @@ class RecommendationService:
             return response
 
         except Exception as e:
+            print(f"Error in sort_recommendations_by_user_cluster_affinity: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error sorting recommendations by user cluster: {str(e)}",
+                detail=f"Error sorting recommendations by user cluster: {type(e).__name__}: {str(e)}",
             )
 
 

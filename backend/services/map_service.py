@@ -84,15 +84,26 @@ class MapService:
                     )
                 except Exception:
                     pass
-            response = await RecommendationService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
+            
+            # Try to sort by cluster affinity, but don't fail the entire search if this fails
+            try:
+                response = await RecommendationService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
+            except Exception as sort_error:
+                print(f"Warning: Failed to sort by cluster affinity: {sort_error}")
+                # Continue with unsorted results
+            
             return response
 
         except HTTPException as he:
+            print(f"HTTPException in text_search_place: {he.detail}")
             raise he
         except Exception as e:
+            print(f"Exception in text_search_place: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to search location: {str(e)}",
+                detail=f"Failed to search location: {type(e).__name__}: {str(e)}",
             )
         finally:
             await map_client.close()
@@ -151,9 +162,12 @@ class MapService:
         except HTTPException:
             raise
         except Exception as e:
+            print(f"Exception in get_location_details: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get location details: {str(e)}",
+                detail=f"Failed to get location details: {type(e).__name__}: {str(e)}",
             )
         finally:
             if map_client:
