@@ -237,7 +237,7 @@ class MapAPI:
                 print(f"API Status: {data.get('status')}")
 
             return PlaceDetailsResponse(
-                place_id=result.get("place_id") or place_id,  # Fallback to input place_id
+                place_id=place_id,
                 name=result.get("name") or "",
                 formatted_address=result.get("formatted_address") or "",
                 address_components=[

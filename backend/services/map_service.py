@@ -58,8 +58,10 @@ class MapService:
                     lat=response.geometry.location.latitude,
                     lng=response.geometry.location.longitude,
                 )
+            print(f"WARNING: No geometry data in response for place_id={place_id}")
             return None
-        except Exception:
+        except Exception as e:
+            print(f"ERROR in get_coordinates for place_id={place_id}: {str(e)}")
             return None
         finally:
             if map_client:
