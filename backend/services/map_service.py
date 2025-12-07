@@ -71,7 +71,7 @@ class MapService:
         data: TextSearchRequest,
         user_id: str
     ) -> TextSearchResponse:
-        from services.map_service import MapService
+        from services.recommendation_service import RecommendationService
         map_client = await create_map_client()
 
         try:
@@ -84,7 +84,7 @@ class MapService:
                     )
                 except Exception:
                     pass
-            response = MapService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
+            response = await RecommendationService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
             return response
 
         except HTTPException as he:
