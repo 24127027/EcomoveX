@@ -99,6 +99,12 @@ export default function SignupPage() {
         setValidationErrors({
           [err.field]: err.message,
         });
+      } else if (
+        err.message?.includes("already exists") ||
+        err.message?.includes("Failed to create new user") ||
+        err.status === 500
+      ) {
+        setServerError("Username already exists. Please choose another.");
       } else {
         setServerError(getFriendlyErrorMessage(err));
       }
