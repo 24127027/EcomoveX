@@ -26,6 +26,7 @@ const AdminDashboard = () => {
   const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [destinations, setDestinations] = useState<DestinationWithCertificate[]>([]);
+  const [reviewStatuses, setReviewStatuses] = useState<{[key: string]: 'pending' | 'approved' | 'rejected'}>({});
   const [dashboardStats, setDashboardStats] = useState({
     total_users: 0,
     active_destinations: 0,
@@ -179,6 +180,21 @@ const AdminDashboard = () => {
     } catch (err: any) {
       alert(err.message || 'Failed to delete review');
     }
+  };
+
+  //TODO: Implement approve/reject review with backend API
+  const handleApproveReview = (reviewKey: string) => {
+    setReviewStatuses(prev => ({ ...prev, [reviewKey]: 'approved' }));
+    alert('Review approved! (Frontend only - no backend support)');
+  };
+
+  const handleRejectReview = (reviewKey: string) => {
+    setReviewStatuses(prev => ({ ...prev, [reviewKey]: 'rejected' }));
+    alert('Review rejected! (Frontend only - no backend support)');
+  };
+
+  const getReviewStatus = (reviewKey: string) => {
+    return reviewStatuses[reviewKey] || 'pending';
   };
 
   // Certificate management handlers
@@ -729,7 +745,10 @@ const AdminDashboard = () => {
           {reviews.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No reviews found</div>
           ) : (
-            reviews.map((review) => (
+            reviews.map((review) => {
+              const reviewKey = `${review.user_id}-${review.destination_id}`;
+              const status = getReviewStatus(reviewKey);
+              return (
               <div key={review.destination_id} className="border rounded-lg p-4 border-gray-200">
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -741,6 +760,13 @@ const AdminDashboard = () => {
                           <span key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-300'}>★</span>
                         ))}
                       </div>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        status === 'approved' ? 'bg-green-100 text-green-800' :
+                        status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {status.toUpperCase()}
+                      </span>
                     </div>
                     <p className="text-xs text-gray-500">Submitted: {new Date(review.created_at).toLocaleDateString()}</p>
                   </div>
@@ -767,16 +793,35 @@ const AdminDashboard = () => {
                 )}
 
                 <div className="flex gap-2">
+                  {status === 'pending' && (
+                    <>
+                      <button 
+                        onClick={() => handleApproveReview(reviewKey)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                      >
+                        <Check className="w-4 h-4" />
+                        Approve
+                      </button>
+                      <button 
+                        onClick={() => handleRejectReview(reviewKey)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700"
+                      >
+                        <X className="w-4 h-4" />
+                        Reject
+                      </button>
+                    </>
+                  )}
                   <button 
                     onClick={() => handleDeleteReview(review.destination_id)}
                     className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700"
                   >
-                    <X className="w-4 h-4" />
-                    Delete Review
+                    <Trash2 className="w-4 h-4" />
+                    Delete
                   </button>
                 </div>
               </div>
-            ))
+            );
+            })
           )}
         </div>
       </div>
@@ -784,7 +829,8 @@ const AdminDashboard = () => {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="font-semibold text-blue-900 mb-2">📋 Review Moderation</h3>
         <p className="text-sm text-blue-800">
-          Reviews are fetched from the backend API. You can delete inappropriate reviews.
+          Reviews are fetched from the backend API. You can approve, reject, or delete reviews.
+          <strong> Note:</strong> Approve/Reject actions are frontend-only simulations - the backend doesn't support review status updates yet.
         </p>
       </div>
     </div>
