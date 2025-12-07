@@ -6,7 +6,7 @@ export const PRIMARY_NAV_LINKS: MobileNavItem[] = [
   {
     key: "track",
     label: "Track",
-    href: "/track_page/leaderboard",
+    href: "/track_page",
     Icon: Route,
   },
   {
@@ -26,6 +26,12 @@ export const PRIMARY_NAV_LINKS: MobileNavItem[] = [
 
 export const MAP_NAV_LINKS: MobileNavItem[] = [
   { key: "home", label: "Home", href: "/homepage", Icon: Home },
+  {
+    key: "track",
+    label: "Track",
+    href: "/track_page",
+    Icon: Route,
+  },
   {
     key: "planning",
     label: "Planning",

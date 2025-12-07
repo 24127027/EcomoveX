@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation"; // 1. Thêm import này
 import { LucideIcon } from "lucide-react";
 
 export type MobileNavItem = {
@@ -24,6 +25,8 @@ export function MobileNavMenu({
   className = "",
   positionClassName,
 }: MobileNavMenuProps) {
+  const pathname = usePathname();
+
   const containerPosition =
     positionClassName ||
     "fixed bottom-6 left-1/2 -translate-x-1/2 sm:bottom-8 z-50";
@@ -37,7 +40,9 @@ export function MobileNavMenu({
         aria-label="Primary navigation"
       >
         {items.map(({ key, label, href, Icon, badgeCount }) => {
-          const isActive = key === activeKey;
+          const isActive = activeKey
+            ? key === activeKey
+            : pathname === href || (href !== "/" && pathname?.startsWith(href));
 
           return (
             <Link

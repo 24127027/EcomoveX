@@ -256,7 +256,7 @@ function PlanningContent() {
         </div>
 
         {/* --- MAIN CONTENT --- */}
-        <main className="flex-1 overflow-y-auto px-4 pb-24 scroll-smooth">
+        <main className="flex-1 overflow-y-auto px-4 pb-40 scroll-smooth">
           {loading && (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
               <Loader2 className="animate-spin" size={32} />
@@ -460,7 +460,7 @@ function PlanningContent() {
 
           <Link href="/planning_page/create_plan">
             <button
-              className="absolute bottom-24 right-6 bg-[#53B552] text-white p-4 rounded-full shadow-xl hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 z-30 flex items-center justify-center group"
+              className="absolute bottom-60 right-6 bg-[#53B552] text-white p-4 rounded-full shadow-xl hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 z-30 flex items-center justify-center group"
               title="Create New Plan"
             >
               <Plus size={28} />
