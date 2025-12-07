@@ -177,24 +177,6 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
-
-        {/* --- FOOTER --- */}
-        <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center">
-          <div className="flex justify-center items-center gap-2 mb-4">
-            <Leaf className="text-green-600 size-5" />
-            <span className={`${knewave.className} text-xl text-gray-800`}>
-              EcomoveX
-            </span>
-          </div>
-          <p className={`${poppins.className} text-gray-400 text-xs mb-6`}>
-            © 2025 EcomoveX. All rights reserved.
-          </p>
-          <div className="flex justify-center gap-6 text-xs font-medium text-gray-500">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
-            <a href="#">Support</a>
-          </div>
-        </footer>
       </div>
     </div>
   );

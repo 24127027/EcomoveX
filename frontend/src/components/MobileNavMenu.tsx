@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Menu, X, LucideIcon, ChevronRight } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 
 export type MobileNavItem = {
   key: string;
@@ -16,8 +15,6 @@ interface MobileNavMenuProps {
   items: MobileNavItem[];
   activeKey?: string;
   className?: string;
-  buttonLabel?: string;
-  variant?: "floating" | "flat";
   positionClassName?: string;
 }
 
@@ -25,100 +22,58 @@ export function MobileNavMenu({
   items,
   activeKey,
   className = "",
-  buttonLabel = "Menu",
-  variant = "floating",
   positionClassName,
 }: MobileNavMenuProps) {
-  const [open, setOpen] = useState(false);
-
-  const baseButtonClasses =
-    "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors";
-  const floatingStyles =
-    "bg-white/95 text-gray-700 shadow-lg ring-1 ring-black/5 backdrop-blur hover:text-green-600";
-  const flatStyles =
-    "bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-400 hover:text-green-600";
-  const containerPosition = positionClassName || "fixed top-4 left-4";
+  const containerPosition =
+    positionClassName ||
+    "fixed bottom-6 left-1/2 -translate-x-1/2 sm:bottom-8 z-50";
 
   return (
-    <>
-      {open && (
-        <div
-          className="fixed inset-0 z-[40] bg-black/30 backdrop-blur-[1px]"
-          onClick={() => setOpen(false)}
-        />
-      )}
+    <div
+      className={`${containerPosition} pointer-events-none px-4 sm:px-0 ${className}`}
+    >
+      <nav
+        className="pointer-events-auto flex items-center gap-1 rounded-full bg-white/95 px-2 py-2 shadow-[0_18px_40px_rgba(15,118,110,0.25)] ring-1 ring-green-100 backdrop-blur"
+        aria-label="Primary navigation"
+      >
+        {items.map(({ key, label, href, Icon, badgeCount }) => {
+          const isActive = key === activeKey;
 
-      <div className={`${containerPosition} z-[60] ${className}`}>
-        <div className="relative">
-          <button
-            onClick={() => setOpen((prev) => !prev)}
-            className={`${baseButtonClasses} ${
-              variant === "flat" ? flatStyles : floatingStyles
-            }`}
-            aria-expanded={open}
-            aria-label="Open navigation menu"
-          >
-            {open ? <X size={18} /> : <Menu size={18} />}
-            <span>{buttonLabel}</span>
-          </button>
-
-          {open && (
-            <div className="absolute left-0 right-auto mt-3 w-64 origin-top-left rounded-2xl border border-gray-100 bg-white p-2 text-gray-700 shadow-2xl">
-              <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                Quick navigation
-              </div>
-              <div className="flex flex-col gap-1">
-                {items.map(({ key, label, href, Icon, badgeCount }) => {
-                  const isActive = key === activeKey;
-                  return (
-                    <Link
-                      key={key}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition-colors ${
-                        isActive
-                          ? "bg-green-50 text-green-700 border border-green-100"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`flex h-8 w-8 items-center justify-center rounded-full border ${
-                            isActive
-                              ? "border-green-200 bg-white text-green-600"
-                              : "border-gray-200 bg-gray-50 text-gray-500"
-                          }`}
-                        >
-                          <Icon size={18} strokeWidth={2} />
-                        </span>
-                        <div className="flex flex-col leading-tight">
-                          <span className="font-semibold">{label}</span>
-                          <span className="text-[11px] text-gray-400">
-                            Tap to open
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {badgeCount !== undefined && badgeCount > 0 && (
-                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                            {badgeCount > 9 ? "9+" : badgeCount}
-                          </span>
-                        )}
-                        <ChevronRight
-                          size={16}
-                          className={
-                            isActive ? "text-green-500" : "text-gray-400"
-                          }
-                        />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
+          return (
+            <Link
+              key={key}
+              href={href}
+              className={`flex flex-col items-center gap-1 rounded-2xl px-4 py-2 text-[11px] font-semibold transition-all duration-200 ${
+                isActive
+                  ? "bg-[#0F7E46] text-white shadow-lg"
+                  : "text-gray-500 hover:text-green-600"
+              }`}
+            >
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
+                  isActive
+                    ? "border-white/40 bg-white/10"
+                    : "border-transparent bg-gray-100 text-gray-600"
+                }`}
+              >
+                <Icon
+                  size={isActive ? 20 : 18}
+                  strokeWidth={isActive ? 2.5 : 2}
+                  className={isActive ? "text-white" : "text-gray-600"}
+                />
+              </span>
+              <span className="leading-none text-xs">
+                {label}
+                {badgeCount !== undefined && badgeCount > 0 && (
+                  <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-black text-white">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
+                )}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }

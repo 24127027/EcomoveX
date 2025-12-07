@@ -225,10 +225,12 @@ export default function ProfilePage() {
               new_password: isPasswordChanged ? newPassword : undefined,
             })
             .then((res) => {
-              if (res.email)
+              const updatedEmail = res.email;
+              if (typeof updatedEmail === "string") {
                 setUser((prev) =>
-                  prev ? { ...prev, email: res.email as string } : null
+                  prev ? { ...prev, email: updatedEmail } : null
                 );
+              }
             })
         );
       }
@@ -240,18 +242,20 @@ export default function ProfilePage() {
       setNewPassword("");
       setOldPassword("");
       setAvatarFile(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Update failed:", error);
-      if (
-        error.message &&
-        error.message.toLowerCase().includes("old password")
-      ) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to update profile.";
+
+      if (message.toLowerCase().includes("old password")) {
         setErrors((prev) => ({
           ...prev,
           password: "Incorrect current password.",
         }));
       } else {
-        alert(error.message || "Failed to update profile.");
+        alert(message);
       }
     } finally {
       setIsSaving(false);

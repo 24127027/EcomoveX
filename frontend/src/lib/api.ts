@@ -282,6 +282,7 @@ export interface UploadResponse {
 export interface ApiMessageResponse {
   detail?: string;
   message?: string;
+  email?: string;
   [key: string]: unknown;
 }
 
@@ -494,6 +495,7 @@ export interface PlanGenerationResponse {
   message?: string;
   detail?: string;
   plan?: GeneratedPlanPayload;
+  warnings?: string[];
 }
 
 export interface BotMessageResponse {

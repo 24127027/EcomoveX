@@ -226,12 +226,7 @@ function PlanningContent() {
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
-        <MobileNavMenu
-          items={PRIMARY_NAV_LINKS}
-          activeKey="planning"
-          className="top-4 left-4"
-          buttonLabel="Menu"
-        />
+        <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="planning" />
         {/* --- HEADER --- */}
         <div className="px-6 pt-10 pb-4 bg-[#F5F7F5] shrink-0">
           <h1
@@ -473,23 +468,6 @@ function PlanningContent() {
             </button>
           </Link>
         </main>
-
-        <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center mt-auto">
-          <div className="flex justify-center items-center gap-2 mb-4">
-            <Map className="text-green-600 size-5" />
-            <span className={`${knewave.className} text-xl text-gray-800`}>
-              Plan Smarter
-            </span>
-          </div>
-          <p className={`${jost.className} text-gray-400 text-xs mb-4`}>
-            Keep building greener journeys and share them with friends.
-          </p>
-          <div className="flex justify-center gap-6 text-xs font-medium text-gray-500">
-            <a href="#">Support</a>
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
-          </div>
-        </footer>
       </div>
     </div>
   );

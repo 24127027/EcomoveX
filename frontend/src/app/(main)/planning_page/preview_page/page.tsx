@@ -422,7 +422,7 @@ const RouteOverviewMap = ({ activities }: { activities: PlanActivity[] }) => {
           </button>
         </div>
 
-        <div className="relative h-64 mx-4 mb-4 rounded-2xl overflow-hidden bg-gradient-to-br from-green-50 to-blue-50">
+        <div className="relative h-64 mx-4 mb-4 rounded-2xl overflow-hidden bg-linear-to-br from-green-50 to-blue-50">
           <div ref={mapContainerRef} className="absolute inset-0" />
           {(!isLoaded || routeLoading) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/80 text-sm text-gray-600">

@@ -559,7 +559,7 @@ function MapContent() {
     if (isPlaceSaved(locationId)) {
       setSaveFeedback({
         type: "success",
-        message: "Bạn đã lưu địa điểm này trước đó.",
+        message: "You already saved this location.",
       });
       return;
     }
@@ -574,12 +574,13 @@ function MapContent() {
       );
       setSaveFeedback({
         type: "success",
-        message: "Đã lưu địa điểm vào danh sách yêu thích!",
+        message: "Saved this location to your favorites!",
       });
     } catch (error: any) {
       console.error("Failed to save location:", error);
       const message =
-        error?.message || "Không thể lưu địa điểm. Vui lòng thử lại sau.";
+        error?.message ||
+        "Unable to save this location. Please try again later.";
       setSaveFeedback({ type: "error", message });
     } finally {
       setIsSavingLocation(false);
@@ -699,9 +700,6 @@ function MapContent() {
           <MobileNavMenu
             items={MAP_NAV_LINKS}
             activeKey="planning"
-            buttonLabel="Menu"
-            variant="flat"
-            positionClassName="absolute top-5 left-5 sm:top-6 sm:left-6"
             className="drop-shadow-sm"
           />
         )}
@@ -715,53 +713,33 @@ function MapContent() {
                 >
                   <ChevronLeft size={18} />
                 </button>
-                <div className="flex-1">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-green-600 font-semibold">
-                    Explore greener spots
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Tìm kiếm & lưu lại những điểm đến bạn yêu thích
-                  </p>
+                <div className="flex-1 bg-white rounded-xl border border-gray-100 flex items-center px-4 py-2.5 shadow-inner">
+                  <Search size={18} className="text-green-600 mr-2" />
+                  <input
+                    type="text"
+                    placeholder="Where do you want to visit today?"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={handleTextSearch}
+                    onFocus={() => {
+                      flushSync(() => {
+                        setEnableTransition(false);
+                        setSheetHeight(8);
+                      });
+                      if (window.google?.maps) {
+                        const token =
+                          new google.maps.places.AutocompleteSessionToken();
+                        setSessionToken(token.toString());
+                      }
+                      setIsSearchFocused(true);
+                      setTimeout(() => setEnableTransition(true), 50);
+                    }}
+                    className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
+                  />
+                  {isSearching && (
+                    <div className="ml-2 animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                  )}
                 </div>
-              </div>
-              <div className="mt-4 bg-white rounded-xl border border-gray-100 flex items-center px-4 py-2.5 shadow-inner">
-                <Search size={18} className="text-green-600 mr-2" />
-                <input
-                  type="text"
-                  placeholder="Bạn muốn đi đâu hôm nay?"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleTextSearch}
-                  onFocus={() => {
-                    flushSync(() => {
-                      setEnableTransition(false);
-                      setSheetHeight(8);
-                    });
-                    if (window.google?.maps) {
-                      const token =
-                        new google.maps.places.AutocompleteSessionToken();
-                      setSessionToken(token.toString());
-                    }
-                    setIsSearchFocused(true);
-                    setTimeout(() => setEnableTransition(true), 50);
-                  }}
-                  className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
-                />
-                {isSearching && (
-                  <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
-                )}
-              </div>
-              <div className="mt-3 flex gap-2 overflow-x-auto text-xs text-gray-600">
-                {["Coffee", "Park", "Vegan", "Museums", "Co-working"].map(
-                  (label) => (
-                    <span
-                      key={label}
-                      className="px-3 py-1 rounded-full bg-green-50 text-green-700 font-semibold whitespace-nowrap border border-green-100"
-                    >
-                      {label}
-                    </span>
-                  )
-                )}
               </div>
             </div>
 
@@ -804,7 +782,7 @@ function MapContent() {
 
           {/* Google Map */}
           <div className="absolute inset-0 pt-32 pb-8 px-4 sm:px-8">
-            <div className="w-full h-full rounded-[32px] bg-gradient-to-br from-[#D9F1E7] via-[#D6ECE2] to-[#CFE4DB] shadow-[0_30px_80px_rgba(16,185,129,0.2)] border border-white/60 overflow-hidden">
+            <div className="w-full h-full rounded-4xl bg-linear-to-br from-[#D9F1E7] via-[#D6ECE2] to-[#CFE4DB] shadow-[0_30px_80px_rgba(16,185,129,0.2)] border border-white/60 overflow-hidden">
               <div ref={mapRef} className="w-full h-full" />
             </div>
           </div>
@@ -813,9 +791,7 @@ function MapContent() {
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
-                <p className="text-gray-600 font-semibold">
-                  Đang tải bản đồ...
-                </p>
+                <p className="text-gray-600 font-semibold">Loading map...</p>
               </div>
             </div>
           )}
@@ -828,7 +804,7 @@ function MapContent() {
             height: `${sheetHeight}vh`,
             touchAction: "none",
           }}
-          className={`bg-[#F7FBF8] rounded-t-[32px] border border-green-50 shadow-[0_-25px_60px_rgba(15,118,110,0.12)] z-10 shrink-0 relative overflow-hidden ${
+          className={`bg-[#F7FBF8] rounded-t-4xl border border-green-50 shadow-[0_-25px_60px_rgba(15,118,110,0.12)] z-10 shrink-0 relative overflow-hidden ${
             isDragging || !enableTransition
               ? ""
               : "transition-all duration-300 ease-out"
@@ -856,7 +832,7 @@ function MapContent() {
           >
             {selectedLocation ? (
               <div className="mb-4">
-                <div className="bg-gradient-to-br from-white via-[#F2FBF5] to-[#E4F6EB] border border-white shadow-[0_20px_50px_rgba(15,118,110,0.12)] rounded-3xl p-4 mb-4 flex items-start gap-3">
+                <div className="bg-linear-to-br from-white via-[#F2FBF5] to-[#E4F6EB] border border-white shadow-[0_20px_50px_rgba(15,118,110,0.12)] rounded-3xl p-4 mb-4 flex items-start gap-3">
                   <div className="bg-green-600/10 p-3 rounded-2xl shrink-0 mt-0.5">
                     <MapPin size={20} className="text-green-600" />
                   </div>
@@ -901,7 +877,7 @@ function MapContent() {
                     disabled={isSavingLocation || isCurrentLocationSaved}
                     className={`w-full border border-green-200 rounded-2xl font-semibold py-3.5 shadow-[0_10px_30px_rgba(15,118,110,0.18)] transition-all flex items-center justify-center gap-2 text-base active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
                       isCurrentLocationSaved
-                        ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+                        ? "bg-linear-to-r from-green-500 to-emerald-500 text-white"
                         : "text-green-700 bg-white"
                     }`}
                   >
@@ -921,7 +897,7 @@ function MapContent() {
                   {isPickerMode ? (
                     <button
                       onClick={handlePickLocation}
-                      className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white text-lg font-bold py-3.5 rounded-2xl shadow-[0_15px_35px_rgba(15,118,110,0.25)] transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
+                      className="w-full bg-linear-to-r from-emerald-500 to-green-600 text-white text-lg font-bold py-3.5 rounded-2xl shadow-[0_15px_35px_rgba(15,118,110,0.25)] transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                       <Check size={20} strokeWidth={3} />
                       <span>Select This Location</span>
@@ -929,7 +905,7 @@ function MapContent() {
                   ) : (
                     <button
                       onClick={handleNavigateToDetail}
-                      className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white text-lg font-bold py-3.5 rounded-2xl shadow-[0_15px_35px_rgba(15,118,110,0.25)] transition-all transform active:scale-[0.98]"
+                      className="w-full bg-linear-to-r from-emerald-500 to-green-600 text-white text-lg font-bold py-3.5 rounded-2xl shadow-[0_15px_35px_rgba(15,118,110,0.25)] transition-all transform active:scale-[0.98]"
                     >
                       View Details
                     </button>
@@ -952,18 +928,6 @@ function MapContent() {
               <>
                 {!isSearchFocused && (
                   <div className="mb-4 space-y-3">
-                    <div className="bg-white rounded-3xl border border-green-50 shadow-[0_12px_35px_rgba(15,118,110,0.12)] p-4">
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-green-600 font-semibold">
-                        curated for you
-                      </p>
-                      <p className="text-gray-900 text-lg font-bold mt-1">
-                        Khám phá những địa điểm xanh quanh bạn
-                      </p>
-                      <p className="text-gray-500 text-sm mt-1">
-                        Chạm vào bản đồ hoặc danh sách bên dưới để xem chi tiết
-                        và lưu vào kế hoạch.
-                      </p>
-                    </div>
                     <h3 className="text-gray-900 text-lg font-bold">
                       {searchResults.length > 0
                         ? "Search Results"
@@ -1041,7 +1005,7 @@ function MapContent() {
                           loading="lazy"
                           decoding="async"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/35 via-black/5 to-transparent" />
                         {isPlaceSaved(location.place_id) && (
                           <span className="absolute top-2 right-2 bg-[#53B552] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
                             Saved
@@ -1073,31 +1037,7 @@ function MapContent() {
           </div>
         </div>
 
-        {!isPickerMode && (
-          <footer className="bg-gray-50 py-8 px-6 border-t border-gray-100 text-center shrink-0">
-            <div className="flex justify-center items-center gap-2 mb-4">
-              <Navigation className="text-green-600 size-5" />
-              <span className="text-lg font-semibold text-gray-800">
-                Explore Greener Paths
-              </span>
-            </div>
-            <p className="text-gray-400 text-xs mb-4">
-              Discover eco-friendly places, save your favorites, and plan your
-              next visit with confidence.
-            </p>
-            <div className="flex justify-center gap-6 text-xs font-medium text-gray-500">
-              <a href="#" className="hover:text-gray-700">
-                Support
-              </a>
-              <a href="#" className="hover:text-gray-700">
-                Privacy
-              </a>
-              <a href="#" className="hover:text-gray-700">
-                Terms
-              </a>
-            </div>
-          </footer>
-        )}
+        {!isPickerMode && <div className="pb-6" />}
       </div>
     </div>
   );
