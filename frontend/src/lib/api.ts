@@ -49,6 +49,12 @@ export interface UserProfile {
   role: string;
 }
 
+//GREEN TYPE
+export interface GreenVerificationResponse {
+  green_score: number;
+  status: "Green Certified" | "AI Green Verified" | "Not Green Verified";
+}
+
 //Friend Types
 export interface FriendResponse {
   user_id: number;
@@ -178,7 +184,7 @@ export interface AutocompleteRequest {
   query: string;
   user_location?: Position;
   radius?: number; // in meters
-  place_types?: string; // Comma-separated string
+  place_types?: string;
   language?: string;
   session_token?: string | null;
 }
@@ -288,8 +294,8 @@ export interface ApiMessageResponse {
 
 // Route Types for Plans
 export interface RouteForPlanResponse {
-  origin: string; // place_id
-  destination: string; // place_id
+  origin: string;
+  destination: string;
   distance_km: number;
   estimated_travel_time_min: number;
   carbon_emission_kg: number;
@@ -298,7 +304,6 @@ export interface RouteForPlanResponse {
   route_type: string;
 }
 
-// Route Response from backend /plans/{plan_id}/routes
 export interface RouteResponse {
   plan_id: number;
   origin_plan_destination_id: number;
@@ -307,7 +312,6 @@ export interface RouteResponse {
   carbon_emission_kg: number;
 }
 
-// Basic plan info for track page
 export interface PlanBasicInfo {
   id: number;
   place_name: string;
@@ -318,18 +322,17 @@ type PlanListResponse =
   | { plans: Array<number | PlanBasicInfo> }
   | Array<number | PlanBasicInfo>;
 
-// Backend Plan Destination Type (matches PlanDestinationResponse from backend)
 export interface PlanDestinationResponse {
   id: number;
   destination_id: string;
-  type: string; // DestinationType
-  destination_type?: string; // legacy support from older responses
+  type: string;
+  destination_type?: string;
   order_in_day: number;
-  visit_date: string; // date string
+  visit_date: string;
   estimated_cost?: number | null;
   url?: string | null;
   note?: string | null;
-  time_slot: string; // TimeSlot enum as string
+  time_slot: string;
 }
 
 // Backend Plan Response Type (matches PlanResponse from backend)
@@ -409,7 +412,7 @@ export interface RoomResponse {
   id: number;
   name: string;
   created_at: string;
-  member_ids: number[]; // Quan trọng: cần trường này để lọc
+  member_ids: number[];
 }
 //REWARD & MISSION TYPES
 export interface Mission {
@@ -433,7 +436,7 @@ export interface PlanDestination {
   destination_id: string;
   destination_type: string;
   visit_date: string;
-  time_slot: string; // ✅ Backend trả về lowercase, sẽ convert sang capitalize
+  time_slot: string;
   note?: string;
   url?: string;
   order_in_day?: number;
@@ -441,7 +444,7 @@ export interface PlanDestination {
 
 export interface PlanResponse {
   id: number;
-  user_id: number; // Owner ID for permission checking
+  user_id: number;
   place_name: string;
   start_date: string;
   end_date: string;
@@ -461,8 +464,8 @@ export interface PlanMemberDetail {
   plan_id: number;
   role: "owner" | "member";
   joined_at: string;
-  username?: string; // ✅ Add username
-  email?: string; // ✅ Add email as fallback
+  username?: string;
+  email?: string;
 }
 
 export interface PlanMemberResponse {
@@ -476,12 +479,12 @@ export interface AddMemberRequest {
 
 export interface PlanActivity {
   id: number | string;
-  original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
-  destination_id?: string; // ✅ Preserve Google Place ID for routing / maps
+  original_id?: number | string;
+  destination_id?: string;
   title: string;
   address: string;
   image_url: string;
-  time_slot: "Morning" | "Afternoon" | "Evening"; // ✅ Internal sử dụng capitalize
+  time_slot: "Morning" | "Afternoon" | "Evening";
   date?: string;
   type?: string;
   order_in_day?: number;
@@ -493,13 +496,13 @@ export interface PlanActivity {
 
 export interface TravelPlan {
   id: number;
-  user_id?: number; // Owner ID
+  user_id?: number;
   destination: string;
   date: string;
   end_date?: string;
   activities: PlanActivity[];
-  budget?: number; // Legacy field
-  budget_limit?: number; // ✅ Backend field name
+  budget?: number;
+  budget_limit?: number;
 }
 
 export interface PlanDestinationCreate {
@@ -1409,6 +1412,16 @@ class ApiClient {
       method: "POST",
       body: formData,
     });
+  }
+  async getGreenVerification(
+    placeId: string
+  ): Promise<GreenVerificationResponse> {
+    return this.request<GreenVerificationResponse>(
+      `/green-verification/verify-place?place_id=${placeId}`,
+      {
+        method: "GET",
+      }
+    );
   }
 }
 

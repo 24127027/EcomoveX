@@ -12,9 +12,16 @@ import {
   Plus,
   Send,
   Leaf,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { Jost, Roboto } from "next/font/google";
-import { api, PlaceDetails, ReviewResponse } from "@/lib/api";
+import {
+  api,
+  PlaceDetails,
+  ReviewResponse,
+  GreenVerificationResponse,
+} from "@/lib/api";
 
 // --- FONTS ---
 const roboto = Roboto({
@@ -26,7 +33,49 @@ const jost = Jost({
   weight: ["400", "500", "600", "700"],
 });
 
-// ... (Các Component con: NotificationBox, RatingStars, ReviewItem giữ nguyên như cũ) ...
+const GreenStatusBadge = ({
+  data,
+}: {
+  data: GreenVerificationResponse | null;
+}) => {
+  if (!data) return null;
+  switch (data.status) {
+    case "Green Certified":
+      return (
+        <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-green-200">
+          <ShieldCheck size={12} className="fill-current" />
+          Green Certified ({data.green_score.toFixed(1)})
+        </span>
+      );
+    case "AI Green Verified":
+      return (
+        <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-yellow-200">
+          <Leaf size={12} className="fill-current" />
+          AI Green Verified ({data.green_score.toFixed(1)})
+        </span>
+      );
+    case "Not Green Verified":
+      return (
+        <span className="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-gray-200">
+          <Info size={12} />
+          Not Verified
+        </span>
+      );
+    default:
+      return null;
+  }
+};
+
+const getEcoNotificationText = (data: GreenVerificationResponse | null) => {
+  if (!data) return "Loading eco information...";
+  if (data.status === "Green Certified") {
+    return "This place is Green Certified! They follow strict eco-friendly practices to minimize their environmental impact.";
+  } else if (data.status === "AI Green Verified") {
+    return "This place is AI Green Verified! It meets several eco-friendly criteria based on AI analysis.";
+  } else {
+    return "This place is not green verified. Consider supporting more eco-friendly businesses!";
+  }
+};
 const NotificationBox = ({ text }: { text: string }) => (
   <div className="bg-blue-50 border border-blue-100 border-dashed rounded-xl p-4 mb-6 relative overflow-hidden">
     <div className="absolute top-0 right-0 w-16 h-16 bg-blue-100 rounded-bl-full -mr-8 -mt-8 opacity-50"></div>
@@ -141,21 +190,22 @@ function PlaceDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State for Saving Destination
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // State for Logic mở rộng
   const [isExpandedInfo, setIsExpandedInfo] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
-  // State for Add Review Modal
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState("");
   const [reviewImages, setReviewImages] = useState<File[]>([]);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const [greenData, setGreenData] = useState<GreenVerificationResponse | null>(
+    null
+  );
 
   // 1. Fetch Data
   useEffect(() => {
@@ -173,17 +223,19 @@ function PlaceDetailContent() {
         }
 
         // Fetch Place & Reviews
-        const [placeData, reviewsData] = await Promise.all([
+        const [placeData, reviewsData, greenRes] = await Promise.all([
           api.getPlaceDetails(placeId, null, [
             "basic",
             "contact",
             "atmosphere",
           ]),
           api.getReviewsByDestination(placeId).catch(() => []),
+          api.getGreenVerification(placeId).catch(() => null),
         ]);
 
         setPlace(placeData);
         setReviews(reviewsData);
+        setGreenData(greenRes);
 
         // --- CHECK SAVED STATUS (Logic mới) ---
         try {
@@ -322,7 +374,10 @@ function PlaceDetailContent() {
         </div>
 
         <div className="p-5 space-y-6">
-          <NotificationBox text="Heads up! This place serves all drinks in reusable cups. Feel free to bring your own tumbler to get a 10% discount!" />
+          {/* ECO NOTIFICATION */}
+          {greenData && (
+            <NotificationBox text={getEcoNotificationText(greenData)} />
+          )}
 
           {/* INFO SECTION */}
           <div className="space-y-4">
@@ -363,10 +418,11 @@ function PlaceDetailContent() {
               >
                 Green Level.
               </span>
-              <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-yellow-200">
-                <Leaf size={12} className="fill-current" />
-                AI Green Verified
-              </span>
+              {greenData ? (
+                <GreenStatusBadge data={greenData} />
+              ) : (
+                <p className="text-gray-400 text-sm italic">Loading...</p>
+              )}
             </div>
 
             {isExpandedInfo && (
