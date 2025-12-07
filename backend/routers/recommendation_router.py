@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
+from schemas.recommendation_schema import SimpleRecommendation
 from services.recommendation_service import RecommendationService
 from utils.token.authentication_util import get_current_user
 
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
 
 @router.get(
-    "/user/me", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK
+    "/user/me", response_model=List[SimpleRecommendation], status_code=status.HTTP_200_OK
 )
 async def get_recommendations_for_current_user(
     k: int = Query(default=10, ge=1, le=50),
