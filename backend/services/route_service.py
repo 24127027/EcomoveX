@@ -209,7 +209,7 @@ class RouteService:
                 if eco_result and eco_result.routes:
                     eco_route = eco_result.routes[0]
                     eco_route_data = await RouteService.process_route_data(
-                        eco_route.model_dump(), TransportMode.car, RouteType.low_carbon
+                        eco_route.model_dump(), TransportMode.car, RouteType.fastest
                     )
                     all_routes.append(eco_route_data)
 
