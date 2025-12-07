@@ -93,7 +93,7 @@ export default function SignupPage() {
         localStorage.setItem("user_id", response.user_id.toString());
       }
 
-      localStorage.setItem("user_role", response.role);
+      localStorage.setItem("user_role", response.role || "");
 
       // Redirect to admin page if user is admin
       if (response.role === "Admin") {
