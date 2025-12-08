@@ -456,7 +456,7 @@ function ChatWindow({
 
     try {
       const res = await api.sendBotMessage(userId, roomId, userMsg);
-      const botText = res?.message || res?.detail;
+      const botText = res?.response;
 
       if (botText) {
         setMessages((prev) => [...prev, { role: "bot", text: botText }]);
