@@ -8,6 +8,7 @@ from integration.text_generator_api import create_text_generator_api
 from services.map_service import MapService
 from schemas.route_schema import (
     DirectionsRequest,
+    DirectionsResponse,
     FindRoutesRequest,
     FindRoutesResponse,
     RecommendResponse,
@@ -29,6 +30,10 @@ import math
 class RouteService:
     @staticmethod
     def extract_transit_details(leg: Dict[str, Any]) -> TransitDetails:
+        """
+        Extract transit details from route leg.
+        Handles format after model_dump() where distance/duration are already floats.
+        """
         try:
             if not leg:
                 raise HTTPException(
@@ -39,42 +44,82 @@ class RouteService:
             transit_steps = []
             walking_steps = []
 
-            for step in leg.get("steps", []):
-                if step.get("travel_mode") == "TRANSIT":
-                    transit_details = step.get("transit_details", {})
-                    departure_stop = transit_details.get("departure_stop", {})
-                    arrival_stop = transit_details.get("arrival_stop", {})
-
-                    transit_steps.append(
-                        {
-                            "line": (
-                                transit_details.get("line", {}).get("short_name", "N/A")
-                            ),
-                            "vehicle": TransportMode.bus,
-                            "departure_stop": {
-                                "lat": (
-                                    departure_stop.get("location", {}).get("lat", 0.0)
-                                ),
-                                "lng": (
-                                    departure_stop.get("location", {}).get("lng", 0.0)
-                                ),
-                            },
-                            "arrival_stop": {
-                                "lat": arrival_stop.get("location", {}).get("lat", 0.0),
-                                "lng": arrival_stop.get("location", {}).get("lng", 0.0),
-                            },
-                            "num_stops": transit_details.get("num_stops", 0),
-                            "duration": step.get("duration", {}).get("value", 0) / 60,
-                        }
-                    )
-                elif step.get("travel_mode") == "WALKING":
-                    walking_steps.append(
-                        {
-                            "distance": step.get("distance", {}).get("value", 0),
-                            "duration": step.get("duration", {}).get("value", 0) / 60,
-                            "instruction": step.get("html_instructions", ""),
-                        }
-                    )
+            steps = leg.get("steps", [])
+            
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                    
+                travel_mode = step.get("travel_mode")
+                if not travel_mode:
+                    continue
+                
+                # Normalize travel_mode to string
+                if hasattr(travel_mode, 'value'):
+                    travel_mode = travel_mode.value
+                travel_mode = str(travel_mode).upper()
+                
+                # Extract common fields (after model_dump(), these are already simple types)
+                distance = step.get("distance", 0)  # Already float in km
+                duration = step.get("duration", 0)  # Already float in minutes
+                
+                # Handle TRANSIT steps
+                if travel_mode in ["TRANSIT", "BUS", "METRO", "TRAIN"]:
+                    transit_details_data = step.get("transit_details")
+                    if not transit_details_data or not isinstance(transit_details_data, dict):
+                        continue
+                    
+                    # Extract line name (can be string or dict)
+                    line = transit_details_data.get("line", "N/A")
+                    if isinstance(line, dict):
+                        line = line.get("short_name") or line.get("name", "N/A")
+                    
+                    # Extract stop locations (after model_dump, these are tuples or dicts)
+                    departure_stop = transit_details_data.get("departure_stop", [])
+                    arrival_stop = transit_details_data.get("arrival_stop", [])
+                    
+                    # Parse stop format: can be tuple (name, Location) or dict
+                    dep_lat, dep_lng = 0.0, 0.0
+                    arr_lat, arr_lng = 0.0, 0.0
+                    
+                    if isinstance(departure_stop, (list, tuple)) and len(departure_stop) >= 2:
+                        dep_location = departure_stop[1]
+                        if isinstance(dep_location, dict):
+                            dep_lat = dep_location.get("latitude", 0.0)
+                            dep_lng = dep_location.get("longitude", 0.0)
+                    
+                    if isinstance(arrival_stop, (list, tuple)) and len(arrival_stop) >= 2:
+                        arr_location = arrival_stop[1]
+                        if isinstance(arr_location, dict):
+                            arr_lat = arr_location.get("latitude", 0.0)
+                            arr_lng = arr_location.get("longitude", 0.0)
+                    
+                    transit_steps.append({
+                        "line": line,
+                        "vehicle": TransportMode.bus,
+                        "departure_stop": {
+                            "lat": dep_lat,
+                            "lng": dep_lng,
+                        },
+                        "arrival_stop": {
+                            "lat": arr_lat,
+                            "lng": arr_lng,
+                        },
+                        "num_stops": 0,  # v1 API doesn't provide this
+                        "duration": duration if isinstance(duration, (int, float)) else 0,
+                    })
+                
+                # Handle WALKING steps
+                elif travel_mode in ["WALKING", "WALK"]:
+                    # Distance is already in km, convert to meters for schema
+                    distance_m = distance * 1000 if isinstance(distance, (int, float)) else 0
+                    duration_min = duration if isinstance(duration, (int, float)) else 0
+                    
+                    walking_steps.append({
+                        "distance": distance_m,
+                        "duration": duration_min,
+                        "instruction": step.get("html_instructions", ""),
+                    })
 
             return TransitDetails(
                 transit_steps=[TransitStep(**step) for step in transit_steps],
@@ -120,8 +165,18 @@ class RouteService:
                 route_details=route,
             )
 
-            if mode == TransportMode.bus:
-                result.transit_info = RouteService.extract_transit_details(leg)
+            if mode in [TransportMode.bus, TransportMode.metro, TransportMode.train]:
+                try:
+                    result.transit_info = RouteService.extract_transit_details(leg)
+                except Exception as e:
+                    print(f"WARNING: Failed to extract transit details: {e}")
+                    # Set empty transit info instead of failing
+                    result.transit_info = TransitDetails(
+                        transit_steps=[],
+                        walking_steps=[],
+                        total_transit_steps=0,
+                        total_walking_steps=0,
+                    )
 
             return result
         except HTTPException:
@@ -167,13 +222,19 @@ class RouteService:
                     language=language,
                 )
 
-                transit_result = await routes.get_routes(
-                    data=DirectionsRequest(
-                        origin=origin, destination=destination, alternatives=True
-                    ),
-                    mode=TransportMode.bus,
-                    language=language,
-                )
+                # Try to get transit routes, but don't fail if unavailable
+                transit_result = None
+                try:
+                    transit_result = await routes.get_routes(
+                        data=DirectionsRequest(
+                            origin=origin, destination=destination, alternatives=True
+                        ),
+                        mode=TransportMode.bus,
+                        language=language,
+                    )
+                except Exception as e:
+                    print(f"Transit routes not available: {str(e)}")
+                    transit_result = DirectionsResponse(routes=[])
 
                 walking_result = await routes.get_routes(
                     data=DirectionsRequest(origin=origin, destination=destination),
@@ -194,6 +255,9 @@ class RouteService:
                         )
                         all_routes.append(route_data)
 
+                # Get eco-friendly routes using TRAFFIC_AWARE_OPTIMAL
+                # Note: Google may not return explicit eco labels, but this preference
+                # optimizes for fuel efficiency
                 try:
                     eco_result = await routes.get_eco_friendly_route(
                         data=DirectionsRequest(
@@ -203,17 +267,27 @@ class RouteService:
                         vehicle_type="GASOLINE",
                         language=language,
                     )
-                except Exception:
+                    
+                    # Process eco routes and add to all_routes
+                    # The actual "eco-friendliness" will be determined by carbon calculation
+                    if eco_result and eco_result.routes:
+                        for eco_route in eco_result.routes:
+                            eco_route_data = await RouteService.process_route_data(
+                                eco_route.model_dump(), TransportMode.car, RouteType.low_carbon
+                            )
+                            # Only add if not duplicate (check by distance + duration)
+                            is_duplicate = any(
+                                abs(r.distance - eco_route_data.distance) < 0.1 and
+                                abs(r.duration - eco_route_data.duration) < 1
+                                for r in all_routes
+                            )
+                            if not is_duplicate:
+                                all_routes.append(eco_route_data)
+                except Exception as e:
+                    print(f"Eco route request failed (will use carbon-based selection): {str(e)}")
                     eco_result = None
 
-                if eco_result and eco_result.routes:
-                    eco_route = eco_result.routes[0]
-                    eco_route_data = await RouteService.process_route_data(
-                        eco_route.model_dump(), TransportMode.car, RouteType.low_carbon
-                    )
-                    all_routes.append(eco_route_data)
-
-                if transit_result.routes:
+                if transit_result and transit_result.routes:
                     for idx, route in enumerate(transit_result.routes):
                         route_type = RouteType.smart_combination
 
@@ -250,7 +324,16 @@ class RouteService:
                     transit_info=fastest_route.transit_info,
                 )
 
-                lowest_carbon_route = min(all_routes, key=lambda x: x.carbon)
+                # LOW_CARBON route: Only compare driving routes (car/motorbike)
+                # This ensures it's always a driving mode, not transit or walking
+                driving_routes = [r for r in all_routes if TransportMode.car in r.mode or TransportMode.motorbike in r.mode]
+                if not driving_routes:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="No driving routes found",
+                    )
+                
+                lowest_carbon_route = min(driving_routes, key=lambda x: x.carbon)
                 lowest_carbon_route_data = RouteData(
                     type=RouteType.low_carbon.value,
                     mode=lowest_carbon_route.mode,
@@ -304,12 +387,22 @@ class RouteService:
     def find_smart_route(
         all_routes: List[RouteData], fastest_route: RouteData, max_time_ratio: float
     ) -> Optional[RouteData]:
+        """
+        Find smart combination route that balances time and carbon emission.
+        
+        Priority:
+        1. Transit route (if available and within acceptable time)
+        2. Walking route (if distance <= 3km)
+        3. Eco-optimized driving route (lowest carbon among driving alternatives)
+        """
         try:
+            max_acceptable_time = fastest_route.duration * max_time_ratio
+            
+            # Priority 1: Check for transit routes
             transit_routes = [r for r in all_routes if TransportMode.bus in r.mode]
-
             if transit_routes:
                 best_transit = min(transit_routes, key=lambda x: x.carbon)
-
+                
                 driving_routes = [r for r in all_routes if TransportMode.car in r.mode]
                 if driving_routes:
                     best_driving = min(driving_routes, key=lambda x: x.duration)
@@ -322,8 +415,6 @@ class RouteService:
                         if best_driving.carbon > 0
                         else 0
                     )
-
-                    max_acceptable_time = fastest_route.duration * max_time_ratio
 
                     if (
                         carbon_saving_percent > 30
@@ -339,10 +430,10 @@ class RouteService:
                             transit_info=best_transit.transit_info,
                         )
 
+            # Priority 2: Check for walking routes (short distance)
             walking_routes = [r for r in all_routes if TransportMode.walking in r.mode]
             if walking_routes:
                 walk_route = walking_routes[0]
-                max_acceptable_time = fastest_route.duration * max_time_ratio
 
                 if (
                     walk_route.distance <= 3.0
@@ -357,6 +448,33 @@ class RouteService:
                         route_details=walk_route.route_details,
                         transit_info=walk_route.transit_info,
                     )
+            
+            # Priority 3: When no transit available, select eco-optimized driving route
+            # This is the "smart" choice when transit is not an option
+            driving_routes = [r for r in all_routes if TransportMode.car in r.mode]
+            if driving_routes:
+                # Find driving route with best carbon/time balance
+                # Prefer routes that are within acceptable time and have lower carbon
+                eco_driving_candidates = [
+                    r for r in driving_routes 
+                    if r.duration <= max_acceptable_time
+                ]
+                
+                if eco_driving_candidates:
+                    # Among acceptable routes, pick the one with lowest carbon
+                    best_eco_drive = min(eco_driving_candidates, key=lambda x: x.carbon)
+                    
+                    # Only return if it offers meaningful carbon savings vs fastest
+                    if best_eco_drive.carbon < fastest_route.carbon * 0.9:  # At least 10% savings
+                        return RouteData(
+                            type=RouteType.smart_combination.value,
+                            mode=best_eco_drive.mode,
+                            distance=best_eco_drive.distance,
+                            duration=best_eco_drive.duration,
+                            carbon=best_eco_drive.carbon,
+                            route_details=best_eco_drive.route_details,
+                            transit_info=best_eco_drive.transit_info,
+                        )
 
             return None
         except Exception as e:

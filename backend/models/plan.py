@@ -16,10 +16,17 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SQLEnum,
 )
-from schemas.route_schema import TransportMode
 from sqlalchemy.orm import relationship
 
 from database.db import Base
+
+class TransportMode(str, Enum):
+    car = "car"
+    motorbike = "motorbike"
+    walking = "walking"
+    metro = "metro"
+    bus = "bus"
+    train = "train"
 
 
 class DestinationType(str, Enum):

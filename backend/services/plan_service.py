@@ -163,6 +163,17 @@ class PlanService:
                     destination = saved_destinations[i + 1]
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
+                    
+                    # Validate coordinates before making route request
+                    if not origin_coords:
+                        print(f"ERROR: Failed to get coordinates for origin place_id={origin.destination_id}")
+                        continue
+                    if not destination_coords:
+                        print(f"ERROR: Failed to get coordinates for destination place_id={destination.destination_id}")
+                        continue
+                    
+                    print(f"Creating route from {origin.destination_id} ({origin_coords.latitude}, {origin_coords.longitude}) to {destination.destination_id} ({destination_coords.latitude}, {destination_coords.longitude})")
+                    
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
                         origin=origin_coords,
                         destination=destination_coords
@@ -260,8 +271,8 @@ class PlanService:
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
-                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
-                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                        origin=origin_coords,
+                        destination=destination_coords
                     ))
                     if route:
                         selected_route = None
