@@ -262,28 +262,58 @@ function TransportSelectionContent() {
 
       if (storedPlanId) {
         savedPlan = await api.updatePlan(Number(storedPlanId), payload);
-        alert("✅ Plan updated successfully!");
       } else {
         savedPlan = await api.createPlan(payload);
-        alert("✅ Plan created successfully!");
       }
 
-      const finalPlanId = savedPlan?.id || storedPlanId;
+      const finalPlanId = Number(savedPlan?.id || storedPlanId);
+
+      if (selectedTransport !== "car") {
+        try {
+          const routesWithIds = await api.getPlanRoutes(finalPlanId);
+
+          if (routesWithIds && routesWithIds.length > 0) {
+            const updatePromises = routesWithIds.map((route) => {
+              const distance = route.distance_km || 0;
+
+              const factors: Record<string, number> = {
+                car: 0.12,
+                motorbike: 0.06,
+                bus: 0.03,
+
+                walking: 0,
+                metro: 0.04,
+                train: 0.04,
+              };
+
+              const factor = factors[selectedTransport] || 0.12;
+              const newEmission = Number((distance * factor).toFixed(2));
+
+              // Gọi API update
+              return api.updateRoute(
+                finalPlanId,
+                route.id,
+                selectedTransport,
+                newEmission
+              );
+            });
+
+            await Promise.all(updatePromises);
+            console.log(
+              `✅ Updated ${routesWithIds.length} routes to ${selectedTransport}`
+            );
+          }
+        } catch (routeError) {
+          console.error(
+            "Warning: Could not update routes transport mode",
+            routeError
+          );
+        }
+      }
+      alert("✅ Plan saved successfully!");
       if (!storedPlanId && savedPlan?.id) {
         sessionStorage.setItem("EDITING_PLAN_ID", String(savedPlan.id));
       }
-
-      const transportData = {
-        transportType: selectedTransport,
-        totalDistance,
-        carbonEmission: carbonData[selectedTransport as keyof CarbonData],
-        timestamp: Date.now(),
-      };
-      sessionStorage.setItem(
-        "selected_transport",
-        JSON.stringify(transportData)
-      );
-
       router.push(
         `/planning_page/showing_plan_page${
           finalPlanId ? `?id=${finalPlanId}` : ""
