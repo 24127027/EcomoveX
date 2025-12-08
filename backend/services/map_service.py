@@ -4,6 +4,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration.map_api import create_map_client
+from models.user import Activity
+from repository.destination_repository import DestinationRepository
 from schemas.destination_schema import DestinationCreate, Location
 from schemas.map_schema import (
     AutocompleteRequest,
@@ -19,7 +21,9 @@ from schemas.map_schema import (
     TextSearchResponse,
 )
 from schemas.route_schema import DirectionsResponse
+from schemas.user_schema import UserActivityCreate
 from services.destination_service import DestinationService
+from services.user_service import UserService
 
 FIELD_GROUPS = {
     PlaceDataCategory.BASIC: [
@@ -138,7 +142,9 @@ class MapService:
                 await map_client.close()
 
     @staticmethod
-    async def get_location_details(data: PlaceDetailsRequest) -> PlaceDetailsResponse:
+    async def get_location_details(
+        data: PlaceDetailsRequest, db: AsyncSession, user_id: int
+    ) -> PlaceDetailsResponse:
         if not data.place_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="place_id is required"
@@ -155,11 +161,26 @@ class MapService:
                 final_fields.update(FIELD_GROUPS[PlaceDataCategory.BASIC])
 
             map_client = await create_map_client()
-            return await map_client.get_place_details(
+            result = await map_client.get_place_details(
                 place_id=data.place_id,
                 fields=list(final_fields),  # Convert set back to list
                 session_token=data.session_token,
             )
+
+            # Check database for green verification status via repository
+            certificate = await DestinationRepository.get_destination_certificate(
+                db, data.place_id
+            )
+            if certificate:
+                result.sustainable_certificate = certificate
+
+            # Log user activity
+            activity_data = UserActivityCreate(
+                activity=Activity.search_destination, destination_id=data.place_id
+            )
+            await UserService.log_user_activity(db, user_id, activity_data)
+
+            return result
 
         except HTTPException:
             raise

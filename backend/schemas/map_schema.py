@@ -84,7 +84,7 @@ class PlaceDetailsResponse(BaseModel):
     photos: Optional[List[PhotoInfo]] = None
     reviews: Optional[List[Review]] = None
     utc_offset: Optional[int] = None
-    sustainable_certified: bool = False
+    sustainable_certificate: str = "Not Green Verified"
 
     model_config = ConfigDict(from_attributes=True)
 

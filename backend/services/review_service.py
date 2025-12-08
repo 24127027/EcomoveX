@@ -104,14 +104,32 @@ class ReviewService:
                     detail=f"Destination with ID {destination_id} not found",
                 )
 
-            new_review = await ReviewRepository.create_review(
-                db, user_id, destination_id, review_data
+            # Check if review already exists for this user and destination
+            existing_review = await ReviewRepository.get_review_by_destination_and_user(
+                db, destination_id, user_id
             )
-            if not new_review:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create review",
+
+            if existing_review:
+                # Update existing review instead of creating new one
+                updated_review = await ReviewRepository.update_review(
+                    db, user_id, destination_id, review_data
                 )
+                if not updated_review:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to update review",
+                    )
+                new_review = updated_review
+            else:
+                # Create new review
+                new_review = await ReviewRepository.create_review(
+                    db, user_id, destination_id, review_data
+                )
+                if not new_review:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to create review",
+                    )
 
             urls = []
             if files:

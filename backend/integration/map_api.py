@@ -322,6 +322,7 @@ class MapAPI:
                     else None
                 ),
                 utc_offset=result.get("utc_offset"),
+                sustainable_certificate="Not Green Verified",
             )
         except httpx.ConnectError as e:
             print(f"Network connection error in get_place_details: {str(e)}")

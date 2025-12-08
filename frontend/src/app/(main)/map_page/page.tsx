@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  Suspense,
+  useCallback,
+} from "react";
 import {
   Search,
   MapPin,
@@ -8,6 +14,7 @@ import {
   Navigation,
   Check,
   BookmarkPlus,
+  BookmarkMinus,
 } from "lucide-react";
 import {
   api,
@@ -25,6 +32,7 @@ import { MAP_NAV_LINKS } from "@/constants/navLinks";
 import { Jost } from "next/font/google";
 
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const MAP_LOCATION_PREFERENCE_KEY = "map_page_use_current_location";
 
 interface PlaceDetailsWithDistance extends PlaceDetails {
   distanceText: string;
@@ -109,7 +117,7 @@ const generateSessionToken = () => {
 function MapContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isLoaded, loadError } = useGoogleMaps();
+  const { isLoaded } = useGoogleMaps();
 
   const urlQuery = searchParams.get("q") || "";
   const latParam = searchParams.get("lat");
@@ -159,6 +167,29 @@ function MapContent() {
   const initialLoadRef = useRef(true);
   const sessionTokenRef = useRef<string | null>(null);
   const sheetHeightRef = useRef(sheetHeight);
+  const pendingMapUpdateRef = useRef<{
+    position: Position;
+    zoom?: number;
+  } | null>(null);
+  const hasAttemptedAutoLocateRef = useRef(false);
+  const [shouldUseCurrentLocation, setShouldUseCurrentLocation] = useState<
+    boolean | null
+  >(null);
+  const [isLocating, setIsLocating] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedPreference = window.localStorage.getItem(
+      MAP_LOCATION_PREFERENCE_KEY
+    );
+
+    if (storedPreference === "true") {
+      setShouldUseCurrentLocation(true);
+    } else {
+      window.localStorage.setItem(MAP_LOCATION_PREFERENCE_KEY, "true");
+      setShouldUseCurrentLocation(false);
+    }
+  }, []);
 
   useEffect(() => {
     sessionTokenRef.current = sessionToken;
@@ -292,6 +323,7 @@ function MapContent() {
   };
 
   const handleTextSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter") {
       e.currentTarget.blur();
       executeSearch(searchQuery);
@@ -409,6 +441,64 @@ function MapContent() {
       setIsLoadingRecommendations(false);
     }
   };
+
+  const scheduleMapUpdate = useCallback(
+    (position: Position, zoom?: number) => {
+      if (googleMapRef.current && mapLoaded) {
+        googleMapRef.current.panTo(position);
+        if (typeof zoom === "number") {
+          googleMapRef.current.setZoom(zoom);
+        }
+      } else {
+        pendingMapUpdateRef.current = { position, zoom };
+      }
+    },
+    [mapLoaded]
+  );
+
+  const locateUser = useCallback(
+    (options: { silent?: boolean; zoom?: number } = {}) => {
+      if (isLocating) return;
+
+      if (typeof window === "undefined" || !("geolocation" in navigator)) {
+        if (!options.silent) {
+          alert("Geolocation is not supported by your browser!");
+        }
+        return;
+      }
+
+      setIsLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const pos: Position = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setUserLocation(pos);
+          scheduleMapUpdate(pos, options.zoom ?? 15);
+          setIsLocating(false);
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          if (!options.silent) {
+            let errorMsg = "Unable to get your location";
+            if (error.code === 1) errorMsg = "Please allow location access.";
+            else if (error.code === 2)
+              errorMsg = "Location unavailable. Please check your GPS!";
+            else if (error.code === 3) errorMsg = "Location request timed out.";
+            alert(errorMsg);
+          }
+          setIsLocating(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    },
+    [isLocating, scheduleMapUpdate]
+  );
 
   const displayedLocations =
     searchResults.length > 0
@@ -587,26 +677,35 @@ function MapContent() {
     }
   };
 
-  const handleCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const pos = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setUserLocation(pos);
-          if (googleMapRef.current) {
-            googleMapRef.current.setCenter(pos);
-            googleMapRef.current.setZoom(15);
-          }
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          alert("Unable to get your location");
-        }
-      );
+  const handleUnsaveLocation = async () => {
+    if (!selectedLocation || isSavingLocation) return;
+
+    const locationId = selectedLocation.place_id;
+    if (!isPlaceSaved(locationId)) return;
+
+    setIsSavingLocation(true);
+    setSaveFeedback(null);
+
+    try {
+      await api.unsaveDestination(locationId);
+      setSavedPlaceIds((prev) => prev.filter((id) => id !== locationId));
+      setSaveFeedback({
+        type: "success",
+        message: "Removed this location from your favorites.",
+      });
+    } catch (error: any) {
+      console.error("Failed to unsave location:", error);
+      const message =
+        error?.message ||
+        "Unable to remove this location. Please try again later.";
+      setSaveFeedback({ type: "error", message });
+    } finally {
+      setIsSavingLocation(false);
     }
+  };
+
+  const handleCurrentLocation = () => {
+    locateUser();
   };
 
   useEffect(() => {
@@ -693,9 +792,9 @@ function MapContent() {
 
   return (
     <div
-      className={`min-h-screen w-full bg-linear-to-b from-[#F4F9F4] via-[#EFF6F2] to-[#E3F1EB] sm:flex sm:justify-center ${jost.className}`}
+      className={`min-h-screen w-full relative bg-linear-to-b from-[#F4F9F4] via-[#EFF6F2] to-[#E3F1EB] sm:flex sm:items-center sm:justify-center sm:px-4 ${jost.className}`}
     >
-      <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:shadow-[0_30px_80px_rgba(10,126,70,0.15)] sm:rounded-3xl">
+      <div className="w-full h-screen relative flex flex-col overflow-hidden sm:max-w-md sm:h-[calc(100vh-2rem)] sm:rounded-4xl sm:shadow-[0_30px_80px_rgba(10,126,70,0.15)] sm:border sm:border-white/40 sm:bg-white/10">
         {!isPickerMode && (
           <MobileNavMenu
             items={MAP_NAV_LINKS}
@@ -777,14 +876,16 @@ function MapContent() {
             onClick={handleCurrentLocation}
             className="absolute top-36 right-8 z-20 bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-[0_8px_24px_rgba(15,118,110,0.2)] border border-white/60 hover:bg-white transition-colors active:scale-95"
           >
-            <Navigation size={20} className="text-green-600" />
+            {isLocating ? (
+              <div className="animate-spin h-5 w-5 border-2 border-green-600 border-t-transparent rounded-full"></div>
+            ) : (
+              <Navigation size={20} className="text-green-600" />
+            )}
           </button>
 
           {/* Google Map */}
-          <div className="absolute inset-0 pt-32 pb-8 px-4 sm:px-8">
-            <div className="w-full h-full rounded-4xl bg-linear-to-br from-[#D9F1E7] via-[#D6ECE2] to-[#CFE4DB] shadow-[0_30px_80px_rgba(16,185,129,0.2)] border border-white/60 overflow-hidden">
-              <div ref={mapRef} className="w-full h-full" />
-            </div>
+          <div className="absolute inset-0">
+            <div ref={mapRef} className="w-full h-full" />
           </div>
 
           {!mapLoaded && (
@@ -873,24 +974,29 @@ function MapContent() {
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
-                    onClick={handleSaveLocation}
-                    disabled={isSavingLocation || isCurrentLocationSaved}
-                    className={`w-full border border-green-200 rounded-2xl font-semibold py-3.5 shadow-[0_10px_30px_rgba(15,118,110,0.18)] transition-all flex items-center justify-center gap-2 text-base active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+                    onClick={
                       isCurrentLocationSaved
-                        ? "bg-linear-to-r from-green-500 to-emerald-500 text-white"
-                        : "text-green-700 bg-white"
+                        ? handleUnsaveLocation
+                        : handleSaveLocation
+                    }
+                    disabled={isSavingLocation}
+                    className={`w-full border rounded-2xl font-semibold py-3.5 shadow-[0_10px_30px_rgba(15,118,110,0.18)] transition-all flex items-center justify-center gap-2 text-base active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isCurrentLocationSaved
+                        ? "bg-linear-to-r from-rose-500 to-red-500 text-white border-red-200"
+                        : "text-green-700 bg-white border-green-200"
                     }`}
                   >
-                    <BookmarkPlus
-                      size={18}
-                      className={
-                        isCurrentLocationSaved ? "text-white" : "text-green-600"
-                      }
-                    />
+                    {isCurrentLocationSaved ? (
+                      <BookmarkMinus size={18} className="text-white" />
+                    ) : (
+                      <BookmarkPlus size={18} className="text-green-600" />
+                    )}
                     {isSavingLocation
-                      ? "Saving..."
+                      ? isCurrentLocationSaved
+                        ? "Removing..."
+                        : "Saving..."
                       : isCurrentLocationSaved
-                      ? "Saved"
+                      ? "Unsave"
                       : "Save Location"}
                   </button>
 
