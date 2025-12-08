@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.destination import Destination
 from services.destination_service import DestinationService
 from repository.plan_repository import PlanRepository
-from repository.room_repository import RoomRepository
 from repository.message_repository import MessageRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.map_schema import *
@@ -17,11 +16,13 @@ from schemas.message_schema import RoomContextCreate, CommonMessageResponse
 from schemas.route_schema import RouteType
 from services.map_service import MapService
 from services.route_service import RouteService
+from services.room_service import RoomService
 from repository.plan_repository import PlanDestination
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
 from models.room import RoomType, MemberRole
 from models.plan import PlanDestination, TimeSlot, DestinationType
+from schemas.room_schema import AddMemberRequest
 
 
 class PlanService:
@@ -517,16 +518,54 @@ class PlanService:
                     detail="Only the owner can add members to the plan",
                 )
 
+            room = None
+            try:
+                room = await RoomService.get_room_by_plan_id(db, user_id, plan_id)
+            except HTTPException as e:
+                if e.status_code == status.HTTP_404_NOT_FOUND:
+                    room_name = f"{plan.place_name} - Group Chat"
+                    room = await RoomService.create_room(db, user_id, RoomCreate(
+                        name=room_name,
+                        member_ids=[],
+                        avatar_blob_name=None,
+                        plan_id=plan_id
+                    ))
+                    await RoomService.add_users_to_room(
+                        db,
+                        user_id,
+                        room.id,
+                        AddMemberRequest(data=[
+                            RoomMemberCreate(user_id=user_id, role=MemberRole.owner)
+                        ]),
+                    )
+                else:
+                    raise
+
             duplicates = []
+            members_to_add = []
             for member in data.ids:
                 if await PlanService.is_member(db, member.user_id, plan_id):
                     duplicates.append(member.user_id)
                     continue
-                await PlanRepository.add_plan_member(
+                await PlanService.add_plan_member(
                     db,
                     plan_id,
                     PlanMemberCreate(user_id=member.user_id, role=member.role),
                 )
+                # Collect members to add to room
+                members_to_add.append(
+                    RoomMemberCreate(user_id=member.user_id, role=MemberRole.member)
+                )
+            
+            # Add all members to group room in one call
+            if members_to_add and room:
+                await RoomService.add_users_to_room(
+                    db,
+                    user_id,
+                    room.id,
+                    AddMemberRequest(data=members_to_add),
+                )
+            
             users = await PlanRepository.get_plan_members(db, plan_id)
             return PlanMemberResponse(
                 plan_id=plan_id,
