@@ -100,7 +100,7 @@ const convertSearchResultToDetails = (
           },
         ]
       : [],
-    sustainable_certified: false,
+    sustainable_certificate: "Not Green Verified",
     distanceText: distanceText,
     rating: 0,
   };
