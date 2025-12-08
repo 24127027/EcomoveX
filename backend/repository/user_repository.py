@@ -80,7 +80,7 @@ class UserRepository:
     @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate):
         try:
-            is_existing = await UserRepository.search_users(db, user_data.username) or await UserRepository.search_users(db, user_data.email)
+            is_existing = await UserRepository.get_user_by_email(db, user_data.email)
             if is_existing:
                 print(
                     f"WARNING: WARNING: User creation failed - username "

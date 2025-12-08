@@ -103,7 +103,7 @@ class TransitStepDetail(BaseModel):
     departure_stop: Tuple[str, Location]
     arrival_time: Dict[str, Any]
     departure_time: Dict[str, Any]
-    headway: Optional[int] = None
+    headway: Optional[str] = None  # Changed from int to str (headsign from v1 API)
     line: str
 
 
