@@ -66,6 +66,8 @@ class AddressComponent(BaseModel):
 class Review(BaseModel):
     rating: float
     text: str
+    author_name: Optional[str] = None
+    time: Optional[str] = None
 
 
 class PlaceDetailsResponse(BaseModel):

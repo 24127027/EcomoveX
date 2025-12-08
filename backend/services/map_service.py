@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from integration.map_api import create_map_client
 from models.user import Activity
 from repository.destination_repository import DestinationRepository
+from repository.review_repository import ReviewRepository
 from schemas.destination_schema import DestinationCreate, Location
 from schemas.map_schema import (
     AutocompleteRequest,
@@ -173,6 +174,34 @@ class MapService:
             )
             if certificate:
                 result.sustainable_certificate = certificate
+
+            # Fetch reviews from database and merge with API reviews
+            db_reviews = await ReviewRepository.get_all_reviews_by_destination(
+                db, data.place_id
+            )
+            
+            if db_reviews:
+                from schemas.map_schema import Review as ReviewSchema
+                
+                # Convert database reviews to schema format
+                db_review_list = []
+                for db_review in db_reviews:
+                    # Get author name from user relationship
+                    author_name = db_review.user.username if db_review.user else "Anonymous"
+                    db_review_list.append(
+                        ReviewSchema(
+                            rating=float(db_review.rating),
+                            text=db_review.content,
+                            author_name=author_name,
+                            time=db_review.created_at.isoformat() if db_review.created_at else None
+                        )
+                    )
+                
+                # Merge: database reviews first, then API reviews
+                if result.reviews:
+                    result.reviews = db_review_list + result.reviews
+                else:
+                    result.reviews = db_review_list
 
             # Log user activity
             activity_data = UserActivityCreate(
