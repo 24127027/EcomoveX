@@ -144,7 +144,7 @@ class MapService:
 
     @staticmethod
     async def get_location_details(
-        data: PlaceDetailsRequest, db: AsyncSession, user_id: int
+        data: PlaceDetailsRequest, db: Optional[AsyncSession] = None, user_id: Optional[int] = None
     ) -> PlaceDetailsResponse:
         if not data.place_id:
             raise HTTPException(
@@ -169,16 +169,19 @@ class MapService:
             )
 
             # Check database for green verification status via repository
-            certificate = await DestinationRepository.get_destination_certificate(
-                db, data.place_id
-            )
-            if certificate:
-                result.sustainable_certificate = certificate
+            if db:
+                certificate = await DestinationRepository.get_destination_certificate(
+                    db, data.place_id
+                )
+                if certificate:
+                    result.sustainable_certificate = certificate
 
             # Fetch reviews from database and merge with API reviews
-            db_reviews = await ReviewRepository.get_all_reviews_by_destination(
-                db, data.place_id
-            )
+            db_reviews = None
+            if db:
+                db_reviews = await ReviewRepository.get_all_reviews_by_destination(
+                    db, data.place_id
+                )
             
             if db_reviews:
                 from schemas.map_schema import Review as ReviewSchema
@@ -204,10 +207,11 @@ class MapService:
                     result.reviews = db_review_list
 
             # Log user activity
-            activity_data = UserActivityCreate(
-                activity=Activity.search_destination, destination_id=data.place_id
-            )
-            await UserService.log_user_activity(db, user_id, activity_data)
+            if db and user_id:
+                activity_data = UserActivityCreate(
+                    activity=Activity.search_destination, destination_id=data.place_id
+                )
+                await UserService.log_user_activity(db, user_id, activity_data)
 
             return result
 

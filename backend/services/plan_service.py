@@ -253,7 +253,9 @@ class PlanService:
             for dest_data in updated_data.destinations or []:
                 try:
                     place_info = await MapService.get_location_details(
-                        PlaceDetailsRequest(place_id=dest_data.destination_id)
+                        PlaceDetailsRequest(place_id=dest_data.destination_id),
+                        db=db,
+                        user_id=user_id
                     )
                     await PlanRepository.ensure_destination(db, place_info.place_id)
                     
@@ -419,7 +421,9 @@ class PlanService:
 
             try:
                 image = await MapService.get_location_details(
-                    PlaceDetailsRequest(place_id=data.destination_id)
+                    PlaceDetailsRequest(place_id=data.destination_id),
+                    db=db,
+                    user_id=user_id
                 )
                 data.url = image.photos[0].photo_url if image.photos else None
             except Exception:
@@ -872,7 +876,11 @@ class PlanService:
             # Find and remove matching destinations
             removed_count = 0
             for dest in destinations:
-                dest_info = await MapService.get_location_details(PlaceDetailsRequest(place_id=dest.destination_id))
+                dest_info = await MapService.get_location_details(
+                    PlaceDetailsRequest(place_id=dest.destination_id),
+                    db=db,
+                    user_id=user_id
+                )
                 if dest_info and text_lower in dest_info.name.lower():
                     await PlanRepository.remove_destination_from_plan(db, dest.id)
                     removed_count += 1
@@ -954,7 +962,9 @@ class PlanService:
             # Get place details including photo
             try:
                 place_details = await MapService.get_location_details(
-                    PlaceDetailsRequest(place_id=first.place_id)
+                    PlaceDetailsRequest(place_id=first.place_id),
+                    db=db,
+                    user_id=user_id
                 )
                 photo_url = place_details.photos[0].photo_url if place_details.photos else None
             except Exception:
