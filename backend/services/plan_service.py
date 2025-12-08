@@ -141,7 +141,9 @@ class PlanService:
                 try:
                     # Gọi MapService lấy thông tin để tạo Destination trong DB trước
                     place_info = await MapService.get_location_details(
-                        PlaceDetailsRequest(place_id=dest_data.destination_id)
+                        PlaceDetailsRequest(place_id=dest_data.destination_id),
+                        db=db,
+                        user_id=user_id
                     )
                     await PlanRepository.ensure_destination(db, place_info.place_id)
 

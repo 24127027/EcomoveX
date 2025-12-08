@@ -405,27 +405,31 @@ const AdminDashboard = () => {
   };
 
   const handleAiCheck = async (destinationId: string) => {
-    if (!confirm('Run AI verification check for this destination?')) return;
+    if (!confirm('Run AI green verification check for this destination? This will analyze place photos using computer vision.')) return;
     
     try {
       setLoading(true);
       const result = await api.adminCheckAiVerification(destinationId);
       
+      const greenScorePercent = (result.green_score! * 100).toFixed(1);
+      const statusMessage = result.verified 
+        ? `✓ AI Verification PASSED\n\nGreen Coverage Score: ${greenScorePercent}%\n\nThe destination has sufficient green coverage based on image analysis.`
+        : `✗ Verification Result: Not Sufficient\n\nGreen Coverage Score: ${greenScorePercent}%\n\nThe destination does not meet the minimum green coverage threshold (2%).`;
+      
       if (result.verified) {
         const shouldUpdate = confirm(
-          `AI Verification PASSED ✓\n\nConfidence: ${(result.confidence! * 100).toFixed(1)}%\nGreen Score: ${(result.green_score! * 100).toFixed(1)}%\n\nUpdate certificate to "AI Green Verified"?`
+          `${statusMessage}\n\nUpdate certificate status to "AI Green Verified"?`
         );
         if (shouldUpdate) {
           await api.adminUpdateCertificate(destinationId, 'AI Green Verified');
+          alert('Certificate updated successfully!');
           fetchDestinations();
         }
       } else {
-        alert(
-          `AI Verification FAILED ✗\n\nConfidence: ${(result.confidence! * 100).toFixed(1)}%\nGreen Score: ${(result.green_score! * 100).toFixed(1)}%`
-        );
+        alert(statusMessage);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to run AI check');
+      alert(err.message || 'Failed to run AI verification check. Please ensure the destination has photos available.');
     } finally {
       setLoading(false);
     }

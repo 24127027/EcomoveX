@@ -1612,23 +1612,30 @@ class ApiClient {
     };
   }
 
-  // TODO: Implement on backend later
-  // Mock: Check destination with AI verification (not implemented on backend yet)
+  // Check destination with AI verification using green-verification endpoint
   async adminCheckAiVerification(destinationId: string): Promise<AiCheckResult> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock response - randomly verify or not
-    const verified = Math.random() > 0.4;
-    const confidence = Math.random() * 0.3 + 0.7;
-    const green_score = verified ? Math.random() * 0.25 + 0.65 : Math.random() * 0.5;
-    
-    return {
-      destination_id: destinationId,
-      verified,
-      confidence,
-      green_score,
-    };
+    try {
+      const response = await this.request<GreenVerificationResponse>(
+        `/green-verification/verify-place?place_id=${encodeURIComponent(destinationId)}`,
+        { method: "GET" }
+      );
+      
+      // Map GreenVerificationResponse to AiCheckResult format
+      const verified = response.status === "AI Green Verified" || response.status === "Green Certified";
+      
+      return {
+        destination_id: destinationId,
+        verified,
+        confidence: response.green_score, // Use green_score as confidence
+        green_score: response.green_score,
+      };
+    } catch (error: any) {
+      // Handle service unavailable error gracefully
+      if (error.message && error.message.includes('503')) {
+        throw new Error('AI verification service is currently unavailable due to technical issues. Please try again later or contact support.');
+      }
+      throw error;
+    }
   }
 }
 

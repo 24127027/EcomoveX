@@ -202,7 +202,7 @@ def write_depth(path, depth, grayscale, bits=1):
 
 
 def load_image_from_url(url):
-    """Download image → decode using cv2 → return RGB float32 in [0,1]."""
+    """Download image → decode using cv2 → return RGB uint8 in [0,255]."""
     resp = requests.get(url)
     data = np.frombuffer(resp.content, np.uint8)
     img_bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
@@ -211,5 +211,4 @@ def load_image_from_url(url):
         raise Exception(f"Failed to decode image at {url}")
 
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    img_rgb = img_rgb.astype(np.float32) / 255.0
     return img_rgb
