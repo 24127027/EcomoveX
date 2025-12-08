@@ -39,9 +39,16 @@ class TextGeneratorAPI:
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
+                print(f"🔄 Calling OpenRouter API with model: {model}")
+                print(f"📤 Payload: {payload}")
+                
                 resp = await client.post(
                     self.base_url, json=payload, headers=headers
                 )
+                
+                print(f"📥 Response status: {resp.status_code}")
+                print(f"📥 Response body: {resp.text[:500]}")
+                
                 resp.raise_for_status()
 
                 if not resp.text or resp.text.strip() == "":
@@ -59,8 +66,14 @@ class TextGeneratorAPI:
                 return reply
 
         except httpx.HTTPStatusError as e:
-            raise Exception(f"HTTP Error: {e.response.text}")
+            error_body = e.response.text if hasattr(e.response, 'text') else str(e)
+            print(f"❌ HTTP Error {e.response.status_code}: {error_body}")
+            raise Exception(f"HTTP Error {e.response.status_code}: {error_body}")
+        except httpx.TimeoutException as e:
+            print(f"❌ Timeout Error: {str(e)}")
+            raise Exception(f"Request timeout: {str(e)}")
         except Exception as e:
+            print(f"❌ General Error: {type(e).__name__}: {str(e)}")
             raise Exception(f"LLM Error: {str(e)}")
 
 

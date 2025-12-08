@@ -164,8 +164,8 @@ class PlanService:
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
-                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
-                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                        origin=Location(lat=origin_coords.latitude, lng=origin_coords.longitude),
+                        destination=Location(lat=destination_coords.latitude, lng=destination_coords.longitude)
                     ))
                     if route:
                         selected_route = None
@@ -260,8 +260,8 @@ class PlanService:
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
-                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
-                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                        origin=Location(lat=origin_coords.latitude, lng=origin_coords.longitude),
+                        destination=Location(lat=destination_coords.latitude, lng=destination_coords.longitude)
                     ))
                     if route:
                         selected_route = None

@@ -17,6 +17,13 @@ Be helpful, friendly, and concise. Guide users to use 'add', 'remove', 'view pla
             if context:
                 messages.extend(context[-10:])
             messages.append({"role": "user", "content": user_text})
-            return await self.model.generate_reply(messages)
+            
+            print(f"🤖 ChitChatAgent - Sending to LLM: {user_text}")
+            reply = await self.model.generate_reply(messages)
+            print(f"✅ ChitChatAgent - Got reply: {reply[:100]}...")
+            return reply
         except Exception as e:
-            return f"Xin lỗi, tôi gặp sự cố. Bạn có thể thử lại không?"
+            print(f"❌ Error in ChitChatAgent: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return f"Xin lỗi, tôi gặp sự cố khi kết nối với AI. Vui lòng thử lại sau. (Error: {type(e).__name__})"

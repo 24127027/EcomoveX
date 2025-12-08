@@ -584,8 +584,9 @@ export interface PlanGenerationResponse {
 }
 
 export interface BotMessageResponse {
-  message?: string;
-  detail?: string;
+  response: string;
+  room_id: number;
+  metadata?: Record<string, any>;
 }
 
 export interface DestinationCard {
