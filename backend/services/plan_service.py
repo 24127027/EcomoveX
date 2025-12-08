@@ -21,7 +21,7 @@ from repository.plan_repository import PlanDestination
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
 from models.room import RoomType, MemberRole
-from models.plan import PlanDestination
+from models.plan import PlanDestination, TimeSlot, DestinationType
 
 
 class PlanService:
@@ -866,19 +866,74 @@ class PlanService:
             # Get all destinations
             destinations = await PlanRepository.get_plan_destinations(db, plan_id)
             text_lower = text.lower()
+            
+            print(f"🔍 Searching for destination to remove: '{text}'")
+            print(f"📋 Plan has {len(destinations)} destinations")
 
             # Find and remove matching destinations
             removed_count = 0
             for dest in destinations:
-                dest_info = await MapService.get_location_details(PlaceDetailsRequest(place_id=dest.destination_id))
-                if dest_info and text_lower in dest_info.name.lower():
+                # Try to get name from MapService
+                try:
+                    dest_info = await MapService.get_location_details(PlaceDetailsRequest(place_id=dest.destination_id))
+                    dest_name = dest_info.name if dest_info else None
+                except Exception as e:
+                    print(f"⚠️ Failed to get location details for {dest.destination_id}: {e}")
+                    dest_name = None
+                
+                # Fallback to note field if MapService fails
+                if not dest_name:
+                    dest_name = dest.note
+                
+                print(f"🏷️ Destination {dest.id}: name='{dest_name}', note='{dest.note}'")
+                
+                # Check if text matches name or note
+                if dest_name and text_lower in dest_name.lower():
+                    print(f"✅ Match found! Removing destination {dest.id}")
                     await PlanRepository.remove_destination_from_plan(db, dest.id)
                     removed_count += 1
+                elif dest.note and text_lower in dest.note.lower():
+                    print(f"✅ Match found in note! Removing destination {dest.id}")
+                    await PlanRepository.remove_destination_from_plan(db, dest.id)
+                    removed_count += 1
+
+            print(f"📊 Removed {removed_count} destination(s)")
 
             if removed_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No destination found matching '{text}'",
+                )
+
+            # Return updated plan
+            return await PlanService.get_plan_by_id(db, user_id, plan_id)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error removing destination: {e}",
+            )
+    
+    @staticmethod
+    async def remove_place_by_id(db: AsyncSession, user_id: int, plan_id: int, plan_destination_id: int) -> PlanResponse:
+        """Remove a specific destination from plan by its plan_destination ID"""
+        try:
+            # Check permission
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+
+            # Remove the destination
+            success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
+            
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Destination with ID {plan_destination_id} not found in plan",
                 )
 
             # Return updated plan
@@ -961,10 +1016,24 @@ class PlanService:
             # Ensure destination exists in DB
             await PlanRepository.ensure_destination(db, first.place_id)
 
-            # Add to plan
+            # Get plan to determine defaults
+            from datetime import date
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            
+            # Set defaults: use plan start date if available, otherwise today
+            default_date = plan.start_date if plan and plan.start_date else date.today()
+            
+            # Get existing destinations to determine order
+            existing_destinations = await PlanRepository.get_plan_destinations(db, plan_id)
+            next_order = len(existing_destinations) + 1
+
+            # Add to plan with all required fields
             plan_dest_data = PlanDestinationCreate(
                 destination_id=first.place_id,
-                type=DestinationType.attraction,
+                destination_type=DestinationType.attraction,
+                order_in_day=next_order,
+                visit_date=default_date,
+                time_slot=TimeSlot.morning,  # Default to morning
                 url=photo_url,
             )
 

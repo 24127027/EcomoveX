@@ -113,13 +113,29 @@ class PlannerAgent:
         result = await self._run_sub_agents(plan, "validate")
         return {"valid": len(result["warnings"]) == 0, "warnings": result["warnings"], "suggestions": result["modifications"]}
     
-    async def process_plan(self, user_id: int, room_id: int, user_text: str, action: str = "view") -> Dict[str, Any]:
+    async def process_plan(self, user_id: int, user_text: str, action: str = "view", plan_id: int = None) -> Dict[str, Any]:
         """Xử lý yêu cầu liên quan đến plan."""
-        plans = await PlanService.get_plans_by_user(self.db, user_id)
-        plan = plans[0] if plans else None
+        # Expire all cached data to ensure fresh fetch from database
+        self.db.expire_all()
+        
+        # If plan_id is provided, use it directly
+        if plan_id:
+            plan = await PlanService.get_plan_by_id(self.db, user_id, plan_id)
+            if not plan:
+                return {"ok": False, "message": f"Không tìm thấy kế hoạch ID {plan_id}."}
+        else:
+            # Otherwise, get the latest plan
+            plans = await PlanService.get_plans_by_user(self.db, user_id)
+            
+            if not plans or not plans.plans or len(plans.plans) == 0:
+                return {"ok": False, "message": "Bạn chưa có kế hoạch du lịch nào. Hãy tạo một kế hoạch mới!"}
+            
+            # Get the latest plan (last in list)
+            plan_basic = plans.plans[-1]
+            plan = await PlanService.get_plan_by_id(self.db, user_id, plan_basic.id)
         
         if not plan:
-            return {"ok": False, "message": "Bạn chưa có kế hoạch du lịch nào. Hãy tạo một kế hoạch mới!"}
+            return {"ok": False, "message": "Không thể tải thông tin kế hoạch."}
         
         agent_results = await self._run_sub_agents(plan, action)
         warnings, modifications = agent_results["warnings"], agent_results["modifications"]

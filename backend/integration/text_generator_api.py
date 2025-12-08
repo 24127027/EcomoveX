@@ -76,6 +76,104 @@ class TextGeneratorAPI:
             print(f"❌ General Error: {type(e).__name__}: {str(e)}")
             raise Exception(f"LLM Error: {str(e)}")
 
+    async def generate_json(
+        self,
+        prompt: str,
+        api_key: str = settings.OPEN_ROUTER_API_KEY,
+        model: str = settings.OPEN_ROUTER_MODEL_NAME,
+    ) -> dict:
+        """Generate structured JSON response from LLM."""
+        if model is None:
+            model = self.text_model
+
+        headers = self.headers.copy()
+        if api_key and api_key != settings.OPEN_ROUTER_API_KEY:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        # Add system message for JSON generation
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a JSON generator. Always respond with valid JSON only, no additional text."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.3,  # Lower temperature for more consistent JSON
+            "max_tokens": 1000,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                print(f"🔄 Calling OpenRouter API for JSON generation")
+                
+                resp = await client.post(
+                    self.base_url, json=payload, headers=headers
+                )
+                
+                print(f"📥 Response status: {resp.status_code}")
+                
+                resp.raise_for_status()
+
+                if not resp.text or resp.text.strip() == "":
+                    raise Exception("Empty response from LLM")
+
+                try:
+                    data = resp.json()
+                except Exception as json_err:
+                    raise Exception("LLM returned non-JSON body") from json_err
+
+                if "choices" not in data or len(data["choices"]) == 0:
+                    raise Exception("Invalid response format: missing 'choices'")
+
+                reply = data["choices"][0]["message"]["content"]
+                
+                # Try to parse the reply as JSON
+                try:
+                    import json
+                    # Log raw response before processing
+                    print(f"📝 Raw LLM response: {repr(reply)}")
+                    
+                    # Remove markdown code blocks if present
+                    reply = reply.strip()
+                    if reply.startswith("```json"):
+                        reply = reply[7:]
+                    if reply.startswith("```"):
+                        reply = reply[3:]
+                    if reply.endswith("```"):
+                        reply = reply[:-3]
+                    reply = reply.strip()
+                    
+                    print(f"📝 After markdown removal: {repr(reply)}")
+                    
+                    json_result = json.loads(reply)
+                    print(f"✅ Parsed JSON: {json_result}")
+                    return json_result
+                except json.JSONDecodeError as e:
+                    print(f"❌ Failed to parse JSON. Error: {e}")
+                    print(f"❌ Problematic text: {repr(reply)}")
+                    print(f"❌ Text length: {len(reply)} chars")
+                    print(f"❌ First 100 chars: {reply[:100]}")
+                    raise Exception(f"LLM response is not valid JSON: {e}")
+
+        except httpx.HTTPStatusError as e:
+            error_body = e.response.text if hasattr(e.response, 'text') else str(e)
+            print(f"❌ HTTP Error {e.response.status_code}: {error_body}")
+            raise Exception(f"HTTP Error {e.response.status_code}: {error_body}")
+        except httpx.TimeoutException as e:
+            print(f"❌ Timeout Error: {str(e)}")
+            raise Exception(f"Request timeout: {str(e)}")
+        except Exception as e:
+            print(f"❌ General Error: {type(e).__name__}: {str(e)}")
+            raise Exception(f"LLM Error: {str(e)}")
+
 
 async def create_text_generator_api() -> TextGeneratorAPI:
     return TextGeneratorAPI()
+
