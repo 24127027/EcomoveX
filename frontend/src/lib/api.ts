@@ -235,7 +235,10 @@ export interface PlaceDetails {
   }>;
   reviews?: PlaceReview[];
   utc_offset?: number;
-  sustainable_certificate: "Green Certified" | "AI Green Verified" | "Not Green Verified";
+  sustainable_certificate:
+    | "Green Certified"
+    | "AI Green Verified"
+    | "Not Green Verified";
 }
 
 export interface OpeningHoursPeriodEndpoint {
@@ -255,6 +258,8 @@ export interface PlaceReview {
   text?: string;
   time?: number;
   profile_photo_url?: string;
+  files_urls?: string[]; 
+  created_at?: string;
 }
 
 export interface ReverseGeocodeResponse {
@@ -280,7 +285,10 @@ export interface SavedDestination {
 }
 
 // Destination certificate/verification types
-export type GreenVerifiedStatus = "Green Certified" | "Not Green Verified" | "AI Green Verified";
+export type GreenVerifiedStatus =
+  | "Green Certified"
+  | "Not Green Verified"
+  | "AI Green Verified";
 
 export interface DestinationWithCertificate {
   place_id: string;
@@ -332,11 +340,13 @@ export interface RouteForPlanResponse {
 }
 
 export interface RouteResponse {
+  id: number;
   plan_id: number;
   origin_plan_destination_id: number;
   destination_plan_destination_id: number;
   distance_km: number;
   carbon_emission_kg: number;
+  mode: string;
 }
 
 export interface PlanBasicInfo {
@@ -1467,18 +1477,21 @@ class ApiClient {
   }
 
   // --- ADMIN ENDPOINTS ---
-  
+
   // List all users with filters (Admin only)
   async listAllUsers(filters?: UserFilterParams): Promise<AdminUserResponse[]> {
     const params = new URLSearchParams();
     if (filters?.role) params.append("role", filters.role);
     if (filters?.status) params.append("status", filters.status);
     if (filters?.search) params.append("search", filters.search);
-    if (filters?.created_from) params.append("created_from", filters.created_from);
+    if (filters?.created_from)
+      params.append("created_from", filters.created_from);
     if (filters?.created_to) params.append("created_to", filters.created_to);
-    if (filters?.skip !== undefined) params.append("skip", String(filters.skip));
-    if (filters?.limit !== undefined) params.append("limit", String(filters.limit));
-    
+    if (filters?.skip !== undefined)
+      params.append("skip", String(filters.skip));
+    if (filters?.limit !== undefined)
+      params.append("limit", String(filters.limit));
+
     const queryString = params.toString();
     return this.request<AdminUserResponse[]>(
       `/users/users${queryString ? `?${queryString}` : ""}`,
@@ -1494,7 +1507,10 @@ class ApiClient {
   }
 
   // Add eco points to a user (Admin only)
-  async addEcoPointsToUser(userId: number, points: number): Promise<UserProfile> {
+  async addEcoPointsToUser(
+    userId: number,
+    points: number
+  ): Promise<UserProfile> {
     return this.request<UserProfile>(
       `/users/${userId}/eco_point/add?point=${points}`,
       { method: "POST" }
@@ -1526,13 +1542,16 @@ class ApiClient {
   }
 
   // Update mission (Admin only)
-  async updateMission(missionId: number, data: {
-    name?: string;
-    description?: string;
-    reward_type?: string;
-    action_trigger?: string;
-    value?: number;
-  }): Promise<Mission> {
+  async updateMission(
+    missionId: number,
+    data: {
+      name?: string;
+      description?: string;
+      reward_type?: string;
+      action_trigger?: string;
+      value?: number;
+    }
+  ): Promise<Mission> {
     return this.request<Mission>(`/rewards/missions/${missionId}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1547,7 +1566,10 @@ class ApiClient {
   }
 
   // Admin update user password (Admin only)
-  async adminUpdatePassword(userId: number, newPassword: string): Promise<{ message: string }> {
+  async adminUpdatePassword(
+    userId: number,
+    newPassword: string
+  ): Promise<{ message: string }> {
     return this.request<{ message: string }>(`/users/${userId}/password`, {
       method: "PUT",
       body: JSON.stringify({ new_password: newPassword }),
@@ -1571,10 +1593,13 @@ class ApiClient {
     verified_status?: GreenVerifiedStatus;
   }): Promise<DestinationWithCertificate[]> {
     const queryParams = new URLSearchParams();
-    if (params?.skip !== undefined) queryParams.append("skip", String(params.skip));
-    if (params?.limit !== undefined) queryParams.append("limit", String(params.limit));
-    if (params?.verified_status) queryParams.append("verified_status", params.verified_status);
-    
+    if (params?.skip !== undefined)
+      queryParams.append("skip", String(params.skip));
+    if (params?.limit !== undefined)
+      queryParams.append("limit", String(params.limit));
+    if (params?.verified_status)
+      queryParams.append("verified_status", params.verified_status);
+
     const queryString = queryParams.toString();
     return this.request<DestinationWithCertificate[]>(
       `/destinations/admin/all${queryString ? `?${queryString}` : ""}`,
@@ -1588,41 +1613,49 @@ class ApiClient {
     newStatus: GreenVerifiedStatus
   ): Promise<DestinationWithCertificate> {
     return this.request<DestinationWithCertificate>(
-      `/destinations/admin/${destinationId}/certificate?new_status=${encodeURIComponent(newStatus)}`,
+      `/destinations/admin/${destinationId}/certificate?new_status=${encodeURIComponent(
+        newStatus
+      )}`,
       { method: "PUT" }
     );
   }
 
   // Mock: Check destination with external API (not implemented on backend yet)
-  async adminCheckExternalApi(destinationId: string): Promise<ExternalApiCheckResult> {
+  async adminCheckExternalApi(
+    destinationId: string
+  ): Promise<ExternalApiCheckResult> {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     // Mock response - randomly pass or fail
     const passed = Math.random() > 0.3;
     const score = passed ? Math.random() * 0.3 + 0.7 : Math.random() * 0.5;
-    
+
     return {
       destination_id: destinationId,
       passed,
       score,
-      details: passed 
-        ? "External verification passed: Location meets green standards" 
+      details: passed
+        ? "External verification passed: Location meets green standards"
         : "External verification failed: Insufficient green coverage detected",
     };
   }
 
   // TODO: Implement on backend later
   // Mock: Check destination with AI verification (not implemented on backend yet)
-  async adminCheckAiVerification(destinationId: string): Promise<AiCheckResult> {
+  async adminCheckAiVerification(
+    destinationId: string
+  ): Promise<AiCheckResult> {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     // Mock response - randomly verify or not
     const verified = Math.random() > 0.4;
     const confidence = Math.random() * 0.3 + 0.7;
-    const green_score = verified ? Math.random() * 0.25 + 0.65 : Math.random() * 0.5;
-    
+    const green_score = verified
+      ? Math.random() * 0.25 + 0.65
+      : Math.random() * 0.5;
+
     return {
       destination_id: destinationId,
       verified,
@@ -1630,7 +1663,24 @@ class ApiClient {
       green_score,
     };
   }
+
+  async updateRoute(
+    planId: number,
+    routeId: number,
+    mode: string,
+    carbonEmission: number
+  ): Promise<RouteResponse> {
+    const queryParams = new URLSearchParams({
+      mode: mode,
+      carbon_emission_kg: carbonEmission.toString(),
+    });
+    return this.request<RouteResponse>(
+      `/plans/${planId}/routes/${routeId}?${queryParams.toString()}`,
+      {
+        method: "POST",
+      }
+    );
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);
-

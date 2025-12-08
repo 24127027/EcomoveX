@@ -19,7 +19,7 @@ import { Jost, Roboto } from "next/font/google";
 import {
   api,
   PlaceDetails,
-  ReviewResponse,
+  PlaceReview,
   GreenVerificationResponse,
 } from "@/lib/api";
 
@@ -34,24 +34,24 @@ const jost = Jost({
 });
 
 const GreenStatusBadge = ({
-  data,
+  status,
 }: {
-  data: GreenVerificationResponse | null;
+  status: string | null | undefined;
 }) => {
-  if (!data) return null;
-  switch (data.status) {
+  if (!status) return null;
+  switch (status) {
     case "Green Certified":
       return (
         <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-green-200">
           <ShieldCheck size={12} className="fill-current" />
-          Green Certified ({data.green_score.toFixed(1)})
+          Green Certified
         </span>
       );
     case "AI Green Verified":
       return (
         <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-yellow-200">
           <Leaf size={12} className="fill-current" />
-          AI Green Verified ({data.green_score.toFixed(1)})
+          AI Green Verified
         </span>
       );
     case "Not Green Verified":
@@ -132,7 +132,7 @@ const ReviewItem = ({
   review,
   isMe,
 }: {
-  review: ReviewResponse;
+  review: PlaceReview;
   isMe: boolean;
 }) => (
   <div className="bg-[#F9FFF9] border border-green-50 p-4 rounded-2xl mb-3 shadow-sm">
@@ -145,7 +145,7 @@ const ReviewItem = ({
         </div>
         <div>
           <p className={`${jost.className} font-bold text-gray-800 text-sm`}>
-            {isMe ? "You" : `User #${review.user_id}`}
+            {isMe ? "You" : `User #${review.author_name}`}
           </p>
           <RatingStars rating={review.rating} size={12} />
         </div>
@@ -159,22 +159,30 @@ const ReviewItem = ({
     <p
       className={`${roboto.className} text-gray-600 text-sm leading-relaxed mb-3`}
     >
-      {review.content}
+      {review.text}
     </p>
     {review.files_urls && review.files_urls.length > 0 && (
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {review.files_urls.map((url, idx) => (
-          <img
-            key={idx}
-            src={url}
-            alt="review"
-            className="w-20 h-20 object-cover rounded-lg border border-gray-100 shrink-0"
-          />
-        ))}
+        {review.files_urls && review.files_urls.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {review.files_urls.map((url, idx) => (
+              <img
+                key={idx}
+                src={url}
+                alt="review image"
+                className="w-20 h-20 object-cover rounded-lg border border-gray-100 shrink-0"
+              />
+            ))}
+          </div>
+        )}
       </div>
     )}
     <p className="text-gray-400 text-[10px] text-right mt-1">
-      {new Date(review.created_at).toLocaleDateString()}
+      {review.relative_time_description
+        ? review.relative_time_description
+        : review.time
+        ? new Date(review.time).toLocaleDateString()
+        : ""}
     </p>
   </div>
 );
@@ -296,9 +304,13 @@ function PlaceDetailContent() {
       );
 
       // Refresh only reviews by calling with empty fields
-      const updatedPlace = await api.getPlaceDetails(placeId, null, []);
+      const updatedPlace = await api.getPlaceDetails(placeId, null, [
+        "atmosphere",
+      ]);
       if (updatedPlace.reviews) {
-        setPlace((prev) => prev ? { ...prev, reviews: updatedPlace.reviews } : prev);
+        setPlace((prev) =>
+          prev ? { ...prev, reviews: updatedPlace.reviews } : prev
+        );
       }
 
       setIsReviewModalOpen(false);
@@ -419,22 +431,7 @@ function PlaceDetailContent() {
               >
                 Green Level.
               </span>
-              {place.sustainable_certificate === "Green Certified" ? (
-                <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-green-200">
-                  <ShieldCheck size={12} className="fill-current" />
-                  Green Certified
-                </span>
-              ) : place.sustainable_certificate === "AI Green Verified" ? (
-                <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-yellow-200">
-                  <Leaf size={12} className="fill-current" />
-                  AI Green Verified
-                </span>
-              ) : (
-                <span className="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-gray-200">
-                  <Info size={12} />
-                  Not Verified
-                </span>
-              )}
+              <GreenStatusBadge status={place.sustainable_certificate} />
             </div>
 
             {isExpandedInfo && (
@@ -561,31 +558,47 @@ function PlaceDetailContent() {
             <div className="space-y-4">
               {place.reviews && place.reviews.length > 0 ? (
                 place.reviews.map((review, idx) => (
-                  <div key={idx} className="bg-[#F9FFF9] border border-green-50 p-4 rounded-2xl mb-3 shadow-sm">
+                  <div
+                    key={idx}
+                    className="bg-[#F9FFF9] border border-green-50 p-4 rounded-2xl mb-3 shadow-sm"
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
                           {review.profile_photo_url ? (
-                            <img src={review.profile_photo_url} alt={review.author_name} className="w-full h-full object-cover" />
+                            <img
+                              src={review.profile_photo_url}
+                              alt={review.author_name}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-green-100 text-green-600 font-bold text-sm">
-                              {review.author_name && review.author_name.length > 0 ? review.author_name[0] : "U"}
+                              {review.author_name &&
+                              review.author_name.length > 0
+                                ? review.author_name[0]
+                                : "U"}
                             </div>
                           )}
                         </div>
                         <div>
-                          <p className={`${jost.className} font-bold text-gray-800 text-sm`}>
+                          <p
+                            className={`${jost.className} font-bold text-gray-800 text-sm`}
+                          >
                             {review.author_name}
                           </p>
                           <RatingStars rating={review.rating} size={12} />
                         </div>
                       </div>
                       {review.relative_time_description && (
-                        <span className="text-[10px] text-gray-400">{review.relative_time_description}</span>
+                        <span className="text-[10px] text-gray-400">
+                          {review.relative_time_description}
+                        </span>
                       )}
                     </div>
                     {review.text && (
-                      <p className={`${roboto.className} text-gray-600 text-sm leading-relaxed`}>
+                      <p
+                        className={`${roboto.className} text-gray-600 text-sm leading-relaxed`}
+                      >
                         {review.text}
                       </p>
                     )}
@@ -701,15 +714,16 @@ function PlaceDetailContent() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 grid grid-cols-2 gap-2 pb-20">
-              {place.photos && place.photos.map((photo, index) => (
-                <img
-                  key={index}
-                  src={photo.photo_url}
-                  className="w-full h-auto object-cover rounded-lg"
-                  loading="lazy"
-                  alt={`Gallery ${index}`}
-                />
-              ))}
+              {place.photos &&
+                place.photos.map((photo, index) => (
+                  <img
+                    key={index}
+                    src={photo.photo_url}
+                    className="w-full h-auto object-cover rounded-lg"
+                    loading="lazy"
+                    alt={`Gallery ${index}`}
+                  />
+                ))}
             </div>
           </div>
         )}
