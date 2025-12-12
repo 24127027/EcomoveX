@@ -156,7 +156,7 @@ class MapAPI:
                 "input": data.query.strip(),
                 "language": data.language,
                 "key": self.api_key,
-                "limit": 5,
+                "limit": 3,
                 "sessiontoken": data.session_token,
             }
 
@@ -307,7 +307,7 @@ class MapAPI:
                             ),
                             size=(photo.get("width"), photo.get("height")),
                         )
-                        for photo in result.get("photos", [])
+                        for photo in result.get("photos", [])[:5]  # Limit to first 5 photos
                         if photo.get("photo_reference")  # Only process photos with valid references
                     ]
                     if result.get("photos")
