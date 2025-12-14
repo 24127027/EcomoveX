@@ -1,117 +1,221 @@
 "use client";
-import { Knewave, Josefin_Sans, Abhaya_Libre, Poppins } from "next/font/google";
+
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FiMail } from "react-icons/fi";
-const knewave = Knewave({
-  subsets: ["latin"],
-  weight: ["400"],
-});
+import { FiMail, FiLock } from "react-icons/fi";
+import { useRouter } from "next/navigation";
+import {
+  Poppins,
+  Knewave,
+  Josefin_Sans,
+  Gotu,
+  Abhaya_Libre,
+} from "next/font/google";
 
-export const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["300"],
-});
-const abhaya_libre = Abhaya_Libre({
-  subsets: ["latin"],
-  weight: ["700"],
-});
+export const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-poppins" });
+export const knewave = Knewave({ subsets: ["latin"], weight: ["400"], variable: "--font-knewave" });
+export const josefin_sans = Josefin_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-josefin" });
+export const gotu = Gotu({ subsets: ["latin"], weight: ["400"], variable: "--font-gotu" });
+export const abhaya_libre = Abhaya_Libre({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-abhaya" });
 
-const josefin_sans = Josefin_Sans({
-  subsets: ["latin"],
-  weight: ["700"],
-});
-
-export default function ForgetPassword() {
-  const [form, setForm] = useState({
-    username: "",
-    password: "",
-    authorize: "",
-    email: "",
-  });
-  const router = useRouter();
+export default function ForgetPasswordPage() {
+  const [mode, setMode] = useState<"forget" | "change">("forget");
   const [email, setEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleForgetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      // Here you would typically make an API call to your
-      // For now, we'll just simulate the process
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const res = await fetch("http://localhost:8000/forgetpassword/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-      // Show success message and redirect to login
-      alert("Password reset link has been sent to your email");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.detail || "Failed to send reset link. Please try again.");
+        return;
+      }
+
+      alert(data.message);
       router.push("/login");
     } catch (err) {
+      console.error(err);
       setError("Failed to send reset link. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:8000/forgetpassword/changepassword/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.detail || "Failed to change password");
+        return;
+      }
+
+      alert(data.message || "Password changed successfully!");
+      router.push("/login");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to change password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Forgot your password?
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your email address and we'll send you a link to reset your
-            password.
+    <div className="min-h-screen w-full flex justify-center bg-green-100">
+      <main className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col items-center justify-center px-6 py-8 overflow-hidden relative">
+        {/* Logo & Slogan */}
+        <div className="text-center mb-8">
+          <h1 className={`${knewave.className} text-5xl text-green-600 mb-2`}>EcomoveX</h1>
+          <p className={`${josefin_sans.className} text-green-600 text-xl leading-relaxed`}>
+            {mode === "forget" ? "Reset your password" : "Change your password"}
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiMail className="h-5 w-5 text-gray-400" />
-              </div>
+
+        {/* FORM */}
+        {mode === "forget" && (
+          <form onSubmit={handleForgetPassword} className="w-full flex flex-col gap-5">
+            <div className="w-full relative">
               <input
                 type="email"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                placeholder="Enter your email"
+                className={`${abhaya_libre.className} w-full border-2 bg-green-100 border-transparent focus:border-green-500 text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60 pl-12`}
+                required
               />
+              <FiMail className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700" size={22} />
             </div>
-          </div>
 
-          {error && (
-            <div className="text-red-500 text-sm text-center">{error}</div>
-          )}
+            {error && <p className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-lg border border-red-200">{error}</p>}
 
-          <div>
             <button
               type="submit"
-              disabled={loading}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                loading
-                  ? "bg-blue-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              }`}
+              disabled={loading || !email}
+              className={`${abhaya_libre.className} w-full ${loading ? "bg-gray-400" : "bg-green-500 hover:bg-green-600 shadow-md hover:shadow-lg"} text-white rounded-full py-3 text-lg font-medium transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {loading ? "Sending..." : "Send reset link"}
             </button>
-          </div>
-        </form>
 
-        <div className="text-center">
-          <Link
-            href="/login"
-            className="font-medium text-blue-600 hover:text-blue-500"
-          >
-            Back to login
-          </Link>
-        </div>
-      </div>
+            <div className="text-center px-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setMode("change")}
+                className={`${abhaya_libre.className} text-lg text-green-600 hover:text-green-800 underline-offset-2 hover:underline transition-all`}
+              >
+                I already have a password / Change password
+              </button>
+            </div>
+          </form>
+        )}
+
+        {mode === "change" && (
+          <form onSubmit={handleChangePassword} className="w-full flex flex-col gap-5">
+            <div className="w-full relative">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Your email"
+                className={`${abhaya_libre.className} w-full border-2 bg-green-100 border-transparent focus:border-green-500 text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60 pl-12`}
+                required
+              />
+              <FiMail className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700" size={22} />
+            </div>
+
+            <div className="w-full relative">
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Current password"
+                className={`${abhaya_libre.className} w-full border-2 bg-green-100 border-transparent focus:border-green-500 text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60 pl-12`}
+                required
+              />
+              <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700" size={22} />
+            </div>
+
+            <div className="w-full relative">
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password"
+                className={`${abhaya_libre.className} w-full border-2 bg-green-100 border-transparent focus:border-green-500 text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60 pl-12`}
+                required
+              />
+              <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700" size={22} />
+            </div>
+
+            <div className="w-full relative">
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className={`${abhaya_libre.className} w-full border-2 bg-green-100 border-transparent focus:border-green-500 text-green-700 rounded-full px-5 py-3 text-lg font-medium outline-none transition-all placeholder:text-green-700/60 pl-12`}
+                required
+              />
+              <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700" size={22} />
+            </div>
+
+            {error && <p className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-lg border border-red-200">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading || !email || !currentPassword || !newPassword || !confirmPassword}
+              className={`${abhaya_libre.className} w-full ${loading ? "bg-gray-400" : "bg-green-500 hover:bg-green-600 shadow-md hover:shadow-lg"} text-white rounded-full py-3 text-lg font-medium transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {loading ? "Changing..." : "Change password"}
+            </button>
+
+            <div className="text-center px-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setMode("forget")}
+                className={`${abhaya_libre.className} text-lg text-green-600 hover:text-green-800 underline-offset-2 hover:underline transition-all`}
+              >
+                Back to forget password
+              </button>
+            </div>
+          </form>
+        )}
+      </main>
     </div>
   );
 }

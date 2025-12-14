@@ -15,7 +15,7 @@ export const PRIMARY_NAV_LINKS: MobileNavItem[] = [
     href: "/planning_page/showing_plan_page",
     Icon: MapPin,
   },
-  { key: "ecobot", label: "Ecobot", href: "/ecobot_page", Icon: Bot },
+  { key: "ecobot", label: "Ecobot", href: "/ecobot", Icon: Bot },
   {
     key: "user",
     label: "User",
@@ -38,7 +38,7 @@ export const MAP_NAV_LINKS: MobileNavItem[] = [
     href: "/planning_page/showing_plan_page",
     Icon: MapPin,
   },
-  { key: "ecobot", label: "Ecobot", href: "/ecobot_page", Icon: Bot },
+  { key: "ecobot", label: "Ecobot", href: "/ecobot", Icon: Bot },
   {
     key: "user",
     label: "User",

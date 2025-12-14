@@ -309,3 +309,21 @@ class UserRepository:
             await db.rollback()
             print(f"ERROR: Failed to retrieve user by email {email} - {e}")
             return None
+        
+    @staticmethod
+    async def update_password_by_user(db: AsyncSession, user_id: int, current_password: str, new_password: str) -> bool:
+        try:
+            user = await db.get(User, user_id)
+            if not user:
+                return False
+
+            if user.password != current_password:
+                return False
+
+            user.password = new_password
+            db.add(user)
+            await db.commit()
+            return True
+        except SQLAlchemyError:
+            await db.rollback()
+            return False

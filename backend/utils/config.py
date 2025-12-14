@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import os
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
@@ -29,12 +29,18 @@ class Settings(BaseSettings):
 
     OPEN_ROUTER_API_KEY: str = ""
     
-    # Admin setup - set this email to auto-promote first registration to admin
     FIRST_ADMIN_EMAIL: str = ""
     OPEN_ROUTER_MODEL_NAME: str = "meta-llama/llama-3.3-70b-instruct"
 
     BREEAM_USERNAME: str = ""
     BREEAM_PASSWORD: str = ""
 
-
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = "ecomovex24c10@gmail.com"
+    SMTP_PASS: str = "vptotkumkflmuhsb"
+    EMAIL_FROM: str = "ecomovex24c10@gmail.com"
+    
+    GROQ_API_KEY: str = ""
+    
 settings = Settings()
