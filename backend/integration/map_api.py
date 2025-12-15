@@ -237,7 +237,7 @@ class MapAPI:
                 print(f"API Status: {data.get('status')}")
 
             return PlaceDetailsResponse(
-                place_id=result.get("place_id") or place_id,  # Fallback to input place_id
+                place_id=place_id,
                 name=result.get("name") or "",
                 formatted_address=result.get("formatted_address") or "",
                 address_components=[
@@ -322,6 +322,7 @@ class MapAPI:
                     else None
                 ),
                 utc_offset=result.get("utc_offset"),
+                sustainable_certificate="Not Green Verified",
             )
         except httpx.ConnectError as e:
             print(f"Network connection error in get_place_details: {str(e)}")

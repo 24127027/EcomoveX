@@ -1,6 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models.review import Review, ReviewFile
 from schemas.review_schema import (
@@ -14,7 +15,9 @@ class ReviewRepository:
     async def get_all_reviews_by_destination(db: AsyncSession, destination_id: str):
         try:
             result = await db.execute(
-                select(Review).where(Review.destination_id == destination_id)
+                select(Review)
+                .where(Review.destination_id == destination_id)
+                .options(selectinload(Review.user))
             )
             return result.scalars().all()
         except SQLAlchemyError as e:

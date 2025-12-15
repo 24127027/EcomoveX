@@ -456,7 +456,7 @@ function ChatWindow({
 
     try {
       const res = await api.sendBotMessage(userId, roomId, userMsg);
-      const botText = res?.message || res?.detail;
+      const botText = res?.response;
 
       if (botText) {
         setMessages((prev) => [...prev, { role: "bot", text: botText }]);
@@ -855,8 +855,6 @@ function ReviewPlanContent() {
         const pendingRawData = sessionStorage.getItem(STORAGE_KEY_RAW);
         const pendingSelectedSlot = sessionStorage.getItem("selected_add_slot");
 
-        // ✅ IMPORTANT: Clear sessionStorage when loading existing plan
-        // This prevents mixing data from previous plans while still allowing us to reapply pending additions
         sessionStorage.removeItem(STORAGE_KEY_RAW);
         sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
         sessionStorage.removeItem("selected_add_slot");
@@ -893,8 +891,6 @@ function ReviewPlanContent() {
 
           let apiActivities = currentPlan.activities;
 
-          // Merge newly added destinations from session storage, if any
-          // NOTE: storage was cleared above, so this only triggers when the user adds destinations after loading the plan
           const rawData = pendingRawData;
           if (rawData) {
             try {
@@ -1691,149 +1687,7 @@ function ReviewPlanContent() {
     }
   };
 
-  // src/app/(main)/planning_page/review_plan/page.tsx
-
-  const handleSaveToBackend = async () => {
-    // Require at least two destinations before saving
-    if (activities.length < 2) {
-      alert(
-        `You need at least 2 destinations in your plan! (Current: ${activities.length})`
-      );
-      return;
-    }
-
-    console.log("📊 Current activities state before save:");
-    activities.forEach((act, idx) => {
-      console.log(
-        `   ${idx + 1}. ${act.title} | Date: ${
-          act.date?.split("T")[0]
-        } | Slot: ${act.time_slot}`
-      );
-    });
-
-    setIsSaving(true);
-    try {
-      // 1. Lấy Budget
-      const storedInfoRaw = sessionStorage.getItem(STORAGE_KEY_INFO);
-      const budget = storedInfoRaw ? JSON.parse(storedInfoRaw).budget : 0;
-
-      // 2. Chuẩn bị danh sách Destinations
-      const destinationsPayload = activities.map((act, index) => {
-        let validType = "attraction";
-        const typeLower = (act.type || "").toLowerCase();
-
-        if (typeLower.includes("restaurant") || typeLower.includes("food"))
-          validType = "restaurant";
-        else if (typeLower.includes("hotel") || typeLower.includes("lodging"))
-          validType = "accommodation";
-        else if (typeLower.includes("transit") || typeLower.includes("station"))
-          validType = "transport";
-
-        let realDestinationId = String(act.id);
-        const lastDashIndex = realDestinationId.lastIndexOf("-");
-        if (lastDashIndex !== -1) {
-          const suffix = realDestinationId.substring(lastDashIndex + 1);
-          if (!isNaN(Number(suffix))) {
-            realDestinationId = realDestinationId.substring(0, lastDashIndex);
-          }
-        }
-
-        const fallbackDate =
-          planInfo.date || new Date().toISOString().split("T")[0];
-        const visitDate = act.date
-          ? toDateOnlyString(act.date)
-          : toDateOnlyString(new Date(fallbackDate));
-
-        const payload = {
-          id: 0,
-          destination_id: realDestinationId,
-          destination_type: validType,
-          type: validType,
-          visit_date: visitDate,
-          time_slot: act.time_slot.toLowerCase() as
-            | "morning"
-            | "afternoon"
-            | "evening",
-          order_in_day: index + 1,
-          note: act.title,
-          url: act.image_url,
-          estimated_cost: 0,
-        };
-
-        console.log(
-          `📤 Activity ${index + 1}: ${
-            act.title
-          } | Date: ${visitDate} | Slot: ${act.time_slot}`
-        );
-
-        return payload;
-      });
-
-      console.log("📦 Total destinations to save:", destinationsPayload.length);
-
-      // 3. Prepare request payload
-      const today = new Date().toISOString().split("T")[0];
-
-      const requestData = {
-        place_name: planInfo.name,
-        start_date: planInfo.date || today,
-        end_date: planInfo.end_date || planInfo.date || today,
-        budget_limit: Number(budget) > 0 ? Number(budget) : 1,
-        destinations: destinationsPayload,
-      };
-
-      // === SAVE LOGIC ===
-      if (planId) {
-        // --- EDIT MODE ---
-        console.log(`💾 EDITING PLAN ${planId}`);
-        console.log(`   ✅ planId exists: "${planId}"`);
-        console.log(`   - Activities to save: ${activities.length}`);
-        activities.forEach((act, idx) => {
-          console.log(
-            `     ${idx + 1}. ${act.title} | Date: ${
-              act.date?.split("T")[0]
-            } | Slot: ${act.time_slot}`
-          );
-        });
-
-        console.log(`📤 Calling updatePlan API...`);
-        await api.updatePlan(Number(planId), {
-          place_name: requestData.place_name,
-          start_date: requestData.start_date,
-          end_date: requestData.end_date,
-          budget_limit: requestData.budget_limit,
-          destinations: requestData.destinations,
-        });
-        console.log(`✅ updatePlan API returned successfully`);
-
-        alert("Plan updated successfully!");
-      } else {
-        // --- CREATE MODE ---
-        console.log(`📝 CREATING NEW PLAN`);
-        console.log(`   ❌ planId is null/undefined`);
-        console.log("Creating new plan...");
-        await api.createPlan(requestData);
-        console.log(`✅ createPlan API returned successfully`);
-        alert("Plan created successfully!");
-      }
-
-      // 4. Cleanup and redirect
-      sessionStorage.removeItem(STORAGE_KEY_RAW);
-      sessionStorage.removeItem(STORAGE_KEY_STRUCTURED);
-      sessionStorage.removeItem(AI_SHOWN_KEY);
-      sessionStorage.removeItem(STORAGE_KEY_INFO);
-      sessionStorage.removeItem("selected_add_slot");
-      sessionStorage.removeItem("EDITING_PLAN_ID"); // ← Clear planId after save
-
-      // ✅ Navigate to transport selection page
-      router.push(`/planning_page/transport_selection?id=${planId}`);
-    } catch (e) {
-      console.error("Save Error:", e);
-      alert("Failed to save plan. Please check console for details.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  
 
   // --- RENDER AI ---
   if (isAiProcessing) {

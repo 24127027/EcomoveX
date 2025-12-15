@@ -4,7 +4,6 @@ from fastapi import APIRouter, Body, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
-from models.user import Activity
 from schemas.destination_schema import Location
 from schemas.map_schema import (
     AutocompleteRequest,
@@ -18,11 +17,7 @@ from schemas.map_schema import (
     TextSearchResponse,
 )
 from schemas.route_schema import DirectionsResponse
-from schemas.user_schema import (
-    UserActivityCreate,
-)
 from services.map_service import MapService
-from services.user_service import UserService
 from utils.token.authentication_util import get_current_user
 
 router = APIRouter(prefix="/map", tags=["Map & Navigation"])
@@ -65,12 +60,9 @@ async def get_place_details(
         place_id=place_id, session_token=session_token, categories=categories
     )
 
-    result = await MapService.get_location_details(request_data)
-
-    activity_data = UserActivityCreate(
-        activity=Activity.search_destination, destination_id=place_id
+    result = await MapService.get_location_details(
+        request_data, user_db, current_user["user_id"]
     )
-    await UserService.log_user_activity(user_db, current_user["user_id"], activity_data)
 
     return result
 

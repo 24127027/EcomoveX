@@ -457,6 +457,9 @@ function PreviewPlanContent() {
   const [activities, setActivities] = useState<PlanActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [transportMode, setTransportMode] = useState<string>("Not Selected");
+  const [fuelSaved, setFuelSaved] = useState<string>("To be calculated");
+
   useEffect(() => {
     if (!planId) {
       return;
@@ -468,13 +471,40 @@ function PreviewPlanContent() {
         const currentPlan = allPlans.find((p) => p.id === Number(planId));
 
         if (currentPlan) {
-          console.log("Preview Plan - Full plan data:", currentPlan);
-          console.log(
-            "Preview Plan - Budget value:",
-            currentPlan.budget_limit || currentPlan.budget
-          );
           setPlan(currentPlan);
           setActivities(currentPlan.activities || []);
+
+          try {
+            const routes = await api.getPlanRoutes(Number(planId));
+
+            if (routes && routes.length > 0) {
+              const rawMode = routes[0].mode;
+              const displayMode = rawMode
+                ? rawMode.charAt(0).toUpperCase() + rawMode.slice(1)
+                : "Mixed";
+              setTransportMode(displayMode);
+
+              let totalDistance = 0;
+              let totalActualCarbon = 0;
+
+              routes.forEach((r) => {
+                totalDistance += r.distance_km || 0;
+                totalActualCarbon += r.carbon_emission_kg || 0;
+              });
+
+              const baselineCarbon = totalDistance * 0.12;
+
+              const saved = baselineCarbon - totalActualCarbon;
+
+              if (saved > 0.01) {
+                setFuelSaved(`${saved.toFixed(2)} kg CO₂`);
+              } else {
+                setFuelSaved("0 kg CO₂");
+              }
+            }
+          } catch (routeErr) {
+            console.error("Failed to load routes info:", routeErr);
+          }
         } else {
           router.push("/homepage");
         }
@@ -620,24 +650,24 @@ function PreviewPlanContent() {
                   </div>
                 </div>
 
-                {/* Transport - Coming Soon */}
+                {/* Transport */}
                 <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl p-3">
                   <Car size={20} />
                   <div>
                     <p className="text-xs opacity-80">Transport</p>
                     <p className={`${jost.className} font-semibold text-xs`}>
-                      Not selected
+                      {transportMode}
                     </p>
                   </div>
                 </div>
 
-                {/* Fuel Saved - Coming Soon */}
+                {/* Fuel Saved */}
                 <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl p-3 md:col-span-2 lg:col-span-1">
                   <Fuel size={20} />
                   <div>
                     <p className="text-xs opacity-80">Fuel Saved</p>
                     <p className={`${jost.className} font-semibold text-xs`}>
-                      To be calculated
+                      {fuelSaved}
                     </p>
                   </div>
                 </div>

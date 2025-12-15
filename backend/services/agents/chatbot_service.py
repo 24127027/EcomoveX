@@ -19,8 +19,11 @@ class ChatbotService:
             pass
         
         try:
-            intent = self.intent_rule.classify(user_text)
-            return intent
+            result = self.intent_rule.classify(user_text)
+            # Extract intent string from ParseResult object
+            if hasattr(result, 'intent'):
+                return result.intent
+            return result
         except Exception:
             return "chit_chat"
     
@@ -29,29 +32,49 @@ class ChatbotService:
         Normalize all output to ChatbotResponse.
         """
         intent = await self.detect_intent(user_text)
+        
+        print(f"🎯 Detected intent: {intent}")
+
+        # Map rule-based intents to agent types
+        # Plan edit intents: add, remove, modify, change_budget
+        plan_edit_intents = [
+            "add_activity",
+            "remove_activity", 
+            "modify_time",
+            "modify_day",
+            "modify_location",
+            "change_budget"
+        ]
+        
+        # Plan query intents: view, search
+        plan_query_intents = [
+            "view_plan",
+            "search_destination",
+            "suggest_alternative"
+        ]
 
         # plan edit
-        if intent == "plan_edit":
+        if intent in plan_edit_intents or intent == "plan_edit":
             result = await PlanEditAgent().edit_plan(db, user_id, user_text)
 
             return ChatbotResponse(
                 response=result.get("message", "Plan updated."),
                 room_id=room_id,
                 metadata={
-                    "intent": "plan_edit",
+                    "intent": intent,
                     "raw": result
                 }
             )
 
         # plan query/planning
-        elif intent == "plan_query":
+        elif intent in plan_query_intents or intent == "plan_query":
             result = await PlannerAgent().process_plan(db, user_id, user_text)
 
             return ChatbotResponse(
                 response=result.get("message", "Here is your plan."),
                 room_id=room_id,
                 metadata={
-                    "intent": "plan_query",
+                    "intent": intent,
                     "raw": result
                 }
             )

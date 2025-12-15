@@ -1,9 +1,6 @@
 import os
 import sys
 from typing import List, Dict, Any, Optional
-import numpy as np
-import torch
-import cv2
 
 # ==============================================================================
 # 1. PATH CONFIGURATION
@@ -22,48 +19,89 @@ if glass_dir not in sys.path:
     sys.path.append(glass_dir)
 
 # ==============================================================================
-# 2. IMPORTS
+# 2. LAZY LOADING - Prevent heavy ML imports at module load time
 # ==============================================================================
-try:
-    from greenness import utils
-    from greenness.segmentation import TreeSegmenter
-    from greenness.model_loader import load_model, default_models
-    from greenness.run import process as midas_process 
-except ImportError as e:
-    print(f"[Import Error] Greenness modules: {e}")
-    sys.exit(1)
+_modules_loaded = False
 
-try:
-    from glass_scoring.run import CupDetectorScorer
-except ImportError as e:
-    print(f"[Import Error] Glass scoring modules: {e}")
-    # Cho phép chạy tiếp nếu không có module này (để debug phần khác), hoặc exit
-    CupDetectorScorer = None
+def _lazy_load_modules():
+    """Load heavy ML dependencies only when needed"""
+    global _modules_loaded
+    if _modules_loaded:
+        return
+    
+    try:
+        # Import heavy dependencies here
+        import numpy  # noqa
+        import torch  # noqa
+        import cv2  # noqa
+        _modules_loaded = True
+    except ImportError as e:
+        print(f"[Import Error] Core ML libraries: {e}")
+        raise
 
 class GreenCoverageOrchestrator:
+    _instance = None
+    _models_loaded = False
+    
+    @classmethod
+    def get_instance(cls):
+        """Singleton pattern with lazy initialization"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
     def __init__(
         self,
         segmentation_model: str = "best.pt",
         cup_model_name: str = "glass_classification_model.pt",
-        depth_model_type: str = "midas_v21_small_256",
-        depth_model_path: Optional[str] = None,
         green_threshold: float = 0.15,
         optimize: bool = False,
         height: Optional[int] = None,
         square: bool = False,
     ):
+        # Store configuration but don't load models yet
         self.green_threshold = float(green_threshold)
+        self.segmentation_model = segmentation_model
+        self.cup_model_name = cup_model_name
+        self.depth_optimize = optimize
+        self.depth_height = height
+        self.depth_square = square
+        
+        # Models will be loaded on first use
+        self.tree_segmenter = None
+        self.cup_detector = None
+        self.device = None
+    
+    def _ensure_models_loaded(self):
+        """Load models only when actually needed"""
+        if self._models_loaded:
+            return
+        
+        print("[Orchestrator] Loading ML models for the first time...")
+        
+        # Lazy load heavy dependencies
+        _lazy_load_modules()
+        
+        # Import here to avoid loading at module import time
+        import torch
+        from .greenness.segmentation import TreeSegmenter
+        
+        try:
+            from glass_scoring.run import CupDetectorScorer
+        except ImportError:
+            CupDetectorScorer = None
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"[Orchestrator] Device: {self.device}")
 
         # --- 1. Init Tree Segmenter ---
-        seg_model_path = os.path.join(models_dir, segmentation_model)
+        seg_model_path = os.path.join(models_dir, self.segmentation_model)
         print(f"[Orchestrator] Loading Tree model: {seg_model_path}")
         self.tree_segmenter = TreeSegmenter(seg_model_path)
 
         # --- 2. Init Cup Detector ---
         if CupDetectorScorer:
-            cup_model_path = os.path.join(models_dir, cup_model_name)
+            cup_model_path = os.path.join(models_dir, self.cup_model_name)
             print(f"[Orchestrator] Loading Cup model: {cup_model_path}")
             self.cup_detector = CupDetectorScorer(
                 model_path=cup_model_path,
@@ -71,60 +109,32 @@ class GreenCoverageOrchestrator:
             )
         else:
             self.cup_detector = None
-
-        # --- 3. Init Depth Model (MiDaS) ---
-        if depth_model_path is None:
-            check_path = os.path.join(models_dir, f"{depth_model_type}.pt")
-            if os.path.exists(check_path):
-                depth_model_path = check_path
-            else:
-                depth_model_path = self._find_model_path(depth_model_type)
-
-        print(f"[Orchestrator] Loading Depth model: {depth_model_path}")
-        self.depth_model, self.depth_transform, self.net_w, self.net_h = load_model(
-            self.device, depth_model_path, depth_model_type, optimize, height, square
-        )
-        self.depth_model_type = depth_model_type
-        self.optimize = optimize
-
-        print("[Orchestrator] Ready.")
-
-    def _find_model_path(self, model_type: str) -> str:
-        candidates = [
-            default_models.get(model_type, ""),
-            os.path.join(models_dir, f"{model_type}.pt"),
-            os.path.join(current_dir, f"{model_type}.pt"),
-        ]
-        for p in candidates:
-            if p and os.path.exists(p):
-                return p
-        raise FileNotFoundError(f"Depth model '{model_type}' not found.")
-
-    def _get_depth_map(self, image_rgb: np.ndarray) -> np.ndarray:
-        """
-        FIXED: Gọi hàm process đúng với chữ ký trong run.py của bạn:
-        def process(device, model, image, target_size, optimize, use_camera):
-        """
-        # Transform image for MiDaS
-        transformed = self.depth_transform({"image": image_rgb})["image"]
         
-        # Target size (Width, Height)
-        target_size = image_rgb.shape[1::-1]
+        self._models_loaded = True
+        print("[Orchestrator] Models loaded and ready.")
 
-        with torch.no_grad():
-            prediction = midas_process(
-                self.device,        # 1. device
-                self.depth_model,   # 2. model
-                transformed,        # 3. image
-                target_size,        # 4. target_size
-                self.optimize,      # 5. optimize
-                False               # 6. use_camera
-            )
-            
-        return prediction.astype(np.float32)
+    def _get_depth_map(self, url: str):
+        """
+        Use depth.run() which handles everything internally.
+        Returns depth map for a single image URL.
+        """
+        from .greenness import depth
+        
+        # depth.run() takes a list of URLs and returns list of depth maps
+        results = depth.run(
+            img_sources=[url],
+            optimize=self.depth_optimize,
+            height=self.depth_height,
+            square=self.depth_square,
+            grayscale=False
+        )
+        
+        # Return the first (and only) result
+        return results[0]
     
     @staticmethod
-    def _normalize_depth_map(depth: np.ndarray) -> np.ndarray:
+    def _normalize_depth_map(depth):
+        import numpy as np
         d_min = float(np.nanmin(depth))
         d_max = float(np.nanmax(depth))
         if np.isfinite(d_min) and np.isfinite(d_max) and (d_max - d_min) > 1e-8:
@@ -133,7 +143,14 @@ class GreenCoverageOrchestrator:
             return np.zeros_like(depth, dtype=np.float32)
 
     def process_single_image(self, url: str) -> Dict[str, Any]:
+        # Ensure models are loaded before processing
+        self._ensure_models_loaded()
+        
         try:
+            import numpy as np
+            import cv2
+            from .greenness import utils
+            
             # 1. Load Image (Float32 RGB [0,1])
             original_image_float = utils.load_image_from_url(url)
             
@@ -159,8 +176,8 @@ class GreenCoverageOrchestrator:
                     "cup_detections": cup_detections
                 }
 
-            # Tính Depth (đã fix lỗi argument)
-            depth_map = self._get_depth_map(original_image_float)
+            # Tính Depth using midas.run()
+            depth_map = self._get_depth_map(url)
             
             # Resize depth khớp mask
             mask_h, mask_w = combined_mask.shape[:2]
@@ -205,7 +222,11 @@ class GreenCoverageOrchestrator:
             traceback.print_exc()
             return {"url": url, "error": str(e), "verified": False}
 
-    def process_image_list(self, urls: List[str]) -> List[Dict[str, Any]]:
+    def process_image_list(self, urls: List[str]) -> Dict[str, Any]:
+        # Ensure models are loaded before processing
+        self._ensure_models_loaded()
+        
+        import numpy as np
         scores = []
         for url in urls:
             res = self.process_single_image(url)

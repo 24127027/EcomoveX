@@ -121,8 +121,9 @@ class RoomRepository:
         try:
             new_room = Room(
                 name=room_data.name,
-                room_type=room_data.room_type,
+                room_type=RoomType.group,
                 avatar_blob_name=room_data.avatar_blob_name,
+                plan_id=room_data.plan_id
             )
             db.add(new_room)
             await db.commit()
@@ -293,3 +294,17 @@ class RoomRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: searching rooms by name '{name_query}' - {e}")
             return []
+
+    @staticmethod
+    async def get_room_by_plan_id(db: AsyncSession, plan_id: int):
+        try:
+            result = await db.execute(
+                select(Room).where(
+                    Room.plan_id == plan_id,
+                    Room.room_type == RoomType.group
+                )
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            print(f"ERROR: retrieving room for plan ID {plan_id} - {e}")
+            return None

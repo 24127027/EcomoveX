@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.destination import Destination
 from services.destination_service import DestinationService
 from repository.plan_repository import PlanRepository
-from repository.room_repository import RoomRepository
 from repository.message_repository import MessageRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.map_schema import *
@@ -17,11 +16,13 @@ from schemas.message_schema import RoomContextCreate, CommonMessageResponse
 from schemas.route_schema import RouteType
 from services.map_service import MapService
 from services.route_service import RouteService
+from services.room_service import RoomService
 from repository.plan_repository import PlanDestination
 from services.recommendation_service import RecommendationService
 from utils.nlp.rule_engine import Intent, RuleEngine
 from models.room import RoomType, MemberRole
-from models.plan import PlanDestination
+from models.plan import PlanDestination, TimeSlot, DestinationType
+from schemas.room_schema import AddMemberRequest
 
 
 class PlanService:
@@ -141,7 +142,9 @@ class PlanService:
                 try:
                     # Gọi MapService lấy thông tin để tạo Destination trong DB trước
                     place_info = await MapService.get_location_details(
-                        PlaceDetailsRequest(place_id=dest_data.destination_id)
+                        PlaceDetailsRequest(place_id=dest_data.destination_id),
+                        db=db,
+                        user_id=user_id
                     )
                     await PlanRepository.ensure_destination(db, place_info.place_id)
 
@@ -163,9 +166,20 @@ class PlanService:
                     destination = saved_destinations[i + 1]
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
+                    
+                    # Validate coordinates before making route request
+                    if not origin_coords:
+                        print(f"ERROR: Failed to get coordinates for origin place_id={origin.destination_id}")
+                        continue
+                    if not destination_coords:
+                        print(f"ERROR: Failed to get coordinates for destination place_id={destination.destination_id}")
+                        continue
+                    
+                    print(f"Creating route from {origin.destination_id} ({origin_coords.latitude}, {origin_coords.longitude}) to {destination.destination_id} ({destination_coords.latitude}, {destination_coords.longitude})")
+                    
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
-                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
-                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                        origin=origin_coords,
+                        destination=destination_coords
                     ))
                     if route:
                         selected_route = None
@@ -240,7 +254,9 @@ class PlanService:
             for dest_data in updated_data.destinations or []:
                 try:
                     place_info = await MapService.get_location_details(
-                        PlaceDetailsRequest(place_id=dest_data.destination_id)
+                        PlaceDetailsRequest(place_id=dest_data.destination_id),
+                        db=db,
+                        user_id=user_id
                     )
                     await PlanRepository.ensure_destination(db, place_info.place_id)
                     
@@ -260,8 +276,8 @@ class PlanService:
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
-                        origin=Location(lat=origin_coords['lat'], lng=origin_coords['lng']),
-                        destination=Location(lat=destination_coords['lat'], lng=destination_coords['lng'])
+                        origin=origin_coords,
+                        destination=destination_coords
                     ))
                     if route:
                         selected_route = None
@@ -406,7 +422,9 @@ class PlanService:
 
             try:
                 image = await MapService.get_location_details(
-                    PlaceDetailsRequest(place_id=data.destination_id)
+                    PlaceDetailsRequest(place_id=data.destination_id),
+                    db=db,
+                    user_id=user_id
                 )
                 data.url = image.photos[0].photo_url if image.photos else None
             except Exception:
@@ -500,16 +518,54 @@ class PlanService:
                     detail="Only the owner can add members to the plan",
                 )
 
+            room = None
+            try:
+                room = await RoomService.get_room_by_plan_id(db, user_id, plan_id)
+            except HTTPException as e:
+                if e.status_code == status.HTTP_404_NOT_FOUND:
+                    room_name = f"{plan.place_name} - Group Chat"
+                    room = await RoomService.create_room(db, user_id, RoomCreate(
+                        name=room_name,
+                        member_ids=[],
+                        avatar_blob_name=None,
+                        plan_id=plan_id
+                    ))
+                    await RoomService.add_users_to_room(
+                        db,
+                        user_id,
+                        room.id,
+                        AddMemberRequest(data=[
+                            RoomMemberCreate(user_id=user_id, role=MemberRole.owner)
+                        ]),
+                    )
+                else:
+                    raise
+
             duplicates = []
+            members_to_add = []
             for member in data.ids:
                 if await PlanService.is_member(db, member.user_id, plan_id):
                     duplicates.append(member.user_id)
                     continue
-                await PlanRepository.add_plan_member(
+                await PlanService.add_plan_member(
                     db,
                     plan_id,
                     PlanMemberCreate(user_id=member.user_id, role=member.role),
                 )
+                # Collect members to add to room
+                members_to_add.append(
+                    RoomMemberCreate(user_id=member.user_id, role=MemberRole.member)
+                )
+            
+            # Add all members to group room in one call
+            if members_to_add and room:
+                await RoomService.add_users_to_room(
+                    db,
+                    user_id,
+                    room.id,
+                    AddMemberRequest(data=members_to_add),
+                )
+            
             users = await PlanRepository.get_plan_members(db, plan_id)
             return PlanMemberResponse(
                 plan_id=plan_id,
@@ -855,19 +911,78 @@ class PlanService:
             # Get all destinations
             destinations = await PlanRepository.get_plan_destinations(db, plan_id)
             text_lower = text.lower()
+            
+            print(f"🔍 Searching for destination to remove: '{text}'")
+            print(f"📋 Plan has {len(destinations)} destinations")
 
             # Find and remove matching destinations
             removed_count = 0
             for dest in destinations:
-                dest_info = await MapService.get_location_details(PlaceDetailsRequest(place_id=dest.destination_id))
-                if dest_info and text_lower in dest_info.name.lower():
+                # Try to get name from MapService
+                try:
+                    dest_info = await MapService.get_location_details(
+                    PlaceDetailsRequest(place_id=dest.destination_id),
+                    db=db,
+                    user_id=user_id
+                )
+                    dest_name = dest_info.name if dest_info else None
+                except Exception as e:
+                    print(f"⚠️ Failed to get location details for {dest.destination_id}: {e}")
+                    dest_name = None
+                
+                # Fallback to note field if MapService fails
+                if not dest_name:
+                    dest_name = dest.note
+                
+                print(f"🏷️ Destination {dest.id}: name='{dest_name}', note='{dest.note}'")
+                
+                # Check if text matches name or note
+                if dest_name and text_lower in dest_name.lower():
+                    print(f"✅ Match found! Removing destination {dest.id}")
                     await PlanRepository.remove_destination_from_plan(db, dest.id)
                     removed_count += 1
+                elif dest.note and text_lower in dest.note.lower():
+                    print(f"✅ Match found in note! Removing destination {dest.id}")
+                    await PlanRepository.remove_destination_from_plan(db, dest.id)
+                    removed_count += 1
+
+            print(f"📊 Removed {removed_count} destination(s)")
 
             if removed_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No destination found matching '{text}'",
+                )
+
+            # Return updated plan
+            return await PlanService.get_plan_by_id(db, user_id, plan_id)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error removing destination: {e}",
+            )
+    
+    @staticmethod
+    async def remove_place_by_id(db: AsyncSession, user_id: int, plan_id: int, plan_destination_id: int) -> PlanResponse:
+        """Remove a specific destination from plan by its plan_destination ID"""
+        try:
+            # Check permission
+            is_member = await PlanRepository.is_member(db, user_id, plan_id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of the plan",
+                )
+
+            # Remove the destination
+            success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
+            
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Destination with ID {plan_destination_id} not found in plan",
                 )
 
             # Return updated plan
@@ -941,7 +1056,9 @@ class PlanService:
             # Get place details including photo
             try:
                 place_details = await MapService.get_location_details(
-                    PlaceDetailsRequest(place_id=first.place_id)
+                    PlaceDetailsRequest(place_id=first.place_id),
+                    db=db,
+                    user_id=user_id
                 )
                 photo_url = place_details.photos[0].photo_url if place_details.photos else None
             except Exception:
@@ -950,10 +1067,24 @@ class PlanService:
             # Ensure destination exists in DB
             await PlanRepository.ensure_destination(db, first.place_id)
 
-            # Add to plan
+            # Get plan to determine defaults
+            from datetime import date
+            plan = await PlanRepository.get_plan_by_id(db, plan_id)
+            
+            # Set defaults: use plan start date if available, otherwise today
+            default_date = plan.start_date if plan and plan.start_date else date.today()
+            
+            # Get existing destinations to determine order
+            existing_destinations = await PlanRepository.get_plan_destinations(db, plan_id)
+            next_order = len(existing_destinations) + 1
+
+            # Add to plan with all required fields
             plan_dest_data = PlanDestinationCreate(
                 destination_id=first.place_id,
-                type=DestinationType.attraction,
+                destination_type=DestinationType.attraction,
+                order_in_day=next_order,
+                visit_date=default_date,
+                time_slot=TimeSlot.morning,  # Default to morning
                 url=photo_url,
             )
 

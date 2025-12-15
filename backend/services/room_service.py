@@ -397,3 +397,36 @@ class RoomService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting room ID {room_id}: {e}",
             )
+    
+    @staticmethod
+    async def get_room_by_plan_id(
+        db: AsyncSession, user_id: int, plan_id: int
+    ) -> RoomResponse:
+        try:
+            room = await RoomRepository.get_room_by_plan_id(db, plan_id)
+            if not room:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Room for plan ID {plan_id} not found",
+                )
+            is_member = await RoomRepository.is_member(db, user_id, room.id)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"User ID {user_id} is not a member of room ID {room.id}",
+                )
+            members = await RoomRepository.list_members(db, room.id)
+            return RoomResponse(
+                id=room.id,
+                name=room.name,
+                room_type=room.room_type,
+                created_at=room.created_at,
+                member_ids=[member.user_id for member in members],
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error retrieving room for plan ID {plan_id}: {e}",
+            )
