@@ -13,7 +13,10 @@ from schemas.authentication_schema import (
     UserLogin,
     UserRegister,
 )
+from schemas.user_schema import UserCredentialUpdate
 from utils.config import settings
+from utils.email.email_utils import send_email
+from utils.token.authentication_util import generate_temporary_password
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -116,42 +119,453 @@ class AuthenticationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error registering user: {e}",
             )
-
+            
     @staticmethod
-    async def generate_temporary_password(db: AsyncSession, email: str) -> str:
+    async def reset_user_password(db: AsyncSession, email: str) -> str:
         try:
-            is_user = await UserRepository.get_user_by_email(db, email)
-            if not is_user:
+            user = await UserRepository.get_user_by_email(db, email)
+            if not user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User with the provided email does not exist",
                 )
-            # Random password length between 8-19 characters
-            password_length = secrets.randbelow(12) + 8  # 8 to 19
+            temp_password = generate_temporary_password()
+            data = UserCredentialUpdate(
+                old_password=user.password, new_password=temp_password
+            )
+            await UserRepository.update_user_credentials(db, user.id, data)
             
-            lowercase = string.ascii_lowercase
-            uppercase = string.ascii_uppercase
-            digits = string.digits
-            symbols = string.punctuation
-
-            # Ensure at least one character from each category
-            password_chars = [
-                secrets.choice(lowercase),
-                secrets.choice(uppercase),
-                secrets.choice(digits),
-                secrets.choice(symbols),
-            ]
-
-            # Fill remaining characters randomly from all categories
-            all_chars = lowercase + uppercase + digits + symbols
-            password_chars += [secrets.choice(all_chars) for _ in range(password_length - 4)]
-
-            # Securely shuffle the password characters
-            secrets.SystemRandom().shuffle(password_chars)
+            # Gửi email chứa mật khẩu tạm thời
+            email_subject = "Password Reset Confirmation - EcomoveX"
+            email_content = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Reset - EcomoveX</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.7;
+            color: #1e293b;
+            background: #f8fafc;
+            padding: 40px 20px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }}
+        .email-wrapper {{
+            max-width: 640px;
+            margin: 0 auto;
+        }}
+        .container {{
+            background-color: #ffffff;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid #f1f5f9;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            padding: 40px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }}
+        .header::before {{
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%);
+            opacity: 0.5;
+        }}
+        .logo-container {{
+            position: relative;
+            z-index: 2;
+        }}
+        .logo {{
+            font-size: 38px;
+            font-weight: 700;
+            color: #ffffff;
+            font-style: normal;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: -0.5px;
+        }}
+        .tagline {{
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }}
+        .content {{
+            padding: 40px 40px;
+        }}
+        .icon-wrapper {{
+            text-align: center;
+            margin-bottom: 24px;
+        }}
+        .icon {{
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+        }}
+        .icon svg {{
+            width: 32px;
+            height: 32px;
+            fill: white;
+        }}
+        .title {{
+            color: #0f172a;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            text-align: center;
+            line-height: 1.3;
+            letter-spacing: -0.3px;
+        }}
+        .greeting {{
+            font-size: 15px;
+            color: #475569;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }}
+        .greeting strong {{
+            color: #0f172a;
+            font-weight: 600;
+        }}
+        .message {{
+            font-size: 15px;
+            color: #64748b;
+            margin-bottom: 28px;
+            line-height: 1.7;
+        }}
+        .password-container {{
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 28px 24px;
+            margin: 28px 0;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+        }}
+        .password-label {{
+            color: #047857;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 12px;
+        }}
+        .password-value {{
+            font-size: 28px;
+            font-weight: 700;
+            color: #065f46;
+            letter-spacing: 4px;
+            font-family: 'Courier New', Consolas, Monaco, monospace;
+            background: #ffffff;
+            padding: 16px 24px;
+            border-radius: 10px;
+            display: inline-block;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+            user-select: all;
+            border: 1px solid #d1fae5;
+        }}
+        .info-box {{
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 18px 20px;
+            margin: 24px 0;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #92400e;
+            line-height: 1.6;
+            box-shadow: 0 1px 4px rgba(245, 158, 11, 0.1);
+        }}
+        .info-box strong {{
+            color: #78350f;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }}
+        .info-icon {{
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: #f59e0b;
+            border-radius: 50%;
+            margin-right: 10px;
+            vertical-align: middle;
+            position: relative;
+        }}
+        .info-icon::before {{
+            content: '!';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: 800;
+            font-size: 14px;
+        }}
+        .button-container {{
+            text-align: center;
+            margin: 40px 0;
+        }}
+        .button {{
+            display: inline-block;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+            padding: 14px 40px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.2px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+        .security-tips {{
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 24px;
+            margin: 28px 0;
+            border: 1px solid #e2e8f0;
+        }}
+        .security-tips h3 {{
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            letter-spacing: -0.2px;
+        }}
+        .security-tips h3::before {{
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-right: 12px;
+            vertical-align: middle;
+        }}
+        .security-tips ul {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }}
+        .security-tips li {{
+            padding: 8px 0;
+            color: #475569;
+            font-size: 14px;
+            display: flex;
+            align-items: flex-start;
+            line-height: 1.5;
+        }}
+        .security-tips li::before {{
+            content: '✓';
+            color: #10b981;
+            font-weight: 700;
+            margin-right: 10px;
+            font-size: 14px;
+            flex-shrink: 0;
+        }}
+        .divider {{
+            height: 1px;
+            background: linear-gradient(to right, transparent, #e2e8f0, transparent);
+            margin: 40px 0;
+        }}
+        .help-text {{
+            font-size: 15px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.7;
+        }}
+        .help-link {{
+            color: #10b981;
+            text-decoration: none;
+            font-weight: 700;
+            border-bottom: 2px solid transparent;
+            transition: border-color 0.2s;
+        }}
+        .help-link:hover {{
+            border-bottom-color: #10b981;
+        }}
+        .footer {{
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 48px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }}
+        .footer-brand {{
+            font-weight: 800;
+            color: #0f172a;
+            font-size: 18px;
+            margin-bottom: 10px;
+            letter-spacing: -0.3px;
+        }}
+        .footer-tagline {{
+            color: #64748b;
+            font-size: 15px;
+            margin-bottom: 24px;
+            font-weight: 500;
+        }}
+        .footer-links {{
+            margin: 24px 0;
+        }}
+        .footer-links a {{
+            color: #10b981;
+            text-decoration: none;
+            margin: 0 16px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: color 0.2s;
+        }}
+        .footer-links a:hover {{
+            color: #059669;
+        }}
+        .footer-disclaimer {{
+            color: #94a3b8;
+            font-size: 13px;
+            margin-top: 24px;
+            line-height: 1.7;
+        }}
+        @media only screen and (max-width: 600px) {{
+            body {{
+                padding: 20px 10px;
+            }}
+            .content {{
+                padding: 40px 28px;
+            }}
+            .header {{
+                padding: 48px 28px;
+            }}
+            .title {{
+                font-size: 26px;
+            }}
+            .logo {{
+                font-size: 44px;
+            }}
+            .password-value {{
+                font-size: 28px;
+                letter-spacing: 3px;
+                padding: 16px 20px;
+            }}
+            .button {{
+                padding: 16px 40px;
+                font-size: 16px;
+            }}
+            .security-tips {{
+                padding: 24px;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="container">
+            <div class="header">
+                <div class="logo-container">
+                    <div class="logo">EcomoveX</div>
+                    <div class="tagline">Your Trip. Your Impact. Your Choice.</div>
+                </div>
+            </div>
             
-            return ''.join(password_chars)
+            <div class="content">
+                <div class="icon-wrapper">
+                    <div class="icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <h1 class="title">Account Security Notification</h1>
+                
+                <p class="greeting">Dear <strong>{user.name if hasattr(user, 'name') else 'Valued User'}</strong>,</p>
+                
+                <p class="message">
+                    This email confirms that your account password has been successfully reset. Please find your temporary access credentials below. We recommend changing this password immediately upon your next login.
+                </p>
+                
+                <div class="password-container">
+                    <div class="password-label">Temporary Access Password</div>
+                    <div class="password-value">{temp_password}</div>
+                </div>
+                
+                <div class="info-box">
+                    <strong><span class="info-icon"></span>Security Advisory</strong>
+                    For optimal account security, we strongly recommend updating this temporary password immediately after logging in. Please ensure you do not share this information with anyone.
+                </div>
+                
+                <div class="button-container">
+                    <a href="http://localhost:3000/login" class="button">Access Your Account</a>
+                </div>
+                
+                <div class="security-tips">
+                    <h3>Security Best Practices</h3>
+                    <ul>
+                        <li>Update your password within 24 hours of receipt</li>
+                        <li>Create a strong, unique password combining letters, numbers, and symbols</li>
+                        <li>Enable multi-factor authentication for enhanced security</li>
+                        <li>Never share your password through email or messaging platforms</li>
+                    </ul>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <p class="help-text">
+                    If you did not initiate this password reset request, please contact our support team immediately at<br>
+                    <a href="mailto:{settings.SMTP_USER}" class="help-link">{settings.SMTP_USER}</a>
+                </p>
+            </div>
+            
+            <div class="footer">
+                <div class="footer-brand">EcomoveX</div>
+                <div class="footer-tagline">Making sustainable travel accessible to everyone</div>
+                
+                <div class="footer-links">
+                    <a href="#">Help Center</a>
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+                
+                <div class="footer-disclaimer">
+                    This is an automated email from EcomoveX. Please do not reply to this message.<br>
+                    © 2025 EcomoveX. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+            
+            try:
+                await send_email(email, email_subject, email_content, content_type="html")
+            except Exception as email_error:
+                print(f"[WARNING] Password reset successful but email failed: {email_error}")
+            
+            return temp_password
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating temporary password: {e}",
+                detail=f"Error resetting user password: {e}",
             )

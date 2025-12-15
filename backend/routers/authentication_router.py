@@ -32,7 +32,7 @@ async def login_user(credentials: UserLogin, user_db: AsyncSession = Depends(get
     )
     
 @router.post(
-    "/generate-password", response_model=str, status_code=status.HTTP_200_OK
+    "/forgot-password", response_model=str, status_code=status.HTTP_200_OK
 )
-async def generate_temporary_password(email: str, user_db: AsyncSession = Depends(get_db)):
-    return await AuthenticationService.generate_temporary_password(user_db, email)
+async def reset_password(email: str, user_db: AsyncSession = Depends(get_db)):
+    return await AuthenticationService.reset_user_password(user_db, email)
