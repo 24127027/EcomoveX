@@ -34,6 +34,18 @@ const AdminDashboard = () => {
     eco_impact_score: 0,
   });
 
+  // AI Processing Requests State
+  type AIRequest = {
+    id: string;
+    place_id: string;
+    status: 'processing' | 'completed' | 'failed';
+    green_score?: number;
+    verified?: boolean;
+    error?: string;
+    timestamp: string;
+  };
+  const [aiRequests, setAiRequests] = useState<AIRequest[]>([]);
+
   // Fetch users
   useEffect(() => {
     if (activeTab === 'users') {
@@ -405,27 +417,54 @@ const AdminDashboard = () => {
   };
 
   const handleAiCheck = async (destinationId: string) => {
-    if (!confirm('Run AI verification check for this destination?')) return;
+    if (!confirm('Run AI green verification check for this destination? This will analyze place photos using computer vision.')) return;
+    
+    // Create request entry
+    const requestId = `req_${Date.now()}`;
+    const newRequest: AIRequest = {
+      id: requestId,
+      place_id: destinationId,
+      status: 'processing',
+      timestamp: new Date().toISOString(),
+    };
+    setAiRequests(prev => [newRequest, ...prev]);
     
     try {
       setLoading(true);
       const result = await api.adminCheckAiVerification(destinationId);
       
+      // Update request status to completed
+      setAiRequests(prev => prev.map(req => 
+        req.place_id === destinationId && req.status === 'processing'
+          ? { ...req, status: 'completed', green_score: result.green_score, verified: result.verified }
+          : req
+      ));
+
+      const greenScorePercent = (result.green_score! * 100).toFixed(1);
+      const statusMessage = result.verified 
+        ? `✓ AI Verification PASSED\n\nGreen Coverage Score: ${greenScorePercent}%\n\nThe destination has sufficient green coverage based on image analysis.`
+        : `✗ Verification Result: Not Sufficient\n\nGreen Coverage Score: ${greenScorePercent}%\n\nThe destination does not meet the minimum green coverage threshold (2%).`;
+      
       if (result.verified) {
         const shouldUpdate = confirm(
-          `AI Verification PASSED ✓\n\nConfidence: ${(result.confidence! * 100).toFixed(1)}%\nGreen Score: ${(result.green_score! * 100).toFixed(1)}%\n\nUpdate certificate to "AI Green Verified"?`
+          `${statusMessage}\n\nUpdate certificate status to "AI Green Verified"?`
         );
         if (shouldUpdate) {
           await api.adminUpdateCertificate(destinationId, 'AI Green Verified');
+          alert('Certificate updated successfully!');
           fetchDestinations();
         }
       } else {
-        alert(
-          `AI Verification FAILED ✗\n\nConfidence: ${(result.confidence! * 100).toFixed(1)}%\nGreen Score: ${(result.green_score! * 100).toFixed(1)}%`
-        );
+        alert(statusMessage);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to run AI check');
+      // Update request status to failed
+      setAiRequests(prev => prev.map(req => 
+        req.place_id === destinationId && req.status === 'processing'
+          ? { ...req, status: 'failed', error: err.message }
+          : req
+      ));
+      alert(err.message || 'Failed to run AI verification check. Please ensure the destination has photos available.');
     } finally {
       setLoading(false);
     }
@@ -438,6 +477,7 @@ const AdminDashboard = () => {
     { id: 'destinations', name: 'Destinations', icon: MapPin },
     { id: 'reviews', name: 'Review Moderation', icon: MessageSquare },
     { id: 'missions', name: 'Mission Management', icon: Target },
+    { id: 'ai-requests', name: 'AI Processing', icon: Bot },
     { id: 'audit', name: 'Audit Logs', icon: FileText },
     { id: 'settings', name: 'Settings', icon: Settings },
   ];
@@ -1134,6 +1174,149 @@ const AdminDashboard = () => {
     </div>
   );
 
+  // Render AI Processing Requests
+  const renderAiRequests = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">AI Processing Requests</h2>
+          <div className="flex gap-2">
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+              {aiRequests.length} Total Requests
+            </span>
+            <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+              {aiRequests.filter(r => r.status === 'processing').length} Processing
+            </span>
+            <button 
+              onClick={() => setAiRequests([])}
+              className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+            >
+              Clear History
+            </button>
+          </div>
+        </div>
+
+        {aiRequests.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <Bot className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg font-medium mb-2">No AI Verification Requests Yet</p>
+            <p className="text-sm">AI processing requests will appear here when you run green verification checks</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Request ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Place ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {aiRequests.map((request) => (
+                  <tr key={request.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-mono text-gray-600 block truncate max-w-[100px]" title={request.id}>
+                        {request.id}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 max-w-[200px]">
+                        <span className="text-xs font-mono text-gray-900 truncate" title={request.place_id}>
+                          {request.place_id}
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(request.place_id);
+                            alert('Place ID copied!');
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-600 flex-shrink-0"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                        request.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        request.status === 'processing' ? 'bg-yellow-100 text-yellow-800 animate-pulse' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {request.status === 'processing' && '⏳ '}
+                        {request.status === 'completed' && '✓ '}
+                        {request.status === 'failed' && '✗ '}
+                        {request.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {request.green_score !== undefined ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${request.green_score >= 0.02 ? 'bg-green-500' : 'bg-red-500'}`}
+                              style={{ width: `${Math.min(request.green_score * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-gray-900 whitespace-nowrap">
+                            {(request.green_score * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {request.verified !== undefined ? (
+                        request.verified ? (
+                          <span className="flex items-center gap-1 text-green-600">
+                            <Check className="w-4 h-4" />
+                            <span className="text-xs font-medium">Yes</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-red-600">
+                            <X className="w-4 h-4" />
+                            <span className="text-xs font-medium">No</span>
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-gray-600 whitespace-nowrap">
+                        {new Date(request.timestamp).toLocaleString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <Bot className="w-5 h-5" />
+          AI Green Verification Processing
+        </h3>
+        <p className="text-sm text-blue-800">
+          This panel tracks all AI-powered green verification requests. The AI analyzes place photos using computer vision 
+          to detect green coverage (trees, plants, natural elements). Requests are processed in real-time and results are 
+          stored here for monitoring and auditing purposes.
+        </p>
+      </div>
+    </div>
+  );
+
   // Render Audit Logs
   const renderAuditLogs = () => (
     <div className="space-y-6">
@@ -1253,6 +1436,7 @@ const AdminDashboard = () => {
         {activeTab === 'destinations' && renderDestinations()}
         {activeTab === 'reviews' && renderReviewModeration()}
         {activeTab === 'missions' && renderMissionManagement()}
+        {activeTab === 'ai-requests' && renderAiRequests()}
         {activeTab === 'audit' && renderAuditLogs()}
         {activeTab === 'settings' && renderSettings()}
       </div>

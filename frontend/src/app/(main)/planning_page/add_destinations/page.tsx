@@ -84,7 +84,7 @@ const convertTextSearchResult = (
           },
         ]
       : [],
-    sustainable_certified: false,
+    sustainable_certificate: "Not Green Verified",
     distanceText: formatDistanceText(origin, location),
   };
 };

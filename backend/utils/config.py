@@ -32,7 +32,6 @@ class Settings(BaseSettings):
 
     OPEN_ROUTER_API_KEY: str = "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"
     
-    # Admin setup - set this email to auto-promote first registration to admin
     FIRST_ADMIN_EMAIL: str = ""
     OPEN_ROUTER_MODEL_NAME: str = "meta-llama/llama-3.3-70b-instruct"
 

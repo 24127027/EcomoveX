@@ -8,9 +8,9 @@ from models.room import MemberRole, RoomType
 
 class RoomCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    room_type: RoomType = RoomType.group
     avatar_blob_name: Optional[str] = None
     member_ids: List[int] = Field(default_factory=list)
+    plan_id: Optional[int] = None
 
 
 class RoomUpdate(BaseModel):

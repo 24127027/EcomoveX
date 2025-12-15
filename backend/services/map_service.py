@@ -4,6 +4,9 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration.map_api import create_map_client
+from models.user import Activity
+from repository.destination_repository import DestinationRepository
+from repository.review_repository import ReviewRepository
 from schemas.destination_schema import DestinationCreate, Location
 from schemas.map_schema import (
     AutocompleteRequest,
@@ -19,7 +22,9 @@ from schemas.map_schema import (
     TextSearchResponse,
 )
 from schemas.route_schema import DirectionsResponse
+from schemas.user_schema import UserActivityCreate
 from services.destination_service import DestinationService
+from services.user_service import UserService
 
 FIELD_GROUPS = {
     PlaceDataCategory.BASIC: [
@@ -138,7 +143,9 @@ class MapService:
                 await map_client.close()
 
     @staticmethod
-    async def get_location_details(data: PlaceDetailsRequest) -> PlaceDetailsResponse:
+    async def get_location_details(
+        data: PlaceDetailsRequest, db: Optional[AsyncSession] = None, user_id: Optional[int] = None
+    ) -> PlaceDetailsResponse:
         if not data.place_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="place_id is required"
@@ -155,11 +162,58 @@ class MapService:
                 final_fields.update(FIELD_GROUPS[PlaceDataCategory.BASIC])
 
             map_client = await create_map_client()
-            return await map_client.get_place_details(
+            result = await map_client.get_place_details(
                 place_id=data.place_id,
                 fields=list(final_fields),  # Convert set back to list
                 session_token=data.session_token,
             )
+
+            # Check database for green verification status via repository
+            if db:
+                certificate = await DestinationRepository.get_destination_certificate(
+                    db, data.place_id
+                )
+                if certificate:
+                    result.sustainable_certificate = certificate
+
+            # Fetch reviews from database and merge with API reviews
+            db_reviews = None
+            if db:
+                db_reviews = await ReviewRepository.get_all_reviews_by_destination(
+                    db, data.place_id
+                )
+            
+            if db_reviews:
+                from schemas.map_schema import Review as ReviewSchema
+                
+                # Convert database reviews to schema format
+                db_review_list = []
+                for db_review in db_reviews:
+                    # Get author name from user relationship
+                    author_name = db_review.user.username if db_review.user else "Anonymous"
+                    db_review_list.append(
+                        ReviewSchema(
+                            rating=float(db_review.rating),
+                            text=db_review.content,
+                            author_name=author_name,
+                            time=db_review.created_at.isoformat() if db_review.created_at else None
+                        )
+                    )
+                
+                # Merge: database reviews first, then API reviews
+                if result.reviews:
+                    result.reviews = db_review_list + result.reviews
+                else:
+                    result.reviews = db_review_list
+
+            # Log user activity
+            if db and user_id:
+                activity_data = UserActivityCreate(
+                    activity=Activity.search_destination, destination_id=data.place_id
+                )
+                await UserService.log_user_activity(db, user_id, activity_data)
+
+            return result
 
         except HTTPException:
             raise

@@ -49,6 +49,12 @@ export interface UserProfile {
   role: string;
 }
 
+//GREEN TYPE
+export interface GreenVerificationResponse {
+  green_score: number;
+  status: "Green Certified" | "AI Green Verified" | "Not Green Verified";
+}
+
 //Friend Types
 export interface FriendResponse {
   user_id: number;
@@ -178,7 +184,7 @@ export interface AutocompleteRequest {
   query: string;
   user_location?: Position;
   radius?: number; // in meters
-  place_types?: string; // Comma-separated string
+  place_types?: string;
   language?: string;
   session_token?: string | null;
 }
@@ -229,7 +235,10 @@ export interface PlaceDetails {
   }>;
   reviews?: PlaceReview[];
   utc_offset?: number;
-  sustainable_certified: boolean;
+  sustainable_certificate:
+    | "Green Certified"
+    | "AI Green Verified"
+    | "Not Green Verified";
 }
 
 export interface OpeningHoursPeriodEndpoint {
@@ -249,6 +258,8 @@ export interface PlaceReview {
   text?: string;
   time?: number;
   profile_photo_url?: string;
+  files_urls?: string[]; 
+  created_at?: string;
 }
 
 export interface ReverseGeocodeResponse {
@@ -274,7 +285,10 @@ export interface SavedDestination {
 }
 
 // Destination certificate/verification types
-export type GreenVerifiedStatus = "Green Certified" | "Not Green Verified" | "AI Green Verified";
+export type GreenVerifiedStatus =
+  | "Green Certified"
+  | "Not Green Verified"
+  | "AI Green Verified";
 
 export interface DestinationWithCertificate {
   place_id: string;
@@ -315,8 +329,8 @@ export interface ApiMessageResponse {
 
 // Route Types for Plans
 export interface RouteForPlanResponse {
-  origin: string; // place_id
-  destination: string; // place_id
+  origin: string;
+  destination: string;
   distance_km: number;
   estimated_travel_time_min: number;
   carbon_emission_kg: number;
@@ -325,16 +339,16 @@ export interface RouteForPlanResponse {
   route_type: string;
 }
 
-// Route Response from backend /plans/{plan_id}/routes
 export interface RouteResponse {
+  id: number;
   plan_id: number;
   origin_plan_destination_id: number;
   destination_plan_destination_id: number;
   distance_km: number;
   carbon_emission_kg: number;
+  mode: string;
 }
 
-// Basic plan info for track page
 export interface PlanBasicInfo {
   id: number;
   place_name: string;
@@ -345,18 +359,17 @@ type PlanListResponse =
   | { plans: Array<number | PlanBasicInfo> }
   | Array<number | PlanBasicInfo>;
 
-// Backend Plan Destination Type (matches PlanDestinationResponse from backend)
 export interface PlanDestinationResponse {
   id: number;
   destination_id: string;
-  type: string; // DestinationType
-  destination_type?: string; // legacy support from older responses
+  type: string;
+  destination_type?: string;
   order_in_day: number;
-  visit_date: string; // date string
+  visit_date: string;
   estimated_cost?: number | null;
   url?: string | null;
   note?: string | null;
-  time_slot: string; // TimeSlot enum as string
+  time_slot: string;
 }
 
 // Backend Plan Response Type (matches PlanResponse from backend)
@@ -436,7 +449,7 @@ export interface RoomResponse {
   id: number;
   name: string;
   created_at: string;
-  member_ids: number[]; // Quan trọng: cần trường này để lọc
+  member_ids: number[];
 }
 //REWARD & MISSION TYPES
 export interface Mission {
@@ -460,7 +473,7 @@ export interface PlanDestination {
   destination_id: string;
   destination_type: string;
   visit_date: string;
-  time_slot: string; // ✅ Backend trả về lowercase, sẽ convert sang capitalize
+  time_slot: string;
   note?: string;
   url?: string;
   order_in_day?: number;
@@ -468,7 +481,7 @@ export interface PlanDestination {
 
 export interface PlanResponse {
   id: number;
-  user_id: number; // Owner ID for permission checking
+  user_id: number;
   place_name: string;
   start_date: string;
   end_date: string;
@@ -488,8 +501,8 @@ export interface PlanMemberDetail {
   plan_id: number;
   role: "owner" | "member";
   joined_at: string;
-  username?: string; // ✅ Add username
-  email?: string; // ✅ Add email as fallback
+  username?: string;
+  email?: string;
 }
 
 export interface PlanMemberResponse {
@@ -503,12 +516,12 @@ export interface AddMemberRequest {
 
 export interface PlanActivity {
   id: number | string;
-  original_id?: number | string; // ✅ Can be Google Place ID (string) or DB ID (number)
-  destination_id?: string; // ✅ Preserve Google Place ID for routing / maps
+  original_id?: number | string;
+  destination_id?: string;
   title: string;
   address: string;
   image_url: string;
-  time_slot: "Morning" | "Afternoon" | "Evening"; // ✅ Internal sử dụng capitalize
+  time_slot: "Morning" | "Afternoon" | "Evening";
   date?: string;
   type?: string;
   order_in_day?: number;
@@ -520,13 +533,13 @@ export interface PlanActivity {
 
 export interface TravelPlan {
   id: number;
-  user_id?: number; // Owner ID
+  user_id?: number;
   destination: string;
   date: string;
   end_date?: string;
   activities: PlanActivity[];
-  budget?: number; // Legacy field
-  budget_limit?: number; // ✅ Backend field name
+  budget?: number;
+  budget_limit?: number;
 }
 
 export interface PlanDestinationCreate {
@@ -1465,18 +1478,21 @@ class ApiClient {
   }
 
   // --- ADMIN ENDPOINTS ---
-  
+
   // List all users with filters (Admin only)
   async listAllUsers(filters?: UserFilterParams): Promise<AdminUserResponse[]> {
     const params = new URLSearchParams();
     if (filters?.role) params.append("role", filters.role);
     if (filters?.status) params.append("status", filters.status);
     if (filters?.search) params.append("search", filters.search);
-    if (filters?.created_from) params.append("created_from", filters.created_from);
+    if (filters?.created_from)
+      params.append("created_from", filters.created_from);
     if (filters?.created_to) params.append("created_to", filters.created_to);
-    if (filters?.skip !== undefined) params.append("skip", String(filters.skip));
-    if (filters?.limit !== undefined) params.append("limit", String(filters.limit));
-    
+    if (filters?.skip !== undefined)
+      params.append("skip", String(filters.skip));
+    if (filters?.limit !== undefined)
+      params.append("limit", String(filters.limit));
+
     const queryString = params.toString();
     return this.request<AdminUserResponse[]>(
       `/users/users${queryString ? `?${queryString}` : ""}`,
@@ -1492,7 +1508,10 @@ class ApiClient {
   }
 
   // Add eco points to a user (Admin only)
-  async addEcoPointsToUser(userId: number, points: number): Promise<UserProfile> {
+  async addEcoPointsToUser(
+    userId: number,
+    points: number
+  ): Promise<UserProfile> {
     return this.request<UserProfile>(
       `/users/${userId}/eco_point/add?point=${points}`,
       { method: "POST" }
@@ -1524,13 +1543,16 @@ class ApiClient {
   }
 
   // Update mission (Admin only)
-  async updateMission(missionId: number, data: {
-    name?: string;
-    description?: string;
-    reward_type?: string;
-    action_trigger?: string;
-    value?: number;
-  }): Promise<Mission> {
+  async updateMission(
+    missionId: number,
+    data: {
+      name?: string;
+      description?: string;
+      reward_type?: string;
+      action_trigger?: string;
+      value?: number;
+    }
+  ): Promise<Mission> {
     return this.request<Mission>(`/rewards/missions/${missionId}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1545,7 +1567,10 @@ class ApiClient {
   }
 
   // Admin update user password (Admin only)
-  async adminUpdatePassword(userId: number, newPassword: string): Promise<{ message: string }> {
+  async adminUpdatePassword(
+    userId: number,
+    newPassword: string
+  ): Promise<{ message: string }> {
     return this.request<{ message: string }>(`/users/${userId}/password`, {
       method: "PUT",
       body: JSON.stringify({ new_password: newPassword }),
@@ -1569,10 +1594,13 @@ class ApiClient {
     verified_status?: GreenVerifiedStatus;
   }): Promise<DestinationWithCertificate[]> {
     const queryParams = new URLSearchParams();
-    if (params?.skip !== undefined) queryParams.append("skip", String(params.skip));
-    if (params?.limit !== undefined) queryParams.append("limit", String(params.limit));
-    if (params?.verified_status) queryParams.append("verified_status", params.verified_status);
-    
+    if (params?.skip !== undefined)
+      queryParams.append("skip", String(params.skip));
+    if (params?.limit !== undefined)
+      queryParams.append("limit", String(params.limit));
+    if (params?.verified_status)
+      queryParams.append("verified_status", params.verified_status);
+
     const queryString = queryParams.toString();
     return this.request<DestinationWithCertificate[]>(
       `/destinations/admin/all${queryString ? `?${queryString}` : ""}`,
@@ -1586,49 +1614,77 @@ class ApiClient {
     newStatus: GreenVerifiedStatus
   ): Promise<DestinationWithCertificate> {
     return this.request<DestinationWithCertificate>(
-      `/destinations/admin/${destinationId}/certificate?new_status=${encodeURIComponent(newStatus)}`,
+      `/destinations/admin/${destinationId}/certificate?new_status=${encodeURIComponent(
+        newStatus
+      )}`,
       { method: "PUT" }
     );
   }
 
   // Mock: Check destination with external API (not implemented on backend yet)
-  async adminCheckExternalApi(destinationId: string): Promise<ExternalApiCheckResult> {
+  async adminCheckExternalApi(
+    destinationId: string
+  ): Promise<ExternalApiCheckResult> {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     // Mock response - randomly pass or fail
     const passed = Math.random() > 0.3;
     const score = passed ? Math.random() * 0.3 + 0.7 : Math.random() * 0.5;
-    
+
     return {
       destination_id: destinationId,
       passed,
       score,
-      details: passed 
-        ? "External verification passed: Location meets green standards" 
+      details: passed
+        ? "External verification passed: Location meets green standards"
         : "External verification failed: Insufficient green coverage detected",
     };
   }
 
-  // TODO: Implement on backend later
-  // Mock: Check destination with AI verification (not implemented on backend yet)
+  // Check destination with AI verification using green-verification endpoint
   async adminCheckAiVerification(destinationId: string): Promise<AiCheckResult> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock response - randomly verify or not
-    const verified = Math.random() > 0.4;
-    const confidence = Math.random() * 0.3 + 0.7;
-    const green_score = verified ? Math.random() * 0.25 + 0.65 : Math.random() * 0.5;
-    
-    return {
-      destination_id: destinationId,
-      verified,
-      confidence,
-      green_score,
-    };
+    try {
+      const response = await this.request<GreenVerificationResponse>(
+        `/green-verification/verify-place?place_id=${encodeURIComponent(destinationId)}`,
+        { method: "GET" }
+      );
+      
+      // Map GreenVerificationResponse to AiCheckResult format
+      const verified = response.status === "AI Green Verified" || response.status === "Green Certified";
+      
+      return {
+        destination_id: destinationId,
+        verified,
+        confidence: response.green_score, // Use green_score as confidence
+        green_score: response.green_score,
+      };
+    } catch (error: any) {
+      // Handle service unavailable error gracefully
+      if (error.message && error.message.includes('503')) {
+        throw new Error('AI verification service is currently unavailable due to technical issues. Please try again later or contact support.');
+      }
+      throw error;
+    }
+  }
+
+  async updateRoute(
+    planId: number,
+    routeId: number,
+    mode: string,
+    carbonEmission: number
+  ): Promise<RouteResponse> {
+    const queryParams = new URLSearchParams({
+      mode: mode,
+      carbon_emission_kg: carbonEmission.toString(),
+    });
+    return this.request<RouteResponse>(
+      `/plans/${planId}/routes/${routeId}?${queryParams.toString()}`,
+      {
+        method: "POST",
+      }
+    );
   }
 }
 
 export const api = new ApiClient(API_BASE_URL);
-

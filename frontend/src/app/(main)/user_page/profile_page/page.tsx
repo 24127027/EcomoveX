@@ -6,8 +6,6 @@ import { ArrowLeft, Loader2, Camera } from "lucide-react";
 import { Jost, Abhaya_Libre } from "next/font/google";
 import { useRouter } from "next/navigation";
 import { api, UserProfile } from "@/lib/api";
-import { MobileNavMenu } from "@/components/MobileNavMenu";
-import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 
 const jost = Jost({ subsets: ["latin"] });
 const abhaya_libre = Abhaya_Libre({
@@ -278,7 +276,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
-      <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
         <div className="relative w-full h-[230px] rounded-b-[40px] overflow-hidden bg-[#E3F1E4]">
           {previewCover ? (
@@ -362,15 +359,6 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-
-          <h2
-            className={`${abhaya_libre.className} text-2xl font-bold text-[#1B3C1B] text-center`}
-          >
-            {isEditing ? username || "" : user?.username}
-          </h2>
-          <p className={`${jost.className} text-gray-500 text-sm`}>
-            {isEditing ? email || "" : user?.email}
-          </p>
         </div>
 
         <main className="flex-1 overflow-y-auto px-6 mt-6 pb-24 space-y-5">

@@ -32,6 +32,21 @@ class DestinationRepository:
             return None
 
     @staticmethod
+    async def get_destination_certificate(db: AsyncSession, destination_id: str) -> Optional[str]:
+        """Get the sustainable certificate status for a destination."""
+        try:
+            result = await db.execute(
+                select(Destination.green_verified).where(Destination.place_id == destination_id)
+            )
+            status = result.scalar_one_or_none()
+            return status.value if status else None
+        except SQLAlchemyError as e:
+            print(
+                f"ERROR: Failed to retrieve certificate for destination {destination_id} - {e}"
+            )
+            return None
+
+    @staticmethod
     async def create_destination(db: AsyncSession, destination: DestinationCreate):
         try:
             # ✅ Kiểm tra tồn tại trước

@@ -12,9 +12,16 @@ import {
   Plus,
   Send,
   Leaf,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { Jost, Roboto } from "next/font/google";
-import { api, PlaceDetails, ReviewResponse } from "@/lib/api";
+import {
+  api,
+  PlaceDetails,
+  PlaceReview,
+  GreenVerificationResponse,
+} from "@/lib/api";
 
 // --- FONTS ---
 const roboto = Roboto({
@@ -26,7 +33,49 @@ const jost = Jost({
   weight: ["400", "500", "600", "700"],
 });
 
-// ... (Các Component con: NotificationBox, RatingStars, ReviewItem giữ nguyên như cũ) ...
+const GreenStatusBadge = ({
+  status,
+}: {
+  status: string | null | undefined;
+}) => {
+  if (!status) return null;
+  switch (status) {
+    case "Green Certified":
+      return (
+        <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-green-200">
+          <ShieldCheck size={12} className="fill-current" />
+          Green Certified
+        </span>
+      );
+    case "AI Green Verified":
+      return (
+        <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-yellow-200">
+          <Leaf size={12} className="fill-current" />
+          AI Green Verified
+        </span>
+      );
+    case "Not Green Verified":
+      return (
+        <span className="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-gray-200">
+          <Info size={12} />
+          Not Verified
+        </span>
+      );
+    default:
+      return null;
+  }
+};
+
+const getEcoNotificationText = (data: GreenVerificationResponse | null) => {
+  if (!data) return "Loading eco information...";
+  if (data.status === "Green Certified") {
+    return "This place is Green Certified! They follow strict eco-friendly practices to minimize their environmental impact.";
+  } else if (data.status === "AI Green Verified") {
+    return "This place is AI Green Verified! It meets several eco-friendly criteria based on AI analysis.";
+  } else {
+    return "This place is not green verified. Consider supporting more eco-friendly businesses!";
+  }
+};
 const NotificationBox = ({ text }: { text: string }) => (
   <div className="bg-blue-50 border border-blue-100 border-dashed rounded-xl p-4 mb-6 relative overflow-hidden">
     <div className="absolute top-0 right-0 w-16 h-16 bg-blue-100 rounded-bl-full -mr-8 -mt-8 opacity-50"></div>
@@ -83,7 +132,7 @@ const ReviewItem = ({
   review,
   isMe,
 }: {
-  review: ReviewResponse;
+  review: PlaceReview;
   isMe: boolean;
 }) => (
   <div className="bg-[#F9FFF9] border border-green-50 p-4 rounded-2xl mb-3 shadow-sm">
@@ -96,7 +145,7 @@ const ReviewItem = ({
         </div>
         <div>
           <p className={`${jost.className} font-bold text-gray-800 text-sm`}>
-            {isMe ? "You" : `User #${review.user_id}`}
+            {isMe ? "You" : `User #${review.author_name}`}
           </p>
           <RatingStars rating={review.rating} size={12} />
         </div>
@@ -110,22 +159,30 @@ const ReviewItem = ({
     <p
       className={`${roboto.className} text-gray-600 text-sm leading-relaxed mb-3`}
     >
-      {review.content}
+      {review.text}
     </p>
     {review.files_urls && review.files_urls.length > 0 && (
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {review.files_urls.map((url, idx) => (
-          <img
-            key={idx}
-            src={url}
-            alt="review"
-            className="w-20 h-20 object-cover rounded-lg border border-gray-100 shrink-0"
-          />
-        ))}
+        {review.files_urls && review.files_urls.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {review.files_urls.map((url, idx) => (
+              <img
+                key={idx}
+                src={url}
+                alt="review image"
+                className="w-20 h-20 object-cover rounded-lg border border-gray-100 shrink-0"
+              />
+            ))}
+          </div>
+        )}
       </div>
     )}
     <p className="text-gray-400 text-[10px] text-right mt-1">
-      {new Date(review.created_at).toLocaleDateString()}
+      {review.relative_time_description
+        ? review.relative_time_description
+        : review.time
+        ? new Date(review.time).toLocaleDateString()
+        : ""}
     </p>
   </div>
 );
@@ -137,19 +194,15 @@ function PlaceDetailContent() {
   const placeId = searchParams.get("place_id");
 
   const [place, setPlace] = useState<PlaceDetails | null>(null);
-  const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State for Saving Destination
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // State for Logic mở rộng
   const [isExpandedInfo, setIsExpandedInfo] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
-  // State for Add Review Modal
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState("");
@@ -172,23 +225,18 @@ function PlaceDetailContent() {
           console.log("Not logged in");
         }
 
-        // Fetch Place & Reviews
-        const [placeData, reviewsData] = await Promise.all([
-          api.getPlaceDetails(placeId, null, [
-            "basic",
-            "contact",
-            "atmosphere",
-          ]),
-          api.getReviewsByDestination(placeId).catch(() => []),
+        // Fetch Place Details - it already has reviews and sustainable_certified
+        const placeData = await api.getPlaceDetails(placeId, null, [
+          "basic",
+          "contact",
+          "atmosphere",
         ]);
 
         setPlace(placeData);
-        setReviews(reviewsData);
 
-        // --- CHECK SAVED STATUS (Logic mới) ---
+        // --- CHECK SAVED STATUS ---
         try {
           const savedList = await api.getSavedDestinations();
-          // Kiểm tra xem placeId hiện tại có trong danh sách đã lưu không
           const exists = savedList.some(
             (item) => item.destination_id === placeId
           );
@@ -255,8 +303,15 @@ function PlaceDetailContent() {
         reviewImages
       );
 
-      const updatedReviews = await api.getReviewsByDestination(placeId);
-      setReviews(updatedReviews);
+      // Refresh only reviews by calling with empty fields
+      const updatedPlace = await api.getPlaceDetails(placeId, null, [
+        "atmosphere",
+      ]);
+      if (updatedPlace.reviews) {
+        setPlace((prev) =>
+          prev ? { ...prev, reviews: updatedPlace.reviews } : prev
+        );
+      }
 
       setIsReviewModalOpen(false);
       setNewComment("");
@@ -322,20 +377,31 @@ function PlaceDetailContent() {
         </div>
 
         <div className="p-5 space-y-6">
-          <NotificationBox text="Heads up! This place serves all drinks in reusable cups. Feel free to bring your own tumbler to get a 10% discount!" />
+          {/* ECO NOTIFICATION */}
+          <NotificationBox
+            text={
+              place.sustainable_certificate === "Green Certified"
+                ? "This place is Green Certified! They follow strict eco-friendly practices to minimize their environmental impact."
+                : place.sustainable_certificate === "AI Green Verified"
+                ? "This place is AI Green Verified! It meets several eco-friendly criteria based on AI analysis."
+                : "This place is not green verified. Consider supporting more eco-friendly businesses!"
+            }
+          />
 
           {/* INFO SECTION */}
           <div className="space-y-4">
-            <div className="flex gap-4 items-start">
-              <span
-                className={`${jost.className} w-24 font-bold text-gray-900 shrink-0`}
-              >
-                Address.
-              </span>
-              <p className="text-gray-600 text-sm leading-tight">
-                {place.formatted_address}
-              </p>
-            </div>
+            {place.formatted_address && (
+              <div className="flex gap-4 items-start">
+                <span
+                  className={`${jost.className} w-24 font-bold text-gray-900 shrink-0`}
+                >
+                  Address.
+                </span>
+                <p className="text-gray-600 text-sm leading-tight">
+                  {place.formatted_address}
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-4 items-start">
               <span
@@ -353,7 +419,9 @@ function PlaceDetailContent() {
                 Category.
               </span>
               <p className="text-gray-600 text-sm capitalize">
-                {place.types?.[0]?.replace(/_/g, " ") || "Place"}
+                {place.types && place.types.length > 0
+                  ? place.types[0].replace(/_/g, " ")
+                  : "Place"}
               </p>
             </div>
 
@@ -363,10 +431,7 @@ function PlaceDetailContent() {
               >
                 Green Level.
               </span>
-              <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-yellow-200">
-                <Leaf size={12} className="fill-current" />
-                AI Green Verified
-              </span>
+              <GreenStatusBadge status={place.sustainable_certificate} />
             </div>
 
             {isExpandedInfo && (
@@ -491,13 +556,53 @@ function PlaceDetailContent() {
             </div>
 
             <div className="space-y-4">
-              {reviews.length > 0 ? (
-                reviews.map((rev, idx) => (
-                  <ReviewItem
+              {place.reviews && place.reviews.length > 0 ? (
+                place.reviews.map((review, idx) => (
+                  <div
                     key={idx}
-                    review={rev}
-                    isMe={currentUser && rev.user_id === currentUser.id}
-                  />
+                    className="bg-[#F9FFF9] border border-green-50 p-4 rounded-2xl mb-3 shadow-sm"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
+                          {review.profile_photo_url ? (
+                            <img
+                              src={review.profile_photo_url}
+                              alt={review.author_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-green-100 text-green-600 font-bold text-sm">
+                              {review.author_name &&
+                              review.author_name.length > 0
+                                ? review.author_name[0]
+                                : "U"}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p
+                            className={`${jost.className} font-bold text-gray-800 text-sm`}
+                          >
+                            {review.author_name}
+                          </p>
+                          <RatingStars rating={review.rating} size={12} />
+                        </div>
+                      </div>
+                      {review.relative_time_description && (
+                        <span className="text-[10px] text-gray-400">
+                          {review.relative_time_description}
+                        </span>
+                      )}
+                    </div>
+                    {review.text && (
+                      <p
+                        className={`${roboto.className} text-gray-600 text-sm leading-relaxed`}
+                      >
+                        {review.text}
+                      </p>
+                    )}
+                  </div>
                 ))
               ) : (
                 <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
@@ -609,15 +714,16 @@ function PlaceDetailContent() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 grid grid-cols-2 gap-2 pb-20">
-              {place.photos.map((photo, index) => (
-                <img
-                  key={index}
-                  src={photo.photo_url}
-                  className="w-full h-auto object-cover rounded-lg"
-                  loading="lazy"
-                  alt={`Gallery ${index}`}
-                />
-              ))}
+              {place.photos &&
+                place.photos.map((photo, index) => (
+                  <img
+                    key={index}
+                    src={photo.photo_url}
+                    className="w-full h-auto object-cover rounded-lg"
+                    loading="lazy"
+                    alt={`Gallery ${index}`}
+                  />
+                ))}
             </div>
           </div>
         )}

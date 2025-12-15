@@ -1,4 +1,5 @@
 from models.destination import Destination
+from schemas.map_schema import PlaceDetailsRequest
 from services.map_service import MapService
 
 
@@ -9,7 +10,9 @@ class DestinationEmbeddingService:
         self.model_version = model_version
 
     async def build_embedding_record(self, destination: Destination):
-        place = await MapService.get_location_details(destination.google_place_id)
+        place = await MapService.get_location_details(
+            PlaceDetailsRequest(place_id=destination.google_place_id)
+        )
 
         text = self._build_text(place)
 

@@ -27,8 +27,6 @@ import {
   TravelPlan,
 } from "@/lib/api";
 
-import { MobileNavMenu } from "@/components/MobileNavMenu";
-import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
 const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
 type PlanWithDestinations = TravelPlan & {
@@ -466,7 +464,6 @@ export default function FriendsPage() {
 
   return (
     <div className="min-h-screen w-full flex justify-center bg-gray-200">
-      <MobileNavMenu items={PRIMARY_NAV_LINKS} activeKey="user" />
       <div className="w-full max-w-md bg-[#F5F7F5] h-screen shadow-2xl relative flex flex-col overflow-hidden">
         {/* --- FRIEND REMOVAL MODAL --- */}
         {deleteTargetId && (

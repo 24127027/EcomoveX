@@ -1,43 +1,128 @@
-import torch
+"""Compute depth maps for images in the input folder."""
+
+import os
+
 import cv2
+from matplotlib import transforms
+import numpy as np
+import torch
+import torch.hub 
+from . import utils
+
+first_execution = True
+
+first_execution = True
 
 
-class DepthEstimator:
-    def __init__(self, model_type="DPT_Large"):
-        """
-        model_type: "DPT_Large" (chính xác nhất), "DPT_Hybrid", hoặc "MiDaS_small" (nhanh nhất)
-        """
-        print(f"Loading MiDaS model: {model_type}...")
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def process(device, model, image, target_size, optimize, use_camera):
+    """
+    Run the inference and interpolate.
 
-        # Load từ torch hub để không cần file phụ thuộc cục bộ
-        self.midas = torch.hub.load("intel-isl/MiDaS", model_type)
-        self.midas.to(self.device)
-        self.midas.eval()
+    Args:
+        device (torch.device): the torch device used
+        model: the model used for inference
+        model_type: the type of the model
+        image: the image fed into the neural network
+        input_size: the size (width, height) of the neural network input (for OpenVINO)
+        target_size: the size (width, height) the neural network output is interpolated to
+        optimize: optimize the model to half-floats on CUDA?
+        use_camera: is the camera used?
 
-        # Load transform chuẩn của MiDaS
-        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-        if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
-            self.transform = midas_transforms.dpt_transform
-        else:
-            self.transform = midas_transforms.small_transform
+    Returns:
+        the prediction
+    """
+    global first_execution
 
-    def get_depth_map(self, image_bgr):
-        # Chuyển BGR sang RGB
-        img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    # image is already a Tensor from the transform
+    if isinstance(image, np.ndarray):
+        sample = torch.from_numpy(image).to(device).unsqueeze(0)
+    else:
+        sample = image.to(device)
+        if sample.dim() == 3:
+            sample = sample.unsqueeze(0)
 
-        input_batch = self.transform(img_rgb).to(self.device)
+    if optimize and device == torch.device("cuda"):
+        if first_execution:
+            print(
+                "  Optimization to half-floats activated. Use with caution, because models like Swin require\n"
+                "  float precision to work properly and may yield non-finite depth values to some extent for\n"
+                "  half-floats."
+            )
+        sample = sample.to(memory_format=torch.channels_last)
+        sample = sample.half()
 
+    if first_execution or not use_camera:
+        height, width = sample.shape[2:]
+        print(f"    Input resized to {width}x{height} before entering the encoder")
+        first_execution = False
+
+    prediction = model.forward(sample)
+    prediction = (
+        torch.nn.functional.interpolate(
+            prediction.unsqueeze(1),
+            size=target_size[::-1],
+            mode="bicubic",
+            align_corners=False,
+        )
+        .squeeze()
+        .cpu()
+        .numpy()
+    )
+
+    return prediction
+
+def run(img_sources, optimize=False, height=None,
+        square=False, grayscale=False):
+    """ img_sources: list of image URLs"""
+    print("Initialize")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Device: %s" % device)
+
+    model_type = "MiDaS_small"
+    model = torch.hub.load("isl-org/MiDaS", model_type, trust_repo=True)
+    transforms = torch.hub.load("isl-org/MiDaS", "transforms", trust_repo=True)
+    transform = transforms.small_transform 
+
+    
+    model.to(device)
+    # get input
+    num_images = len(img_sources)
+    print("Start processing")
+    results = []
+
+    for index, url in enumerate(img_sources):
+
+        # input
+        original_image_rgb = utils.load_image_from_url(url)  # uint8 [0, 255]
+        image = transform(original_image_rgb)
+
+        # compute
         with torch.no_grad():
-            prediction = self.midas(input_batch)
+            prediction = process(device, model, image, original_image_rgb.shape[1::-1],
+                                optimize, False)
+        results.append(prediction.astype(np.float32))
 
-            # Resize về kích thước gốc
-            prediction = torch.nn.functional.interpolate(
-                prediction.unsqueeze(1),
-                size=img_rgb.shape[:2],
-                mode="bicubic",
-                align_corners=False,
-            ).squeeze()
+    return results
 
-        depth_map = prediction.cpu().numpy()
-        return depth_map
+
+if __name__ == "__main__":
+    input_path = [
+        "https://lh3.googleusercontent.com/place-photos/AEkURDx03-8vfQPvYg11_8scYfRtdK8213AArtwFtbT84UMSkW6W3kFRfeBeY_-IkPETwspgDMXtamZR6_6xDFTpwXGlpGr1YEx36Sl1fscuG_nV8nBYQYXkD4V9-GM7pE7MVdWdv3qhlxsx9vKetIPfy2ASjA=s1600-w400"
+    ]
+    output_path = "\\output"
+    results = run(
+        input_path,
+        optimize=True,
+        height=None,
+        square=False,
+        grayscale=False,
+    )
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    i = 0
+    for res in results:
+        i += 1
+        output_file = os.path.join(output_path, str(i))
+        utils.write_pfm(output_file + ".pfm", res)

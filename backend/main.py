@@ -14,6 +14,7 @@ from routers.authentication_router import router as auth_router
 from routers.chatbot_router import router as chatbot_router
 from routers.destination_router import router as destination_router
 from routers.friend_router import router as friend_router
+from routers.green_verification_router import router as green_verification_router
 from routers.map_router import router as map_router
 from routers.message_router import router as message_router
 from routers.review_router import router as review_router
@@ -84,6 +85,7 @@ app.include_router(friend_router)
 app.include_router(destination_router)
 app.include_router(storage_router)
 app.include_router(map_router)
+app.include_router(green_verification_router)
 app.include_router(air_router)
 app.include_router(weather_router)
 app.include_router(route_router)
