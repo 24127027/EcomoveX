@@ -1,0 +1,430 @@
+{
+  "test_cases": [
+    {
+      "case_name": "PROBLEM_CASE_1: All destinations in 1 day, all morning (original issue)",
+      "description": "User provides 4 destinations, all scheduled for Day 1 morning. Should redistribute across days and time slots.",
+      "plan": {
+        "place_name": "Ho Chi Minh City Weekend Trip",
+        "start_date": "2025-12-20",
+        "end_date": "2025-12-22",
+        "budget_limit": 5000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJW9YV8RUvdTERgQswUF3X0xM",
+            "destination_type": "attraction",
+            "order_in_day": 1,
+            "visit_date": "2025-12-20",
+            "time_slot": "morning",
+            "estimated_cost": 200000.0,
+            "note": "Ben Thanh Market",
+            "url": "https://example.com/photo1.jpg"
+          },
+          {
+            "destination_id": "ChIJoRyG2RUvdTER-jcAHVwAAQs",
+            "destination_type": "attraction",
+            "order_in_day": 2,
+            "visit_date": "2025-12-20",
+            "time_slot": "morning",
+            "estimated_cost": 300000.0,
+            "note": "War Remnants Museum",
+            "url": "https://example.com/photo2.jpg"
+          },
+          {
+            "destination_id": "ChIJ0QmPQCAvdTERTz6R_Q2R0QI",
+            "destination_type": "attraction",
+            "order_in_day": 3,
+            "visit_date": "2025-12-20",
+            "time_slot": "morning",
+            "estimated_cost": 400000.0,
+            "note": "Notre-Dame Cathedral",
+            "url": "https://example.com/photo3.jpg"
+          },
+          {
+            "destination_id": "ChIJBwVIwRwvdTERHOgqhQKSvjE",
+            "destination_type": "attraction",
+            "order_in_day": 4,
+            "visit_date": "2025-12-20",
+            "time_slot": "morning",
+            "estimated_cost": 150000.0,
+            "note": "Saigon Central Post Office",
+            "url": "https://example.com/photo4.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should redistribute 4 attractions across 3 days with varied time slots"
+    },
+    {
+      "case_name": "PROBLEM_CASE_2: Insufficient restaurants (only 1 for 3-day trip)",
+      "description": "3-day trip with only 1 restaurant - should expand to 6 meals (2 per day)",
+      "plan": {
+        "place_name": "Hanoi Cultural Experience",
+        "start_date": "2025-12-25",
+        "end_date": "2025-12-27",
+        "budget_limit": 8000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJeYIa3zGrNTERYOUY_GqIwKs",
+            "destination_type": "restaurant",
+            "order_in_day": 1,
+            "visit_date": "2025-12-25",
+            "time_slot": "morning",
+            "estimated_cost": 250000.0,
+            "note": "Pho Gia Truyen - Famous Pho Restaurant",
+            "url": "https://example.com/restaurant1.jpg"
+          },
+          {
+            "destination_id": "ChIJQbBhOzGrNTERK2HmBtsgPvQ",
+            "destination_type": "attraction",
+            "order_in_day": 2,
+            "visit_date": "2025-12-25",
+            "time_slot": "morning",
+            "estimated_cost": 0.0,
+            "note": "Hoan Kiem Lake",
+            "url": "https://example.com/attraction1.jpg"
+          },
+          {
+            "destination_id": "ChIJ0QRRn0CrNTERKxE8d61aX_E",
+            "destination_type": "attraction",
+            "order_in_day": 3,
+            "visit_date": "2025-12-25",
+            "time_slot": "morning",
+            "estimated_cost": 150000.0,
+            "note": "Temple of Literature",
+            "url": "https://example.com/attraction2.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should expand 1 restaurant to 6 instances (repeated) for 3 days of meals"
+    },
+    {
+      "case_name": "PROBLEM_CASE_3: No accommodation for multi-day trip",
+      "description": "3-day trip with no hotel - should expand by repeating if user adds one",
+      "plan": {
+        "place_name": "Da Nang Beach Vacation",
+        "start_date": "2026-01-05",
+        "end_date": "2026-01-07",
+        "budget_limit": 10000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJ_R6F6yMZQjERPqNj_KkTZQw",
+            "destination_type": "attraction",
+            "order_in_day": 1,
+            "visit_date": "2026-01-05",
+            "time_slot": "morning",
+            "estimated_cost": 0.0,
+            "note": "My Khe Beach",
+            "url": "https://example.com/beach1.jpg"
+          },
+          {
+            "destination_id": "ChIJL_qpjyMZQjER3NZwIwSUm6o",
+            "destination_type": "restaurant",
+            "order_in_day": 2,
+            "visit_date": "2026-01-05",
+            "time_slot": "morning",
+            "estimated_cost": 300000.0,
+            "note": "Waterfront Restaurant",
+            "url": "https://example.com/restaurant2.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should show warning about missing accommodation. If user adds 1 hotel, should repeat it for 3 nights."
+    },
+    {
+      "case_name": "IDEAL_CASE_1: Well-balanced 3-day trip",
+      "description": "User provides proper mix: 2 restaurants, 1 hotel, 3 attractions",
+      "plan": {
+        "place_name": "Hoi An Ancient Town Tour",
+        "start_date": "2026-01-10",
+        "end_date": "2026-01-12",
+        "budget_limit": 7000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJXz3xuU4bQjERH3Y8CpgFb9Y",
+            "destination_type": "accommodation",
+            "order_in_day": 1,
+            "visit_date": "2026-01-10",
+            "time_slot": "evening",
+            "estimated_cost": 1200000.0,
+            "note": "Hoi An Riverside Hotel",
+            "url": "https://example.com/hotel1.jpg"
+          },
+          {
+            "destination_id": "ChIJ9cFngE4bQjERzqjnvTlI7VI",
+            "destination_type": "restaurant",
+            "order_in_day": 2,
+            "visit_date": "2026-01-10",
+            "time_slot": "afternoon",
+            "estimated_cost": 400000.0,
+            "note": "Morning Glory Restaurant",
+            "url": "https://example.com/restaurant3.jpg"
+          },
+          {
+            "destination_id": "ChIJQTpx5U4bQjERMYKYbFLKcFY",
+            "destination_type": "restaurant",
+            "order_in_day": 3,
+            "visit_date": "2026-01-10",
+            "time_slot": "evening",
+            "estimated_cost": 350000.0,
+            "note": "Banh Mi Phuong",
+            "url": "https://example.com/restaurant4.jpg"
+          },
+          {
+            "destination_id": "ChIJp5vI4E4bQjERjqYbFDCLzVI",
+            "destination_type": "attraction",
+            "order_in_day": 4,
+            "visit_date": "2026-01-10",
+            "time_slot": "morning",
+            "estimated_cost": 120000.0,
+            "note": "Japanese Covered Bridge",
+            "url": "https://example.com/attraction3.jpg"
+          },
+          {
+            "destination_id": "ChIJSTvI8k4bQjERLzEYxFtKcFY",
+            "destination_type": "attraction",
+            "order_in_day": 5,
+            "visit_date": "2026-01-10",
+            "time_slot": "afternoon",
+            "estimated_cost": 200000.0,
+            "note": "Hoi An Ancient Town",
+            "url": "https://example.com/attraction4.jpg"
+          },
+          {
+            "destination_id": "ChIJXVV7k04bQjER9qjnvTlI7V0",
+            "destination_type": "attraction",
+            "order_in_day": 6,
+            "visit_date": "2026-01-10",
+            "time_slot": "morning",
+            "estimated_cost": 150000.0,
+            "note": "An Bang Beach",
+            "url": "https://example.com/attraction5.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should expand to 6 meals (repeat 2 restaurants) and 3 hotel nights (repeat 1 hotel), then distribute"
+    },
+    {
+      "case_name": "EDGE_CASE_1: Single day trip",
+      "description": "1-day trip with minimal destinations",
+      "plan": {
+        "place_name": "Saigon Day Trip",
+        "start_date": "2025-12-30",
+        "end_date": "2025-12-30",
+        "budget_limit": 2000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJW9YV8RUvdTERgQswUF3X0xM",
+            "destination_type": "attraction",
+            "order_in_day": 1,
+            "visit_date": "2025-12-30",
+            "time_slot": "morning",
+            "estimated_cost": 100000.0,
+            "note": "Cu Chi Tunnels",
+            "url": "https://example.com/cuchi.jpg"
+          },
+          {
+            "destination_id": "ChIJe9k_nRUvdTERCGGqhQKSvjQ",
+            "destination_type": "restaurant",
+            "order_in_day": 2,
+            "visit_date": "2025-12-30",
+            "time_slot": "afternoon",
+            "estimated_cost": 250000.0,
+            "note": "Lunch spot",
+            "url": "https://example.com/lunch.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should expand restaurant to 2 instances (lunch + dinner), keep 1 attraction, distribute across morning/afternoon/evening"
+    },
+    {
+      "case_name": "EDGE_CASE_2: Long trip (7 days) with minimal input",
+      "description": "Week-long trip but user only provided 3 destinations",
+      "plan": {
+        "place_name": "Vietnam Discovery Week",
+        "start_date": "2026-02-01",
+        "end_date": "2026-02-07",
+        "budget_limit": 20000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJW9YV8RUvdTERgQswUF3X0xM",
+            "destination_type": "accommodation",
+            "order_in_day": 1,
+            "visit_date": "2026-02-01",
+            "time_slot": "evening",
+            "estimated_cost": 800000.0,
+            "note": "Boutique Hotel",
+            "url": "https://example.com/hotel2.jpg"
+          },
+          {
+            "destination_id": "ChIJeYIa3zGrNTERYOUY_GqIwKs",
+            "destination_type": "restaurant",
+            "order_in_day": 2,
+            "visit_date": "2026-02-01",
+            "time_slot": "afternoon",
+            "estimated_cost": 300000.0,
+            "note": "Vietnamese Cuisine",
+            "url": "https://example.com/restaurant5.jpg"
+          },
+          {
+            "destination_id": "ChIJQbBhOzGrNTERK2HmBtsgPvQ",
+            "destination_type": "attraction",
+            "order_in_day": 3,
+            "visit_date": "2026-02-01",
+            "time_slot": "morning",
+            "estimated_cost": 200000.0,
+            "note": "Main Attraction",
+            "url": "https://example.com/attraction6.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should expand to: 7 hotels (repeated), 14 meals (repeated), 7 attractions (but only 1 provided so won't repeat)"
+    },
+    {
+      "case_name": "EDGE_CASE_3: Only restaurants provided",
+      "description": "User only adds restaurants, no attractions or hotels",
+      "plan": {
+        "place_name": "Food Tour Hanoi",
+        "start_date": "2026-01-15",
+        "end_date": "2026-01-16",
+        "budget_limit": 3000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJeYIa3zGrNTERYOUY_GqIwKs",
+            "destination_type": "restaurant",
+            "order_in_day": 1,
+            "visit_date": "2026-01-15",
+            "time_slot": "morning",
+            "estimated_cost": 150000.0,
+            "note": "Breakfast Pho",
+            "url": "https://example.com/pho.jpg"
+          },
+          {
+            "destination_id": "ChIJRTm3azGrNTERPW5x_GqIwKt",
+            "destination_type": "restaurant",
+            "order_in_day": 2,
+            "visit_date": "2026-01-15",
+            "time_slot": "afternoon",
+            "estimated_cost": 200000.0,
+            "note": "Bun Cha Restaurant",
+            "url": "https://example.com/buncha.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should expand 2 restaurants to 4 instances (2 days × 2 meals), distribute across time slots"
+    },
+    {
+      "case_name": "STRESS_TEST: Empty destinations",
+      "description": "User creates plan structure but hasn't added any destinations yet",
+      "plan": {
+        "place_name": "Future Trip Planning",
+        "start_date": "2026-03-01",
+        "end_date": "2026-03-05",
+        "budget_limit": 15000000.0,
+        "destinations": []
+      },
+      "expected_behavior": "Should return gracefully with message about no destinations to distribute"
+    },
+    {
+      "case_name": "REALISTIC_CASE: Proper family vacation",
+      "description": "Family provides realistic inputs: multiple restaurants, 1 hotel, several attractions",
+      "plan": {
+        "place_name": "Phu Quoc Island Family Vacation",
+        "start_date": "2026-02-10",
+        "end_date": "2026-02-14",
+        "budget_limit": 25000000.0,
+        "destinations": [
+          {
+            "destination_id": "ChIJ1234567890abcdef",
+            "destination_type": "accommodation",
+            "order_in_day": 1,
+            "visit_date": "2026-02-10",
+            "time_slot": "evening",
+            "estimated_cost": 2500000.0,
+            "note": "Vinpearl Resort Phu Quoc",
+            "url": "https://example.com/resort1.jpg"
+          },
+          {
+            "destination_id": "ChIJ2345678901bcdefg",
+            "destination_type": "restaurant",
+            "order_in_day": 2,
+            "visit_date": "2026-02-10",
+            "time_slot": "afternoon",
+            "estimated_cost": 500000.0,
+            "note": "Seafood Restaurant by the Beach",
+            "url": "https://example.com/seafood1.jpg"
+          },
+          {
+            "destination_id": "ChIJ3456789012cdefgh",
+            "destination_type": "restaurant",
+            "order_in_day": 3,
+            "visit_date": "2026-02-10",
+            "time_slot": "evening",
+            "estimated_cost": 600000.0,
+            "note": "BBQ & Grill Restaurant",
+            "url": "https://example.com/bbq1.jpg"
+          },
+          {
+            "destination_id": "ChIJ4567890123defghi",
+            "destination_type": "restaurant",
+            "order_in_day": 4,
+            "visit_date": "2026-02-10",
+            "time_slot": "afternoon",
+            "estimated_cost": 450000.0,
+            "note": "Local Vietnamese Cuisine",
+            "url": "https://example.com/local1.jpg"
+          },
+          {
+            "destination_id": "ChIJ5678901234efghij",
+            "destination_type": "attraction",
+            "order_in_day": 5,
+            "visit_date": "2026-02-10",
+            "time_slot": "morning",
+            "estimated_cost": 300000.0,
+            "note": "Vinpearl Safari",
+            "url": "https://example.com/safari.jpg"
+          },
+          {
+            "destination_id": "ChIJ6789012345fghijk",
+            "destination_type": "attraction",
+            "order_in_day": 6,
+            "visit_date": "2026-02-10",
+            "time_slot": "morning",
+            "estimated_cost": 0.0,
+            "note": "Sao Beach",
+            "url": "https://example.com/saobeach.jpg"
+          },
+          {
+            "destination_id": "ChIJ7890123456ghijkl",
+            "destination_type": "attraction",
+            "order_in_day": 7,
+            "visit_date": "2026-02-10",
+            "time_slot": "afternoon",
+            "estimated_cost": 200000.0,
+            "note": "Phu Quoc Night Market",
+            "url": "https://example.com/nightmarket.jpg"
+          },
+          {
+            "destination_id": "ChIJ8901234567hijklm",
+            "destination_type": "attraction",
+            "order_in_day": 8,
+            "visit_date": "2026-02-10",
+            "time_slot": "morning",
+            "estimated_cost": 400000.0,
+            "note": "Cable Car to Hon Thom",
+            "url": "https://example.com/cablecar.jpg"
+          },
+          {
+            "destination_id": "ChIJ9012345678ijklmn",
+            "destination_type": "attraction",
+            "order_in_day": 9,
+            "visit_date": "2026-02-10",
+            "time_slot": "afternoon",
+            "estimated_cost": 250000.0,
+            "note": "Phu Quoc Prison",
+            "url": "https://example.com/prison.jpg"
+          }
+        ]
+      },
+      "expected_behavior": "Should expand to: 5 hotels (repeated), 10 meals from 3 restaurants (repeated cyclically), 5 attractions (no repeat), then distribute evenly across 5 days"
+    }
+  ]
+}
