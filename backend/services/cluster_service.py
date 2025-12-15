@@ -22,7 +22,7 @@ NUM_CLUSTERS = 5
 
 class ClusterService:
     @staticmethod
-    async def compute_cluster_embedding(
+    async def compute_cluster_embedding( # tính toán vector trung bình của cụm
         db: AsyncSession, cluster_id: int
     ) -> Optional[np.ndarray]:
         try:
@@ -57,9 +57,9 @@ class ClusterService:
             )
 
     @staticmethod
-    async def embed_preference(db: AsyncSession, user_id: int) -> Optional[List[float]]:
+    async def embed_preference(db: AsyncSession, user_id: int) -> Optional[List[float]]: # tạo embedding từ sở thích người dùng
         try:
-            user_result = await db.execute(select(User).where(User.id == user_id))
+            user_result = await db.execute(select(User).where(User.id == user_id))       # wtf this violate monolith rule should be get user by id
             user = user_result.scalar_one_or_none()
             if not user:
                 return None
@@ -155,7 +155,7 @@ class ClusterService:
             return []
 
     @staticmethod
-    async def compute_cluster_popularity(
+    async def compute_cluster_popularity(        # tính toán điểm phổ biến của cụm
         db: AsyncSession,
         cluster_id: int,
     ):
@@ -215,7 +215,7 @@ class ClusterService:
             )
 
     @staticmethod
-    def cluster_users_kmeans(
+    def cluster_users_kmeans( 
         user_embeddings: List[Tuple[int, List[float]]], n_clusters: int = 5
     ) -> Dict[int, int]:
         if len(user_embeddings) < n_clusters:
@@ -277,7 +277,7 @@ class ClusterService:
             )
 
     @staticmethod
-    async def create_user_cluster_associations(
+    async def create_user_cluster_associations( #hàm này tạo liên kết người dùng-cụm
         db: AsyncSession, user_cluster_mapping: Dict[int, int]
     ) -> int:
         try:
@@ -299,8 +299,8 @@ class ClusterService:
             )
 
     @staticmethod
-    async def run_user_clustering(db: AsyncSession) -> ClusteringResultResponse:
-        try:
+    async def run_user_clustering(db: AsyncSession) -> ClusteringResultResponse: # hàm chính để chạy quá trình phân cụm người dùng
+        try: 
             embeddings_updated = await ClusterService.update_user_embeddings(db)
             users_with_embeddings = await ClusterRepository.get_users_with_embeddings(
                 db

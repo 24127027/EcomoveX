@@ -10,8 +10,8 @@ class TextGeneratorAPI:
             "Authorization": f"Bearer {settings.OPEN_ROUTER_API_KEY}",
             "Content-Type": "application/json",
             "X-Title": "EcomoveX",
-            "Referer": "http://localhost:3000",
-            "Origin": "http://localhost:3000",
+            "Referer": settings.FRONTEND_URL,
+            "Origin": settings.FRONTEND_URL,
         }
         self.text_model = (
             settings.OPEN_ROUTER_MODEL_NAME or "meta-llama/llama-3.3-70b-instruct"

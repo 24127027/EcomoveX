@@ -653,7 +653,7 @@ def blend_scores(
 ├──────────────────────────────────────────────────────────┤
 │ 1. Fetch place details (MapService)                     │
 │ 2. Build destination text:                              │
-│    "Name: [name]                                         │
+│    "Name: [name]                              Store index in memory                                        │
 │     Category: [types]                                    │
 │     Address: [formatted_address]                         │
 │     Rating: [rating]                                     │

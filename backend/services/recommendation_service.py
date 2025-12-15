@@ -74,7 +74,7 @@ class RecommendationService:
 
     '''Change to receive TextSearchResponse and user_id'''
     @staticmethod
-    async def sort_recommendations_by_user_cluster_affinity(
+    async def sort_recommendations_by_user_cluster_affinity( # sắp xếp đề xuất dựa trên sự tương đồng với cụm người dùng
         db: AsyncSession, user_id: int, response: TextSearchResponse
     ) -> TextSearchResponse:
         try:
@@ -136,7 +136,7 @@ class RecommendationService:
 
 
     @staticmethod
-    async def recommend_for_user(
+    async def recommend_for_user( # đề xuất cho người dùng
         db: AsyncSession, user_id: int, k: int = 10, use_hybrid: bool = False
     ) -> List[Dict[str, Any]]:
         try:
@@ -165,7 +165,7 @@ class RecommendationService:
             )
 
     @staticmethod
-    async def recommend_for_cluster_hybrid(
+    async def recommend_for_cluster_hybrid( # đề xuất lai cho cụm
         db: AsyncSession,
         cluster_id: int,
         k: int = 20,
@@ -223,7 +223,7 @@ class RecommendationService:
             )
 
     @staticmethod
-    async def recommend_nearby_by_cluster_tags(
+    async def recommend_nearby_by_cluster_tags( # đề xuất địa điểm gần đây dựa trên thẻ cụm
         db: AsyncSession,
         user_id: int,
         current_location: Location,
