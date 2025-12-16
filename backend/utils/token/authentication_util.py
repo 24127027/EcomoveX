@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 import secrets
 import string
+from datetime import datetime, timedelta
 
 from utils.config import settings
 
@@ -26,9 +27,14 @@ def decode_access_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         role: str = payload.get("role")
+        exp: int = payload.get("exp")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
+            )
+        if datetime.utcnow().timestamp() > exp:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
             )
         return {"user_id": int(user_id), "role": role}
     except JWTError:
@@ -63,4 +69,53 @@ def generate_temporary_password() -> str:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating temporary password: {e}",
+        )
+
+def generate_verification_token(email: str, username: str, password: str) -> str:
+    try:
+        expiration = datetime.utcnow() + timedelta(hours=24)
+        payload = {
+            "email": email,
+            "username": username,
+            "password": password,
+            "exp": expiration,
+            "type": "email_verification"
+        }
+        token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+        return token
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating verification token: {e}",
+        )
+
+def verify_email_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("email")
+        username = payload.get("username")
+        password = payload.get("password")
+        token_type = payload.get("type")
+        
+        if token_type != "email_verification":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token type"
+            )
+        
+        if not email or not username or not password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token payload"
+            )
+        
+        return {
+            "email": email,
+            "username": username,
+            "password": password
+        }
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
         )

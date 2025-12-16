@@ -1,10 +1,8 @@
-import secrets
-import random
-import string
 from fastapi import HTTPException, status
 from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta
 
 from models.user import User
 from repository.user_repository import UserRepository
@@ -16,7 +14,11 @@ from schemas.authentication_schema import (
 from schemas.user_schema import UserCredentialUpdate
 from utils.config import settings
 from utils.email.email_utils import send_email
-from utils.token.authentication_util import generate_temporary_password
+from utils.token.authentication_util import (
+    generate_temporary_password,
+    generate_verification_token,
+    verify_email_token,
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -49,11 +51,14 @@ class AuthenticationService:
     @staticmethod
     def create_access_token(user: User) -> str:
         try:
+            expiration = datetime.utcnow() + timedelta(days=7)
+            
             payload = {
                 "sub": str(user.id),
                 "role": (
                     user.role.value if hasattr(user.role, "value") else str(user.role)
                 ),
+                "exp": expiration
             }
             token = jwt.encode(
                 payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM
@@ -82,6 +87,7 @@ class AuthenticationService:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
+            
             token = AuthenticationService.create_access_token(user)
             return AuthenticationResponse(
                 user_id=user.id, role=user.role, access_token=token, token_type="bearer"
@@ -97,21 +103,188 @@ class AuthenticationService:
     @staticmethod
     async def register_user(
         db: AsyncSession, user_data: UserRegister
-    ) -> AuthenticationResponse:
+    ) -> bool:
         try:
-            new_user = await UserRepository.create_user(db, user_data)
-            if not new_user:
+            # Kiểm tra xem email đã tồn tại chưa
+            existing_users = await UserRepository.search_users(db, user_data.email, limit=1)
+            if existing_users:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered",
+                )
+            
+            # Tạo verification token chứa thông tin đăng ký
+            verification_token = generate_verification_token(
+                email=user_data.email,
+                username=user_data.username,
+                password=user_data.password
+            )
+            
+            # Gửi email xác nhận - link trỏ thẳng đến backend API
+            verification_link = f"{settings.CORS_ORIGINS.split(',')[1]}/auth/verify-email?token={verification_token}"
+            email_subject = "Verify Your Email - EcomoveX"
+            email_content = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - EcomoveX</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.7;
+            color: #1e293b;
+            background: #f8fafc;
+            padding: 40px 20px;
+        }}
+        .container {{
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            padding: 40px;
+            text-align: center;
+        }}
+        .logo {{
+            font-size: 38px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }}
+        .tagline {{
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+        }}
+        .content {{
+            padding: 40px;
+        }}
+        .icon-wrapper {{
+            text-align: center;
+            margin-bottom: 24px;
+        }}
+        .icon {{
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+        }}
+        .title {{
+            color: #0f172a;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            text-align: center;
+        }}
+        .message {{
+            font-size: 15px;
+            color: #64748b;
+            margin-bottom: 28px;
+            line-height: 1.7;
+            text-align: center;
+        }}
+        .button-container {{
+            text-align: center;
+            margin: 40px 0;
+        }}
+        .button {{
+            display: inline-block;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+            padding: 16px 48px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+        }}
+        .info-box {{
+            background: #f1f5f9;
+            border-left: 4px solid #10b981;
+            padding: 16px 20px;
+            margin: 24px 0;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #475569;
+        }}
+        .footer {{
+            background: #f8fafc;
+            padding: 40px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }}
+        .footer-brand {{
+            font-weight: 800;
+            color: #0f172a;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">EcomoveX</div>
+            <div class="tagline">Your Trip. Your Impact. Your Choice.</div>
+        </div>
+        
+        <div class="content">
+            <div class="icon-wrapper">
+                <div class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="white" viewBox="0 0 24 24">
+                        <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <h1 class="title">Welcome to EcomoveX!</h1>
+            
+            <p class="message">
+                Thank you for joining EcomoveX, where sustainable travel meets innovation. To get started, please verify your email address by clicking the button below.
+            </p>
+            
+            <div class="button-container">
+                <a href="{verification_link}" class="button">Verify Your Email</a>
+            </div>
+            
+            <div class="info-box">
+                <strong>Note:</strong> This verification link will expire in 24 hours for security purposes. If you didn't create an account with EcomoveX, please ignore this email.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-brand">EcomoveX</div>
+            <p style="color: #64748b; font-size: 14px;">Making sustainable travel accessible to everyone</p>
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 20px;">© 2025 EcomoveX. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+            
+            try:
+                await send_email(user_data.email, email_subject, email_content, content_type="html")
+            except Exception as email_error:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create new user",
+                    detail=f"Failed to send verification email: {email_error}"
                 )
-            token = AuthenticationService.create_access_token(new_user)
-            return AuthenticationResponse(
-                user_id=new_user.id,
-                role=new_user.role,
-                access_token=token,
-                token_type="bearer",
-            )
+            
+            return True
         except HTTPException:
             raise
         except Exception as e:
@@ -121,7 +294,7 @@ class AuthenticationService:
             )
             
     @staticmethod
-    async def reset_user_password(db: AsyncSession, email: str) -> str:
+    async def reset_user_password(db: AsyncSession, email: str, user_name: str) -> str:
         try:
             user = await UserRepository.get_user_by_email(db, email)
             if not user:
@@ -129,13 +302,17 @@ class AuthenticationService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User with the provided email does not exist",
                 )
+            if user.username != user_name:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username does not match the provided email",
+                )
             temp_password = generate_temporary_password()
             data = UserCredentialUpdate(
                 old_password=user.password, new_password=temp_password
             )
             await UserRepository.update_user_credentials(db, user.id, data)
             
-            # Gửi email chứa mật khẩu tạm thời
             email_subject = "Password Reset Confirmation - EcomoveX"
             email_content = f"""
 <!DOCTYPE html>
@@ -514,7 +691,7 @@ class AuthenticationService:
                 </div>
                 
                 <div class="button-container">
-                    <a href="http://localhost:3000/login" class="button">Access Your Account</a>
+                    <a href="{settings.CORS_ORIGINS.split(',')[0]}/login" class="button">Access Your Account</a>
                 </div>
                 
                 <div class="security-tips">
@@ -568,4 +745,51 @@ class AuthenticationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error resetting user password: {e}",
+            )
+    
+    @staticmethod
+    async def verify_user_email(db: AsyncSession, token: str) -> dict:
+        try:
+            # Giải mã token để lấy thông tin đăng ký
+            user_data = verify_email_token(token)
+            
+            # Kiểm tra xem email đã tồn tại chưa (trường hợp verify 2 lần)
+            existing_users = await UserRepository.search_users(db, user_data["email"], limit=1)
+            if existing_users:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already verified and registered",
+                )
+            
+            # Tạo user mới từ thông tin trong token
+            from schemas.authentication_schema import UserRegister
+            register_data = UserRegister(
+                username=user_data["username"],
+                email=user_data["email"],
+                password=user_data["password"]
+            )
+            
+            new_user = await UserRepository.create_user(db, register_data)
+            if not new_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create user account",
+                )
+            
+            # Tạo access token để user có thể login ngay
+            access_token = AuthenticationService.create_access_token(new_user)
+            
+            return {
+                "message": "Email verified successfully! Your account has been created.",
+                "user_id": new_user.id,
+                "role": new_user.role,
+                "access_token": access_token,
+                "token_type": "bearer"
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error verifying email: {e}",
             )
