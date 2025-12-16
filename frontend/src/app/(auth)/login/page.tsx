@@ -123,7 +123,20 @@ export default function SigninPage() {
       if (isAdmin) {
         router.push("/admin");
       } else {
-        router.push("/allow_permission/location_permission");
+        // Check if user has set preferences
+        try {
+          const preferencesCheck = await api.checkUserHasPreferences();
+          if (!preferencesCheck.hasPreferences) {
+            // First time user - redirect to preference onboarding
+            router.push("/preference_onboarding");
+          } else {
+            // User has preferences - proceed to location permission
+            router.push("/allow_permission/location_permission");
+          }
+        } catch (prefError) {
+          console.warn("Failed to check preferences, proceeding to location permission", prefError);
+          router.push("/allow_permission/location_permission");
+        }
       }
     } catch (err: unknown) {
       console.error("Login error:", err);
