@@ -2,6 +2,7 @@ from services.agents.sub_agents.opening_hours_agent import OpeningHoursAgent
 from services.agents.sub_agents.budget_check_agent import BudgetCheckAgent
 from services.agents.sub_agents.daily_calculation_agent import DailyCalculationAgent
 from services.agents.sub_agents.plan_validator_agent import PlanValidatorAgent
+from services.agents.sub_agents.destination_distribution_agent import DestinationDistributionAgent
 from integration.text_generator_api import TextGeneratorAPI
 from services.plan_service import PlanService
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,25 @@ class PlannerAgent:
         warnings, modifications = [], []
         plan_data = self._plan_to_dict(plan)
         
+        # Run distribution agent FIRST to redistribute destinations
+        if action in ["optimize", "distribute", "create"]:
+            distribution_agent = DestinationDistributionAgent(self.db)
+            dist_result = await distribution_agent.process(plan_data, action="distribute")
+            
+            if dist_result.get("success") and dist_result.get("distributed_destinations"):
+                # Update plan_data with distributed destinations
+                plan_data["destinations"] = dist_result["distributed_destinations"]
+                
+                if dist_result.get("modifications"):
+                    for mod in dist_result["modifications"]:
+                        mod["source"] = "distribution"
+                        modifications.append(mod)
+            elif not dist_result.get("success"):
+                warnings.append({
+                    "agent": "distribution", 
+                    "message": dist_result.get("message", "Distribution failed")
+                })
+        
         sub_agents = [
             ("opening_hours", OpeningHoursAgent),
             ("budget", BudgetCheckAgent),
@@ -50,7 +70,11 @@ class PlannerAgent:
             except Exception as e:
                 warnings.append({"agent": agent_name, "message": f"Agent error: {str(e)}"})
         
-        return {"warnings": warnings, "modifications": modifications}
+        return {
+            "warnings": warnings, 
+            "modifications": modifications,
+            "distributed_plan": plan_data  # Return the updated plan with distributions
+        }
 
     def _plan_to_dict(self, plan: Union[Any, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Convert plan object thành dict."""

@@ -24,16 +24,17 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
     
     agent = PlannerAgent(db)
     
-    # Validate and get AI suggestions
+    # Validate and get AI suggestions with intelligent distribution
     result = await agent._run_sub_agents(plan_data, action="optimize")
     
-    # Return the plan with modifications/suggestions
-    plan_dict = {
-        "place_name": plan_data.place_name,
-        "start_date": str(plan_data.start_date),
-        "end_date": str(plan_data.end_date),
-        "budget_limit": plan_data.budget_limit,
-        "destinations": [
+    # Use the distributed plan if available, otherwise fall back to original
+    distributed_plan = result.get("distributed_plan")
+    if distributed_plan and distributed_plan.get("destinations"):
+        # Use the intelligently distributed destinations
+        final_destinations = distributed_plan["destinations"]
+    else:
+        # Fallback to original (shouldn't happen but safety first)
+        final_destinations = [
             {
                 "destination_id": d.destination_id,
                 "destination_type": d.destination_type.value if hasattr(d.destination_type, 'value') else str(d.destination_type),
@@ -44,14 +45,37 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
             }
             for d in plan_data.destinations
         ]
+    
+    # Build final plan response with distributed destinations
+    plan_dict = {
+        "place_name": plan_data.place_name,
+        "start_date": str(plan_data.start_date),
+        "end_date": str(plan_data.end_date),
+        "budget_limit": plan_data.budget_limit,
+        "destinations": [
+            {
+                "destination_id": d.get("destination_id") if isinstance(d, dict) else d.destination_id,
+                "destination_type": d.get("destination_type") or d.get("type") if isinstance(d, dict) else (d.destination_type.value if hasattr(d.destination_type, 'value') else str(d.destination_type)),
+                "visit_date": str(d.get("visit_date")) if isinstance(d, dict) else str(d.visit_date),
+                "order_in_day": d.get("order_in_day") if isinstance(d, dict) else d.order_in_day,
+                "time_slot": d.get("time_slot") if isinstance(d, dict) else (d.time_slot.value if hasattr(d.time_slot, 'value') else str(d.time_slot)),
+                "note": d.get("note") if isinstance(d, dict) else d.note
+            }
+            for d in final_destinations
+        ]
     }
+    
+    # Generate success message
+    num_days = (plan_data.end_date - plan_data.start_date).days + 1
+    num_destinations = len(final_destinations)
+    message = f"✅ Plan optimized successfully! {num_destinations} destinations distributed across {num_days} days."
     
     return {
         "success": True,
         "plan": plan_dict,
         "warnings": result.get("warnings", []),
         "modifications": result.get("modifications", []),
-        "message": "Plan validated successfully"
+        "message": message
     }
 
 @router.post("/message", response_model=ChatbotResponse, status_code=status.HTTP_200_OK)
