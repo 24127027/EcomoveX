@@ -38,7 +38,7 @@ async def update_user_preference(
     }
     
     budget_to_range = {
-        "budget": {"min": 0.0, "max": 500000.0},
+        "low": {"min": 0.0, "max": 500000.0},
         "mid": {"min": 500000.0, "max": 2000000.0},
         "luxury": {"min": 2000000.0, "max": 10000000.0}
     }
