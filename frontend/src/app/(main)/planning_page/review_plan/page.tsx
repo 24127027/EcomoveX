@@ -8,6 +8,8 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
+  MouseSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -472,15 +474,20 @@ function ChatWindow({
     } catch (error: any) {
       console.error("Failed to send message:", error);
       let errorMsg = "Sorry, I encountered an error.";
-      
+
       if (error?.message?.includes("not a member")) {
-        errorMsg = "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant.";
-      } else if (error?.message?.includes("Google Places API") || error?.message?.includes("403") || error?.message?.includes("PERMISSION_DENIED")) {
+        errorMsg =
+          "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant.";
+      } else if (
+        error?.message?.includes("Google Places API") ||
+        error?.message?.includes("403") ||
+        error?.message?.includes("PERMISSION_DENIED")
+      ) {
         errorMsg = "⚠️ Encountered error Error.";
       } else if (error?.message) {
         errorMsg = `⚠️ ${error.message}`;
       }
-      
+
       setMessages((prev) => [...prev, { role: "bot", text: errorMsg }]);
     } finally {
       setIsLoading(false);
@@ -775,8 +782,10 @@ function ReviewPlanContent() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(MouseSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    })
   );
 
   // Load current user
@@ -1374,12 +1383,21 @@ function ReviewPlanContent() {
     setActivities((prev) => {
       const activeIndex = prev.findIndex((i) => i.id === active.id);
       const overIndex = prev.findIndex((i) => i.id === overId);
-      const [newDate, newSlot] = String(overContainer).split("_");
+      const parts = String(activeContainer).split("_");
+      const newDateStr = parts[0];
+      const newSlot = parts[1];
+      let safeIsoDate = prev[activeIndex].date;
+      if (newDateStr){
+        const d = new Date(newDateStr);
+        if (!isNaN(d.getTime())) {
+          safeIsoDate = d.toISOString();
+        }
+      }
       const newActivities = [...prev];
       newActivities[activeIndex] = {
         ...newActivities[activeIndex],
         time_slot: newSlot as any,
-        date: new Date(newDate).toISOString(),
+        date: safeIsoDate,
       };
       return arrayMove(
         newActivities,
@@ -1691,8 +1709,6 @@ function ReviewPlanContent() {
       router.push("/planning_page/add_destinations");
     }
   };
-
-  
 
   // --- RENDER AI ---
   if (isAiProcessing) {
