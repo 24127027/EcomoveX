@@ -398,18 +398,21 @@ function PlanningContent() {
                       }
                     )}
 
-                    <div className="flex flex-col gap-3 mt-6">
-                      <button
-                        onClick={() => {
-                          router.push(
-                            `/planning_page/review_plan?id=${incomingPlan.id}`
-                          );
-                        }}
-                        className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-white hover:bg-green-50 transition-all text-lg font-bold py-3 rounded-full shadow-sm`}
-                      >
-                        Edit Schedule
-                      </button>
-                    </div>
+                    {currentUserId &&
+                      incomingPlan.user_id === currentUserId && (
+                        <div className="flex flex-col gap-3 mt-6">
+                          <button
+                            onClick={() => {
+                              router.push(
+                                `/planning_page/review_plan?id=${incomingPlan.id}`
+                              );
+                            }}
+                            className={`${jost.className} w-full border-2 border-[#53B552] text-[#53B552] bg-white hover:bg-green-50 transition-all text-lg font-bold py-3 rounded-full shadow-sm`}
+                          >
+                            Edit Schedule
+                          </button>
+                        </div>
+                      )}
                   </div>
                 ) : (
                   <EmptyState
@@ -693,13 +696,15 @@ function PlanSummaryCard({
                 View Details
               </button>
             </Link>
-            <Link href={`/planning_page/review_plan?id=${plan.id}`}>
-              <button
-                className={`${jost.className} px-4 py-2 text-sm bg-green-600 text-white font-bold hover:bg-green-700 rounded-lg transition-colors`}
-              >
-                Edit Plan
-              </button>
-            </Link>
+            {isOwner && (
+              <Link href={`/planning_page/review_plan?id=${plan.id}`}>
+                <button
+                  className={`${jost.className} px-4 py-2 text-sm bg-green-600 text-white font-bold hover:bg-green-700 rounded-lg transition-colors`}
+                >
+                  Edit Plan
+                </button>
+              </Link>
+            )}
           </div>
         </div>
       )}

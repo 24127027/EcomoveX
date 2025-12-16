@@ -457,8 +457,27 @@ function PreviewPlanContent() {
   const [activities, setActivities] = useState<PlanActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
   const [transportMode, setTransportMode] = useState<string>("Not Selected");
   const [fuelSaved, setFuelSaved] = useState<string>("To be calculated");
+
+useEffect(() => {
+  const fetchCurrentUser = async () => {
+    try {
+
+      const userProfile = await api.getCurrentUser();
+      if (userProfile && userProfile.id) {
+        setCurrentUserId(userProfile.id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+      setCurrentUserId(null);
+    }
+  };
+
+  fetchCurrentUser();
+}, []);
 
   useEffect(() => {
     if (!planId) {
@@ -518,6 +537,7 @@ function PreviewPlanContent() {
     loadPlan();
   }, [planId, router]);
 
+  const isOwner = plan && currentUserId === plan.user_id;
   const groupActivitiesByDay = () => {
     if (!plan) return {};
 
@@ -576,17 +596,19 @@ function PreviewPlanContent() {
                 <ArrowLeft size={20} />
                 <span className={`${jost.className} font-semibold`}>Back</span>
               </button>
-              <button
-                onClick={() =>
-                  router.push(`/planning_page/review_plan?id=${planId}`)
-                }
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors shadow-md"
-              >
-                <Edit size={18} />
-                <span className={`${jost.className} font-semibold`}>
-                  Edit Plan
-                </span>
-              </button>
+              {isOwner && (
+                <button
+                  onClick={() =>
+                    router.push(`/planning_page/review_plan?id=${planId}`)
+                  }
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors shadow-md"
+                >
+                  <Edit size={18} />
+                  <span className={`${jost.className} font-semibold`}>
+                    Edit Plan
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -782,17 +804,19 @@ function PreviewPlanContent() {
             </h3>
             <p className="text-gray-600 text-sm mb-4">Your adventure awaits!</p>
             <div className="flex gap-3 justify-center">
-              <button
-                onClick={() =>
-                  router.push(`/planning_page/review_plan?id=${planId}`)
-                }
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors shadow-md text-sm"
-              >
-                <Edit size={16} />
-                <span className={`${jost.className} font-semibold`}>
-                  Edit Plan
-                </span>
-              </button>
+              {isOwner && (
+                <button
+                  onClick={() =>
+                    router.push(`/planning_page/review_plan?id=${planId}`)
+                  }
+                  className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors shadow-md text-sm"
+                >
+                  <Edit size={16} />
+                  <span className={`${jost.className} font-semibold`}>
+                    Edit Plan
+                  </span>
+                </button>
+              )}
               <button
                 onClick={() => router.push("/planning_page/showing_plan_page")}
                 className="px-5 py-2.5 bg-white text-gray-700 rounded-full hover:bg-gray-100 transition-colors shadow-md border border-gray-200 text-sm"

@@ -426,7 +426,7 @@ export default function HomePage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
               <input
                 type="text"
-                className={`${abhaya_libre.className} w-full rounded-full py-2 pl-10 pr-12 text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-green-300 placeholder:text-green-700 placeholder:font-semibold`}
+                className={`${abhaya_libre.className} w-full rounded-full py-2 pl-10 pr-12 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-300 placeholder:text-green-700 placeholder:font-semibold`}
                 placeholder="Search for an eco-friendly place"
                 value={searchQuery}
                 onChange={handleChange}
