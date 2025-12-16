@@ -152,3 +152,83 @@ async def get_nearby_recommendations_by_cluster_tags_for_user(
         radius_km=radius_km,
         k=k,
     )
+
+
+@router.get(
+    "/user/me/cluster-affinity",
+    response_model=List[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Get destination IDs based on cluster affinity",
+)
+async def get_cluster_affinity_recommendations(
+    k: int = Query(default=5, description="Number of recommendations to return", ge=1, le=50),
+    include_scores: bool = Query(default=False, description="Include affinity/popularity scores in response"),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get personalized destination recommendations from internal database based on cluster affinity.
+    
+    **Returns destination IDs** that are already stored in the database and associated with
+    the user's cluster, ranked by relevance.
+    
+    **Algorithm:**
+    1. Identifies user's cluster
+    2. Computes cluster embedding (mean of user preferences)
+    3. Fetches destinations already linked to that cluster
+    4. Calculates affinity via cosine similarity: cluster_embedding ↔ destination_embedding
+    5. Combines affinity (70%) + popularity (30%) based on historical user behavior
+    6. Returns top-K destination IDs
+    
+    **Response (include_scores=False):**
+    ```json
+    [
+      {"destination_id": "ChIJAbC123..."},
+      {"destination_id": "ChIJXyz789..."}
+    ]
+    ```
+    
+    **Response (include_scores=True):**
+    ```json
+    [
+      {
+        "destination_id": "ChIJAbC123...",
+        "affinity_score": 0.8542,
+        "popularity_score": 78.5,
+        "combined_score": 0.8334
+      }
+    ]
+    ```
+    
+    **Use Cases:**
+    - Get destination IDs for homepage recommendations
+    - Fetch IDs, then query place details separately via /map/place-details endpoint
+    - Personalized discovery based on similar users' behavior
+    """
+    return await RecommendationService.recommend_destinations_by_cluster_affinity(
+        db=db,
+        user_id=current_user["user_id"],
+        k=k,
+        include_scores=include_scores,
+    )
+
+
+@router.get(
+    "/user/{user_id}/cluster-affinity",
+    response_model=List[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Get destination IDs based on cluster affinity (by user_id)",
+)
+async def get_cluster_affinity_recommendations_for_user(
+    user_id: int,
+    k: int = Query(default=5, description="Number of recommendations to return", ge=1, le=50),
+    include_scores: bool = Query(default=False, description="Include affinity/popularity scores in response"),
+    db: AsyncSession = Depends(get_db),
+):
+    
+    return await RecommendationService.recommend_destinations_by_cluster_affinity(
+        db=db,
+        user_id=user_id,
+        k=k,
+        include_scores=include_scores,
+    )

@@ -383,29 +383,36 @@ class RecommendationService:
     async def recommend_destinations_by_cluster_affinity(
         db: AsyncSession, 
         user_id: int,
-        k: int = 5
-    ) -> List[Dict[str, Union[str, float, int]]]:
+        k: int = 5,
+        include_scores: bool = False
+    ) -> List[Dict[str, Any]]:
         """
-        Recommends destinations within the user's cluster ranked by affinity score.
+        Recommends destinations from internal database based on cluster affinity.
         
-        Uses cosine similarity between cluster embedding and destination embeddings
-        to rank destinations by relevance. Combines affinity with popularity for 
-        a hybrid scoring approach.
+        Computes cluster embedding from user preferences, then ranks destinations
+        already associated with the cluster by their affinity score and popularity.
+        
+        Flow:
+        1. Get user's cluster
+        2. Compute cluster embedding (mean of user embeddings in cluster)
+        3. Fetch destinations associated with that cluster from DB
+        4. Compute affinity: cosine similarity between cluster embedding ↔ destination embedding
+        5. Combine affinity (70%) + popularity (30%)
+        6. Return top-K destination IDs
         
         Args:
             db: Database session
             user_id: ID of the user
-            k: Number of recommendations to return (default: 20)
+            k: Number of recommendations to return (default: 5)
+            include_scores: If True, include affinity/popularity/combined scores
             
         Returns:
-            List of dictionaries containing:
-                - destination_id: Place ID of the destination
-                - affinity_score: Cosine similarity with cluster (0-1)
-                - popularity_score: Normalized popularity (0-100)
-                - combined_score: Weighted blend of affinity and popularity
+            List of dictionaries with:
+                - destination_id: Place ID from internal database
+                - [scores only if include_scores=True]
         """
         try:
-            # Get user's latest cluster
+            # Step 1: Get user's latest cluster
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
             if user_cluster is None:
                 raise HTTPException(
@@ -413,7 +420,7 @@ class RecommendationService:
                     detail=f"User {user_id} does not belong to any cluster"
                 )
             
-            # get embeeding of user
+            # Step 2: Compute cluster embedding (mean of user embeddings)
             cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
             if cluster_vector is None:
                 raise HTTPException(
@@ -421,7 +428,7 @@ class RecommendationService:
                     detail=f"Could not compute embedding for cluster {user_cluster}"
                 )
             
-            # Get all destinations in the cluster
+            # Step 3: Get all destinations associated with this cluster (from DB)
             cluster_destinations = await ClusterRepository.get_destinations_in_cluster(db, user_cluster)
             if not cluster_destinations:
                 return []
@@ -429,7 +436,7 @@ class RecommendationService:
             # Extract destination IDs
             destination_ids = [dest.destination_id for dest in cluster_destinations]
             
-            # Get embeddings for all destinations in batch
+            # Get destination embeddings in batch
             embeddings_list = await DestinationRepository.get_embeddings_by_ids(db, destination_ids)
             
             # Normalize embeddings into a dictionary for O(1) lookup
@@ -444,7 +451,7 @@ class RecommendationService:
             cluster_vec = np.array(cluster_vector, dtype=np.float32)
             cluster_norm = np.linalg.norm(cluster_vec)
             
-            # Calculate affinity scores for each destination
+            # Step 4: Calculate affinity scores for each destination
             recommendations = []
             for dest in cluster_destinations:
                 dest_id = dest.destination_id
@@ -465,21 +472,32 @@ class RecommendationService:
                 # Normalize popularity score to 0-1 range
                 popularity_normalized = (dest.popularity_score or 0.0) / 100.0
                 
-                # Hybrid scoring: 70% affinity, 30% popularity
+                # Step 5: Hybrid scoring - 70% affinity, 30% popularity
                 combined_score = affinity_score * 0.7 + popularity_normalized * 0.3
                 
                 # Build recommendation entry
-                recommendations.append({
-                    "destination_id": dest_id,
-                    "affinity_score": round(affinity_score, 4),
-                    "popularity_score": round(dest.popularity_score or 0.0, 2),
-                    "combined_score": round(combined_score, 4)
-                })
+                rec = {"destination_id": dest_id}
+                
+                if include_scores:
+                    rec["affinity_score"] = round(affinity_score, 4)
+                    rec["popularity_score"] = round(dest.popularity_score or 0.0, 2)
+                    rec["combined_score"] = round(combined_score, 4)
+                else:
+                    # Store combined_score for sorting but don't include in output
+                    rec["_combined_score"] = combined_score
+                
+                recommendations.append(rec)
             
-            # Sort by combined score (descending)
-            recommendations.sort(key=lambda x: x["combined_score"], reverse=True)
+            # Step 6: Sort by combined score (descending)
+            if include_scores:
+                recommendations.sort(key=lambda x: x["combined_score"], reverse=True)
+            else:
+                recommendations.sort(key=lambda x: x["_combined_score"], reverse=True)
+                # Remove internal sorting key
+                for rec in recommendations:
+                    del rec["_combined_score"]
             
-            # Return top k recommendations
+            # Return top k destination IDs
             return recommendations[:k]
         
         except HTTPException:
@@ -492,5 +510,6 @@ class RecommendationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error recommending destinations by cluster affinity: {str(e)}"
             )
+        
         
         
