@@ -730,6 +730,7 @@ function ReviewPlanContent() {
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [aiGenerationDone, setAiGenerationDone] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiWarnings, setAiWarnings] = useState<string[]>([]); // ✅ Store AI warnings
   const aiGenerationAttemptedRef = useRef(false); // Track if AI generation was attempted
   const aiResultsSetRef = useRef(false); // ✅ Track if AI results were just set (prevent overwrite)
   const initialLoadDoneRef = useRef(false); // ✅ Track if initial data load completed
@@ -1599,10 +1600,14 @@ function ReviewPlanContent() {
         setAiGenerationDone(true);
       }
 
-      // Log warnings if any
+      // Store and display warnings if any
       if (result.warnings && result.warnings.length > 0) {
         console.warn("⚠️ AI Warnings:", result.warnings);
+        setAiWarnings(result.warnings);
+      } else {
+        setAiWarnings([]);
       }
+      setAiWarnings([]); // Clear warnings on error
     } catch (error: any) {
       console.error("❌ AI generation error:", error);
       setAiError(error.message || "Failed to generate AI plan");
@@ -1872,6 +1877,41 @@ function ReviewPlanContent() {
                       d="M6 18L18 6M6 6l12 12"
                     />
                   </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* AI WARNINGS BANNER */}
+          {aiWarnings.length > 0 && (
+            <div className="bg-amber-50 px-4 py-3 border-b border-amber-100">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertCircle className="w-4 h-4 text-amber-500" />
+                </div>
+                <div className="flex-1">
+                  <p
+                    className={`${jost.className} text-sm font-semibold text-amber-800 mb-1`}
+                  >
+                    AI Optimization Warnings
+                  </p>
+                  <ul className="space-y-1">
+                    {aiWarnings.map((warning, index) => (
+                      <li
+                        key={index}
+                        className="text-xs text-amber-700 flex items-start gap-2"
+                      >
+                        <span className="text-amber-400 shrink-0 mt-0.5">•</span>
+                        <span>{warning}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  onClick={() => setAiWarnings([])}
+                  className="text-amber-400 hover:text-amber-600 shrink-0"
+                >
+                  <X size={16} />
                 </button>
               </div>
             </div>

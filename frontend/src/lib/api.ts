@@ -627,6 +627,7 @@ export interface PlanGenerationResponse {
   detail?: string;
   plan?: GeneratedPlanPayload;
   warnings?: string[];
+  modifications?: string[];
 }
 
 export interface BotMessageResponse {
