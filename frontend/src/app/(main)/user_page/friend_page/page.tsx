@@ -771,7 +771,7 @@ export default function FriendsPage() {
                   }
                 }}
                 placeholder="Type a message..."
-                className="flex-1 bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-green-400 text-gray-700"
+                className="flex-1 bg-white caret-black rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-green-400 text-gray-900"
               />
               <button
                 onClick={handleSendMessage}
@@ -824,7 +824,7 @@ export default function FriendsPage() {
                 value={inputUsername}
                 onChange={(e) => setInputUsername(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendRequest()}
-                className={`${jost.className} w-full pl-10 pr-12 py-3 rounded-2xl border-none shadow-md outline-none`}
+                className={`${jost.className} w-full pl-10 pr-12 py-3 rounded-2xl border-none shadow-md bg-white caret-black outline-none text-gray-900`}
               />
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"

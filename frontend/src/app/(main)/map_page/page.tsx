@@ -833,7 +833,7 @@ function MapContent() {
                       setIsSearchFocused(true);
                       setTimeout(() => setEnableTransition(true), 50);
                     }}
-                    className="flex-1 outline-none text-gray-700 placeholder:text-gray-400 bg-transparent font-semibold"
+                    className="flex-1 outline-none caret-black bg-white text-gray-900 placeholder:text-gray-400 font-semibold"
                   />
                   {isSearching && (
                     <div className="ml-2 animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>

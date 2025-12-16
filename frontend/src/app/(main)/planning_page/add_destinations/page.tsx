@@ -590,7 +590,7 @@ export default function AddDestinationPage() {
               <input
                 type="text"
                 placeholder="Search location..."
-                className={`${jost.className} bg-transparent outline-none w-full text-sm font-medium text-gray-700 placeholder:text-gray-400`}
+                className={`${jost.className} bg-white caret-black outline-none w-full text-sm font-medium text-gray-900 placeholder:text-gray-400`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
