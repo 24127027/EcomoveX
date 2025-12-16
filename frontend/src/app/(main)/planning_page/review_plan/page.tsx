@@ -93,9 +93,11 @@ const dropAnimationConfig: DropAnimation = {
 interface SortableItemProps {
   activity: PlanActivity;
   onDelete: (id: string | number) => void;
+  isOwner: boolean; // <--- THÊM DÒNG NÀY
 }
 
-function SortableItem({ activity, onDelete }: SortableItemProps) {
+function SortableItem({ activity, onDelete, isOwner }: SortableItemProps) {
+  // ... giữ nguyên useSortable ...
   const {
     attributes,
     listeners,
@@ -103,8 +105,11 @@ function SortableItem({ activity, onDelete }: SortableItemProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: activity.id, data: { ...activity } });
-
+  } = useSortable({
+    id: activity.id,
+    data: { ...activity },
+    disabled: !isOwner,
+  });
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
@@ -138,24 +143,28 @@ function SortableItem({ activity, onDelete }: SortableItemProps) {
         </h3>
         <p className="text-[10px] text-gray-400 truncate">{activity.address}</p>
       </div>
+      {isOwner && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(activity.id);
+          }}
+          className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(activity.id);
-        }}
-        className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-      >
-        <Trash2 size={16} />
-      </button>
-
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-gray-300 hover:text-gray-500 p-2 border-l border-gray-100 pl-2"
-      >
-        <GripVertical size={18} />
-      </div>
+      {/* CHỈ HIỆN TAY CẦM KÉO THẢ NẾU LÀ OWNER */}
+      {isOwner && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-gray-300 hover:text-gray-500 p-2 border-l border-gray-100 pl-2"
+        >
+          <GripVertical size={18} />
+        </div>
+      )}
     </div>
   );
 }
@@ -170,6 +179,7 @@ function TimeSlotContainer({
   items,
   onDelete,
   onAddPlace,
+  isOwner,
 }: {
   id: string;
   title: string;
@@ -177,8 +187,9 @@ function TimeSlotContainer({
   items: PlanActivity[];
   onDelete: (id: string | number) => void;
   onAddPlace: () => void;
+  isOwner: boolean;
 }) {
-  const { setNodeRef } = useSortable({ id });
+  const { setNodeRef } = useSortable({ id, disabled: !isOwner });
 
   return (
     <div
@@ -198,12 +209,14 @@ function TimeSlotContainer({
           </span>
         </div>
 
-        <button
-          onClick={onAddPlace}
-          className="text-[#53B552] hover:bg-green-50 p-1 rounded-full transition-colors"
-        >
-          <Plus size={16} />
-        </button>
+        {isOwner && (
+          <button
+            onClick={onAddPlace}
+            className="text-[#53B552] hover:bg-green-50 p-1 rounded-full transition-colors"
+          >
+            <Plus size={16} />
+          </button>
+        )}
       </div>
 
       <SortableContext
@@ -211,7 +224,7 @@ function TimeSlotContainer({
         strategy={verticalListSortingStrategy}
       >
         <div className="min-h-[60px]">
-          {items.length === 0 && (
+          {items.length === 0 && isOwner && (
             <div className="h-16 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-gray-300 text-xs">
               Drop here
             </div>
@@ -221,6 +234,7 @@ function TimeSlotContainer({
               key={activity.id}
               activity={activity}
               onDelete={onDelete}
+              isOwner={isOwner}
             />
           ))}
         </div>
@@ -1387,7 +1401,7 @@ function ReviewPlanContent() {
       const newDateStr = parts[0];
       const newSlot = parts[1];
       let safeIsoDate = prev[activeIndex].date;
-      if (newDateStr){
+      if (newDateStr) {
         const d = new Date(newDateStr);
         if (!isNaN(d.getTime())) {
           safeIsoDate = d.toISOString();
@@ -1791,35 +1805,37 @@ function ReviewPlanContent() {
                   Members
                 </button>
               )}
-              <button
-                onClick={() => {
-                  if (activities.length < 2) {
-                    alert(
-                      `Add at least ${
-                        2 - activities.length
-                      } more destination(s)`
-                    );
-                    return;
+              {(isOwner || !planId) && (
+                <button
+                  onClick={() => {
+                    if (activities.length < 2) {
+                      alert(
+                        `Add at least ${
+                          2 - activities.length
+                        } more destination(s)`
+                      );
+                      return;
+                    }
+                    router.push("/planning_page/transport_selection");
+                  }}
+                  disabled={activities.length < 2}
+                  className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
+                    activities.length < 2
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "text-white bg-[#53B552] hover:bg-green-600"
+                  }`}
+                  title={
+                    activities.length < 2
+                      ? `Add at least ${
+                          2 - activities.length
+                        } more destination(s)`
+                      : "Next: Choose transport"
                   }
-                  router.push("/planning_page/transport_selection");
-                }}
-                disabled={activities.length < 2}
-                className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
-                  activities.length < 2
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "text-white bg-[#53B552] hover:bg-green-600"
-                }`}
-                title={
-                  activities.length < 2
-                    ? `Add at least ${
-                        2 - activities.length
-                      } more destination(s)`
-                    : "Next: Choose transport"
-                }
-              >
-                Next
-                <ChevronRight size={16} />
-              </button>
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -2012,6 +2028,7 @@ function ReviewPlanContent() {
                           onAddPlace={() =>
                             handleAddPlaceToSlot(dayStr, "Morning")
                           }
+                          isOwner={isOwner}
                         />
                         <TimeSlotContainer
                           id={`${dayStr}_Afternoon`}
@@ -2028,6 +2045,7 @@ function ReviewPlanContent() {
                           onAddPlace={() =>
                             handleAddPlaceToSlot(dayStr, "Afternoon")
                           }
+                          isOwner={isOwner}
                         />
                         <TimeSlotContainer
                           id={`${dayStr}_Evening`}
@@ -2044,6 +2062,7 @@ function ReviewPlanContent() {
                           onAddPlace={() =>
                             handleAddPlaceToSlot(dayStr, "Evening")
                           }
+                          isOwner={isOwner}
                         />
                       </div>
                     </div>
