@@ -476,7 +476,7 @@ function ChatWindow({
       if (error?.message?.includes("not a member")) {
         errorMsg = "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant.";
       } else if (error?.message?.includes("Google Places API") || error?.message?.includes("403") || error?.message?.includes("PERMISSION_DENIED")) {
-        errorMsg = "⚠️ Google Places API error: The API key doesn't have access to the Places API. Please enable the 'Places API (New)' in Google Cloud Console or contact the administrator.";
+        errorMsg = "⚠️ Encountered error Error.";
       } else if (error?.message) {
         errorMsg = `⚠️ ${error.message}`;
       }
