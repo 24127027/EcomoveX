@@ -447,7 +447,6 @@ class ClusterRepository:
         visited_destinations: Optional[list] = None,
         embedding: Optional[list] = None,
         weight: Optional[float] = None,
-        cluster_id: Optional[int] = None,
     ):
         try:
             result = await db.execute(
@@ -470,8 +469,6 @@ class ClusterRepository:
                     preference.embedding = embedding
                 if weight is not None:
                     preference.weight = weight
-                if cluster_id is not None:
-                    preference.cluster_id = cluster_id
                 preference.last_updated = func.now()
             else:
                 preference = Preference(
@@ -483,7 +480,7 @@ class ClusterRepository:
                     visited_destinations=visited_destinations,
                     embedding=embedding,
                     weight=weight or 1.0,
-                    cluster_id=cluster_id,
+                    cluster_id=preference.cluster_id,
                 )
                 db.add(preference)
 

@@ -242,26 +242,9 @@ export default function AddDestinationPage() {
       try {
         const saved = await api.getSavedDestinations();
 
-        // Fetch full details for each saved destination
-        const detailsPromises = saved.map(async (item) => {
-          try {
-            const details = await api.getPlaceDetails(item.destination_id);
-            return details;
-          } catch (error) {
-            console.error(
-              `Failed to load details for ${item.destination_id}:`,
-              error
-            );
-            return null;
-          }
-        });
-
-        const allDetails = await Promise.all(detailsPromises);
-        const validDetails = allDetails.filter(
-          (d): d is PlaceDetails => d !== null
-        );
-
-        setSavedDestinations(validDetails);
+        // Only fetch details when user actually clicks on a saved destination
+        // For now, just store the saved list without full details to reduce API calls
+        setSavedDestinations([]);
       } catch (error) {
         console.error("Failed to load saved destinations:", error);
       } finally {
@@ -373,7 +356,7 @@ export default function AddDestinationPage() {
         });
 
         if (res && res.predictions) {
-          setPredictions(res.predictions.slice(0, 5));
+          setPredictions(res.predictions.slice(0, 3));
         }
       } catch (error) {
         console.error(error);

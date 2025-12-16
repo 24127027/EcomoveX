@@ -136,66 +136,75 @@ class PlanService:
                 db, new_plan.id, PlanMemberCreate(user_id=user_id, role=PlanRole.owner)
             )
 
-            # 3. Add Destinations (CÓ GỌI MAP SERVICE ĐỂ FIX LỖI FK)
+            # 3. Add Destinations - OPTIMIZED: First ensure all destinations exist, then add to plan
+            import asyncio
+            
+            # Step 1: Ensure all destinations exist (handle duplicates)
+            unique_place_ids = list(set(dest.destination_id for dest in plan_data.destinations))
+            for place_id in unique_place_ids:
+                try:
+                    await PlanRepository.ensure_destination(db, place_id)
+                except Exception as e:
+                    print(f"Warning ensuring destination {place_id}: {e}")
+            
+            # Commit all destinations at once
+            await db.commit()
+            
+            # Step 2: Add destinations to plan sequentially (fast since no API calls)
             saved_dest_ids = []
             for dest_data in plan_data.destinations:
                 try:
-                    # Gọi MapService lấy thông tin để tạo Destination trong DB trước
-                    place_info = await MapService.get_location_details(
-                        PlaceDetailsRequest(place_id=dest_data.destination_id),
-                        db=db,
-                        user_id=user_id
-                    )
-                    await PlanRepository.ensure_destination(db, place_info.place_id)
-
-                    # Update URL ảnh nếu thiếu
-                    if place_info.photos:
-                        dest_data.url = place_info.photos[0].photo_url
+                    saved_dest = await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
+                    saved_dest_ids.append(saved_dest.id)
                 except Exception as e:
-                    print(f"Warning syncing destination {dest_data.destination_id}: {e}")
-                
-                # Sau đó mới thêm vào Plan
-                saved_dest = await PlanRepository.add_destination_to_plan(db, new_plan.id, dest_data)
-                saved_dest_ids.append(saved_dest.id)
+                    print(f"Error adding destination {dest_data.destination_id} to plan: {e}")
             
-            # 4. Create routes between consecutive destinations
+            # 4. Create routes between consecutive destinations - OPTIMIZED: Parallel processing
             if len(saved_dest_ids) > 1:
                 saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
-                for i in range(len(saved_destinations) - 1):
+                
+                async def create_route_for_pair(i):
                     origin = saved_destinations[i]
                     destination = saved_destinations[i + 1]
-                    origin_coords = await MapService.get_coordinates(origin.destination_id)
-                    destination_coords = await MapService.get_coordinates(destination.destination_id)
                     
-                    # Validate coordinates before making route request
-                    if not origin_coords:
-                        print(f"ERROR: Failed to get coordinates for origin place_id={origin.destination_id}")
-                        continue
-                    if not destination_coords:
-                        print(f"ERROR: Failed to get coordinates for destination place_id={destination.destination_id}")
-                        continue
-                    
-                    print(f"Creating route from {origin.destination_id} ({origin_coords.latitude}, {origin_coords.longitude}) to {destination.destination_id} ({destination_coords.latitude}, {destination_coords.longitude})")
-                    
-                    route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
-                        origin=origin_coords,
-                        destination=destination_coords
-                    ))
-                    if route:
-                        selected_route = None
-                        if RouteType.smart_combination in route.routes:
-                            selected_route = route.routes[RouteType.smart_combination]
-                        else:
-                            selected_route = route.routes[RouteType.low_carbon]
+                    try:
+                        origin_coords = await MapService.get_coordinates(origin.destination_id)
+                        destination_coords = await MapService.get_coordinates(destination.destination_id)
                         
-                        await PlanRepository.create_route(db, RouteCreate(
-                            plan_id=new_plan.id,
-                            origin_plan_destination_id=origin.id,
-                            destination_plan_destination_id=destination.id,
-                            distance_km=selected_route.distance,
-                            carbon_emission_kg=selected_route.carbon,
-                            mode=TransportMode.car
+                        # Validate coordinates before making route request
+                        if not origin_coords or not destination_coords:
+                            print(f"ERROR: Failed to get coordinates for route {i}")
+                            return None
+                                                
+                        route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
+                            origin=origin_coords,
+                            destination=destination_coords
                         ))
+                        
+                        if route:
+                            selected_route = None
+                            if RouteType.smart_combination in route.routes:
+                                selected_route = route.routes[RouteType.smart_combination]
+                            else:
+                                selected_route = route.routes[RouteType.low_carbon]
+                            
+                            await PlanRepository.create_route(db, RouteCreate(
+                                plan_id=new_plan.id,
+                                origin_plan_destination_id=origin.id,
+                                destination_plan_destination_id=destination.id,
+                                distance_km=selected_route.distance,
+                                carbon_emission_kg=selected_route.carbon,
+                                mode=TransportMode.car
+                            ))
+                    except Exception as e:
+                        print(f"Error creating route {i}: {e}")
+                        return None
+                
+                # Process all routes in parallel
+                await asyncio.gather(
+                    *[create_route_for_pair(i) for i in range(len(saved_destinations) - 1)],
+                    return_exceptions=True
+                )
 
             saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
             

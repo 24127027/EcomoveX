@@ -161,7 +161,7 @@ export default function HomePage() {
     const enhancePlacePhotos = async (
       basePlaces: GreenPlaceRecommendation[]
     ) => {
-      const needingDetails = basePlaces.filter((place) => !place.photo_url);
+      const needingDetails = basePlaces.filter((place) => !place.photo_url).slice(0, 3);
       if (needingDetails.length === 0) return;
 
       const detailEntries = await Promise.allSettled(

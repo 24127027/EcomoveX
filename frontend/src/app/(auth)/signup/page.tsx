@@ -48,6 +48,7 @@ export default function SignupPage() {
   );
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,6 +64,7 @@ export default function SignupPage() {
     }));
 
     setServerError("");
+    setSuccessMessage("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,29 +80,19 @@ export default function SignupPage() {
     }
 
     try {
-      const response = await api.signup({
+      await api.signup({
         username: form.username,
         email: form.email,
         password: form.password,
       });
-      if (!response?.access_token) {
-        throw new Error("Missing access token in response");
-      }
-
-      localStorage.setItem("access_token", response.access_token);
-
-      if (response.user_id != null) {
-        localStorage.setItem("user_id", response.user_id.toString());
-      }
-
-      localStorage.setItem("user_role", response.role || "");
-
-      // Redirect to admin page if user is admin
-      if (response.role === "Admin") {
-        router.replace("/admin");
-      } else {
-        router.replace("/allow_permission/location_permission");
-      }
+      
+      // Show success message and redirect to login after 3 seconds
+      setSuccessMessage(
+        "Registration successful! Please check your email to verify your account. Redirecting to login..."
+      );
+      setTimeout(() => {
+        router.replace("/login");
+      }, 3000);
     } catch (err: any) {
       if (err instanceof ApiValidationError) {
         setValidationErrors({
@@ -108,10 +100,10 @@ export default function SignupPage() {
         });
       } else if (
         err.message?.includes("already exists") ||
-        err.message?.includes("Failed to create new user") ||
-        err.status === 500
+        err.message?.includes("already registered") ||
+        err.status === 400
       ) {
-        setServerError("Username already exists. Please choose another.");
+        setServerError("Email already registered. Please use a different email or login.");
       } else {
         setServerError(getFriendlyErrorMessage(err));
       }
@@ -247,6 +239,13 @@ export default function SignupPage() {
           >
             {loading ? "Signing up..." : "Sign up"}
           </button>
+
+          {/* Success Message */}
+          {successMessage && (
+            <p className="text-green-700 text-sm mt-2 text-center bg-green-50 p-3 rounded-lg border border-green-200">
+              {successMessage}
+            </p>
+          )}
 
           {/* Server Error Message */}
           {serverError && (

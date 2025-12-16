@@ -18,9 +18,6 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:3000,https://ecomovex.onrender.com,"
     
-    # Frontend URL for API headers (Referer/Origin)
-    FRONTEND_URL: str = "http://localhost:3000"
-
     GOOGLE_API_KEY: str = ""
     CLIMATIQ_API_KEY: str = ""
 
@@ -37,6 +34,10 @@ class Settings(BaseSettings):
 
     BREEAM_USERNAME: str = ""
     BREEAM_PASSWORD: str = ""
-
+    
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
 
 settings = Settings()

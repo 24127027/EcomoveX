@@ -388,9 +388,9 @@ class PlanRepository:
 
     @staticmethod
     async def ensure_destination(db: AsyncSession, place_id: str):
-        """Kiểm tra và tạo destination nếu chưa có để tránh lỗi Foreign Key"""
+        """Check and create destination if it doesn't exist to avoid FK error"""
         try:
-            # 1. Check tồn tại
+            # 1. Check if exists
             result = await db.execute(
                 select(Destination).where(Destination.place_id == place_id)
             )
@@ -398,20 +398,22 @@ class PlanRepository:
             if existing:
                 return existing
 
-            # 2. Tạo mới
-            new_dest = Destination(
-                place_id=place_id,
-                # Các trường này có thể null trong model destination.py của bạn không?
-                # Dựa vào file bạn gửi, model Destination CHỈ CÓ place_id và green_verified
-                # Nếu database thực tế có cột name, address... thì thêm vào đây.
-                # Nếu chỉ có place_id thì chỉ cần dòng dưới:
-            )
+            # 2. Create new destination
+            new_dest = Destination(place_id=place_id)
             db.add(new_dest)
-            await db.commit()
+            await db.flush()  # Use flush instead of commit to keep transaction open
             return new_dest
         except SQLAlchemyError as e:
+            # If error (e.g., duplicate key from race condition), rollback and retry check
             await db.rollback()
-            print(f"ERROR: ensuring destination {place_id} - {e}")
+            print(f"ERROR ensuring destination {place_id}: {e}")
+            # Retry check in case another parallel task created it
+            result = await db.execute(
+                select(Destination).where(Destination.place_id == place_id)
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing
             return None
 
     @staticmethod
