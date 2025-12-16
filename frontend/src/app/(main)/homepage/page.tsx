@@ -27,6 +27,7 @@ import {
   TravelPlan,
   UserRewardResponse,
   GreenPlaceRecommendation,
+  birdDistance,
 } from "@/lib/api";
 import { MobileNavMenu } from "@/components/MobileNavMenu";
 import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
@@ -88,6 +89,13 @@ export default function HomePage() {
   const [cachedLocation, setCachedLocation] = useState<Coordinates | null>(
     null
   );
+
+  // Recommendation cache
+  const [recommendationCache, setRecommendationCache] = useState<{
+    data: GreenPlaceRecommendation[];
+    location: Coordinates;
+    timestamp: number;
+  } | null>(null);
 
   // State Saved Locations
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
@@ -199,6 +207,24 @@ export default function HomePage() {
     ) => {
       const { showLoader = true } = options;
       const currentRequestId = ++requestCounter;
+      
+      // Check cache validity (5 minutes and within 1km)
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+      const CACHE_DISTANCE_KM = 1; // 1km threshold
+      
+      if (recommendationCache) {
+        const timeDiff = now - recommendationCache.timestamp;
+        const distance = birdDistance(coords, recommendationCache.location);
+        
+        if (timeDiff < CACHE_DURATION && distance < CACHE_DISTANCE_KM) {
+          // Use cached data
+          setGreenPlaces(recommendationCache.data);
+          setLoadingGreenPlaces(false);
+          return;
+        }
+      }
+      
       if (showLoader && isMounted) setLoadingGreenPlaces(true);
       try {
         const recommendations = await api.getNearbyGreenPlaces(
@@ -210,7 +236,16 @@ export default function HomePage() {
 
         if (!isMounted || currentRequestId < lastResolvedRequest) return;
 
-        setGreenPlaces(Array.isArray(recommendations) ? recommendations : []);
+        const validRecommendations = Array.isArray(recommendations) ? recommendations : [];
+        setGreenPlaces(validRecommendations);
+        
+        // Update cache
+        setRecommendationCache({
+          data: validRecommendations,
+          location: coords,
+          timestamp: now,
+        });
+        
         lastResolvedRequest = currentRequestId;
 
         syncSavedDestinations();

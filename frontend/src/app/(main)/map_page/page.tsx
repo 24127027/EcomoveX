@@ -23,6 +23,7 @@ import {
   Position,
   PlaceSearchResult,
   SavedDestination,
+  birdDistance,
 } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
@@ -39,21 +40,6 @@ interface PlaceDetailsWithDistance extends PlaceDetails {
 }
 
 // --- HELPER FUNCTIONS ---
-const birdDistance = (pos1: Position, pos2: Position): number => {
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(pos2.lat - pos1.lat);
-  const dLon = toRad(pos2.lng - pos1.lng);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(pos1.lat)) *
-      Math.cos(toRad(pos2.lat)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 const addDistanceText = async (
   details: PlaceDetails,
   userPos: Position
@@ -141,6 +127,13 @@ function MapContent() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] =
     useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
+  
+  // Recommendation cache
+  const [recommendationCache, setRecommendationCache] = useState<{
+    data: PlaceDetailsWithDistance[];
+    location: Position;
+    timestamp: number;
+  } | null>(null);
   const [sheetHeight, setSheetHeight] = useState(40);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
@@ -395,6 +388,24 @@ function MapContent() {
   };
 
   const fetchRecommendations = async () => {
+    // Check cache validity (5 minutes and within 1km)
+    const now = Date.now();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+    const CACHE_DISTANCE_KM = 1; // 1km threshold
+    
+    if (recommendationCache) {
+      const timeDiff = now - recommendationCache.timestamp;
+      const distance = birdDistance(userLocation, recommendationCache.location);
+      
+      if (timeDiff < CACHE_DURATION && distance < CACHE_DISTANCE_KM) {
+        // Use cached data
+        setLocations(recommendationCache.data);
+        setIsLoadingRecommendations(false);
+        setSheetHeight(65);
+        return;
+      }
+    }
+    
     setIsLoadingRecommendations(true);
     try {
       const recToken = generateSessionToken();
@@ -428,11 +439,19 @@ function MapContent() {
           })
       );
 
-      setLocations(
-        detailedRecommendations.filter(
-          (r): r is PlaceDetailsWithDistance => r !== null
-        )
+      const validRecommendations = detailedRecommendations.filter(
+        (r): r is PlaceDetailsWithDistance => r !== null
       );
+      
+      setLocations(validRecommendations);
+      
+      // Update cache
+      setRecommendationCache({
+        data: validRecommendations,
+        location: userLocation,
+        timestamp: now,
+      });
+      
       setSheetHeight(65);
     } catch (error) {
       console.error("Failed to fetch recommendations:", error);
