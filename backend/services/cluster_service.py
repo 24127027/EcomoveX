@@ -15,7 +15,7 @@ from schemas.cluster_schema import (
     ClusteringResultResponse,
     ClusteringStats,
 )
-from schemas.cluster_schema import PreferenceUpdate, PreferenceResponse
+from schemas.cluster_schema import PreferenceUpdate
 from utils.embedded.embedding_utils import encode_text
 
 EMBEDDING_UPDATE_INTERVAL_DAYS = 7
@@ -414,20 +414,8 @@ class ClusterService:
     @staticmethod
     async def update_preference(
         db: AsyncSession, user_id: int, preference_data: PreferenceUpdate
-    ) -> PreferenceResponse:
+    ):
         try:
-            result = await ClusterRepository.update_preference(db, user_id, preference_data)
-            return PreferenceResponse(
-                id=result.id,
-                user_id=result.user_id,
-                weather_pref=result.weather_pref,
-                attraction_types=result.attraction_types,
-                budget_range=result.budget_range,
-                kids_friendly=result.kids_friendly,
-                visited_destinations=result.visited_destinations,
-                embedding=result.embedding,
-                weight=result.weight,
-                cluster_id=result.cluster_id,
-            )
+            return await ClusterRepository.update_preference(db, user_id, preference_data)
         except Exception:
             return None

@@ -108,21 +108,6 @@ class PreferenceUpdate(BaseModel):
     cluster_id: Optional[int] = None
 
 
-class PreferenceResponse(BaseModel):
-    id: int
-    user_id: int
-    weather_pref: Optional[Dict[str, Any]] = None
-    attraction_types: Optional[List[str]] = None
-    budget_range: Optional[Dict[str, float]] = None
-    kids_friendly: Optional[bool] = None
-    visited_destinations: Optional[List[str]] = None
-    embedding: Optional[List[float]] = None
-    weight: Optional[float] = Field(None, ge=0, le=10)
-    cluster_id: Optional[int] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ClusteringStats(BaseModel):
     embeddings_updated: int
     users_clustered: int
