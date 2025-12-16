@@ -1735,12 +1735,12 @@ class ApiClient {
     });
   }
 
-  // async updateUserPreferences(preferences: PreferenceUpdate): Promise<UserPreference> {
-  //   return this.request<UserPreference>("/clustering/preference", {
-  //     method: "PUT",
-  //     body: JSON.stringify(preferences),
-  //   });
-  // }
+  async updateUserPreferences(preferences: PreferenceUpdate | {}): Promise<any> {
+    return this.request<any>("/clustering/preference", {
+      method: "PUT",
+      body: JSON.stringify(preferences),
+    });
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);
