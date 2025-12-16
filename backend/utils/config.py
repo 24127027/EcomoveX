@@ -39,5 +39,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
+    SMTP_USE_TLS: bool = False
+    SMTP_STARTTLS: bool = True
+    SMTP_TIMEOUT: int = 30
 
 settings = Settings()

@@ -20,9 +20,9 @@ async def send_email(to_email: str, subject: str, content: str, content_type: st
             port=settings.SMTP_PORT,
             username=settings.SMTP_USER,
             password=settings.SMTP_PASS,
-            use_tls=False,
-            start_tls=True,
-            timeout=30
+            use_tls=settings.SMTP_USE_TLS,
+            start_tls=settings.SMTP_STARTTLS,
+            timeout=settings.SMTP_TIMEOUT
         )
         return True
 
