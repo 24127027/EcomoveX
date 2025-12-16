@@ -471,11 +471,16 @@ function ChatWindow({
       }
     } catch (error: any) {
       console.error("Failed to send message:", error);
-      const errorMsg =
-        error?.message?.includes("not a member") ||
-        error?.message?.includes("403")
-          ? "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant."
-          : "Sorry, I encountered an error.";
+      let errorMsg = "Sorry, I encountered an error.";
+      
+      if (error?.message?.includes("not a member")) {
+        errorMsg = "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant.";
+      } else if (error?.message?.includes("Google Places API") || error?.message?.includes("403") || error?.message?.includes("PERMISSION_DENIED")) {
+        errorMsg = "⚠️ Encountered error Error.";
+      } else if (error?.message) {
+        errorMsg = `⚠️ ${error.message}`;
+      }
+      
       setMessages((prev) => [...prev, { role: "bot", text: errorMsg }]);
     } finally {
       setIsLoading(false);
