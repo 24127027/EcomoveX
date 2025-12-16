@@ -21,7 +21,11 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def register_user(
     user_data: UserRegister, user_db: AsyncSession = Depends(get_db)
 ):
-    return await AuthenticationService.register_user(user_db, user_data)
+    result = await AuthenticationService.register_user(user_db, user_data)
+    return {
+        "message": "Verification email sent. Please check your email to complete registration.",
+        "success": result
+    }
 
 
 @router.post(

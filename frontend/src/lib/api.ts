@@ -755,10 +755,13 @@ class ApiClient {
     return this.request<UserProfile>("/auth/me", { method: "GET" });
   }
 
-  async resetPassword(email: string): Promise<void> {
-    return this.request("/auth/reset-password", {
+  async resetPassword(email: string, username: string): Promise<{ message: string }> {
+    const params = new URLSearchParams({
+      email: email,
+      user_name: username,
+    });
+    return this.request<{ message: string }>(`/auth/forgot-password?${params.toString()}`, {
       method: "POST",
-      body: JSON.stringify({ email }),
     });
   }
 
