@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-
+import hdbscan
 import numpy as np
 from fastapi import HTTPException, status
-from sklearn.cluster import KMeans
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +16,7 @@ from schemas.cluster_schema import (
 from utils.embedded.embedding_utils import encode_text
 
 EMBEDDING_UPDATE_INTERVAL_DAYS = 7
-NUM_CLUSTERS = 5
+MIN_CLUSTER_SIZE = 2  # Minimum users per cluster for HDBSCAN
 
 
 class ClusterService:
@@ -215,12 +214,11 @@ class ClusterService:
             )
 
     @staticmethod
-    def cluster_users_kmeans( 
-        user_embeddings: List[Tuple[int, List[float]]], n_clusters: int = 5
+    def cluster_users_hdbscan( 
+        user_embeddings: List[Tuple[int, List[float]]], min_cluster_size: int = 2
     ) -> Dict[int, int]:
-        if len(user_embeddings) < n_clusters:
-            n_clusters = max(1, len(user_embeddings))
-
+        #=======================================================
+        #=======================================================
         embeddings = []
         user_ids = []
 
@@ -230,12 +228,44 @@ class ClusterService:
 
         if not embeddings:
             return {}
+#=======================================================
+        # Handle small datasets by adjusting min_cluster_size
+        effective_min_size = min(min_cluster_size, max(2, len(user_embeddings) // 3))
+        
+        clusterer = hdbscan.HDBSCAN(
+            min_cluster_size=effective_min_size,
+            min_samples=1,
+            metric='euclidean',
+            cluster_selection_method='eom'
+        )
+        cluster_labels = clusterer.fit_predict(np.array(embeddings))
 
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-        cluster_labels = kmeans.fit_predict(np.array(embeddings))
+        # Handle noise points (label -1) by assigning them to nearest cluster
+        unique_labels = set(cluster_labels)
+        if -1 in unique_labels:
+            unique_labels.remove(-1)
+            
+        # If all points are noise or no clusters formed, create one cluster
+        if len(unique_labels) == 0:
+            cluster_labels = np.zeros(len(cluster_labels), dtype=int)
+        else:
+            # Assign noise points to the largest cluster
+            noise_indices = np.where(cluster_labels == -1)[0]
+            if len(noise_indices) > 0:
+                # Find the most common cluster
+                valid_labels = cluster_labels[cluster_labels != -1]
+                if len(valid_labels) > 0:
+                    largest_cluster = np.bincount(valid_labels).argmax()
+                    cluster_labels[noise_indices] = largest_cluster
 
+        # Remap cluster IDs to be continuous starting from 0
+        unique_clusters = sorted(set(cluster_labels))
+        cluster_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_clusters)}
+        remapped_labels = np.array([cluster_mapping[label] for label in cluster_labels])
+#=======================================================
         user_cluster_mapping = {}
-        for user_id, cluster_id in zip(user_ids, cluster_labels):
+        #=======================================================
+        for user_id, cluster_id in zip(user_ids, remapped_labels):
             user_cluster_mapping[user_id] = int(cluster_id)
 
         return user_cluster_mapping
@@ -322,14 +352,14 @@ class ClusterService:
                 if user and user.embedding:
                     user_embeddings_data.append((user.id, user.embedding))
 
-            user_cluster_mapping = ClusterService.cluster_users_kmeans(
-                user_embeddings_data, NUM_CLUSTERS
+            user_cluster_mapping = ClusterService.cluster_users_hdbscan(
+                user_embeddings_data, MIN_CLUSTER_SIZE
             )
 
             if not user_cluster_mapping:
                 return ClusteringResultResponse(
                     success=False,
-                    message="KMeans clustering failed",
+                    message="HDBSCAN clustering failed",
                     stats=ClusteringStats(
                         embeddings_updated=embeddings_updated,
                         users_clustered=0,
@@ -352,7 +382,7 @@ class ClusterService:
                     from schemas.cluster_schema import ClusterCreate
                     cluster_data = ClusterCreate(
                         name=f"Cluster {cluster_id + 1}",
-                        algorithm="KMeans",
+                        algorithm="HDBSCAN",
                         description=f"Auto-generated cluster with {cluster_counts[cluster_id]} users"
                     )
                     await ClusterRepository.create_cluster(db, cluster_data)
