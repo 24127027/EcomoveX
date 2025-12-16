@@ -261,7 +261,7 @@ function MapContent() {
           session_token: activeToken,
         });
 
-        setAutocompletePredictions(response.predictions.slice(0, 8));
+        setAutocompletePredictions(response.predictions.slice(0, 3));
       } catch (error) {
         console.error("Autocomplete failed:", error);
       }

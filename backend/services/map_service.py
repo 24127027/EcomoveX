@@ -84,13 +84,7 @@ class MapService:
         try:
             response = await map_client.text_search_place(data)
 
-            for result in response.results:
-                try:
-                    await DestinationService.create_destination(
-                        db, DestinationCreate(place_id=result.place_id)
-                    )
-                except Exception:
-                    pass
+            # Removed destination creation - only create when user actually selects/saves a place
             
             # Try to sort by cluster affinity, but don't fail the entire search if this fails
             try:
@@ -123,13 +117,7 @@ class MapService:
         try:
             map_client = await create_map_client()
             response = await map_client.autocomplete_place(data)
-            for prediction in response.predictions:
-                try:
-                    await DestinationService.create_destination(
-                        db, DestinationCreate(place_id=prediction.place_id)
-                    )
-                except Exception:
-                    pass
+            # Removed destination creation - only create when user actually selects a place
             return response
         except HTTPException:
             raise
