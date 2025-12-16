@@ -59,10 +59,14 @@ class DestinationEmbeddingCreate(BaseModel):
     embedding_vector: List[float] = Field(..., min_length=1)
     model_version: str = Field("v1", max_length=50)
 
+    model_config = ConfigDict(protected_namespaces=())
+
 
 class DestinationEmbeddingUpdate(BaseModel):
     embedding_vector: Optional[List[float]] = Field(None, min_length=1)
     model_version: Optional[str] = Field(None, max_length=50)
+
+    model_config = ConfigDict(protected_namespaces=())
 
 
 class DestinationEmbeddingResponse(BaseModel):
@@ -70,4 +74,4 @@ class DestinationEmbeddingResponse(BaseModel):
     embedding_vector: List[float]
     model_version: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
