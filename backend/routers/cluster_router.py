@@ -4,7 +4,7 @@ from typing import Dict
 
 from database.db import get_db
 from utils.token.authentication_util import get_current_user
-from schemas.cluster_schema import ClusteringResultResponse, PreferenceResponse, PreferenceUpdate
+from schemas.cluster_schema import ClusteringResultResponse, PreferenceUpdate
 from services.cluster_service import ClusterService
 
 router = APIRouter(prefix="/clustering", tags=["clustering"])
@@ -23,7 +23,7 @@ async def check_user_preference_exists(
     return await ClusterService.is_user_have_preference(db, current_user["user_id"])
 
 
-@router.put("/preference", response_model=PreferenceResponse, status_code=status.HTTP_200_OK)
+@router.put("/preference", status_code=status.HTTP_200_OK)
 async def update_user_preference(
     preference_data: Dict,
     db: AsyncSession = Depends(get_db),
