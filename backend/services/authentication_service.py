@@ -14,7 +14,7 @@ from schemas.authentication_schema import (
 )
 from schemas.user_schema import UserCredentialUpdate
 from utils.config import settings
-from utils.email.email_utils import send_email
+from integration.email_api import EmailAPI
 from utils.token.authentication_util import (
     generate_temporary_password,
     generate_verification_token,
@@ -278,7 +278,8 @@ class AuthenticationService:
 """
             
             try:
-                await send_email(user_data.email, email_subject, email_content, content_type="html")
+                email_api = EmailAPI()
+                await email_api.send_email(user_data.email, email_subject, email_content, content_type="html")
             except Exception as email_error:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -735,7 +736,8 @@ class AuthenticationService:
 """
             
             try:
-                await send_email(email, email_subject, email_content, content_type="html")
+                email_api = EmailAPI()
+                await email_api.send_email(email, email_subject, email_content, content_type="html")
             except Exception as email_error:
                 print(f"[WARNING] Password reset successful but email failed: {email_error}")
             
