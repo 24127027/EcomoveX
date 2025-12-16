@@ -50,22 +50,6 @@ export interface UserProfile {
 }
 
 // Preference Types
-export interface UserPreference {
-  id: number;
-  user_id: number;
-  weather_pref?: {
-    climate?: "warm" | "cool" | "cold" | "any";
-  } | null;
-  attraction_types?: string[] | null;
-  budget_range?: {
-    level?: "budget" | "mid" | "luxury";
-  } | null;
-  kids_friendly: boolean;
-  visited_destinations?: string[] | null;
-  embedding?: number[] | null;
-  weight: number;
-  cluster_id?: number | null;
-}
 
 export interface PreferenceUpdate {
   weather_pref?: {
@@ -73,7 +57,7 @@ export interface PreferenceUpdate {
   } | null;
   attraction_types?: string[] | null;
   budget_range?: {
-    level?: "budget" | "mid" | "luxury";
+    level?: "low" | "mid" | "luxury";
   } | null;
   kids_friendly?: boolean | null;
   visited_destinations?: string[] | null;
@@ -1730,12 +1714,12 @@ class ApiClient {
     });
   }
 
-  async updateUserPreferences(preferences: PreferenceUpdate): Promise<UserPreference> {
-    return this.request<UserPreference>("/clustering/preference", {
-      method: "PUT",
-      body: JSON.stringify(preferences),
-    });
-  }
+  // async updateUserPreferences(preferences: PreferenceUpdate): Promise<UserPreference> {
+  //   return this.request<UserPreference>("/clustering/preference", {
+  //     method: "PUT",
+  //     body: JSON.stringify(preferences),
+  //   });
+  // }
 }
 
 export const api = new ApiClient(API_BASE_URL);
