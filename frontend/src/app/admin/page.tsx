@@ -12,6 +12,19 @@ const AdminDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // Clustering state
+  const [clusteringInProgress, setClusteringInProgress] = useState(false);
+  const [clusteringResult, setClusteringResult] = useState<{
+    success: boolean;
+    message: string;
+    stats: {
+      embeddings_updated: number;
+      users_clustered: number;
+      associations_created: number;
+      clusters_updated: number;
+    };
+  } | null>(null);
+
   // Check if user is admin
   useEffect(() => {
     const userRole = localStorage.getItem('user_role');
@@ -477,6 +490,7 @@ const AdminDashboard = () => {
     { id: 'destinations', name: 'Destinations', icon: MapPin },
     { id: 'reviews', name: 'Review Moderation', icon: MessageSquare },
     { id: 'missions', name: 'Mission Management', icon: Target },
+    { id: 'clustering', name: 'User Clustering', icon: Users },
     { id: 'ai-requests', name: 'AI Processing', icon: Bot },
     { id: 'audit', name: 'Audit Logs', icon: FileText },
     { id: 'settings', name: 'Settings', icon: Settings },
@@ -559,7 +573,28 @@ const AdminDashboard = () => {
       files_urls: []
     }
   ];
-
+//==========================================================================================
+  // Handle Run Clustering
+  const handleRunClustering = async () => {
+    try {
+      setClusteringInProgress(true);
+      setError(null);
+      const result = await api.triggerClustering();
+      setClusteringResult(result);
+      if (result.success) {
+        alert(`Clustering completed successfully!\n\nStats:\n- Embeddings Updated: ${result.stats.embeddings_updated}\n- Users Clustered: ${result.stats.users_clustered}\n- Associations Created: ${result.stats.associations_created}\n- Clusters Updated: ${result.stats.clusters_updated}`);
+      } else {
+        alert(`Clustering failed: ${result.message}`);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to run clustering');
+      console.error('Error running clustering:', err);
+      alert('Failed to run clustering: ' + (err.message || 'Unknown error'));
+    } finally {
+      setClusteringInProgress(false);
+    }
+  };
+//==========================================================================================
   // Render Dashboard
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -1317,6 +1352,140 @@ const AdminDashboard = () => {
     </div>
   );
 
+  // Render Clustering
+  const renderClustering = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">User Clustering System</h2>
+            <p className="text-sm text-gray-600 mt-1">Run K-Means clustering to group users by preferences and behavior</p>
+          </div>
+          <button
+            onClick={handleRunClustering}
+            disabled={clusteringInProgress}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              clusteringInProgress
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            <RefreshCw className={`w-5 h-5 ${clusteringInProgress ? 'animate-spin' : ''}`} />
+            {clusteringInProgress ? 'Running...' : 'Run Clustering'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-red-900">Error</p>
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {clusteringResult && (
+          <div className={`mb-4 border rounded-lg p-4 ${
+            clusteringResult.success
+              ? 'bg-green-50 border-green-200'
+              : 'bg-yellow-50 border-yellow-200'
+          }`}>
+            <div className="flex items-start gap-3">
+              {clusteringResult.success ? (
+                <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <p className={`font-medium ${
+                  clusteringResult.success ? 'text-green-900' : 'text-yellow-900'
+                }`}>
+                  {clusteringResult.message}
+                </p>
+                <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <p className="text-xs text-gray-600">Embeddings Updated</p>
+                    <p className="text-2xl font-bold text-gray-900">{clusteringResult.stats.embeddings_updated}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <p className="text-xs text-gray-600">Users Clustered</p>
+                    <p className="text-2xl font-bold text-blue-600">{clusteringResult.stats.users_clustered}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <p className="text-xs text-gray-600">Associations Created</p>
+                    <p className="text-2xl font-bold text-green-600">{clusteringResult.stats.associations_created}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <p className="text-xs text-gray-600">Clusters Updated</p>
+                    <p className="text-2xl font-bold text-purple-600">{clusteringResult.stats.clusters_updated}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-gray-50 rounded-lg p-6 space-y-4">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            How Clustering Works
+          </h3>
+          <div className="space-y-3 text-sm text-gray-700">
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">1</div>
+              <div>
+                <p className="font-medium">Update User Embeddings</p>
+                <p className="text-gray-600">Generate vector embeddings from user preferences, activity history, eco-points, and travel behavior</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">2</div>
+              <div>
+                <p className="font-medium">Run K-Means Clustering</p>
+                <p className="text-gray-600">Group users into 5 clusters based on similarity of their preference embeddings using K-Means algorithm</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">3</div>
+              <div>
+                <p className="font-medium">Create User-Cluster Associations</p>
+                <p className="text-gray-600">Assign each user to their cluster and update preference records with cluster IDs</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">4</div>
+              <div>
+                <p className="font-medium">Compute Cluster Popularity</p>
+                <p className="text-gray-600">Analyze user activities to identify popular destinations for each cluster based on saves, searches, and reviews</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            Benefits of Clustering
+          </h3>
+          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+            <li>Personalized recommendations based on similar user preferences</li>
+            <li>Better destination suggestions aligned with user behavior patterns</li>
+            <li>Efficient content delivery by understanding user segments</li>
+            <li>Data-driven insights into user groups and travel trends</li>
+          </ul>
+        </div>
+
+        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-sm text-yellow-800">
+            <strong>Note:</strong> Clustering should be run periodically (recommended: weekly) or after significant user activity changes. 
+            The process may take several seconds depending on the number of users.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   // Render Audit Logs
   const renderAuditLogs = () => (
     <div className="space-y-6">
@@ -1436,6 +1605,9 @@ const AdminDashboard = () => {
         {activeTab === 'destinations' && renderDestinations()}
         {activeTab === 'reviews' && renderReviewModeration()}
         {activeTab === 'missions' && renderMissionManagement()}
+        //==========================================================================================
+        {activeTab === 'clustering' && renderClustering()}
+        //==========================================================================================
         {activeTab === 'ai-requests' && renderAiRequests()}
         {activeTab === 'audit' && renderAuditLogs()}
         {activeTab === 'settings' && renderSettings()}

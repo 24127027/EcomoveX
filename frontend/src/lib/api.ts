@@ -54,7 +54,21 @@ export interface GreenVerificationResponse {
   green_score: number;
   status: "Green Certified" | "AI Green Verified" | "Not Green Verified";
 }
+//==========================================================================================
+// Clustering Types
+export interface ClusteringStats {
+  embeddings_updated: number;
+  users_clustered: number;
+  associations_created: number;
+  clusters_updated: number;
+}
 
+export interface ClusteringResultResponse {
+  success: boolean;
+  message: string;
+  stats: ClusteringStats;
+}
+//==========================================================================================
 //Friend Types
 export interface FriendResponse {
   user_id: number;
@@ -1520,7 +1534,14 @@ class ApiClient {
       { method: "POST" }
     );
   }
-
+//==========================================================================================
+  // Clustering: Trigger user clustering
+  async triggerClustering(): Promise<ClusteringResultResponse> {
+    return this.request<ClusteringResultResponse>('/clustering/run', {
+      method: 'POST',
+    });
+  }
+//==========================================================================================
   // Get all reviews (for moderation)
   async getAllReviews(): Promise<ReviewResponse[]> {
     return this.request<ReviewResponse[]>("/reviews/me", { method: "GET" });
