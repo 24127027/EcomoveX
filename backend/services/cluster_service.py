@@ -167,7 +167,11 @@ class ClusterService:
                     detail=f"No users found in cluster {cluster_id}",
                 )
 
-            activities = await UserRepository.get_user_activities(db, user_ids)
+            # Fetch activities for all users in the cluster
+            activities = []
+            for user_id in user_ids:
+                user_activities = await UserRepository.get_user_activities(db, user_id)
+                activities.extend(user_activities)
 
             destination_scores = {}
             for activity in activities:
@@ -312,17 +316,32 @@ class ClusterService:
     ) -> int:
         try:
             created_count = 0
+            failed_users = []
+            
             for user_id, cluster_id in user_cluster_mapping.items():
-                association = await ClusterRepository.add_user_to_cluster(
-                    db, user_id, cluster_id
-                )
-                if association:
-                    created_count += 1
-                    await ClusterRepository.update_preference_cluster(
+                try:
+                    association = await ClusterRepository.add_user_to_cluster(
                         db, user_id, cluster_id
                     )
+                    if association:
+                        created_count += 1
+                        await ClusterRepository.update_preference_cluster(
+                            db, user_id, cluster_id
+                        )
+                    else:
+                        failed_users.append(user_id)
+                        print(f"WARNING: Failed to create association for user_id={user_id}")
+                except Exception as inner_e:
+                    failed_users.append(user_id)
+                    print(f"ERROR: Failed to assign user_id={user_id} to cluster_id={cluster_id}: {inner_e}")
+                    await db.rollback()
+            
+            if failed_users:
+                print(f"WARNING: Failed to assign {len(failed_users)} users: {failed_users}")
+            
             return created_count
         except Exception as e:
+            await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error creating user-cluster associations: {e}",
@@ -347,10 +366,31 @@ class ClusterService:
                     ),
                 )
 
+            # Validate that user IDs actually exist in the database
             user_embeddings_data = []
-            for user in users_with_embeddings:
-                if user and user.embedding:
-                    user_embeddings_data.append((user.id, user.embedding))
+            valid_user_ids = set()
+            
+            for pref in users_with_embeddings:
+                if pref and pref.embedding and pref.user_id:
+                    # Verify user still exists
+                    user_exists = await UserRepository.get_user_by_id(db, pref.user_id)
+                    if user_exists:
+                        user_embeddings_data.append((pref.user_id, pref.embedding))
+                        valid_user_ids.add(pref.user_id)
+                    else:
+                        print(f"WARNING: Preference exists for non-existent user_id={pref.user_id}")
+            
+            if not user_embeddings_data:
+                return ClusteringResultResponse(
+                    success=False,
+                    message="No valid users with embeddings found",
+                    stats=ClusteringStats(
+                        embeddings_updated=embeddings_updated,
+                        users_clustered=0,
+                        associations_created=0,
+                        clusters_updated=0,
+                    ),
+                )
 
             user_cluster_mapping = ClusterService.cluster_users_hdbscan(
                 user_embeddings_data, MIN_CLUSTER_SIZE
@@ -398,8 +438,16 @@ class ClusterService:
             )
             #==========================================================================================
             # Compute popularity for adjusted cluster IDs
+            popularity_errors = 0
             for cluster_id in set(adjusted_mapping.values()):
-                await ClusterService.compute_cluster_popularity(db, cluster_id)
+                try:
+                    await ClusterService.compute_cluster_popularity(db, cluster_id)
+                except Exception as pop_error:
+                    popularity_errors += 1
+                    print(f"ERROR: Failed to compute popularity for cluster_id={cluster_id}: {pop_error}")
+            
+            if popularity_errors > 0:
+                print(f"WARNING: Failed to compute popularity for {popularity_errors} clusters")
 #==========================================================================================
             return ClusteringResultResponse(
                 success=True,
