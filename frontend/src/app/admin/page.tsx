@@ -1425,63 +1425,6 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
-
-        <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600" />
-            How Clustering Works
-          </h3>
-          <div className="space-y-3 text-sm text-gray-700">
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">1</div>
-              <div>
-                <p className="font-medium">Update User Embeddings</p>
-                <p className="text-gray-600">Generate vector embeddings from user preferences, activity history, eco-points, and travel behavior</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">2</div>
-              <div>
-                <p className="font-medium">Run K-Means Clustering</p>
-                <p className="text-gray-600">Group users into 5 clusters based on similarity of their preference embeddings using K-Means algorithm</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">3</div>
-              <div>
-                <p className="font-medium">Create User-Cluster Associations</p>
-                <p className="text-gray-600">Assign each user to their cluster and update preference records with cluster IDs</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-xs">4</div>
-              <div>
-                <p className="font-medium">Compute Cluster Popularity</p>
-                <p className="text-gray-600">Analyze user activities to identify popular destinations for each cluster based on saves, searches, and reviews</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Benefits of Clustering
-          </h3>
-          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-            <li>Personalized recommendations based on similar user preferences</li>
-            <li>Better destination suggestions aligned with user behavior patterns</li>
-            <li>Efficient content delivery by understanding user segments</li>
-            <li>Data-driven insights into user groups and travel trends</li>
-          </ul>
-        </div>
-
-        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-sm text-yellow-800">
-            <strong>Note:</strong> Clustering should be run periodically (recommended: weekly) or after significant user activity changes. 
-            The process may take several seconds depending on the number of users.
-          </p>
-        </div>
       </div>
     </div>
   );

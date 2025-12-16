@@ -201,8 +201,8 @@ class ClusterService:
                         )
                         is None
                     ):
-                        await ClusterRepository.add_destination_to_cluster(
-                            db, cluster_id, dest_id, normalized_score
+                            await ClusterRepository.add_destination_to_cluster(
+                                db, cluster_id, dest_id, normalized_score
                         )
                     else:
                         await ClusterRepository.update_destination_popularity(
