@@ -378,7 +378,7 @@ export default function ProfilePage() {
                 value={isEditing ? username : user?.username || ""}
                 onChange={(e) => setUsername(e.target.value)}
                 readOnly={!isEditing}
-                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+                className={`${abhaya_libre.className} w-full text-gray-900 outline-none bg-white caret-black px-2 font-semibold`}
               />
             </div>
           </div>
@@ -403,7 +403,7 @@ export default function ProfilePage() {
                     setErrors((prev) => ({ ...prev, email: undefined }));
                 }}
                 readOnly={!isEditing}
-                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+                className={`${abhaya_libre.className} w-full text-gray-900 outline-none bg-white caret-black px-2 font-semibold`}
               />
             </div>
             {isEditing && errors.email && (
@@ -428,7 +428,7 @@ export default function ProfilePage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 readOnly={!isEditing}
                 placeholder={isEditing ? "Leave blank to keep current" : ""}
-                className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold tracking-widest`}
+                className={`${abhaya_libre.className} w-full text-gray-900 outline-none bg-white caret-black px-2 font-semibold tracking-widest`}
               />
             </div>
           </div>
@@ -454,7 +454,7 @@ export default function ProfilePage() {
                       setErrors((prev) => ({ ...prev, password: undefined }));
                   }}
                   placeholder="Enter current password"
-                  className={`${abhaya_libre.className} w-full text-gray-700 outline-none bg-transparent px-2 font-semibold`}
+                  className={`${abhaya_libre.className} w-full text-gray-900 outline-none bg-white caret-black px-2 font-semibold`}
                 />
               </div>
               {errors.password && (

@@ -78,13 +78,33 @@ class ClusterDestinationResponse(BaseModel):
 
 
 class PreferenceUpdate(BaseModel):
-    weather_pref: Optional[Dict[str, Any]] = None
-    attraction_types: Optional[List[str]] = None
-    budget_range: Optional[Dict[str, float]] = None
-    kids_friendly: Optional[bool] = None
-    visited_destinations: Optional[List[str]] = None
+    weather_pref: Optional[Dict[str, Any]] = Field(default_factory=lambda: {
+        "min_temp": 20, 
+        "max_temp": 30,
+    })
+    attraction_types: Optional[List[str]] = Field(default_factory=lambda: [
+        "food",
+        "beach",
+        "nature",
+        "culture",
+        "shopping",
+        "nightlife",
+        "adventure",
+        "wellness",
+        "theme_park"
+    ])
+    budget_range: Optional[Dict[str, float]] = Field(default_factory=lambda: {
+        "min": 200.0, 
+        "max": 10000000000.0
+    })
+    kids_friendly: Optional[bool] = False
+    visited_destinations: Optional[List[str]] = Field(default_factory=lambda: [
+        "ChIJD7fiBh9u5kcRYJSMaMOCCwQ",  # Paris, France
+        "ChIJdd4hrwug2EcRmSrV3Vo6llI",  # London, UK
+        "ChIJ2WrMN9MDDxMRfV4dS9iSbak"   # Rome, Italy
+    ])
     embedding: Optional[List[float]] = None
-    weight: Optional[float] = Field(None, ge=0, le=10)
+    weight: Optional[float] = Field(default=1.0, ge=0)
     cluster_id: Optional[int] = None
 
 

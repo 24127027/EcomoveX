@@ -8,6 +8,8 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
+  MouseSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -91,9 +93,11 @@ const dropAnimationConfig: DropAnimation = {
 interface SortableItemProps {
   activity: PlanActivity;
   onDelete: (id: string | number) => void;
+  isOwner: boolean; // <--- THÊM DÒNG NÀY
 }
 
-function SortableItem({ activity, onDelete }: SortableItemProps) {
+function SortableItem({ activity, onDelete, isOwner }: SortableItemProps) {
+  // ... giữ nguyên useSortable ...
   const {
     attributes,
     listeners,
@@ -101,8 +105,11 @@ function SortableItem({ activity, onDelete }: SortableItemProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: activity.id, data: { ...activity } });
-
+  } = useSortable({
+    id: activity.id,
+    data: { ...activity },
+    disabled: !isOwner,
+  });
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
@@ -136,24 +143,28 @@ function SortableItem({ activity, onDelete }: SortableItemProps) {
         </h3>
         <p className="text-[10px] text-gray-400 truncate">{activity.address}</p>
       </div>
+      {isOwner && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(activity.id);
+          }}
+          className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(activity.id);
-        }}
-        className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-      >
-        <Trash2 size={16} />
-      </button>
-
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-gray-300 hover:text-gray-500 p-2 border-l border-gray-100 pl-2"
-      >
-        <GripVertical size={18} />
-      </div>
+      {/* CHỈ HIỆN TAY CẦM KÉO THẢ NẾU LÀ OWNER */}
+      {isOwner && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-gray-300 hover:text-gray-500 p-2 border-l border-gray-100 pl-2"
+        >
+          <GripVertical size={18} />
+        </div>
+      )}
     </div>
   );
 }
@@ -168,6 +179,7 @@ function TimeSlotContainer({
   items,
   onDelete,
   onAddPlace,
+  isOwner,
 }: {
   id: string;
   title: string;
@@ -175,8 +187,9 @@ function TimeSlotContainer({
   items: PlanActivity[];
   onDelete: (id: string | number) => void;
   onAddPlace: () => void;
+  isOwner: boolean;
 }) {
-  const { setNodeRef } = useSortable({ id });
+  const { setNodeRef } = useSortable({ id, disabled: !isOwner });
 
   return (
     <div
@@ -196,12 +209,14 @@ function TimeSlotContainer({
           </span>
         </div>
 
-        <button
-          onClick={onAddPlace}
-          className="text-[#53B552] hover:bg-green-50 p-1 rounded-full transition-colors"
-        >
-          <Plus size={16} />
-        </button>
+        {isOwner && (
+          <button
+            onClick={onAddPlace}
+            className="text-[#53B552] hover:bg-green-50 p-1 rounded-full transition-colors"
+          >
+            <Plus size={16} />
+          </button>
+        )}
       </div>
 
       <SortableContext
@@ -209,7 +224,7 @@ function TimeSlotContainer({
         strategy={verticalListSortingStrategy}
       >
         <div className="min-h-[60px]">
-          {items.length === 0 && (
+          {items.length === 0 && isOwner && (
             <div className="h-16 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-gray-300 text-xs">
               Drop here
             </div>
@@ -219,6 +234,7 @@ function TimeSlotContainer({
               key={activity.id}
               activity={activity}
               onDelete={onDelete}
+              isOwner={isOwner}
             />
           ))}
         </div>
@@ -472,15 +488,20 @@ function ChatWindow({
     } catch (error: any) {
       console.error("Failed to send message:", error);
       let errorMsg = "Sorry, I encountered an error.";
-      
+
       if (error?.message?.includes("not a member")) {
-        errorMsg = "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant.";
-      } else if (error?.message?.includes("Google Places API") || error?.message?.includes("403") || error?.message?.includes("PERMISSION_DENIED")) {
+        errorMsg =
+          "⚠️ You don't have access to this chat room. Only plan members can use the AI assistant.";
+      } else if (
+        error?.message?.includes("Google Places API") ||
+        error?.message?.includes("403") ||
+        error?.message?.includes("PERMISSION_DENIED")
+      ) {
         errorMsg = "⚠️ Encountered error Error.";
       } else if (error?.message) {
         errorMsg = `⚠️ ${error.message}`;
       }
-      
+
       setMessages((prev) => [...prev, { role: "bot", text: errorMsg }]);
     } finally {
       setIsLoading(false);
@@ -572,7 +593,7 @@ function ChatWindow({
           }}
           placeholder={placeholder}
           disabled={inputDisabled}
-          className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-white rounded-full text-gray-900 px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
@@ -776,8 +797,10 @@ function ReviewPlanContent() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(MouseSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    })
   );
 
   // Load current user
@@ -1375,12 +1398,21 @@ function ReviewPlanContent() {
     setActivities((prev) => {
       const activeIndex = prev.findIndex((i) => i.id === active.id);
       const overIndex = prev.findIndex((i) => i.id === overId);
-      const [newDate, newSlot] = String(overContainer).split("_");
+      const parts = String(activeContainer).split("_");
+      const newDateStr = parts[0];
+      const newSlot = parts[1];
+      let safeIsoDate = prev[activeIndex].date;
+      if (newDateStr) {
+        const d = new Date(newDateStr);
+        if (!isNaN(d.getTime())) {
+          safeIsoDate = d.toISOString();
+        }
+      }
       const newActivities = [...prev];
       newActivities[activeIndex] = {
         ...newActivities[activeIndex],
         time_slot: newSlot as any,
-        date: new Date(newDate).toISOString(),
+        date: safeIsoDate,
       };
       return arrayMove(
         newActivities,
@@ -1697,8 +1729,6 @@ function ReviewPlanContent() {
     }
   };
 
-  
-
   // --- RENDER AI ---
   if (isAiProcessing) {
     return (
@@ -1780,35 +1810,37 @@ function ReviewPlanContent() {
                   Members
                 </button>
               )}
-              <button
-                onClick={() => {
-                  if (activities.length < 2) {
-                    alert(
-                      `Add at least ${
-                        2 - activities.length
-                      } more destination(s)`
-                    );
-                    return;
+              {(isOwner || !planId) && (
+                <button
+                  onClick={() => {
+                    if (activities.length < 2) {
+                      alert(
+                        `Add at least ${
+                          2 - activities.length
+                        } more destination(s)`
+                      );
+                      return;
+                    }
+                    router.push("/planning_page/transport_selection");
+                  }}
+                  disabled={activities.length < 2}
+                  className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
+                    activities.length < 2
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "text-white bg-[#53B552] hover:bg-green-600"
+                  }`}
+                  title={
+                    activities.length < 2
+                      ? `Add at least ${
+                          2 - activities.length
+                        } more destination(s)`
+                      : "Next: Choose transport"
                   }
-                  router.push("/planning_page/transport_selection");
-                }}
-                disabled={activities.length < 2}
-                className={`flex items-center gap-1 font-bold text-sm px-3 py-2 rounded-full transition-all ${
-                  activities.length < 2
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "text-white bg-[#53B552] hover:bg-green-600"
-                }`}
-                title={
-                  activities.length < 2
-                    ? `Add at least ${
-                        2 - activities.length
-                      } more destination(s)`
-                    : "Next: Choose transport"
-                }
-              >
-                Next
-                <ChevronRight size={16} />
-              </button>
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1930,7 +1962,7 @@ function ReviewPlanContent() {
                       }
                       onBlur={() => setIsEditingHeader(false)}
                       autoFocus
-                      className="text-2xl font-bold text-gray-800 border-b border-green-500 outline-none w-full"
+                      className="text-2xl bg-white font-bold text-gray-900 border-b border-green-500 outline-none w-full"
                     />
                   ) : (
                     <h2
@@ -2036,6 +2068,7 @@ function ReviewPlanContent() {
                           onAddPlace={() =>
                             handleAddPlaceToSlot(dayStr, "Morning")
                           }
+                          isOwner={isOwner}
                         />
                         <TimeSlotContainer
                           id={`${dayStr}_Afternoon`}
@@ -2052,6 +2085,7 @@ function ReviewPlanContent() {
                           onAddPlace={() =>
                             handleAddPlaceToSlot(dayStr, "Afternoon")
                           }
+                          isOwner={isOwner}
                         />
                         <TimeSlotContainer
                           id={`${dayStr}_Evening`}
@@ -2068,6 +2102,7 @@ function ReviewPlanContent() {
                           onAddPlace={() =>
                             handleAddPlaceToSlot(dayStr, "Evening")
                           }
+                          isOwner={isOwner}
                         />
                       </div>
                     </div>

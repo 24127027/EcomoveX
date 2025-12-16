@@ -255,7 +255,7 @@ export default function CreatePlanPage() {
                 readOnly
                 value={destination}
                 placeholder="Where to in Ho Chi Minh City?"
-                className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552]/70 bg-transparent text-lg cursor-pointer`}
+                className={`${jost.className} w-full outline-none text-[#53B552] font-bold placeholder:text-[#53B552]/70 bg-white text-lg cursor-pointer `}
               />
               <MapPin size={20} className="text-[#53B552]" />
             </div>
