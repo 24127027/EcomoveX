@@ -877,7 +877,8 @@ async def bulk_create_users(
     
     # Nếu có db session từ bên ngoài (main.py), sử dụng nó
     if db is not None:
-        return await _process_bulk_create(db, commit=False)
+        return await _process_bulk_create(db)
+
 
 async def _process_bulk_create(
     db: AsyncSession

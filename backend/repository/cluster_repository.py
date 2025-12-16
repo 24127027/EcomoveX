@@ -480,7 +480,7 @@ class ClusterRepository:
                     visited_destinations=visited_destinations,
                     embedding=embedding,
                     weight=weight or 1.0,
-                    cluster_id=preference.cluster_id,
+                    cluster_id=None,
                 )
                 db.add(preference)
 
