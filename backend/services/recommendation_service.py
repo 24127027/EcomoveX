@@ -74,7 +74,7 @@ class RecommendationService:
 
     '''Change to receive TextSearchResponse and user_id'''
     @staticmethod
-    async def sort_recommendations_by_user_cluster_affinity( # sắp xếp đề xuất dựa trên sự tương đồng với cụm người dùng
+    async def sort_recommendations_by_user_cluster_affinity(
         db: AsyncSession, user_id: int, response: TextSearchResponse
     ) -> TextSearchResponse:
         try:
@@ -136,7 +136,7 @@ class RecommendationService:
 
 
     @staticmethod
-    async def recommend_for_user( # đề xuất cho người dùng
+    async def recommend_for_user(
         db: AsyncSession, user_id: int, k: int = 10, use_hybrid: bool = False
     ) -> List[Dict[str, Any]]:
         try:
@@ -165,7 +165,7 @@ class RecommendationService:
             )
 
     @staticmethod
-    async def recommend_for_cluster_hybrid( # đề xuất lai cho cụm
+    async def recommend_for_cluster_hybrid(
         db: AsyncSession,
         cluster_id: int,
         k: int = 20,
@@ -223,7 +223,7 @@ class RecommendationService:
             )
 
     @staticmethod
-    async def recommend_nearby_by_cluster_tags( # đề xuất địa điểm gần đây dựa trên thẻ cụm
+    async def recommend_nearby_by_cluster_tags(
         db: AsyncSession,
         user_id: int,
         current_location: Location,
@@ -378,3 +378,119 @@ class RecommendationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error recommending nearby destinations: {str(e)}",
             )
+
+    @staticmethod
+    async def recommend_destinations_by_cluster_affinity(
+        db: AsyncSession, 
+        user_id: int,
+        k: int = 5
+    ) -> List[Dict[str, Union[str, float, int]]]:
+        """
+        Recommends destinations within the user's cluster ranked by affinity score.
+        
+        Uses cosine similarity between cluster embedding and destination embeddings
+        to rank destinations by relevance. Combines affinity with popularity for 
+        a hybrid scoring approach.
+        
+        Args:
+            db: Database session
+            user_id: ID of the user
+            k: Number of recommendations to return (default: 20)
+            
+        Returns:
+            List of dictionaries containing:
+                - destination_id: Place ID of the destination
+                - affinity_score: Cosine similarity with cluster (0-1)
+                - popularity_score: Normalized popularity (0-100)
+                - combined_score: Weighted blend of affinity and popularity
+        """
+        try:
+            # Get user's latest cluster
+            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
+            if user_cluster is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User {user_id} does not belong to any cluster"
+                )
+            
+            # get embeeding of user
+            cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
+            if cluster_vector is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Could not compute embedding for cluster {user_cluster}"
+                )
+            
+            # Get all destinations in the cluster
+            cluster_destinations = await ClusterRepository.get_destinations_in_cluster(db, user_cluster)
+            if not cluster_destinations:
+                return []
+            
+            # Extract destination IDs
+            destination_ids = [dest.destination_id for dest in cluster_destinations]
+            
+            # Get embeddings for all destinations in batch
+            embeddings_list = await DestinationRepository.get_embeddings_by_ids(db, destination_ids)
+            
+            # Normalize embeddings into a dictionary for O(1) lookup
+            dest_embeddings = {}
+            if isinstance(embeddings_list, list):
+                for emb in embeddings_list:
+                    dest_embeddings[emb.destination_id] = emb.get_vector()
+            else:
+                dest_embeddings = embeddings_list
+            
+            # Convert cluster vector to numpy array and pre-compute norm
+            cluster_vec = np.array(cluster_vector, dtype=np.float32)
+            cluster_norm = np.linalg.norm(cluster_vec)
+            
+            # Calculate affinity scores for each destination
+            recommendations = []
+            for dest in cluster_destinations:
+                dest_id = dest.destination_id
+                
+                # Skip if no embedding available
+                if dest_id not in dest_embeddings:
+                    continue
+                
+                # Get destination vector
+                dest_vec = np.array(dest_embeddings[dest_id], dtype=np.float32)
+                dest_norm = np.linalg.norm(dest_vec)
+                
+                # Calculate cosine similarity (affinity score)
+                affinity_score = float(
+                    np.dot(cluster_vec, dest_vec) / (cluster_norm * dest_norm + 1e-8)
+                )
+                
+                # Normalize popularity score to 0-1 range
+                popularity_normalized = (dest.popularity_score or 0.0) / 100.0
+                
+                # Hybrid scoring: 70% affinity, 30% popularity
+                combined_score = affinity_score * 0.7 + popularity_normalized * 0.3
+                
+                # Build recommendation entry
+                recommendations.append({
+                    "destination_id": dest_id,
+                    "affinity_score": round(affinity_score, 4),
+                    "popularity_score": round(dest.popularity_score or 0.0, 2),
+                    "combined_score": round(combined_score, 4)
+                })
+            
+            # Sort by combined score (descending)
+            recommendations.sort(key=lambda x: x["combined_score"], reverse=True)
+            
+            # Return top k recommendations
+            return recommendations[:k]
+        
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error in recommend_destinations_by_cluster_affinity: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error recommending destinations by cluster affinity: {str(e)}"
+            )
+        
+        
