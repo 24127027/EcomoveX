@@ -402,10 +402,8 @@ class ClusterService:
         try:
             preference = await ClusterRepository.get_preference_by_user_id(db, user_id)
             # check nếu mọi field trừ user_id đều None
-            if preference.cluster_id is None and preference.weather_pref is None and \
-                preference.attraction_types is None and preference.budget_range is None and \
-                preference.kids_friendly is False and preference.visited_destinations is None and \
-                preference.embedding is None and preference.weight is None:
+            if preference.weather_pref is None and preference.attraction_types is None and \
+                preference.budget_range is None and preference.kids_friendly is False:
                 return False
             return True
         except Exception:
