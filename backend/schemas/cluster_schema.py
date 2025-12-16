@@ -77,18 +77,6 @@ class ClusterDestinationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PreferenceCreate(BaseModel):
-    user_id: int = Field(..., gt=0)
-    weather_pref: Optional[Dict[str, Any]] = None
-    attraction_types: Optional[List[str]] = None
-    budget_range: Optional[Dict[str, float]] = None
-    kids_friendly: bool = False
-    visited_destinations: Optional[List[str]] = None
-    embedding: Optional[List[float]] = None
-    weight: float = Field(1.0, ge=0, le=10)
-    cluster_id: Optional[int] = Field(None, gt=0)
-
-
 class PreferenceUpdate(BaseModel):
     weather_pref: Optional[Dict[str, Any]] = None
     attraction_types: Optional[List[str]] = None
@@ -97,7 +85,7 @@ class PreferenceUpdate(BaseModel):
     visited_destinations: Optional[List[str]] = None
     embedding: Optional[List[float]] = None
     weight: Optional[float] = Field(None, ge=0, le=10)
-    cluster_id: Optional[int] = Field(None, gt=0)
+    cluster_id: Optional[int] = None
 
 
 class PreferenceResponse(BaseModel):
@@ -106,10 +94,10 @@ class PreferenceResponse(BaseModel):
     weather_pref: Optional[Dict[str, Any]] = None
     attraction_types: Optional[List[str]] = None
     budget_range: Optional[Dict[str, float]] = None
-    kids_friendly: bool
+    kids_friendly: Optional[bool] = None
     visited_destinations: Optional[List[str]] = None
     embedding: Optional[List[float]] = None
-    weight: float
+    weight: Optional[float] = Field(None, ge=0, le=10)
     cluster_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)

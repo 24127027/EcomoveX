@@ -777,38 +777,40 @@ class AuthenticationService:
                     detail="Failed to create user account",
                 )
             
-            default_weather_pref = {
-                "temperature_min": 15,
-                "temperature_max": 30,
-                "humidity_min": 40,
-                "humidity_max": 80,
-                "preferred_conditions": ["sunny", "partly_cloudy"]
-            }
-            default_attraction_types = [
-                "nature",
-                "culture",
-                "entertainment",
-                "food",
-                "popular_sceneries",
-                "famous_landmarks",
-                "ecotourism",
-                "green_spaces"
-            ]
-            default_budget_range = {
-                "min": 100,
-                "max": 1000,
-                "currency": "USD"
-            }
+            # default_weather_pref = {
+            #     "temperature_min": 15,
+            #     "temperature_max": 30,
+            #     "humidity_min": 40,
+            #     "humidity_max": 80,
+            #     "preferred_conditions": ["sunny", "partly_cloudy"]
+            # }
+            # default_attraction_types = [
+            #     "nature",
+            #     "culture",
+            #     "entertainment",
+            #     "food",
+            #     "popular_sceneries",
+            #     "famous_landmarks",
+            #     "ecotourism",
+            #     "green_spaces"
+            # ]
+            # default_budget_range = {
+            #     "min": 100,
+            #     "max": 1000,
+            #     "currency": "USD"
+            # }
             
-            await ClusterRepository.create_or_update_preference(
-                db, 
-                user_id=new_user.id,
-                weather_pref=default_weather_pref,
-                attraction_types=default_attraction_types,
-                budget_range=default_budget_range,
-                kids_friendly=False,
-                weight=1.0
-            )
+            # await ClusterRepository.create_or_update_preference(
+            #     db, 
+            #     user_id=new_user.id,
+            #     weather_pref=default_weather_pref,
+            #     attraction_types=default_attraction_types,
+            #     budget_range=default_budget_range,
+            #     kids_friendly=False,
+            #     weight=1.0
+            # )
+            
+            await ClusterRepository.create_preference(db, user_id=new_user.id)
             
             # Tạo access token để user có thể login ngay
             access_token = AuthenticationService.create_access_token(new_user)
