@@ -85,7 +85,6 @@ class ClusterDestination(Base):
 class Preference(Base):
     __tablename__ = "preferences"
     __table_args__ = (
-        Index("ix_preference_cluster", "cluster_id"),
         Index("ix_preference_updated", "last_updated"),
     )
 

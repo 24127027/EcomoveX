@@ -158,4 +158,3 @@ async def admin_update_user_role(
     db: AsyncSession = Depends(get_db),
 ):
     return await UserService.admin_update_role(db, user_id, role_data.new_role)
-

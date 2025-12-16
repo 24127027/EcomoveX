@@ -12,7 +12,7 @@ from models.cluster import (
     UserClusterAssociation,
 )
 from models.user import User
-from schemas.cluster_schema import ClusterCreate, ClusterUpdate
+from schemas.cluster_schema import ClusterCreate, ClusterUpdate, PreferenceUpdate
 
 
 class ClusterRepository:
@@ -435,19 +435,31 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users without cluster - {e}")
             return []
-
+        
     @staticmethod
-    async def create_or_update_preference(
+    async def create_preference(
         db: AsyncSession,
         user_id: int,
-        weather_pref: Optional[dict] = None,
-        attraction_types: Optional[list] = None,
-        budget_range: Optional[dict] = None,
-        kids_friendly: Optional[bool] = None,
-        visited_destinations: Optional[list] = None,
-        embedding: Optional[list] = None,
-        weight: Optional[float] = None,
-        cluster_id: Optional[int] = None,
+    ):
+        try:
+            new_preference = Preference(
+                user_id=user_id,
+                last_updated=func.now(),
+            )
+            db.add(new_preference)
+            await db.commit()
+            await db.refresh(new_preference)
+            return new_preference
+        except SQLAlchemyError as e:
+            await db.rollback()
+            print(f"ERROR: creating preference for user {user_id} - {e}")
+            return None
+
+    @staticmethod
+    async def update_preference(
+        db: AsyncSession,
+        user_id: int,
+        preference_data: PreferenceUpdate,
     ):
         try:
             result = await db.execute(
@@ -456,34 +468,22 @@ class ClusterRepository:
             preference = result.scalar_one_or_none()
 
             if preference:
-                if weather_pref is not None:
-                    preference.weather_pref = weather_pref
-                if attraction_types is not None:
-                    preference.attraction_types = attraction_types
-                if budget_range is not None:
-                    preference.budget_range = budget_range
-                if kids_friendly is not None:
-                    preference.kids_friendly = kids_friendly
-                if visited_destinations is not None:
-                    preference.visited_destinations = visited_destinations
-                if embedding is not None:
-                    preference.embedding = embedding
-                if weight is not None:
-                    preference.weight = weight
-                if cluster_id is not None:
-                    preference.cluster_id = cluster_id
+                # Update only fields that are provided
+                update_dict = preference_data.model_dump(exclude_unset=True)
+                for key, value in update_dict.items():
+                    setattr(preference, key, value)
                 preference.last_updated = func.now()
             else:
                 preference = Preference(
                     user_id=user_id,
-                    weather_pref=weather_pref,
-                    attraction_types=attraction_types,
-                    budget_range=budget_range,
-                    kids_friendly=kids_friendly or False,
-                    visited_destinations=visited_destinations,
-                    embedding=embedding,
-                    weight=weight or 1.0,
-                    cluster_id=cluster_id,
+                    weather_pref=preference_data.weather_pref,
+                    attraction_types=preference_data.attraction_types,
+                    budget_range=preference_data.budget_range,
+                    kids_friendly=preference_data.kids_friendly or False,
+                    visited_destinations=preference_data.visited_destinations,
+                    embedding=preference_data.embedding,
+                    weight=preference_data.weight or 1.0,
+                    cluster_id=preference_data.cluster_id,
                 )
                 db.add(preference)
 
@@ -496,37 +496,16 @@ class ClusterRepository:
             return None
 
     @staticmethod
-    async def delete_preference(db: AsyncSession, user_id: int):
-        try:
-            result = await db.execute(
-                select(Preference).where(Preference.user_id == user_id)
-            )
-            preference = result.scalar_one_or_none()
-            if not preference:
-                print(f"WARNING: Preference for user {user_id} not found")
-                return False
-
-            await db.delete(preference)
-            await db.commit()
-            return True
-        except SQLAlchemyError as e:
-            await db.rollback()
-            print(f"ERROR: deleting preference for user {user_id} - {e}")
-            return False
-
-    @staticmethod
-    async def get_all_preferences(db: AsyncSession, skip: int = 0, limit: int = 100):
+    async def get_preference_by_user_id(db: AsyncSession, user_id: int):
         try:
             result = await db.execute(
                 select(Preference)
-                .order_by(Preference.last_updated.desc())
-                .offset(skip)
-                .limit(limit)
+                .where(Preference.user_id == user_id)
             )
-            return result.scalars().all()
+            return result.scalar_one_or_none()
         except SQLAlchemyError as e:
-            print(f"ERROR: fetching all preferences - {e}")
-            return []
+            print(f"ERROR: fetching preference for user {user_id} - {e}")
+            return None
 
     @staticmethod
     async def get_user_latest_cluster(db: AsyncSession, user_id: int) -> Optional[int]:
@@ -544,39 +523,3 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching latest cluster for user {user_id} - {e}")
             return None
-
-    # @staticmethod
-    # async def get_cluster_preferred_categories(
-    #     db: AsyncSession, cluster_id: int, limit: int = 5
-    # ) -> List[str]:
-    #     """Get most frequent categories visited by users in a cluster."""
-    #     try:
-    #         from models.destination import Destination, Visit
-
-    #         query = (
-    #             select(
-    #                 Destination.category,
-    #                 func.count().label('frequency')
-    #             )
-    #             .select_from(Visit)
-    #             .join(Destination, Visit.destination_id == Destination.destination_id)
-    #             .join(UserClusterAssociation, Visit.user_id == UserClusterAssociation.user_id)
-    #             .where(
-    #                 and_(
-    #                     UserClusterAssociation.cluster_id == cluster_id,
-    #                     Destination.category.isnot(None)
-    #                 )
-    #             )
-    #             .group_by(Destination.category)
-    #             .order_by(func.count().desc())
-    #             .limit(limit)
-    #             .distinct()
-    #         )
-
-    #         result = await db.execute(query)
-    #         return [row.category for row in result]
-    #     except SQLAlchemyError as e:
-    #         print(
-    #             f"ERROR: fetching preferred categories for cluster {cluster_id} - {e}"
-    #         )
-    #         return []

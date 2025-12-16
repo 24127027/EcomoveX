@@ -9,6 +9,7 @@ from pydantic import ValidationError
 # Import database setup
 from database.db import engine
 from database.init_database import init_db
+from scripts import bulk_create
 from routers.air_router import router as air_router
 from routers.authentication_router import router as auth_router
 from routers.chatbot_router import router as chatbot_router
@@ -43,7 +44,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"WARNING: Database initialization failed - {e}")
 
-    # Refresh emission factors from carbonAPI API
+    RUN_BULK_CREATE_USERS = True
+    
+    if RUN_BULK_CREATE_USERS:
+        try:
+            from database.db import UserAsyncSessionLocal
+            
+            async with UserAsyncSessionLocal() as db:
+                print("📝 Creating sample users...")
+                await bulk_create.bulk_create_users(db=db)
+                print("✅ Sample users created successfully")
+        except Exception as e:
+            print(f"WARNING: Bulk create users failed - {e}")
+    else:
+        print("ℹ️  Bulk create users is disabled")
+
     yield  # App is running
 
     # Shutdown: Cleanup
