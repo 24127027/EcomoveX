@@ -125,8 +125,8 @@ export default function SigninPage() {
       } else {
         // Check if user has set preferences
         try {
-          const preferencesCheck = await api.checkUserHasPreferences();
-          if (!preferencesCheck.hasPreferences) {
+          const hasPreferences = await api.checkUserHasPreferences();
+          if (!hasPreferences) {
             // First time user - redirect to preference onboarding
             router.push("/preference_onboarding");
           } else {

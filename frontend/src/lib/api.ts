@@ -1723,73 +1723,17 @@ class ApiClient {
     );
   }
 
-  // --- PREFERENCE ENDPOINTS (MOCKED) ---
-  async checkUserHasPreferences(): Promise<{ hasPreferences: boolean }> {
-    // Mock implementation - check if user has set preferences
-    // In production, this would call: GET /preferences/me or similar
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate checking localStorage or making an API call
-        const mockHasPreferences = localStorage.getItem("user_preferences_set");
-        resolve({ hasPreferences: mockHasPreferences === "true" });
-      }, 300);
-    });
-  }
-
-  async getUserPreferences(): Promise<UserPreference | null> {
-    // Mock implementation
-    // In production: GET /preferences/me
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const userId = localStorage.getItem("user_id");
-        const storedPrefs = localStorage.getItem("user_preferences");
-        
-        if (storedPrefs) {
-          resolve(JSON.parse(storedPrefs));
-        } else if (userId) {
-          // Return default preferences
-          resolve({
-            id: 1,
-            user_id: parseInt(userId),
-            weather_pref: null,
-            budget_range: null,
-            kids_friendly: false,
-            weight: 1.0,
-          });
-        } else {
-          resolve(null);
-        }
-      }, 300);
+  // --- PREFERENCE ENDPOINTS ---
+  async checkUserHasPreferences(): Promise<boolean> {
+    return this.request<boolean>("/clustering/preference-exists", {
+      method: "GET",
     });
   }
 
   async updateUserPreferences(preferences: PreferenceUpdate): Promise<UserPreference> {
-    // Mock implementation
-    // In production: PUT /preferences/me or POST /preferences
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const userId = localStorage.getItem("user_id");
-        
-        // Create mock preference object
-        const mockPreference: UserPreference = {
-          id: 1,
-          user_id: parseInt(userId || "0"),
-          weather_pref: preferences.weather_pref || null,
-          attraction_types: preferences.attraction_types || null,
-          budget_range: preferences.budget_range || null,
-          kids_friendly: preferences.kids_friendly ?? false,
-          visited_destinations: preferences.visited_destinations || null,
-          embedding: preferences.embedding || null,
-          weight: preferences.weight || 1.0,
-          cluster_id: preferences.cluster_id || null,
-        };
-
-        // Store in localStorage
-        localStorage.setItem("user_preferences", JSON.stringify(mockPreference));
-        localStorage.setItem("user_preferences_set", "true");
-        
-        resolve(mockPreference);
-      }, 500);
+    return this.request<UserPreference>("/clustering/preference", {
+      method: "PUT",
+      body: JSON.stringify(preferences),
     });
   }
 }

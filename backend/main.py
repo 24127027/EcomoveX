@@ -25,7 +25,7 @@ from routers.route_router import router as route_router
 from routers.storage_router import router as storage_router
 from routers.plan_router import router as plan_router
 from routers.recommendation_router import router as recommendation_router
-
+from routers.cluster_router import router as cluster_router
 from routers.user_router import router as user_router
 from routers.weather_router import router as weather_router
 from routers.carbon_router import router as carbon_router
@@ -95,6 +95,7 @@ app.add_middleware(
 # Include all routers
 app.include_router(auth_router)
 app.include_router(user_router)
+app.include_router(cluster_router)
 app.include_router(review_router)
 app.include_router(friend_router)
 app.include_router(destination_router)
