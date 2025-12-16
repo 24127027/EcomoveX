@@ -29,6 +29,8 @@ from routers.recommendation_router import router as recommendation_router
 from routers.user_router import router as user_router
 from routers.weather_router import router as weather_router
 from routers.carbon_router import router as carbon_router
+import importlib
+cluster_router = importlib.import_module("routers.cluster-router")
 from utils.config import settings
 
 
@@ -44,7 +46,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"WARNING: Database initialization failed - {e}")
 
-    RUN_BULK_CREATE_USERS = True
+    RUN_BULK_CREATE_USERS = False
     
     if RUN_BULK_CREATE_USERS:
         try:
@@ -111,6 +113,7 @@ app.include_router(plan_router)
 app.include_router(chatbot_router)
 app.include_router(carbon_router)
 app.include_router(recommendation_router)
+app.include_router(cluster_router.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

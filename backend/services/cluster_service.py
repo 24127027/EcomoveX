@@ -243,7 +243,7 @@ class ClusterService:
     @staticmethod
     async def update_user_embeddings(db: AsyncSession) -> int:
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(
+            cutoff_date = datetime.now() - timedelta(
                 days=EMBEDDING_UPDATE_INTERVAL_DAYS
             )
 
@@ -341,18 +341,36 @@ class ClusterService:
             cluster_counts = {}
             for cluster_id in user_cluster_mapping.values():
                 cluster_counts[cluster_id] = cluster_counts.get(cluster_id, 0) + 1
-
+#==========================================================================================
+            # First, ensure cluster records exist in database
             for cluster_id in sorted(cluster_counts.keys()):
                 print(f"    - Cluster {cluster_id}: {cluster_counts[cluster_id]} users")
+                
+                # Check if cluster exists, create if not
+                existing_cluster = await ClusterRepository.get_cluster_by_id(db, cluster_id + 1)
+                if not existing_cluster:
+                    from schemas.cluster_schema import ClusterCreate
+                    cluster_data = ClusterCreate(
+                        name=f"Cluster {cluster_id + 1}",
+                        algorithm="KMeans",
+                        description=f"Auto-generated cluster with {cluster_counts[cluster_id]} users"
+                    )
+                    await ClusterRepository.create_cluster(db, cluster_data)
+            
+            # Remap cluster IDs from 0-based to 1-based (database IDs start at 1)
+            adjusted_mapping = {user_id: cluster_id + 1 for user_id, cluster_id in user_cluster_mapping.items()}
 
+#==========================================================================================
             associations_created = (
                 await ClusterService.create_user_cluster_associations(
-                    db, user_cluster_mapping
+                    db, adjusted_mapping
                 )
             )
-            for cluster_id in user_cluster_mapping.values():
+            #==========================================================================================
+            # Compute popularity for adjusted cluster IDs
+            for cluster_id in set(adjusted_mapping.values()):
                 await ClusterService.compute_cluster_popularity(db, cluster_id)
-
+#==========================================================================================
             return ClusteringResultResponse(
                 success=True,
                 message="Clustering completed successfully",
