@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
-from schemas.recommendation_schema import SimpleRecommendation
+from schemas.recommendation_schema import SimpleRecommendation, RecommendationDestination
 from services.recommendation_service import RecommendationService
 from utils.token.authentication_util import get_current_user
 
@@ -115,7 +115,7 @@ async def get_nearby_recommendations_by_cluster_tags(
 
 @router.get(
     "/user/me/cluster-affinity",
-    response_model=List[Dict[str, Any]],
+    response_model=RecommendationDestination,
     status_code=status.HTTP_200_OK,
     summary="Get destination IDs based on cluster affinity",
 )
@@ -139,24 +139,15 @@ async def get_cluster_affinity_recommendations(
     5. Combines affinity (70%) + popularity (30%) based on historical user behavior
     6. Returns top-K destination IDs
     
-    **Response (include_scores=False):**
+    **Response:**
     ```json
-    [
-      {"destination_id": "ChIJAbC123..."},
-      {"destination_id": "ChIJXyz789..."}
-    ]
-    ```
-    
-    **Response (include_scores=True):**
-    ```json
-    [
-      {
-        "destination_id": "ChIJAbC123...",
-        "affinity_score": 0.8542,
-        "popularity_score": 78.5,
-        "combined_score": 0.8334
-      }
-    ]
+    {
+      "recommendation": [
+        "ChIJAbC123...",
+        "ChIJXyz789...",
+        "ChIJDef456..."
+      ]
+    }
     ```
     
     **Use Cases:**
@@ -174,7 +165,7 @@ async def get_cluster_affinity_recommendations(
 
 @router.get(
     "/user/{user_id}/cluster-affinity",
-    response_model=List[Dict[str, Any]],
+    response_model=RecommendationDestination,
     status_code=status.HTTP_200_OK,
     summary="Get destination IDs based on cluster affinity (by user_id)",
 )
@@ -184,8 +175,23 @@ async def get_cluster_affinity_recommendations_for_user(
     include_scores: bool = Query(default=False, description="Include affinity/popularity scores in response"),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Get destination IDs based on cluster affinity for a specific user.
     
+    Returns a list of destination IDs (strings) when include_scores=False,
+    or a list of objects with scores when include_scores=True.
     
+    **Response:**
+    ```json
+    {
+      "recommendation": [
+        "ChIJAbC123...",
+        "ChIJXyz789...",
+        "ChIJDef456..."
+      ]
+    }
+    ```
+    """
     return await RecommendationService.recommend_destinations_by_cluster_affinity(
         db=db,
         user_id=user_id,

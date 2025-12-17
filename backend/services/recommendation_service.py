@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.destination_repository import DestinationRepository
 from repository.cluster_repository import ClusterRepository
-from schemas.recommendation_schema import RecommendationResponse, RecommendationScore
+from schemas.recommendation_schema import RecommendationResponse, RecommendationScore, RecommendationDestination, RecommendationDestination
 from schemas.destination_schema import DestinationCreate
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
@@ -26,7 +26,7 @@ def blend_scores(
     similarity_weight: float = 0.7,
     popularity_weight: float = 0.3,
     k: int = 20,
-) -> RecommendationResponse:
+) -> RecommendationScore:
     try:
         destination_scores = {}
 
@@ -385,7 +385,7 @@ class RecommendationService:
         user_id: int,
         k: int = 5,
         include_scores: bool = False
-    ) -> List[str]:
+    ) -> RecommendationDestination:
         """
         Recommends destinations from internal database based on cluster affinity.
         
@@ -431,7 +431,7 @@ class RecommendationService:
             # Step 3: Get all destinations associated with this cluster (from DB)
             cluster_destinations = await ClusterRepository.get_destinations_in_cluster(db, user_cluster)
             if not cluster_destinations:
-                return []
+                return RecommendationDestination(recommendation=[])
             
             # Extract destination IDs
             destination_ids = [dest.destination_id for dest in cluster_destinations]
@@ -488,17 +488,15 @@ class RecommendationService:
                 
                 recommendations.append(rec)
             
-            # Step 6: Sort by combined score (descending)
-            if include_scores:
-                recommendations.sort(key=lambda x: x["combined_score"], reverse=True)
-            else:
-                recommendations.sort(key=lambda x: x["_combined_score"], reverse=True)
-                # Remove internal sorting key
-                for rec in recommendations:
-                    del rec["_combined_score"]
+            # Step 6: Sort by combined score (descending) and return
+            recommendations.sort(
+                key=lambda x: x.get("combined_score") or x.get("_combined_score", 0),
+                reverse=True
+            )
             
-            list_rec = [rec["destination_id"] for rec in recommendations[:k]]
-            return list_rec
+            # Extract destination IDs and return wrapped in schema
+            destination_ids = [rec["destination_id"] for rec in recommendations[:k]]
+            return RecommendationDestination(recommendation=destination_ids)
         
         except HTTPException:
             raise

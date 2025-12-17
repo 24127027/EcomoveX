@@ -20,3 +20,6 @@ class SimpleRecommendation(BaseModel):
     similarity_score: float
     
     model_config = {"extra": "allow"}  # Allow extra fields for flexible responses
+
+class RecommendationDestination(BaseModel):
+    recommendation: List[str] = Field(default_factory=list)
