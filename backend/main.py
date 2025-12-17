@@ -4,11 +4,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
+from fastapi.responses import Response
 
 # Import database setup
 from database.db import engine
 from database.init_database import init_db
+from database.create_all_databases import create_databases
 from scripts import bulk_create
 from routers.air_router import router as air_router
 from routers.authentication_router import router as auth_router
@@ -35,6 +36,16 @@ from utils.config import settings
 # Lifespan event handler (startup/shutdown)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    CREATE_DATABASE = False
+    if CREATE_DATABASE:
+        try:
+            await create_databases()
+            print("Database created and initialized")
+        except Exception as e:
+            print(f"WARNING: Database creation failed - {e}")
+    else:
+        print("Database creation skipped")
+    
     # Startup
     print("Starting EcomoveX ..")
 
@@ -112,14 +123,10 @@ app.include_router(plan_router)
 app.include_router(chatbot_router)
 app.include_router(carbon_router)
 app.include_router(recommendation_router)
-app.include_router(cluster_router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    # Return a 204 No Content response to suppress the error
-    from fastapi.responses import Response
-
     return Response(status_code=204)
 
 
