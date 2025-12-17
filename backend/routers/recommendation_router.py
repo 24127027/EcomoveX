@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
 from schemas.recommendation_schema import SimpleRecommendation, RecommendationDestination
+from schemas.map_schema import TextSearchResponse
 from services.recommendation_service import RecommendationService
 from utils.token.authentication_util import get_current_user
 
@@ -74,7 +75,8 @@ async def sort_recommendations_by_cluster_affinity_for_user(
 
 @router.get(
     "/user/me/nearby-by-cluster",
-    response_model=List[Dict[str, Any]],
+    response_model=TextSearchResponse,
+    response_model_by_alias=True,
     status_code=status.HTTP_200_OK,
     summary="Get nearby recommendations based on user's cluster preferences",
 )

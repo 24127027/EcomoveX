@@ -235,18 +235,27 @@ class RecommendationService:
             from services.map_service import MapService
             
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
+            print(f"🔍 User {user_id} cluster: {user_cluster}")
+            
             cluster_categories: List[str] = []
 
             if user_cluster is not None:
                 cluster_prefs = await ClusterRepository.get_preference_by_user_id(
                     db, user_id
                 )
+                print(f"📊 Cluster preferences: {cluster_prefs}")
                 if cluster_prefs and cluster_prefs.attraction_types:
                     cluster_categories = cluster_prefs.attraction_types[:5]
+            
+            # Fallback: if no cluster or no categories, use default popular categories
+            if not cluster_categories:
+                print(f"⚠️ No cluster categories found for user {user_id}, using defaults")
+                cluster_categories = ["tourist_attraction", "park", "museum", "restaurant", "cafe"]
 
             search_results: List[TextSearchResponse] = []
             radius_meters: int = int(radius_km * 1000)
 
+            print(f"📍 Searching with {len(cluster_categories)} categories: {cluster_categories[:3]}")
             # Fetch results without converting photo URLs for better performance
             for category in cluster_categories[:3]:
                 try:
@@ -255,6 +264,7 @@ class RecommendationService:
                     )
                     # Use MapService.text_search_place with convert_photo_urls=False
                     result = await MapService.text_search_place(db, search_request, user_id, convert_photo_urls=False)
+                    print(f"Search results for category '{category}': {len(result.results) if result else 0}")
                     if result:
                         search_results.append(result)
                 except Exception as e:
@@ -265,6 +275,10 @@ class RecommendationService:
             place_objects: Dict[str, PlaceSearchResult] = {}
             place_scores: Dict[str, Dict[str, Any]] = {}
 
+            total_places_processed = 0
+            places_without_location = 0
+            places_outside_radius = 0
+            
             for idx, result in enumerate(search_results):
                 if not result.results:
                     continue
@@ -273,9 +287,11 @@ class RecommendationService:
 
                 place: PlaceSearchResult
                 for place in result.results:
+                    total_places_processed += 1
                     place_id = place.place_id
 
                     if not place.location:
+                        places_without_location += 1
                         continue
 
                     place_lat: float = place.location.latitude
@@ -296,6 +312,7 @@ class RecommendationService:
                     distance_km: float = 6371 * c
 
                     if distance_km > radius_km:
+                        places_outside_radius += 1
                         continue
 
                     proximity_score: float = max(0.0, 1.0 - (distance_km / radius_km))
@@ -332,11 +349,18 @@ class RecommendationService:
                         # Store the original PlaceSearchResult object
                         place_objects[place_id] = place
 
+            print(f"📊 Processing summary:")
+            print(f"   Total places processed: {total_places_processed}")
+            print(f"   Places without location: {places_without_location}")
+            print(f"   Places outside radius ({radius_km}km): {places_outside_radius}")
+            print(f"   Places within radius & scored: {len(place_scores)}")
+            
             # Sort by combined score and get top K place IDs
             sorted_places = sorted(
                 place_scores.items(), key=lambda x: x[1]["combined_score"], reverse=True
             )
             top_k_place_ids = [place_id for place_id, _ in sorted_places[:k]]
+            print(f"✅ Returning {len(top_k_place_ids)} places to frontend")
 
             # Convert photo references to URLs only for top K recommendations
             from integration.map_api import MapAPI
@@ -372,8 +396,14 @@ class RecommendationService:
                 
                 top_results.append(place)
 
+            print(f"✅ Recommended {len(top_results)} nearby places for user {user_id} based on cluster tags.")
             # Return unified TextSearchResponse format
-            return TextSearchResponse(results=top_results)
+            response = TextSearchResponse(results=top_results)
+            print(f"📤 Response structure: results count = {len(response.results)}")
+            if response.results:
+                first_place = response.results[0]
+                print(f"   Sample place: {first_place.place_id}, name={first_place.display_name.text if first_place.display_name else 'N/A'}")
+            return response
 
         except HTTPException:
             raise
