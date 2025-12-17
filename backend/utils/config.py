@@ -35,9 +35,9 @@ class Settings(BaseSettings):
     BREEAM_USERNAME: str = ""
     BREEAM_PASSWORD: str = ""
     
-    SMTP_HOST: str = ""
-    SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
+    
+    SEND_GRID_API_KEY: str = ""
 
 settings = Settings()
