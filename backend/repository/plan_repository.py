@@ -179,7 +179,6 @@ class PlanRepository:
             db.add(new_plan_dest)
             await db.commit()
             await db.refresh(new_plan_dest)
-            print(f"  ✅ DB: Added destination {new_plan_dest.id} to plan {plan_id}")
             return new_plan_dest
         except SQLAlchemyError as e:
             await db.rollback()

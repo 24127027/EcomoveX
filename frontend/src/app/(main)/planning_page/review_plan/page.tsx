@@ -246,10 +246,12 @@ function ChatWindow({
   onClose,
   planId,
   userId: externalUserId,
+  onPlanUpdated,
 }: {
   onClose: () => void;
   planId: number | null;
   userId?: number | null;
+  onPlanUpdated?: (backendPlanData?: any) => void;
 }) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
@@ -463,9 +465,41 @@ function ChatWindow({
     try {
       const res = await api.sendBotMessage(userId, roomId, userMsg);
       const botText = res?.response;
+      const intent = res?.metadata?.intent;
+      const rawData = res?.metadata?.raw;
 
       if (botText) {
         setMessages((prev) => [...prev, { role: "bot", text: botText }]);
+        
+        // Check for plan modification intents
+        const isPlanIntent = intent === "plan_edit" || 
+                            intent === "plan_query" || 
+                            intent === "add_activity" ||
+                            intent === "remove_activity" ||
+                            intent === "modify_time" ||
+                            intent === "modify_day" ||
+                            intent === "change_budget";
+        
+        if (isPlanIntent && onPlanUpdated) {
+          console.log("🔄 Detected plan modification intent:", intent);
+          
+          // Extract plan data - check both nested paths
+          const planData = rawData?.plan?.plan || rawData?.plan;
+          
+          if (planData?.destinations) {
+            console.log("📦 Using plan data from chatbot response:", planData);
+            // Pass the plan data directly instead of refetching
+            setTimeout(() => {
+              onPlanUpdated(planData);
+            }, 300);
+          } else {
+            // Fallback: refetch if no plan data in response
+            console.log("⚠️ No plan data in response, refetching...");
+            setTimeout(() => {
+              onPlanUpdated();
+            }, 500);
+          }
+        }
       } else {
         setMessages((prev) => [
           ...prev,
@@ -521,11 +555,10 @@ function ChatWindow({
       </div>
 
       {!planId && (
-        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          <AlertCircle size={16} className="mt-0.5" />
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <span>
-            Save your plan whenever you want me to apply changes automatically.
-            I can still brainstorm ideas with you right now.
+            💡 <strong>Preview mode:</strong> I can answer questions and give suggestions, but I can't edit your plan yet. Complete the planning flow and save first!
           </span>
         </div>
       )}
@@ -1673,6 +1706,149 @@ function ReviewPlanContent() {
     }
   };
 
+  // Reload plan data after chatbot edits
+  const handlePlanUpdated = async (backendPlanData?: any) => {
+    console.log("🔄 Updating plan after chatbot edit...", { planId, hasBackendData: !!backendPlanData });
+    
+    try {
+      // If backend provided plan data directly, use it
+      if (backendPlanData?.destinations) {
+        console.log("📦 Using backend plan data:", backendPlanData);
+        console.log("📦 Raw destinations:", backendPlanData.destinations);
+        
+        // ALWAYS update plan info first (dates are critical for filtering)
+        const updatedPlanInfo = {
+          name: backendPlanData.place_name || planInfo.name,
+          date: backendPlanData.start_date || planInfo.date,
+          end_date: backendPlanData.end_date || backendPlanData.start_date || planInfo.end_date,
+          budget: backendPlanData.budget_limit || planInfo.budget,
+        };
+        
+        console.log("📅 Updating plan dates:", {
+          oldDates: { start: planInfo.date, end: planInfo.end_date },
+          newDates: { start: updatedPlanInfo.date, end: updatedPlanInfo.end_date }
+        });
+        
+        setPlanInfo(updatedPlanInfo);
+        
+        sessionStorage.setItem(
+          STORAGE_KEY_INFO,
+          JSON.stringify({
+            name: updatedPlanInfo.name,
+            start_date: updatedPlanInfo.date,
+            end_date: updatedPlanInfo.end_date,
+            budget: updatedPlanInfo.budget,
+          })
+        );
+        
+        // Convert backend format to frontend format
+        const updatedActivities = backendPlanData.destinations.map((dest: any, index: number) => {
+          // Backend uses 'note' field for destination name, but it can be null
+          const destinationName = dest.note || dest.name || dest.destination_name || 
+            `Destination ${dest.destination_id?.slice(0, 8) || index + 1}`;
+          
+          // Normalize time_slot to capitalized format
+          let timeSlot: "Morning" | "Afternoon" | "Evening" = "Morning";
+          if (dest.time_slot) {
+            const normalized = dest.time_slot.toLowerCase();
+            if (normalized === "afternoon") timeSlot = "Afternoon";
+            else if (normalized === "evening") timeSlot = "Evening";
+            else timeSlot = "Morning";
+          }
+          
+          return {
+            id: dest.destination_id || dest.id || `dest-${index}`,
+            original_id: dest.destination_id || dest.id,
+            title: destinationName,
+            address: dest.address || "",
+            image_url: dest.url || dest.image_url || "",
+            time_slot: timeSlot,
+            date: dest.visit_date || backendPlanData.start_date,
+            type: dest.type || dest.destination_type || "attraction",
+            order_in_day: dest.order_in_day ?? index + 1,
+            time: dest.suggested_time || dest.time,
+          };
+        });
+        
+        console.log("✅ Converted activities:", updatedActivities);
+        console.log("📊 Activities by date:", updatedActivities.reduce((acc: any, act: PlanActivity) => {
+          const date = act.date?.split('T')[0] || 'no-date';
+          acc[date] = (acc[date] || 0) + 1;
+          return acc;
+        }, {}));
+        
+        // Update activities state - this will trigger re-render
+        setActivities(updatedActivities);
+        
+        // Also update the ref immediately for consistency
+        activitiesRef.current = updatedActivities;
+        
+        // Save to sessionStorage for persistence
+        sessionStorage.setItem(
+          STORAGE_KEY_STRUCTURED,
+          JSON.stringify(updatedActivities)
+        );
+        
+        console.log("✅ Plan updated from backend response");
+        console.log("📋 Final state:");
+        console.log("   - Activities:", updatedActivities.length);
+        console.log("   - PlanInfo:", updatedPlanInfo);
+        console.log("   - Activities by time slot:", updatedActivities.reduce((acc: any, act: PlanActivity) => {
+          acc[act.time_slot] = (acc[act.time_slot] || 0) + 1;
+          return acc;
+        }, {}));
+        return;
+      }
+      
+      // Fallback: Fetch from API if no direct data provided
+      // Only works if we have a planId to fetch
+      if (!planId) {
+        console.log("⏭️ No planId and no backend data, cannot reload");
+        return;
+      }
+      
+      console.log("📡 Fetching plan from API...");
+      const allPlans = await api.getPlans();
+      const currentPlan = allPlans.find((p) => p.id === Number(planId));
+
+      if (currentPlan) {
+        console.log(`📋 Reloaded plan ${planId}:`, currentPlan);
+        
+        // Update plan info
+        const apiPlanInfo = {
+          name: currentPlan.destination,
+          date: currentPlan.date,
+          end_date: currentPlan.end_date || currentPlan.date,
+          budget: currentPlan.budget_limit || currentPlan.budget || 0,
+        };
+        
+        setPlanInfo(apiPlanInfo);
+        setActivities(currentPlan.activities || []);
+        
+        // Update sessionStorage
+        sessionStorage.setItem(
+          STORAGE_KEY_INFO,
+          JSON.stringify({
+            name: apiPlanInfo.name,
+            start_date: apiPlanInfo.date,
+            end_date: apiPlanInfo.end_date,
+            budget: apiPlanInfo.budget,
+          })
+        );
+        sessionStorage.setItem(
+          STORAGE_KEY_STRUCTURED,
+          JSON.stringify(currentPlan.activities || [])
+        );
+        
+        console.log("✅ Plan reloaded from API");
+      } else {
+        console.warn("⚠️ Plan not found after reload");
+      }
+    } catch (error) {
+      console.error("❌ Failed to reload plan:", error);
+    }
+  };
+
   // --- RENDER AI LOADING SCREEN ---
   // Show full-screen loading only during actual AI generation for new plans
   if (isAIGenerating && !planId && activities.length >= 2) {
@@ -2092,6 +2268,7 @@ function ReviewPlanContent() {
               onClose={handleToggleChat}
               planId={planId ? Number(planId) : null}
               userId={currentUser?.id ?? null}
+              onPlanUpdated={handlePlanUpdated}
             />
           </div>
         )}

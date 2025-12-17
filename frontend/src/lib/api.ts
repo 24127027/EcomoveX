@@ -648,7 +648,11 @@ export interface PlanGenerationResponse {
 export interface BotMessageResponse {
   response: string;
   room_id: number;
-  metadata?: Record<string, any>;
+  metadata?: {
+    intent?: "plan_edit" | "plan_query" | "chit_chat" | string;
+    raw?: any;
+    [key: string]: any;
+  };
 }
 
 export interface DestinationCard {
