@@ -29,17 +29,35 @@ class DestinationDistributionAgent:
         return None
 
     def _get_destination_type(self, dest: Any) -> Optional[DestinationType]:
-        """Extract destination type from destination object or dict."""
+        """Extract destination type from destination object or dict.
+        Also attempts to detect restaurants from name if type is generic."""
         if isinstance(dest, dict):
             dest_type = dest.get("type") or dest.get("destination_type")
+            dest_name = dest.get("note") or dest.get("name") or ""
         else:
             dest_type = getattr(dest, "type", None) or getattr(dest, "destination_type", None)
+            dest_name = getattr(dest, "note", "") or getattr(dest, "name", "")
         
+        # Parse string type to enum
         if isinstance(dest_type, str):
             try:
-                return DestinationType(dest_type)
+                dest_type = DestinationType(dest_type)
             except:
-                return None
+                dest_type = None
+        
+        # Smart detection: If type is generic "attraction" but name suggests restaurant
+        if dest_type == DestinationType.attraction or dest_type is None:
+            # Check if name contains restaurant keywords (Vietnamese and English)
+            restaurant_keywords = [
+                "phở", "cơm", "bún", "bánh", "quán", "nhà hàng", "restaurant", 
+                "cafe", "coffee", "food", "kitchen", "ăn", "dining", "grill",
+                "bistro", "buffet", "canteen"
+            ]
+            name_lower = dest_name.lower()
+            for keyword in restaurant_keywords:
+                if keyword in name_lower:
+                    return DestinationType.restaurant
+        
         return dest_type
 
     def _clone_destination(self, dest: Any, repeat_index: int) -> Dict[str, Any]:
