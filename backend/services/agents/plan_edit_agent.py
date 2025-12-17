@@ -97,7 +97,7 @@ class PlanEditAgent:
                             "time_slot": "morning",
                             "note": place.name,
                             "address": place.formatted_address or "",
-                            "url": place.photos[0].photo_url if place.photos else "",
+                            "url": place.photos.photo_url if place.photos and place.photos.photo_url else "",
                             "estimated_cost": 0
                         }
                         print(f"✅ Found place: {place.name} (ID: {place.place_id})")
