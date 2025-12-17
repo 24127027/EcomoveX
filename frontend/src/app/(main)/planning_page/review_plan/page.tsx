@@ -262,11 +262,15 @@ function ChatWindow({
   planId,
   userId: externalUserId,
   onPlanUpdated,
+  planInfo,
+  activities,
 }: {
   onClose: () => void;
   planId: number | null;
   userId?: number | null;
   onPlanUpdated?: (backendPlanData?: any) => void;
+  planInfo: { name: string; date: string; end_date: string; budget: number };
+  activities: PlanActivity[];
 }) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
@@ -478,7 +482,25 @@ function ChatWindow({
     setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
 
     try {
-      const res = await api.sendBotMessage(userId, roomId, userMsg);
+      // ✅ Send current plan state (unsaved changes) to chatbot
+      const currentPlanState = {
+        place_name: planInfo.name,
+        start_date: planInfo.date,
+        end_date: planInfo.end_date,
+        budget_limit: planInfo.budget,
+        destinations: activities.map((act) => ({
+          destination_id: act.id,
+          destination_type: act.type || "attraction",
+          visit_date: act.date,
+          order_in_day: act.order_in_day,
+          time_slot: act.time_slot.toLowerCase(),
+          note: act.title,
+          url: act.image_url,
+          estimated_cost: 0
+        }))
+      };
+      
+      const res = await api.sendBotMessage(userId, roomId, userMsg, currentPlanState);
       const botText = res?.response;
       const intent = res?.metadata?.intent;
       const rawData = res?.metadata?.raw;
@@ -1303,17 +1325,17 @@ function ReviewPlanContent() {
     activitiesRef.current = activities;
   }, [activities]);
 
-  // ✅ DEBUG: Log whenever activities changes
-  useEffect(() => {
-    console.log("🔔 Activities state changed:", {
-      length: activities.length,
-      items: activities.map((a) => ({
-        id: a.id,
-        title: a.title,
-        slot: a.time_slot,
-      })),
-    });
-  }, [activities]);
+  // ✅ DEBUG: Log whenever activities changes (disabled to reduce noise)
+  // useEffect(() => {
+  //   console.log("🔔 Activities state changed:", {
+  //     length: activities.length,
+  //     items: activities.map((a) => ({
+  //       id: a.id,
+  //       title: a.title,
+  //       slot: a.time_slot,
+  //     })),
+  //   });
+  // }, [activities]);
 
   // --- SPLIT SCREEN LOGIC ---
   const handleToggleChat = () => {
@@ -1784,8 +1806,11 @@ function ReviewPlanContent() {
             else timeSlot = "Morning";
           }
           
+          // ✅ Generate unique ID by combining destination_id with index to prevent duplicates
+          const uniqueId = `${dest.destination_id || dest.id || 'dest'}-${index}`;
+          
           return {
-            id: dest.destination_id || dest.id || `dest-${index}`,
+            id: uniqueId,
             original_id: dest.destination_id || dest.id,
             title: destinationName,
             address: dest.address || "",
@@ -1798,12 +1823,14 @@ function ReviewPlanContent() {
           };
         });
         
-        console.log("✅ Converted activities:", updatedActivities);
-        console.log("📊 Activities by date:", updatedActivities.reduce((acc: any, act: PlanActivity) => {
-          const date = act.date?.split('T')[0] || 'no-date';
-          acc[date] = (acc[date] || 0) + 1;
-          return acc;
-        }, {}));
+        console.log("✅ Converted activities:", {
+          count: updatedActivities.length,
+          byDate: updatedActivities.reduce((acc: any, act: PlanActivity) => {
+            const date = act.date?.split('T')[0] || 'no-date';
+            acc[date] = (acc[date] || 0) + 1;
+            return acc;
+          }, {})
+        });
         
         // Update activities state - this will trigger re-render
         setActivities(updatedActivities);
@@ -1817,14 +1844,13 @@ function ReviewPlanContent() {
           JSON.stringify(updatedActivities)
         );
         
-        console.log("✅ Plan updated from backend response");
-        console.log("📋 Final state:");
-        console.log("   - Activities:", updatedActivities.length);
-        console.log("   - PlanInfo:", updatedPlanInfo);
-        console.log("   - Activities by time slot:", updatedActivities.reduce((acc: any, act: PlanActivity) => {
-          acc[act.time_slot] = (acc[act.time_slot] || 0) + 1;
-          return acc;
-        }, {}));
+        console.log("✅ Plan updated from backend response", {
+          activities: updatedActivities.length,
+          byTimeSlot: updatedActivities.reduce((acc: any, act: PlanActivity) => {
+            acc[act.time_slot] = (acc[act.time_slot] || 0) + 1;
+            return acc;
+          }, {})
+        });
         return;
       }
       
@@ -2172,23 +2198,6 @@ function ReviewPlanContent() {
                 {planDays.map((day, idx) => {
                   const dayStr = day.split("T")[0];
 
-                  // ✅ DEBUG: Log filtering for this day
-                  const morningItems = activities.filter(
-                    (a) =>
-                      a.time_slot === "Morning" &&
-                      (a.date?.split("T")[0] === dayStr ||
-                        (!a.date && dayStr === planDays[0].split("T")[0]))
-                  );
-                  console.log(`📅 Day ${idx + 1} (${dayStr}) - Morning:`, {
-                    totalActivities: activities.length,
-                    morningCount: morningItems.length,
-                    morningItems: morningItems.map((a) => ({
-                      title: a.title,
-                      date: a.date,
-                      slot: a.time_slot,
-                    })),
-                  });
-
                   return (
                     <div key={idx}>
                       <div className="flex items-center gap-2 mb-3 sticky top-0 bg-[#F5F7F5] z-10 py-2">
@@ -2297,6 +2306,8 @@ function ReviewPlanContent() {
               planId={planId ? Number(planId) : null}
               userId={currentUser?.id ?? null}
               onPlanUpdated={handlePlanUpdated}
+              planInfo={planInfo}
+              activities={activities}
             />
           </div>
         )}

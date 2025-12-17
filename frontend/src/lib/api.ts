@@ -1516,11 +1516,17 @@ class ApiClient {
   async sendBotMessage(
     userId: number,
     roomId: number,
-    message: string
+    message: string,
+    currentPlan?: any
   ): Promise<BotMessageResponse> {
     return this.request<BotMessageResponse>("/chatbot/message", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
+      body: JSON.stringify({ 
+        user_id: userId, 
+        room_id: roomId, 
+        message,
+        current_plan: currentPlan  // Send current plan state (unsaved)
+      }),
     });
   }
 

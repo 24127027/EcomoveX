@@ -86,7 +86,7 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
 async def send_message(chat_msg: ChatMessage, db: AsyncSession = Depends(get_db)):
     service = ChatbotService()
     result = await service.handle_user_message(
-        db, chat_msg.user_id, chat_msg.room_id, chat_msg.message
+        db, chat_msg.user_id, chat_msg.room_id, chat_msg.message, chat_msg.current_plan
     )
     return result
 

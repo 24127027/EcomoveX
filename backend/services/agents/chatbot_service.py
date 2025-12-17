@@ -27,7 +27,7 @@ class ChatbotService:
         except Exception:
             return "chit_chat"
     
-    async def handle_user_message(self, db, user_id: int, room_id: int, user_text: str) -> ChatbotResponse:
+    async def handle_user_message(self, db, user_id: int, room_id: int, user_text: str, current_plan: dict = None) -> ChatbotResponse:
         """
         Normalize all output to ChatbotResponse.
         """
@@ -55,7 +55,7 @@ class ChatbotService:
 
         # plan edit
         if intent in plan_edit_intents or intent == "plan_edit":
-            result = await PlanEditAgent().edit_plan(db, user_id, user_text)
+            result = await PlanEditAgent().edit_plan(db, user_id, user_text, current_plan)
 
             return ChatbotResponse(
                 response=result.get("message", "Plan updated."),
