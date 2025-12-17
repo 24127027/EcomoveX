@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import Rank
 from repository.user_repository import UserRepository
+from utils.token.authentication_util import verify_password
 from schemas.user_schema import (
     UserActivityCreate,
     UserActivityResponse,
@@ -238,7 +239,7 @@ class UserService:
                     user.cover_blob_name
                 )
 
-            if user.password != updated_data.old_password:
+            if not verify_password(updated_data.old_password, user.password):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Old password does not match",

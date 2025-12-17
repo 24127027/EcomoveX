@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models.user import Rank, Role, User, UserActivity
+from utils.token.authentication_util import hash_password
 from schemas.user_schema import (
     UserActivityCreate,
     UserCreate,
@@ -124,7 +125,7 @@ class UserRepository:
             if updated_data.new_email is not None:
                 user.email = updated_data.new_email
             if updated_data.new_password is not None:
-                user.password = updated_data.new_password
+                user.password = hash_password(updated_data.new_password)
 
             db.add(user)
             await db.commit()
@@ -270,7 +271,7 @@ class UserRepository:
             if not user:
                 return False
 
-            user.password = new_password
+            user.password = hash_password(new_password)
             await db.commit()
             return True
         except SQLAlchemyError as e:

@@ -837,10 +837,14 @@ async def create_user_with_preference(
     # Tạo user mới
     preference_data = user_data.pop("preference", None)
     
+    # Hash password before storing
+    from utils.token.authentication_util import hash_password
+    hashed_password = hash_password(user_data["password"])
+    
     new_user = User(
         username=user_data["username"],
         email=user_data["email"],
-        password=user_data["password"],
+        password=hashed_password,
         rank=user_data.get("rank", Rank.bronze),
         role=Role.user,
     )

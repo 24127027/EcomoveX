@@ -1,8 +1,7 @@
 from fastapi import HTTPException, status
 from jose import jwt
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from models.user import User
 from repository.user_repository import UserRepository
@@ -19,9 +18,9 @@ from utils.token.authentication_util import (
     generate_temporary_password,
     generate_verification_token,
     verify_email_token,
+    hash_password,
+    verify_password,
 )
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthenticationService:
@@ -35,7 +34,7 @@ class AuthenticationService:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
-            if credentials.password != user.password:
+            if not verify_password(credentials.password, user.password):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
@@ -52,7 +51,7 @@ class AuthenticationService:
     @staticmethod
     def create_access_token(user: User) -> str:
         try:
-            expiration = datetime.utcnow() + timedelta(days=7)
+            expiration = datetime.now(timezone.utc) + timedelta(days=7)
             
             payload = {
                 "sub": str(user.id),
@@ -83,7 +82,7 @@ class AuthenticationService:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
-            if password != user.password:
+            if not verify_password(password, user.password):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
@@ -114,11 +113,14 @@ class AuthenticationService:
                     detail="Email already registered",
                 )
             
-            # Tạo verification token chứa thông tin đăng ký
+            # Hash password trước khi đưa vào token
+            password_hash = hash_password(user_data.password)
+            
+            # Tạo verification token chứa thông tin đăng ký (với password đã hash)
             verification_token = generate_verification_token(
                 email=user_data.email,
                 username=user_data.username,
-                password=user_data.password
+                password_hash=password_hash
             )
             
             # Gửi email xác nhận - link trỏ thẳng đến backend API
@@ -764,12 +766,12 @@ class AuthenticationService:
                     detail="Email already verified and registered",
                 )
             
-            # Tạo user mới từ thông tin trong token
-            from schemas.authentication_schema import UserRegister
-            register_data = UserRegister(
+            # Tạo user mới từ thông tin trong token (password đã được hash sẵn)
+            from schemas.user_schema import UserCreate
+            register_data = UserCreate(
                 username=user_data["username"],
                 email=user_data["email"],
-                password=user_data["password"]
+                password=user_data["password_hash"]  # Password đã hash từ token
             )
             
             new_user = await UserRepository.create_user(db, register_data)
