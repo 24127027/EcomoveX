@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 class PlanValidatorAgent:
     """Agent validate toàn bộ kế hoạch du lịch."""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -58,7 +58,7 @@ class PlanValidatorAgent:
                 dest_id = d.get("destination_id") if isinstance(d, dict) else getattr(d, "destination_id", None)
                 dest_type = d.get("type") or d.get("destination_type") if isinstance(d, dict) else getattr(d, "type", None) or getattr(d, "destination_type", None)
                 visit_date = d.get("visit_date") if isinstance(d, dict) else getattr(d, "visit_date", None)
-                
+
                 if not dest_id:
                     missing_id += 1
                     modifications.append({"destination_index": idx, "field": "destination_id", "issue": "missing"})
@@ -68,7 +68,7 @@ class PlanValidatorAgent:
                 if not visit_date:
                     missing_date += 1
                     modifications.append({"destination_index": idx, "field": "visit_date", "issue": "missing"})
-            
+
             if missing_id > 0:
                 warnings.append(f"{missing_id} điểm đến thiếu destination_id")
             if missing_type > 0:

@@ -45,7 +45,7 @@ class MapAPI:
 
         self.base_url = "https://maps.googleapis.com/maps/api"
         self.new_base_url = "https://places.googleapis.com/v1/places/"
-        
+
         # Create client with better timeout and connection settings
         # Increase timeout and add retries for flaky connections
         self.client = httpx.AsyncClient(
@@ -126,7 +126,7 @@ class MapAPI:
                             place["photos"] = None
 
                 return TextSearchResponse(**data)
-                
+
             except httpx.ConnectError as e:
                 if attempt < max_retries:
                     print(f"Network connection error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
@@ -141,7 +141,7 @@ class MapAPI:
                     await asyncio.sleep(0.5)
                     continue
                 print(f"Timeout error in text_search_place: {str(e)}")
-                raise ValueError(f"Request timeout: Google Places API took too long to respond.")
+                raise ValueError("Request timeout: Google Places API took too long to respond.")
             except httpx.HTTPStatusError as e:
                 print(f"Google Places API Error: {e.response.text}")
                 raise ValueError(f"Google Places API returned error {e.response.status_code}: {e.response.text}")
@@ -236,7 +236,7 @@ class MapAPI:
                 print(f"API Error Status: {data.get('status')}, Full response: {data}")
                 raise ValueError(f"Error fetching place details: {data.get('status')}")
             result = data.get("result", {})
-            
+
             if not result.get("place_id"):
                 print(f"WARNING: place_id is None in response for place_id={place_id}")
                 print(f"Full result: {result}")
@@ -332,10 +332,10 @@ class MapAPI:
             )
         except httpx.ConnectError as e:
             print(f"Network connection error in get_place_details: {str(e)}")
-            raise ValueError(f"Network connection error: Unable to reach Google Places API")
+            raise ValueError("Network connection error: Unable to reach Google Places API")
         except httpx.TimeoutException as e:
             print(f"Timeout error in get_place_details: {str(e)}")
-            raise ValueError(f"Request timeout: Google Places API took too long to respond")
+            raise ValueError("Request timeout: Google Places API took too long to respond")
         except httpx.HTTPStatusError as e:
             print(f"HTTP error in get_place_details: {e.response.status_code} - {e.response.text}")
             raise ValueError(f"Google Places API error: {e.response.status_code}")
@@ -640,7 +640,7 @@ class MapAPI:
             if not photo_reference:
                 print("Warning: photo_reference is None or empty")
                 return ""
-            
+
             if photo_reference.startswith("places/"):
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
 

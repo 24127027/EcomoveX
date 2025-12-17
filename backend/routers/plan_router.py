@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
@@ -11,13 +11,11 @@ from schemas.plan_schema import (
     MemberDelete,
     PlanCreate,
     PlanMemberCreate,
-    PlanMemberDetailResponse,
     PlanMemberResponse,
     PlanResponse,
     PlanUpdate,
 )
-from schemas.route_schema import RouteCreate, RouteResponse, TransportMode
-from models.plan import PlanRole
+from schemas.route_schema import RouteResponse, TransportMode
 from services.plan_service import PlanService
 from utils.token.authentication_util import get_current_user
 
@@ -163,7 +161,7 @@ async def get_route(
         origin_plan_destination_id,
         destination_plan_destination_id,
     )
-    
+
 
 @router.post(
     "/{plan_id}/routes/{route_id}",

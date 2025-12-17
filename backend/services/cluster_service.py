@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.user_service import UserService
-from models.user import Activity, User, UserActivity
+from models.user import Activity, UserActivity
 from repository.cluster_repository import ClusterRepository
 from repository.user_repository import UserRepository
 from schemas.cluster_schema import (
@@ -112,7 +112,7 @@ class ClusterService:
 
             if not text_parts:
                 # Default embedding for new users with no data
-                text_parts.append(f"new traveler interested in exploring destinations")
+                text_parts.append("new traveler interested in exploring destinations")
 
             user_text = " ".join(text_parts)
             print(f"🔤 Generating embedding for user {user_id}: '{user_text[:100]}...'")
@@ -228,7 +228,7 @@ class ClusterService:
             )
 
     @staticmethod
-    def cluster_users_hdbscan( 
+    def cluster_users_hdbscan(
         user_embeddings: List[Tuple[int, List[float]]], min_cluster_size: int = 2
     ) -> Dict[int, int]:
         #=======================================================
@@ -245,7 +245,7 @@ class ClusterService:
 #=======================================================
         # Handle small datasets by adjusting min_cluster_size
         effective_min_size = min(min_cluster_size, max(2, len(user_embeddings) // 3))
-        
+
         clusterer = hdbscan.HDBSCAN(
             min_cluster_size=effective_min_size,
             min_samples=1,
@@ -258,7 +258,7 @@ class ClusterService:
         unique_labels = set(cluster_labels)
         if -1 in unique_labels:
             unique_labels.remove(-1)
-            
+
         # If all points are noise or no clusters formed, create one cluster
         if len(unique_labels) == 0:
             cluster_labels = np.zeros(len(cluster_labels), dtype=int)
@@ -296,7 +296,7 @@ class ClusterService:
                     db, cutoff_date
                 )
             )
-            
+
             # Debug: Log user IDs needing update
             user_ids_needing_update = [u.id for u in users_needing_update]
             print(f"📋 User IDs needing update: {user_ids_needing_update[:10]}...{user_ids_needing_update[-5:] if len(user_ids_needing_update) > 10 else ''}")
@@ -310,7 +310,7 @@ class ClusterService:
                     skipped_users.append(user.id)
                     print(f"⚠️ User {user.id} has no preference record, skipping")
                     continue
-                
+
                 embedding = await ClusterService.embed_preference(db, user.id)
                 if embedding:
                     success = await ClusterService.save_preference_embedding(
@@ -325,10 +325,10 @@ class ClusterService:
                         )
                 else:
                     print(f"⚠️ Failed to generate embedding for user {user.id}")
-            
+
             if skipped_users:
                 print(f"⚠️ Skipped {len(skipped_users)} users without preferences: {skipped_users[:10]}")
-            
+
             return updated_count
         except HTTPException:
             raise
@@ -345,7 +345,7 @@ class ClusterService:
         try:
             created_count = 0
             failed_users = []
-            
+
             for user_id, cluster_id in user_cluster_mapping.items():
                 try:
                     association = await ClusterRepository.add_user_to_cluster(
@@ -363,10 +363,10 @@ class ClusterService:
                     failed_users.append(user_id)
                     print(f"ERROR: Failed to assign user_id={user_id} to cluster_id={cluster_id}: {inner_e}")
                     await db.rollback()
-            
+
             if failed_users:
                 print(f"WARNING: Failed to assign {len(failed_users)} users: {failed_users}")
-            
+
             return created_count
         except Exception as e:
             await db.rollback()
@@ -377,11 +377,11 @@ class ClusterService:
 
     @staticmethod
     async def run_user_clustering(db: AsyncSession) -> ClusteringResultResponse: # hàm chính để chạy quá trình phân cụm người dùng
-        try: 
-            print(f"🔄 Starting clustering: updating user embeddings...")
+        try:
+            print("🔄 Starting clustering: updating user embeddings...")
             embeddings_updated = await ClusterService.update_user_embeddings(db)
             print(f"✅ Updated {embeddings_updated} user embeddings")
-            
+
             users_with_embeddings = await ClusterRepository.get_users_with_embeddings(
                 db
             )
@@ -396,13 +396,13 @@ class ClusterService:
                         clusters_updated=0,
                     ),
                 )
-            
+
             print(f"📊 Found {len(users_with_embeddings)} users with embeddings")
 
             # Validate that user IDs actually exist in the database
             user_embeddings_data = []
             valid_user_ids = set()
-            
+
             for pref in users_with_embeddings:
                 if pref and pref.embedding and pref.user_id:
                     # Verify user still exists
@@ -415,7 +415,7 @@ class ClusterService:
                 else:
                     if pref and pref.user_id:
                         print(f"⚠️ User {pref.user_id} has preference but no embedding")
-            
+
             if not user_embeddings_data:
                 return ClusteringResultResponse(
                     success=False,
@@ -451,7 +451,7 @@ class ClusterService:
             # First, ensure cluster records exist in database
             for cluster_id in sorted(cluster_counts.keys()):
                 print(f"    - Cluster {cluster_id}: {cluster_counts[cluster_id]} users")
-                
+
                 # Check if cluster exists, create if not
                 existing_cluster = await ClusterRepository.get_cluster_by_id(db, cluster_id + 1)
                 if not existing_cluster:
@@ -462,7 +462,7 @@ class ClusterService:
                         description=f"Auto-generated cluster with {cluster_counts[cluster_id]} users"
                     )
                     await ClusterRepository.create_cluster(db, cluster_data)
-            
+
             # Remap cluster IDs from 0-based to 1-based (database IDs start at 1)
             adjusted_mapping = {user_id: cluster_id + 1 for user_id, cluster_id in user_cluster_mapping.items()}
 
@@ -481,7 +481,7 @@ class ClusterService:
                 except Exception as pop_error:
                     popularity_errors += 1
                     print(f"ERROR: Failed to compute popularity for cluster_id={cluster_id}: {pop_error}")
-            
+
             if popularity_errors > 0:
                 print(f"WARNING: Failed to compute popularity for {popularity_errors} clusters")
 #==========================================================================================
@@ -508,7 +508,7 @@ class ClusterService:
             return await ClusterRepository.get_preference_by_user_id(db, user_id)
         except Exception:
             return None
-        
+
     @staticmethod
     async def is_user_have_preference(db: AsyncSession, user_id: int) -> bool:
         try:
@@ -520,7 +520,7 @@ class ClusterService:
             return True
         except Exception:
             return False
-        
+
     # Conversion mappings for preference data
     CLIMATE_TO_TEMP = {
         "warm": {"min_temp": 25, "max_temp": 35},
@@ -528,13 +528,13 @@ class ClusterService:
         "cold": {"min_temp": 0, "max_temp": 15},
         "any": {"min_temp": 0, "max_temp": 40}
     }
-    
+
     BUDGET_TO_RANGE = {
         "low": {"min": 0.0, "max": 500000.0},
         "mid": {"min": 500000.0, "max": 2000000.0},
         "luxury": {"min": 2000000.0, "max": 10000000.0}
     }
-    
+
     # Default values
     DEFAULT_CLIMATE = "any"
     DEFAULT_BUDGET_LEVEL = "mid"
@@ -546,7 +546,7 @@ class ClusterService:
         """Convert frontend format to backend format with default fallbacks."""
         if raw_data is None:
             raw_data = {}
-        
+
         # Weather preference with fallback
         climate = ClusterService.DEFAULT_CLIMATE
         if raw_data.get("weather_pref"):
@@ -554,7 +554,7 @@ class ClusterService:
         weather_pref = ClusterService.CLIMATE_TO_TEMP.get(
             climate, ClusterService.CLIMATE_TO_TEMP[ClusterService.DEFAULT_CLIMATE]
         )
-        
+
         # Budget range with fallback
         level = ClusterService.DEFAULT_BUDGET_LEVEL
         if raw_data.get("budget_range"):
@@ -562,13 +562,13 @@ class ClusterService:
         budget_range = ClusterService.BUDGET_TO_RANGE.get(
             level, ClusterService.BUDGET_TO_RANGE[ClusterService.DEFAULT_BUDGET_LEVEL]
         )
-        
+
         # Attraction types with fallback
         attraction_types = raw_data.get("attraction_types") or ClusterService.DEFAULT_ATTRACTION_TYPES
-        
+
         # Kids friendly with fallback
         kids_friendly = raw_data.get("kids_friendly", ClusterService.DEFAULT_KIDS_FRIENDLY)
-        
+
         return PreferenceUpdate(
             weather_pref=weather_pref,
             attraction_types=attraction_types,

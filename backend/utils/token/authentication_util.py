@@ -60,7 +60,7 @@ def decode_access_token(token: str):
 def generate_temporary_password() -> str:
     try:
         password_length = secrets.randbelow(12) + 8
-        
+
         lowercase = string.ascii_lowercase
         uppercase = string.ascii_uppercase
         digits = string.digits
@@ -77,7 +77,7 @@ def generate_temporary_password() -> str:
         password_chars += [secrets.choice(all_chars) for _ in range(password_length - 4)]
 
         secrets.SystemRandom().shuffle(password_chars)
-        
+
         return ''.join(password_chars)
     except Exception as e:
         raise HTTPException(
@@ -112,25 +112,25 @@ def verify_email_token(token: str) -> dict:
         username = payload.get("username")
         password_hash = payload.get("password_hash")
         token_type = payload.get("type")
-        
+
         if token_type != "email_verification":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid token type"
             )
-        
+
         if not email or not username or not password_hash:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid token payload"
             )
-        
+
         return {
             "email": email,
             "username": username,
             "password_hash": password_hash
         }
-    except JWTError as e:
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token"

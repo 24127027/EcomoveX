@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from math import radians, cos, sin, asin, sqrt
@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.destination_repository import DestinationRepository
 from repository.cluster_repository import ClusterRepository
-from schemas.recommendation_schema import RecommendationResponse, RecommendationScore, RecommendationDestination, RecommendationDestination
+from schemas.recommendation_schema import RecommendationResponse, RecommendationScore, RecommendationDestination
 from schemas.destination_schema import DestinationCreate
 from services.cluster_service import ClusterService
 from utils.embedded.faiss_utils import is_index_ready, search_index
@@ -17,7 +17,6 @@ from schemas.map_schema import (
     PlaceSearchResult,
     TextSearchResponse,
 )
-from models.destination import DestinationEmbedding
 
 
 def blend_scores(
@@ -233,10 +232,10 @@ class RecommendationService:
         try:
             # Import here to avoid circular import
             from services.map_service import MapService
-            
+
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
             print(f"🔍 User {user_id} cluster: {user_cluster}")
-            
+
             cluster_categories: List[str] = []
 
             if user_cluster is not None:
@@ -246,7 +245,7 @@ class RecommendationService:
                 print(f"📊 Cluster preferences: {cluster_prefs}")
                 if cluster_prefs and cluster_prefs.attraction_types:
                     cluster_categories = cluster_prefs.attraction_types[:5]
-            
+
             # Fallback: if no cluster or no categories, use default popular categories
             if not cluster_categories:
                 print(f"⚠️ No cluster categories found for user {user_id}, using defaults")
@@ -278,7 +277,7 @@ class RecommendationService:
             total_places_processed = 0
             places_without_location = 0
             places_outside_radius = 0
-            
+
             for idx, result in enumerate(search_results):
                 if not result.results:
                     continue
@@ -349,12 +348,12 @@ class RecommendationService:
                         # Store the original PlaceSearchResult object
                         place_objects[place_id] = place
 
-            print(f"📊 Processing summary:")
+            print("📊 Processing summary:")
             print(f"   Total places processed: {total_places_processed}")
             print(f"   Places without location: {places_without_location}")
             print(f"   Places outside radius ({radius_km}km): {places_outside_radius}")
             print(f"   Places within radius & scored: {len(place_scores)}")
-            
+
             # Sort by combined score and get top K place IDs
             sorted_places = sorted(
                 place_scores.items(), key=lambda x: x[1]["combined_score"], reverse=True
@@ -365,11 +364,11 @@ class RecommendationService:
             # Convert photo references to URLs only for top K recommendations
             from integration.map_api import MapAPI
             map_api = MapAPI()
-            
+
             top_results: List[PlaceSearchResult] = []
             for place_id in top_k_place_ids:
                 place = place_objects[place_id]
-                
+
                 # Convert photo reference to URL if exists
                 if place.photos and place.photos.photo_reference:
                     try:
@@ -381,7 +380,7 @@ class RecommendationService:
                     except Exception as e:
                         print(f"⚠️ Failed to convert photo URL for {place_id}: {e}")
                         place.photos.photo_url = None
-                
+
                 # Create/update destination in DB
                 try:
                     existing_dest = await DestinationRepository.get_destination_by_id(
@@ -393,7 +392,7 @@ class RecommendationService:
                         )
                 except Exception as e:
                     print(f"⚠️ Could not get/create destination {place_id}: {e}")
-                
+
                 top_results.append(place)
 
             print(f"✅ Recommended {len(top_results)} nearby places for user {user_id} based on cluster tags.")
@@ -416,7 +415,7 @@ class RecommendationService:
 
     @staticmethod
     async def recommend_destinations_by_cluster_affinity(
-        db: AsyncSession, 
+        db: AsyncSession,
         user_id: int,
         k: int = 5,
     ) -> RecommendationDestination:
@@ -451,21 +450,21 @@ class RecommendationService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User {user_id} not found. Please log in again or register a new account."
                 )
-            
+
             # Step 2: Get user's latest cluster
             user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
             if user_cluster is None:
                 # Check if user has preference record
                 pref_exists = await ClusterRepository.get_preference_by_user_id(db, user_id)
-                
+
                 if not pref_exists:
                     # Create preference record if missing
                     print(f"⚠️ User {user_id} missing preference record, creating...")
                     await ClusterRepository.create_preference(db, user_id=user_id)
                     pref_exists = await ClusterRepository.get_preference_by_user_id(db, user_id)
-                
+
                 print(f"⚠️ User {user_id} has no cluster assignment, attempting to run clustering...")
-                
+
                 try:
                     clustering_result = await ClusterService.run_user_clustering(db)
                     print(f"✅ Clustering completed: {clustering_result.stats.clusters_updated} clusters, {clustering_result.stats.users_clustered} users clustered")
@@ -477,12 +476,12 @@ class RecommendationService:
                     print(f"❌ Clustering failed: {cluster_error}")
                     import traceback
                     traceback.print_exc()
-                
+
                 # If still no cluster, return empty recommendations
                 if user_cluster is None:
                     print(f"ℹ️ User {user_id} still has no cluster after clustering attempt")
                     return RecommendationDestination(recommendation=[])
-            
+
             # Step 2: Compute cluster embedding (mean of user embeddings)
             cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
             if cluster_vector is None:
@@ -490,44 +489,44 @@ class RecommendationService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Could not compute embedding for cluster {user_cluster}"
                 )
-            
+
             # Step 3: Get all destinations associated with this cluster (from DB)
             cluster_destinations = await ClusterRepository.get_destinations_in_cluster(db, user_cluster)
             print(f"📍 Found {len(cluster_destinations)} destinations for cluster {user_cluster}")
-            
+
             if not cluster_destinations:
                 print(f"⚠️ No destinations associated with cluster {user_cluster}, using FAISS fallback...")
-                
+
                 # Fallback: Use FAISS-based recommendations instead
                 if not is_index_ready():
-                    print(f"❌ FAISS index not ready")
+                    print("❌ FAISS index not ready")
                     # Try to build index on-demand
                     try:
                         from database.db import get_sync_session
                         from utils.embedded.faiss_utils import build_index
-                        print(f"🔧 Attempting to build FAISS index on-demand...")
+                        print("🔧 Attempting to build FAISS index on-demand...")
                         with get_sync_session() as sync_db:
                             success = build_index(sync_db, normalize=False)
                             if not success:
-                                print(f"❌ FAISS index build failed, returning empty recommendations")
+                                print("❌ FAISS index build failed, returning empty recommendations")
                                 return RecommendationDestination(recommendation=[])
-                            print(f"✅ FAISS index built successfully")
+                            print("✅ FAISS index built successfully")
                     except Exception as e:
                         print(f"❌ Failed to build FAISS index: {e}")
                         return RecommendationDestination(recommendation=[])
-                
+
                 # Search FAISS index using cluster embedding
                 similar_destinations = search_index(cluster_vector.tolist(), k=k)
                 destination_ids = [dest["destination_id"] for dest in similar_destinations[:k]]
                 print(f"✅ FAISS fallback returned {len(destination_ids)} recommendations")
                 return RecommendationDestination(recommendation=destination_ids)
-            
+
             # Extract destination IDs
             destination_ids = [dest.destination_id for dest in cluster_destinations]
-            
+
             # Get destination embeddings in batch
             embeddings_list = await DestinationRepository.get_embeddings_by_ids(db, destination_ids)
-            
+
             # Normalize embeddings into a dictionary for O(1) lookup
             dest_embeddings = {}
             if isinstance(embeddings_list, list):
@@ -535,49 +534,49 @@ class RecommendationService:
                     dest_embeddings[emb.destination_id] = emb.get_vector()
             else:
                 dest_embeddings = embeddings_list
-            
+
             # Convert cluster vector to numpy array and pre-compute norm
             cluster_vec = np.array(cluster_vector, dtype=np.float32)
             cluster_norm = np.linalg.norm(cluster_vec)
-            
+
             # Step 4: Calculate affinity scores for each destination
             recommendations = []
             for dest in cluster_destinations:
                 dest_id = dest.destination_id
-                
+
                 # Skip if no embedding available
                 if dest_id not in dest_embeddings:
                     continue
-                
+
                 # Get destination vector
                 dest_vec = np.array(dest_embeddings[dest_id], dtype=np.float32)
                 dest_norm = np.linalg.norm(dest_vec)
-                
+
                 # Calculate cosine similarity (affinity score)
                 affinity_score = float(
                     np.dot(cluster_vec, dest_vec) / (cluster_norm * dest_norm + 1e-8)
                 )
-                
+
                 # Normalize popularity score to 0-1 range
                 popularity_normalized = (dest.popularity_score or 0.0) / 100.0
-                
+
                 # Step 5: Hybrid scoring - 70% affinity, 30% popularity
                 combined_score = affinity_score * 0.7 + popularity_normalized * 0.3
-                
+
                 recommendations.append({
                     "destination_id": dest_id,
                     "combined_score": combined_score
                 })
-            
+
             # Step 6: Sort by combined score (descending) and return
             recommendations.sort(key=lambda x: x["combined_score"], reverse=True)
-            
+
             # Extract destination IDs and return wrapped in schema
             destination_ids = [rec["destination_id"] for rec in recommendations[:k]]
-            
+
             print(f"✅ Recommended {len(destination_ids)} destinations for user {user_id} based on cluster affinity.")
             return RecommendationDestination(recommendation=destination_ids)
-        
+
         except HTTPException:
             raise
         except Exception as e:
@@ -588,6 +587,5 @@ class RecommendationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error recommending destinations by cluster affinity: {str(e)}"
             )
-        
-        
-        
+
+

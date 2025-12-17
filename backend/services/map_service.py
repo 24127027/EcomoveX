@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,7 @@ from integration.map_api import create_map_client
 from models.user import Activity
 from repository.destination_repository import DestinationRepository
 from repository.review_repository import ReviewRepository
-from schemas.destination_schema import DestinationCreate, Location
+from schemas.destination_schema import Location
 from schemas.map_schema import (
     AutocompleteRequest,
     AutocompleteResponse,
@@ -23,7 +23,6 @@ from schemas.map_schema import (
 )
 from schemas.route_schema import DirectionsResponse
 from schemas.user_schema import UserActivityCreate
-from services.destination_service import DestinationService
 from services.user_service import UserService
 
 FIELD_GROUPS = {
@@ -74,7 +73,7 @@ class MapService:
 
     @staticmethod
     async def text_search_place(
-        db: AsyncSession, 
+        db: AsyncSession,
         data: TextSearchRequest,
         user_id: str,
         convert_photo_urls: bool = False,
@@ -86,14 +85,14 @@ class MapService:
             response = await map_client.text_search_place(data, convert_photo_urls=convert_photo_urls)
 
             # Removed destination creation - only create when user actually selects/saves a place
-            
+
             # Try to sort by cluster affinity, but don't fail the entire search if this fails
             try:
                 response = await RecommendationService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
             except Exception as sort_error:
                 print(f"Warning: Failed to sort by cluster affinity: {sort_error}")
                 # Continue with unsorted results
-            
+
             return response
 
         except HTTPException as he:
@@ -171,10 +170,10 @@ class MapService:
                 db_reviews = await ReviewRepository.get_all_reviews_by_destination(
                     db, data.place_id
                 )
-            
+
             if db_reviews:
                 from schemas.map_schema import Review as ReviewSchema
-                
+
                 # Convert database reviews to schema format
                 db_review_list = []
                 for db_review in db_reviews:
@@ -188,7 +187,7 @@ class MapService:
                             time=db_review.created_at.isoformat() if db_review.created_at else None
                         )
                     )
-                
+
                 # Merge: database reviews first, then API reviews
                 if result.reviews:
                     result.reviews = db_review_list + result.reviews
@@ -205,7 +204,7 @@ class MapService:
                         from schemas.destination_schema import DestinationCreate
                         dest_data = DestinationCreate(place_id=data.place_id)
                         await DestinationRepository.create_destination(db, dest_data)
-                    
+
                     # Log user activity
                     activity_data = UserActivityCreate(
                         activity=Activity.search_destination, destination_id=data.place_id

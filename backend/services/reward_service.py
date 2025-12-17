@@ -37,7 +37,7 @@ class RewardService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error searching missions with term '{search_term}': {e}",
             )
-    
+
     @staticmethod
     async def get_all_missions(db: AsyncSession) -> list[MissionResponse]:
         try:

@@ -28,7 +28,7 @@ def _lazy_load_modules():
     global _modules_loaded
     if _modules_loaded:
         return
-    
+
     try:
         # Import heavy dependencies here
         import numpy  # noqa
@@ -42,14 +42,14 @@ def _lazy_load_modules():
 class GreenCoverageOrchestrator:
     _instance = None
     _models_loaded = False
-    
+
     @classmethod
     def get_instance(cls):
         """Singleton pattern with lazy initialization"""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
-    
+
     def __init__(
         self,
         segmentation_model: str = "best.pt",
@@ -66,31 +66,31 @@ class GreenCoverageOrchestrator:
         self.depth_optimize = optimize
         self.depth_height = height
         self.depth_square = square
-        
+
         # Models will be loaded on first use
         self.tree_segmenter = None
         self.cup_detector = None
         self.device = None
-    
+
     def _ensure_models_loaded(self):
         """Load models only when actually needed"""
         if self._models_loaded:
             return
-        
+
         print("[Orchestrator] Loading ML models for the first time...")
-        
+
         # Lazy load heavy dependencies
         _lazy_load_modules()
-        
+
         # Import here to avoid loading at module import time
         import torch
         from .greenness.segmentation import TreeSegmenter
-        
+
         try:
             from glass_scoring.run import CupDetectorScorer
         except ImportError:
             CupDetectorScorer = None
-        
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"[Orchestrator] Device: {self.device}")
 
@@ -109,7 +109,7 @@ class GreenCoverageOrchestrator:
             )
         else:
             self.cup_detector = None
-        
+
         self._models_loaded = True
         print("[Orchestrator] Models loaded and ready.")
 
@@ -119,7 +119,7 @@ class GreenCoverageOrchestrator:
         Returns depth map for a single image URL.
         """
         from .greenness import depth
-        
+
         # depth.run() takes a list of URLs and returns list of depth maps
         results = depth.run(
             img_sources=[url],
@@ -128,10 +128,10 @@ class GreenCoverageOrchestrator:
             square=self.depth_square,
             grayscale=False
         )
-        
+
         # Return the first (and only) result
         return results[0]
-    
+
     @staticmethod
     def _normalize_depth_map(depth):
         import numpy as np
@@ -145,15 +145,15 @@ class GreenCoverageOrchestrator:
     def process_single_image(self, url: str) -> Dict[str, Any]:
         # Ensure models are loaded before processing
         self._ensure_models_loaded()
-        
+
         try:
             import numpy as np
             import cv2
             from .greenness import utils
-            
+
             # 1. Load Image (Float32 RGB [0,1])
             original_image_float = utils.load_image_from_url(url)
-            
+
             # Convert sang Uint8 [0,255] cho Cup Detector
             original_image_uint8 = (original_image_float * 255).astype(np.uint8)
 
@@ -178,7 +178,7 @@ class GreenCoverageOrchestrator:
 
             # Tính Depth using midas.run()
             depth_map = self._get_depth_map(url)
-            
+
             # Resize depth khớp mask
             mask_h, mask_w = combined_mask.shape[:2]
             if depth_map.shape[:2] != (mask_h, mask_w):
@@ -208,7 +208,7 @@ class GreenCoverageOrchestrator:
             #check if plastic appears in the image
             if any(cup.get("material") == "plastic" for cup in cup_detections):
                 green_score *= 0.7
-            
+
             verified = bool(green_score >= self.green_threshold)
 
             return {
@@ -225,7 +225,7 @@ class GreenCoverageOrchestrator:
     def process_image_list(self, urls: List[str]) -> Dict[str, Any]:
         # Ensure models are loaded before processing
         self._ensure_models_loaded()
-        
+
         import numpy as np
         scores = []
         for url in urls:

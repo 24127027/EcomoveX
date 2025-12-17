@@ -6,7 +6,7 @@ from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 
 class BudgetCheckAgent:
     """Agent kiểm tra ngân sách của plan."""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -33,7 +33,7 @@ class BudgetCheckAgent:
 
         total_cost = 0
         missing_cost_count = 0
-        
+
         # Price level to VND mapping (approximate)
         price_level_map = {
             0: 0,        # Free
@@ -42,10 +42,10 @@ class BudgetCheckAgent:
             3: 300000,   # Expensive (~$12)
             4: 500000,   # Very Expensive (~$20)
         }
-        
+
         for d in destinations:
             cost = d.get("estimated_cost") if isinstance(d, dict) else getattr(d, "estimated_cost", 0)
-            
+
             # If cost is already provided, use it
             if cost and cost > 0:
                 total_cost += cost
@@ -63,7 +63,7 @@ class BudgetCheckAgent:
                             ),
                             db=self.db
                         )
-                        
+
                         if place_details.price_level is not None:
                             estimated_cost = price_level_map.get(place_details.price_level, 0)
                             total_cost += estimated_cost
@@ -87,11 +87,11 @@ class BudgetCheckAgent:
                 "over_by": over_amount,
                 "suggestion": "Giảm bớt điểm đến hoặc tăng ngân sách"
             })
-        
+
         if missing_cost_count > 0:
             warnings.append(f"Có {missing_cost_count} điểm đến chưa có thông tin chi phí")
             modifications.append({"issue": "missing_cost", "count": missing_cost_count, "suggestion": "Bổ sung chi phí ước tính"})
-        
+
         usage_percent = (total_cost / budget * 100) if budget > 0 else 0
 
         return {

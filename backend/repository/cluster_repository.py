@@ -348,7 +348,7 @@ class ClusterRepository:
                     Preference.last_updated > cutoff_date,
                 )
             )
-            
+
             # Get all users who either:
             # 1. Don't have recent embeddings (not in recent_prefs), OR
             # 2. Have a preference record
@@ -443,7 +443,7 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users without cluster - {e}")
             return []
-        
+
     @staticmethod
     async def create_preference(
         db: AsyncSession,
@@ -501,18 +501,6 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: creating/updating preference for user {user_id} - {e}")
-            return None
-
-    @staticmethod
-    async def get_preference_by_user_id(db: AsyncSession, user_id: int):
-        try:
-            result = await db.execute(
-                select(Preference)
-                .where(Preference.user_id == user_id)
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching preference for user {user_id} - {e}")
             return None
 
     @staticmethod

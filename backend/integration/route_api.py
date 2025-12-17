@@ -29,18 +29,18 @@ TRANSPORT_MODE_TO_ROUTES_API = {
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate approximate distance between two coordinates in km (Haversine formula)."""
     from math import radians, sin, cos, sqrt, atan2
-    
+
     R = 6371  # Earth radius in km
-    
+
     lat1_rad, lon1_rad = radians(lat1), radians(lon1)
     lat2_rad, lon2_rad = radians(lat2), radians(lon2)
-    
+
     dlat = lat2_rad - lat1_rad
     dlon = lon2_rad - lon1_rad
-    
+
     a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon/2)**2
     c = 2 * atan2(sqrt(a), sqrt(1-a))
-    
+
     return R * c
 
 
@@ -55,25 +55,25 @@ def should_attempt_transit(origin: Location, destination: Location) -> tuple[boo
         origin.latitude, origin.longitude,
         destination.latitude, destination.longitude
     )
-    
+
     # Too far for transit (>150km typically no public transit)
     if distance > 150:
         return False, f"Distance too far for public transit ({distance:.1f} km > 150 km)"
-    
+
     # Very short distance (<500m), walking is better
     if distance < 0.5:
         return False, f"Distance too short for transit ({distance:.1f} km < 0.5 km), walking recommended"
-    
+
     # Check if within major urban areas (simplified check)
     # Vietnam major cities: HCMC (10.7-10.9, 106.6-106.9), Hanoi (20.9-21.1, 105.7-105.9)
     in_hcmc = (10.7 <= origin.latitude <= 10.9 and 106.6 <= origin.longitude <= 106.9) or \
               (10.7 <= destination.latitude <= 10.9 and 106.6 <= destination.longitude <= 106.9)
     in_hanoi = (20.9 <= origin.latitude <= 21.1 and 105.7 <= origin.longitude <= 105.9) or \
                (20.9 <= destination.latitude <= 21.1 and 105.7 <= destination.longitude <= 105.9)
-    
+
     if not (in_hcmc or in_hanoi):
         return True, f"Warning: Location may be outside major transit coverage (distance: {distance:.1f} km)"
-    
+
     return True, f"Transit may be available (distance: {distance:.1f} km, in major city)"
 
 
@@ -92,26 +92,26 @@ class RouteAPI:
         """Parse Google Routes API transitDetails into TransitStepDetail schema."""
         if not transit_data:
             return None
-        
+
         try:
             from schemas.route_schema import TransitStepDetail
-            
+
             stop_details = transit_data.get("stopDetails", {})
             arrival_stop = stop_details.get("arrivalStop", {})
             departure_stop = stop_details.get("departureStop", {})
-            
+
             # Extract location from stops
             arrival_location = arrival_stop.get("location", {}).get("latLng", {})
             departure_location = departure_stop.get("location", {}).get("latLng", {})
-            
+
             # Extract transit line info
             transit_line = transit_data.get("transitLine", {})
             line_name = (
-                transit_line.get("nameShort") or 
-                transit_line.get("name") or 
+                transit_line.get("nameShort") or
+                transit_line.get("name") or
                 "N/A"
             )
-            
+
             return TransitStepDetail(
                 arrival_stop=(
                     arrival_stop.get("name", ""),
@@ -151,7 +151,7 @@ class RouteAPI:
                 if not should_try:
                     print(f"⚠️  Skipping transit request: {reason}")
                     raise ValueError(f"TRANSIT_NOT_FEASIBLE: {reason}")
-            
+
             params = {
                 "origin": f"{data.origin.latitude},{data.origin.longitude}",
                 "destination": f"{data.destination.latitude},{data.destination.longitude}",
@@ -179,7 +179,7 @@ class RouteAPI:
                 if avoid_list:
                     params["avoid"] = "|".join(avoid_list)
 
-            print(f"\n=== Calling Google Directions API v1 ===")
+            print("\n=== Calling Google Directions API v1 ===")
             print(f"Mode: {mode.value}")
             print(f"Origin: ({data.origin.latitude}, {data.origin.longitude})")
             print(f"Destination: ({data.destination.latitude}, {data.destination.longitude})")
@@ -200,17 +200,17 @@ class RouteAPI:
             if api_status != "OK":
                 error_msg = response_data.get("error_message", "")
                 print(f"API Error Message: {error_msg}")
-                
+
                 if api_status == "ZERO_RESULTS":
-                    print(f"❌ No transit routes available for this location")
-                    print(f"   Possible reasons:")
-                    print(f"   - Area not covered by public transit")
-                    print(f"   - Rural/suburban area without bus service")
-                    print(f"   - Distance too far for transit (>100km)")
-                    print(f"   - No transit data in Google Maps")
+                    print("❌ No transit routes available for this location")
+                    print("   Possible reasons:")
+                    print("   - Area not covered by public transit")
+                    print("   - Rural/suburban area without bus service")
+                    print("   - Distance too far for transit (>100km)")
+                    print("   - No transit data in Google Maps")
                     raise ValueError(
-                        f"TRANSIT_NOT_AVAILABLE: No public transit routes found between these locations. "
-                        f"This area may not have bus/metro coverage or the distance is too far for transit."
+                        "TRANSIT_NOT_AVAILABLE: No public transit routes found between these locations. "
+                        "This area may not have bus/metro coverage or the distance is too far for transit."
                     )
                 elif api_status == "NOT_FOUND":
                     raise ValueError(f"INVALID_LOCATION: One or both locations could not be geocoded. {error_msg}")
@@ -247,11 +247,11 @@ class RouteAPI:
                         if "transit_details" in step_data:
                             td = step_data["transit_details"]
                             from schemas.route_schema import TransitStepDetail
-                            
+
                             arrival_stop = td.get("arrival_stop", {})
                             departure_stop = td.get("departure_stop", {})
                             line = td.get("line", {})
-                            
+
                             transit_details = TransitStepDetail(
                                 arrival_stop=(
                                     arrival_stop.get("name", ""),
@@ -320,7 +320,7 @@ class RouteAPI:
                     legs.append(leg)
 
                 from schemas.destination_schema import Bounds
-                
+
                 bounds_data = route_data.get("bounds", {})
                 ne = bounds_data.get("northeast", {})
                 sw = bounds_data.get("southwest", {})
@@ -358,7 +358,7 @@ class RouteAPI:
         # Use Directions v1 for TRANSIT mode (better coverage in Vietnam)
         if mode in [TransportMode.bus, TransportMode.metro, TransportMode.train]:
             return await self.get_routes_v1(data, mode, language)
-        
+
         # Use Routes v2 for DRIVE and WALK
         try:
             payload: Dict[str, Any] = {
@@ -414,7 +414,7 @@ class RouteAPI:
                 ),
             }
 
-            print(f"\n=== Calling Google Routes API ===")
+            print("\n=== Calling Google Routes API ===")
             print(f"Mode: {mode.value}")
             print(f"Travel Mode: {TRANSPORT_MODE_TO_ROUTES_API.get(mode.value, 'DRIVE')}")
             print(f"Origin: ({data.origin.latitude}, {data.origin.longitude})")
@@ -425,7 +425,7 @@ class RouteAPI:
             )
 
             print(f"Response Status: {response.status_code}")
-            
+
             if response.status_code != 200:
                 error_detail = response.text[:500] if response.text else "No error details"
                 print(f"Routes API HTTP Error {response.status_code}: {error_detail}")
@@ -433,22 +433,22 @@ class RouteAPI:
 
             response_data = response.json()
             print(f"Response has routes: {bool(response_data.get('routes'))}")
-            
+
             # Check if response is completely empty
             if not response_data:
-                print(f"WARNING: Google Routes API returned empty response")
-                print(f"This may indicate:")
-                print(f"  1. Routes API not enabled in Google Cloud Console")
-                print(f"  2. Billing not set up")
-                print(f"  3. API quota exceeded")
-                print(f"  4. Invalid API key")
-                raise ValueError(f"Empty response from Routes API. Check API configuration.")
-            
+                print("WARNING: Google Routes API returned empty response")
+                print("This may indicate:")
+                print("  1. Routes API not enabled in Google Cloud Console")
+                print("  2. Billing not set up")
+                print("  3. API quota exceeded")
+                print("  4. Invalid API key")
+                raise ValueError("Empty response from Routes API. Check API configuration.")
+
             if not response_data.get("routes"):
-                print(f"\n=== No Routes Found ===")
+                print("\n=== No Routes Found ===")
                 print(f"Request payload: {payload}")
                 print(f"Response data: {response_data}")
-                
+
                 # Check for specific error messages
                 if 'error' in response_data:
                     error_info = response_data['error']
@@ -462,9 +462,9 @@ class RouteAPI:
                 else:
                     # Empty routes without error - likely mode not supported
                     if TRANSPORT_MODE_TO_ROUTES_API.get(mode.value) == 'TRANSIT':
-                        print(f"TRANSIT mode may not be available for this route")
-                        raise ValueError(f"TRANSIT routes not available for this location")
-                    raise ValueError(f"No routes found without error message")
+                        print("TRANSIT mode may not be available for this route")
+                        raise ValueError("TRANSIT routes not available for this location")
+                    raise ValueError("No routes found without error message")
 
             routes = []
             for route_data in response_data.get("routes", []):
@@ -618,7 +618,7 @@ class RouteAPI:
                     legs.append(leg)
 
                 from schemas.destination_schema import Bounds
-                
+
                 viewport = route_data.get("viewport", {})
                 ne = viewport.get("high", {})
                 sw = viewport.get("low", {})
@@ -923,7 +923,7 @@ class RouteAPI:
                     legs.append(leg)
 
                 from schemas.destination_schema import Bounds
-                
+
                 viewport = route_data.get("viewport", {})
                 ne = viewport.get("high", {})
                 sw = viewport.get("low", {})

@@ -21,7 +21,6 @@ from schemas.route_schema import RouteCreate, TransportMode
 from models.destination import Destination
 
 
-from sqlalchemy.orm import selectinload
 
 
 class PlanRepository:
@@ -311,7 +310,7 @@ class PlanRepository:
             return []
 
     @staticmethod
-    async def get_plan_destination_by_id(
+    async def get_plan_destination_by_plan_and_dest_id(
         db: AsyncSession, plan_id: int, destination_id: str
     ):
         try:
@@ -433,7 +432,7 @@ class PlanRepository:
             await db.rollback()
             print(f"ERROR: creating route - {e}")
             return None
-        
+
     @staticmethod
     async def get_all_routes_by_plan_id(db: AsyncSession, plan_id: int) -> list[Route]:
         try:
@@ -444,12 +443,12 @@ class PlanRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving routes for plan ID {plan_id} - {e}")
             return []
-        
+
     @staticmethod
     async def get_route_by_origin_and_destination(
-        db: AsyncSession, 
-        plan_id: int, 
-        origin_plan_destination_id: int, 
+        db: AsyncSession,
+        plan_id: int,
+        origin_plan_destination_id: int,
         destination_plan_destination_id: int
     ) -> Route | None:
         try:
@@ -464,7 +463,7 @@ class PlanRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving route for plan ID {plan_id} from {origin_plan_destination_id} to {destination_plan_destination_id} - {e}")
             return None
-        
+
     @staticmethod
     async def get_route_by_id(db: AsyncSession, route_id: int) -> Route:
         try:
@@ -475,7 +474,7 @@ class PlanRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: retrieving route ID {route_id} - {e}")
             return None
-        
+
     @staticmethod
     async def update_route(db: AsyncSession, route_id: int, mode: TransportMode, carbon_emission_kg: float) -> bool:
         try:

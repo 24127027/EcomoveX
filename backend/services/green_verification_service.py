@@ -1,9 +1,8 @@
-from typing import Dict, Any, List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.destination import GreenVerifiedStatus
-from schemas.map_schema import PlaceDataCategory, PlaceDetailsRequest, PlaceDetailsResponse
+from schemas.map_schema import PlaceDataCategory, PlaceDetailsRequest
 from services.map_service import MapService
 from utils.green_verification.orchestrator import GreenCoverageOrchestrator
 from schemas.green_verification_schema import GreenVerificationResponse
@@ -27,7 +26,7 @@ class GreenVerificationService:
         tag: GreenVerifiedStatus
         }
     '''
-    
+
     @classmethod
     async def verify_place_green_coverage(cls, place_id: str, db: AsyncSession, user_id: int) -> GreenVerificationResponse:
         """
@@ -83,13 +82,13 @@ class GreenVerificationService:
                 green_score=final_score,
                 status=verification_status
             )
-        
+
         except Exception as e:
             # Log the error
             print(f"[GreenVerification] ML processing failed: {e}")
             import traceback
             traceback.print_exc()
-            
+
             # Return a fallback response indicating processing is unavailable
             # This allows the API to still work even if ML models fail to load
             raise HTTPException(

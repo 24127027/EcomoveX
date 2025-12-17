@@ -13,13 +13,13 @@ import json
 
 class PlannerAgent:
     """Agent chính xử lý các yêu cầu liên quan đến plan."""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.model = TextGeneratorAPI()
         instruction_path = Path(__file__).parent.parent / "instructions" / "main_agent.txt"
         self.instruction = self._load_instruction(str(instruction_path))
-    
+
     def _load_instruction(self, filepath: str) -> str:
         path = Path(filepath)
         if not path.exists():
@@ -31,32 +31,32 @@ class PlannerAgent:
         """Chạy tất cả sub-agents để validate plan."""
         warnings, modifications = [], []
         plan_data = self._plan_to_dict(plan)
-        
+
         # ALWAYS run distribution agent FIRST to redistribute destinations
         distribution_agent = DestinationDistributionAgent(self.db)
         dist_result = await distribution_agent.process(plan_data, action="distribute")
-        
+
         if dist_result.get("success") and dist_result.get("distributed_destinations"):
             # Update plan_data with distributed destinations
             plan_data["destinations"] = dist_result["distributed_destinations"]
-            
+
             if dist_result.get("modifications"):
                 for mod in dist_result["modifications"]:
                     mod["source"] = "distribution"
                     modifications.append(mod)
         elif not dist_result.get("success"):
             warnings.append({
-                "agent": "distribution", 
+                "agent": "distribution",
                 "message": dist_result.get("message", "Distribution failed")
             })
-        
+
         sub_agents = [
             ("opening_hours", OpeningHoursAgent),
             ("budget", BudgetCheckAgent),
             ("daily_schedule", DailyCalculationAgent),
             ("validator", PlanValidatorAgent),
         ]
-        
+
         for agent_name, agent_cls in sub_agents:
             try:
                 res = await agent_cls(self.db).process(plan_data, action)
@@ -68,9 +68,9 @@ class PlannerAgent:
                         modifications.append(mod)
             except Exception as e:
                 warnings.append({"agent": agent_name, "message": f"Agent error: {str(e)}"})
-        
+
         return {
-            "warnings": warnings, 
+            "warnings": warnings,
             "modifications": modifications,
             "distributed_plan": plan_data  # Return the updated plan with distributions
         }
@@ -96,7 +96,7 @@ class PlannerAgent:
             if data.get("end_date"):
                 data["end_date"] = str(data["end_date"])
             return data
-        
+
         destinations = []
         if hasattr(plan, "destinations") and plan.destinations:
             for d in plan.destinations:
@@ -115,7 +115,7 @@ class PlannerAgent:
                 if hasattr(dest_dict["time_slot"], "value"):
                     dest_dict["time_slot"] = dest_dict["time_slot"].value
                 destinations.append(dest_dict)
-        
+
         return {
             "id": getattr(plan, "id", None),
             "place_name": getattr(plan, "place_name", None),
@@ -129,18 +129,18 @@ class PlannerAgent:
         """Validate một plan cụ thể."""
         plans = await PlanService.get_plans_by_user(self.db, user_id)
         plan = next((p for p in plans if p.id == plan_id), None) if plans else None
-        
+
         if not plan:
             return {"valid": False, "message": "Plan not found"}
-        
+
         result = await self._run_sub_agents(plan, "validate")
         return {"valid": len(result["warnings"]) == 0, "warnings": result["warnings"], "suggestions": result["modifications"]}
-    
+
     async def process_plan(self, user_id: int, user_text: str, action: str = "view", plan_id: int = None) -> Dict[str, Any]:
         """Xử lý yêu cầu liên quan đến plan."""
         # Expire all cached data to ensure fresh fetch from database
         self.db.expire_all()
-        
+
         # If plan_id is provided, use it directly
         if plan_id:
             plan = await PlanService.get_plan_by_id(self.db, user_id, plan_id)
@@ -149,36 +149,36 @@ class PlannerAgent:
         else:
             # Otherwise, get the latest plan
             plans = await PlanService.get_plans_by_user(self.db, user_id)
-            
+
             if not plans or not plans.plans or len(plans.plans) == 0:
                 return {"ok": False, "message": "Bạn chưa có kế hoạch du lịch nào. Hãy tạo một kế hoạch mới!"}
-            
+
             # Get the latest plan (last in list)
             plan_basic = plans.plans[-1]
             plan = await PlanService.get_plan_by_id(self.db, user_id, plan_basic.id)
-        
+
         if not plan:
             return {"ok": False, "message": "Không thể tải thông tin kế hoạch."}
-        
+
         agent_results = await self._run_sub_agents(plan, action)
         warnings, modifications = agent_results["warnings"], agent_results["modifications"]
         plan_dict = self._plan_to_dict(plan)
-        
+
         context_messages = [
             {"role": "system", "content": self.instruction},
             {"role": "user", "content": f"User request: {user_text}\n\nCurrent plan: {json.dumps(plan_dict, ensure_ascii=False, indent=2)}"},
         ]
-        
+
         if warnings:
-            context_messages.append({"role": "system", "content": f"Warnings:\n" + "\n".join([f"- {w['agent']}: {w['message']}" for w in warnings])})
+            context_messages.append({"role": "system", "content": "Warnings:\n" + "\n".join([f"- {w['agent']}: {w['message']}" for w in warnings])})
         if modifications:
             context_messages.append({"role": "system", "content": f"Suggestions:\n{json.dumps(modifications, ensure_ascii=False, indent=2)}"})
-        
+
         try:
             reply = await self.model.generate_reply(context_messages)
         except:
             reply = self._generate_fallback_reply(plan_dict, warnings, modifications)
-        
+
         return {"ok": True, "message": reply, "plan": plan_dict, "warnings": warnings, "modifications": modifications, "intent": "plan_query"}
 
     def _generate_fallback_reply(self, plan: Dict, warnings: List[Dict], modifications: List[Dict]) -> str:

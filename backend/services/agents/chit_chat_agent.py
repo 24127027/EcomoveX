@@ -4,12 +4,12 @@ from typing import Optional
 
 class ChitChatAgent:
     """Agent xử lý các tin nhắn chat thông thường."""
-    
+
     def __init__(self):
         self.model = TextGeneratorAPI()
         self.system_prompt = """You are EcomoveX's friendly travel assistant. 
 Be helpful, friendly, and concise. Guide users to use 'add', 'remove', 'view plan' for trip planning."""
-    
+
     async def chat(self, user_text: str, context: Optional[list] = None) -> str:
         """Xử lý tin nhắn chat thông thường."""
         try:
@@ -17,7 +17,7 @@ Be helpful, friendly, and concise. Guide users to use 'add', 'remove', 'view pla
             if context:
                 messages.extend(context[-10:])
             messages.append({"role": "user", "content": user_text})
-            
+
             print(f"🤖 ChitChatAgent - Sending to LLM: {user_text}")
             reply = await self.model.generate_reply(messages)
             print(f"✅ ChitChatAgent - Got reply: {reply[:100]}...")

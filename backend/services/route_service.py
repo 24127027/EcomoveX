@@ -22,7 +22,6 @@ from schemas.route_schema import (
     RouteForPlanResponse,
 )
 from services.carbon_service import CarbonService
-from services.map_service import MapService
 from models.plan import PlanDestination
 import math
 
@@ -45,55 +44,55 @@ class RouteService:
             walking_steps = []
 
             steps = leg.get("steps", [])
-            
+
             for step in steps:
                 if not isinstance(step, dict):
                     continue
-                    
+
                 travel_mode = step.get("travel_mode")
                 if not travel_mode:
                     continue
-                
+
                 # Normalize travel_mode to string
                 if hasattr(travel_mode, 'value'):
                     travel_mode = travel_mode.value
                 travel_mode = str(travel_mode).upper()
-                
+
                 # Extract common fields (after model_dump(), these are already simple types)
                 distance = step.get("distance", 0)  # Already float in km
                 duration = step.get("duration", 0)  # Already float in minutes
-                
+
                 # Handle TRANSIT steps
                 if travel_mode in ["TRANSIT", "BUS", "METRO", "TRAIN"]:
                     transit_details_data = step.get("transit_details")
                     if not transit_details_data or not isinstance(transit_details_data, dict):
                         continue
-                    
+
                     # Extract line name (can be string or dict)
                     line = transit_details_data.get("line", "N/A")
                     if isinstance(line, dict):
                         line = line.get("short_name") or line.get("name", "N/A")
-                    
+
                     # Extract stop locations (after model_dump, these are tuples or dicts)
                     departure_stop = transit_details_data.get("departure_stop", [])
                     arrival_stop = transit_details_data.get("arrival_stop", [])
-                    
+
                     # Parse stop format: can be tuple (name, Location) or dict
                     dep_lat, dep_lng = 0.0, 0.0
                     arr_lat, arr_lng = 0.0, 0.0
-                    
+
                     if isinstance(departure_stop, (list, tuple)) and len(departure_stop) >= 2:
                         dep_location = departure_stop[1]
                         if isinstance(dep_location, dict):
                             dep_lat = dep_location.get("latitude", 0.0)
                             dep_lng = dep_location.get("longitude", 0.0)
-                    
+
                     if isinstance(arrival_stop, (list, tuple)) and len(arrival_stop) >= 2:
                         arr_location = arrival_stop[1]
                         if isinstance(arr_location, dict):
                             arr_lat = arr_location.get("latitude", 0.0)
                             arr_lng = arr_location.get("longitude", 0.0)
-                    
+
                     transit_steps.append({
                         "line": line,
                         "vehicle": TransportMode.bus,
@@ -108,13 +107,13 @@ class RouteService:
                         "num_stops": 0,  # v1 API doesn't provide this
                         "duration": duration if isinstance(duration, (int, float)) else 0,
                     })
-                
+
                 # Handle WALKING steps
                 elif travel_mode in ["WALKING", "WALK"]:
                     # Distance is already in km, convert to meters for schema
                     distance_m = distance * 1000 if isinstance(distance, (int, float)) else 0
                     duration_min = duration if isinstance(duration, (int, float)) else 0
-                    
+
                     walking_steps.append({
                         "distance": distance_m,
                         "duration": duration_min,
@@ -267,7 +266,7 @@ class RouteService:
                         vehicle_type="GASOLINE",
                         language=language,
                     )
-                    
+
                     # Process eco routes and add to all_routes
                     # The actual "eco-friendliness" will be determined by carbon calculation
                     if eco_result and eco_result.routes:
@@ -332,7 +331,7 @@ class RouteService:
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="No driving routes found",
                     )
-                
+
                 lowest_carbon_route = min(driving_routes, key=lambda x: x.carbon)
                 lowest_carbon_route_data = RouteData(
                     type=RouteType.low_carbon.value,
@@ -397,12 +396,12 @@ class RouteService:
         """
         try:
             max_acceptable_time = fastest_route.duration * max_time_ratio
-            
+
             # Priority 1: Check for transit routes
             transit_routes = [r for r in all_routes if TransportMode.bus in r.mode]
             if transit_routes:
                 best_transit = min(transit_routes, key=lambda x: x.carbon)
-                
+
                 driving_routes = [r for r in all_routes if TransportMode.car in r.mode]
                 if driving_routes:
                     best_driving = min(driving_routes, key=lambda x: x.duration)
@@ -448,7 +447,7 @@ class RouteService:
                         route_details=walk_route.route_details,
                         transit_info=walk_route.transit_info,
                     )
-            
+
             # Priority 3: When no transit available, select eco-optimized driving route
             # This is the "smart" choice when transit is not an option
             driving_routes = [r for r in all_routes if TransportMode.car in r.mode]
@@ -456,14 +455,14 @@ class RouteService:
                 # Find driving route with best carbon/time balance
                 # Prefer routes that are within acceptable time and have lower carbon
                 eco_driving_candidates = [
-                    r for r in driving_routes 
+                    r for r in driving_routes
                     if r.duration <= max_acceptable_time
                 ]
-                
+
                 if eco_driving_candidates:
                     # Among acceptable routes, pick the one with lowest carbon
                     best_eco_drive = min(eco_driving_candidates, key=lambda x: x.carbon)
-                    
+
                     # Only return if it offers meaningful carbon savings vs fastest
                     if best_eco_drive.carbon < fastest_route.carbon * 0.9:  # At least 10% savings
                         return RouteData(

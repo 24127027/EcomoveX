@@ -4,7 +4,7 @@ from typing import Dict
 
 from database.db import get_db
 from utils.token.authentication_util import get_current_user
-from schemas.cluster_schema import ClusteringResultResponse, PreferenceUpdate
+from schemas.cluster_schema import ClusteringResultResponse
 from services.cluster_service import ClusterService
 
 router = APIRouter(prefix="/clustering", tags=["clustering"])

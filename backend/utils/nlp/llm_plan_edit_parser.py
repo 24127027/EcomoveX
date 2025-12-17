@@ -4,7 +4,7 @@ from integration.text_generator_api import TextGeneratorAPI
 class LLMPlanEditParser:
     def __init__(self):
         self.text_generator = TextGeneratorAPI()
-        
+
     async def parse(self, user_text: str, plan=None) -> List[Dict]:
         # Build destination context if plan is provided
         dest_context = ""
@@ -14,7 +14,7 @@ class LLMPlanEditParser:
                 for dest in plan.destinations
             ])
             dest_context = f"\n\nCurrent destinations in plan:\n{dest_list}\n"
-        
+
         prompt = f"""
         You are an expert plan editing parser.
         User request: "{user_text}"{dest_context}

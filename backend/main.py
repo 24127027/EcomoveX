@@ -5,9 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from database.db import get_sync_session
+from utils.embedded.faiss_utils import build_index
 
 # Import database setup
 from database.db import engine
+from database.db import UserAsyncSessionLocal
 from database.init_database import init_db
 from database.create_all_databases import create_databases
 from scripts import bulk_create
@@ -45,22 +48,20 @@ async def lifespan(app: FastAPI):
             print(f"WARNING: Database creation failed - {e}")
     else:
         print("Database creation skipped")
-    
+
     # Startup
     print("Starting EcomoveX ..")
 
     try:
-        await init_db(drop_all=False)
+        await init_db(drop_all=True)
         print("Database initialized")
     except Exception as e:
         print(f"WARNING: Database initialization failed - {e}")
 
-    RUN_BULK_CREATE_USERS = False
-    
+    RUN_BULK_CREATE_USERS = True
+
     if RUN_BULK_CREATE_USERS:
         try:
-            from database.db import UserAsyncSessionLocal
-            
             async with UserAsyncSessionLocal() as db:
                 print("📝 Creating sample users...")
                 await bulk_create.bulk_create_users(db=db)
@@ -69,12 +70,9 @@ async def lifespan(app: FastAPI):
             print(f"WARNING: Bulk create users failed - {e}")
     else:
         print("ℹ️  Bulk create users is disabled")
-    
+
     # Initialize FAISS index for recommendations
     try:
-        from database.db import get_sync_session
-        from utils.embedded.faiss_utils import build_index, is_index_ready
-        
         print("🔧 Initializing FAISS recommendation index...")
         with get_sync_session() as db:
             success = build_index(db, normalize=False)
@@ -169,18 +167,18 @@ async def health_check():
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     errors = exc.errors()
-    print(f"❌ Validation Error:")
+    print("❌ Validation Error:")
     print(f"   URL: {request.url}")
     print(f"   Method: {request.method}")
     print(f"   Errors: {errors}")
-    
+
     # Try to get body
     try:
         body = await request.body()
         print(f"   Body: {body.decode()}")
     except:
         pass
-    
+
     return JSONResponse(
         status_code=422,
         content={"detail": errors}

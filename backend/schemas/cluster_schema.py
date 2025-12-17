@@ -79,7 +79,7 @@ class ClusterDestinationResponse(BaseModel):
 
 class PreferenceUpdate(BaseModel):
     weather_pref: Optional[Dict[str, Any]] = Field(default_factory=lambda: {
-        "min_temp": 20, 
+        "min_temp": 20,
         "max_temp": 30,
     })
     attraction_types: Optional[List[str]] = Field(default_factory=lambda: [
@@ -94,7 +94,7 @@ class PreferenceUpdate(BaseModel):
         "theme_park"
     ])
     budget_range: Optional[Dict[str, float]] = Field(default_factory=lambda: {
-        "min": 200.0, 
+        "min": 200.0,
         "max": 10000000000.0
     })
     kids_friendly: Optional[bool] = False

@@ -1,4 +1,3 @@
-from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -163,8 +162,8 @@ class TripMetricsResponse(BaseModel):
     details: List[Dict[str, Any]] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
-    
-    
+
+
 class RouteForPlanResponse(BaseModel):
     origin: str # place_id
     destination: str # place_id

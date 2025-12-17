@@ -17,7 +17,7 @@ class ChatbotService:
                 return intent
         except Exception:
             pass
-        
+
         try:
             result = self.intent_rule.classify(user_text)
             # Extract intent string from ParseResult object
@@ -26,26 +26,26 @@ class ChatbotService:
             return result
         except Exception:
             return "chit_chat"
-    
+
     async def handle_user_message(self, db, user_id: int, room_id: int, user_text: str, current_plan: dict = None) -> ChatbotResponse:
         """
         Normalize all output to ChatbotResponse.
         """
         intent = await self.detect_intent(user_text)
-        
+
         print(f"🎯 Detected intent: {intent}")
 
         # Map rule-based intents to agent types
         # Plan edit intents: add, remove, modify, change_budget
         plan_edit_intents = [
             "add_activity",
-            "remove_activity", 
+            "remove_activity",
             "modify_time",
             "modify_day",
             "modify_location",
             "change_budget"
         ]
-        
+
         # Plan query intents: view, search
         plan_query_intents = [
             "view_plan",

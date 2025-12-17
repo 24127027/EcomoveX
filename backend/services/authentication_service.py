@@ -52,7 +52,7 @@ class AuthenticationService:
     def create_access_token(user: User) -> str:
         try:
             expiration = datetime.now(timezone.utc) + timedelta(days=7)
-            
+
             payload = {
                 "sub": str(user.id),
                 "role": (
@@ -87,7 +87,7 @@ class AuthenticationService:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
-            
+
             token = AuthenticationService.create_access_token(user)
             return AuthenticationResponse(
                 user_id=user.id, role=user.role, access_token=token, token_type="bearer"
@@ -112,17 +112,17 @@ class AuthenticationService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered",
                 )
-            
+
             # Hash password trước khi đưa vào token
             password_hash = hash_password(user_data.password)
-            
+
             # Tạo verification token chứa thông tin đăng ký (với password đã hash)
             verification_token = generate_verification_token(
                 email=user_data.email,
                 username=user_data.username,
                 password_hash=password_hash
             )
-            
+
             # Gửi email xác nhận - link trỏ thẳng đến backend API
             verification_link = f"{settings.CORS_ORIGINS.split(',')[1]}/auth/verify-email?token={verification_token}"
             email_subject = "Verify Your Email - EcomoveX"
@@ -278,7 +278,7 @@ class AuthenticationService:
 </body>
 </html>
 """
-            
+
             try:
                 email_api = EmailAPI()
                 await email_api.send_email(user_data.email, email_subject, email_content, content_type="html")
@@ -287,7 +287,7 @@ class AuthenticationService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to send verification email: {email_error}"
                 )
-            
+
             return True
         except HTTPException:
             raise
@@ -296,7 +296,7 @@ class AuthenticationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error registering user: {e}",
             )
-            
+
     @staticmethod
     async def reset_user_password(db: AsyncSession, email: str, user_name: str) -> str:
         try:
@@ -316,7 +316,7 @@ class AuthenticationService:
                 old_password=user.password, new_password=temp_password
             )
             await UserRepository.update_user_credentials(db, user.id, data)
-            
+
             email_subject = "Password Reset Confirmation - EcomoveX"
             email_content = f"""
 <!DOCTYPE html>
@@ -736,13 +736,13 @@ class AuthenticationService:
 </body>
 </html>
 """
-            
+
             try:
                 email_api = EmailAPI()
                 await email_api.send_email(email, email_subject, email_content, content_type="html")
             except Exception as email_error:
                 print(f"[WARNING] Password reset successful but email failed: {email_error}")
-            
+
             return temp_password
         except HTTPException:
             raise
@@ -751,13 +751,13 @@ class AuthenticationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error resetting user password: {e}",
             )
-    
+
     @staticmethod
     async def verify_user_email(db: AsyncSession, token: str) -> dict:
         try:
             # Giải mã token để lấy thông tin đăng ký
             user_data = verify_email_token(token)
-            
+
             # Kiểm tra xem email đã tồn tại chưa (trường hợp verify 2 lần)
             existing_users = await UserRepository.search_users(db, user_data["email"], limit=1)
             if existing_users:
@@ -765,7 +765,7 @@ class AuthenticationService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already verified and registered",
                 )
-            
+
             # Tạo user mới từ thông tin trong token (password đã được hash sẵn)
             from schemas.user_schema import UserCreate
             register_data = UserCreate(
@@ -773,16 +773,16 @@ class AuthenticationService:
                 email=user_data["email"],
                 password=user_data["password_hash"]  # Password đã hash từ token
             )
-            
+
             new_user = await UserRepository.create_user(db, register_data)
             if not new_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create user account",
                 )
-                            
+
             await ClusterRepository.create_preference(db, user_id=new_user.id)
-            
+
             # Run clustering to assign user to a cluster
             try:
                 from services.cluster_service import ClusterService
@@ -792,10 +792,10 @@ class AuthenticationService:
             except Exception as cluster_error:
                 print(f"⚠️ Warning: Clustering failed for new user {new_user.id}: {cluster_error}")
                 # Don't fail registration if clustering fails
-            
+
             # Tạo access token để user có thể login ngay
             access_token = AuthenticationService.create_access_token(new_user)
-            
+
             return {
                 "message": "Email verified successfully! Your account has been created.",
                 "user_id": new_user.id,

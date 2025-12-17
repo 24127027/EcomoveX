@@ -88,13 +88,13 @@ class UserRepository:
                     f"'{user_data.username}' already exists"
                 )
                 return None
-            
+
             # Check if this should be an admin based on FIRST_ADMIN_EMAIL
             user_role = Role.user.value  # Default role (use .value for string)
             if settings.FIRST_ADMIN_EMAIL and user_data.email == settings.FIRST_ADMIN_EMAIL:
                 user_role = Role.admin.value
                 print(f"INFO: Creating admin user for {user_data.email}")
-            
+
             new_user = User(
                 username=user_data.username,
                 email=user_data.email,
@@ -300,7 +300,7 @@ class UserRepository:
             print(f"ERROR: Failed to update role for user ID {user_id} - {e}")
             return None
 
-        
+
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str):
         try:
