@@ -100,8 +100,7 @@ class MapService:
             raise he
         except Exception as e:
             print(f"Exception in text_search_place: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to search location: {type(e).__name__}: {str(e)}",
@@ -221,8 +220,7 @@ class MapService:
             raise
         except Exception as e:
             print(f"Exception in get_location_details: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get location details: {type(e).__name__}: {str(e)}",

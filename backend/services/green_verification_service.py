@@ -86,8 +86,7 @@ class GreenVerificationService:
         except Exception as e:
             # Log the error
             print(f"[GreenVerification] ML processing failed: {e}")
-            import traceback
-            traceback.print_exc()
+
 
             # Return a fallback response indicating processing is unavailable
             # This allows the API to still work even if ML models fail to load

@@ -36,8 +36,6 @@ class FriendRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: Failed to send friend request - {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     @staticmethod

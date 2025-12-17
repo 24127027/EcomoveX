@@ -125,8 +125,7 @@ class ClusterService:
 
         except Exception as e:
             print(f"❌ Error in embed_preference for user {user_id}: {e}")
-            import traceback
-            traceback.print_exc()
+
             return None
 
     @staticmethod

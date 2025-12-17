@@ -24,6 +24,5 @@ Be helpful, friendly, and concise. Guide users to use 'add', 'remove', 'view pla
             return reply
         except Exception as e:
             print(f"❌ Error in ChitChatAgent: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             return f"Xin lỗi, tôi gặp sự cố khi kết nối với AI. Vui lòng thử lại sau. (Error: {type(e).__name__})"

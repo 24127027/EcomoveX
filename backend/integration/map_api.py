@@ -348,8 +348,7 @@ class MapAPI:
             raise ValueError(f"Google Places API error: {e.response.status_code}")
         except Exception as e:
             print(f"Error in get_place_details: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             raise e
 
     async def reverse_geocode(

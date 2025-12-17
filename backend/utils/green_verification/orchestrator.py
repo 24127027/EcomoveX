@@ -218,8 +218,7 @@ class GreenCoverageOrchestrator:
 
         except Exception as e:
             print(f"[Orchestrator] Error on {url}: {e}")
-            import traceback
-            traceback.print_exc()
+
             return {"url": url, "error": str(e), "verified": False}
 
     def process_image_list(self, urls: List[str]) -> Dict[str, Any]:
