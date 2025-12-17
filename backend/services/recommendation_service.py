@@ -385,7 +385,7 @@ class RecommendationService:
         user_id: int,
         k: int = 5,
         include_scores: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> List[str]:
         """
         Recommends destinations from internal database based on cluster affinity.
         
@@ -497,8 +497,8 @@ class RecommendationService:
                 for rec in recommendations:
                     del rec["_combined_score"]
             
-            # Return top k destination IDs
-            return recommendations[:k]
+            list_rec = [rec["destination_id"] for rec in recommendations[:k]]
+            return list_rec
         
         except HTTPException:
             raise
