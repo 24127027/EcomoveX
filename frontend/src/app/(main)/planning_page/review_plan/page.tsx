@@ -674,13 +674,25 @@ function ReviewPlanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Guard against null searchParams on mobile during initial render
+  if (!searchParams) {
+    return (
+      <div className="flex items-center justify-center w-full h-screen bg-[#F4F9F4]">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
+          <p className="text-gray-600 font-semibold">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Store planId in state to persist across renders
   const [planId, setPlanId] = useState<string | null>(null);
   const [planIdResolved, setPlanIdResolved] = useState(false);
 
   useEffect(() => {
     // Try to get from URL first
-    const id = searchParams.get("id");
+    const id = searchParams?.get("id") || null;
     console.log("🔍 Review Plan - useEffect running");
     console.log("   searchParams:", searchParams?.toString());
     console.log("   id from URL:", id);
