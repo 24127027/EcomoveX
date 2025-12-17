@@ -64,16 +64,6 @@ const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 // --- STORAGE KEYS ---
 const STORAGE_KEY_RAW = "temp_plan_destinations";
 const STORAGE_KEY_STRUCTURED = "current_plan_activities";
-const AI_SHOWN_KEY = "has_shown_ai_gen";
-
-// --- AI MESSAGES ---
-const AI_STEPS = [
-  "Analyzing your selected destinations...",
-  "Optimizing travel routes...",
-  "Checking opening hours...",
-  "Generating your perfect schedule...",
-];
-
 const STORAGE_KEY_INFO = "temp_plan_info";
 
 // --- [FIX] CONFIG DROP ANIMATION ---
@@ -707,10 +697,6 @@ function ReviewPlanContent() {
   };
 
   // --- STATE ---
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
-  const [aiStepIndex, setAiStepIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-
   const [isSaving, setIsSaving] = useState(false);
   const [activities, setActivities] = useState<PlanActivity[]>([]);
 
@@ -878,7 +864,6 @@ function ReviewPlanContent() {
 
     const loadPlanDetail = async (id: string) => {
       try {
-        setIsAiProcessing(true);
 
         // Preserve any pending additions before clearing storage (user may have just returned from add_destinations)
         const pendingRawData = sessionStorage.getItem(STORAGE_KEY_RAW);
@@ -1085,7 +1070,6 @@ function ReviewPlanContent() {
       } catch (error) {
         console.error("Error loading plan:", error);
       } finally {
-        setIsAiProcessing(false);
         initialLoadDoneRef.current = true;
         console.log("✅ Existing plan data load completed");
       }
@@ -1113,36 +1097,14 @@ function ReviewPlanContent() {
         }
       }
 
-      const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
-      const storedRaw = sessionStorage.getItem(STORAGE_KEY_RAW);
-
-      if (!hasShownAI && storedRaw) {
-        runAiSimulation();
-      } else {
-        loadDataFromStorage();
-      }
+      // Load data directly without fake animation
+      loadDataFromStorage();
 
       // ✅ Mark initial load as complete
       initialLoadDoneRef.current = true;
       console.log("✅ Initial load completed");
     }
   }, [planId, planIdResolved]);
-
-  const runAiSimulation = () => {
-    setIsAiProcessing(true);
-    let step = 0;
-    const interval = setInterval(() => {
-      setAiStepIndex((s) => (s < AI_STEPS.length - 1 ? s + 1 : s));
-      setProgress((p) => Math.min(p + 25, 100));
-      step++;
-      if (step > 4) {
-        clearInterval(interval);
-        setIsAiProcessing(false);
-        sessionStorage.setItem(AI_SHOWN_KEY, "true");
-        loadDataFromStorage();
-      }
-    }, 800);
-  };
 
   const loadDataFromStorage = () => {
     console.log("📂 loadDataFromStorage called");
@@ -1248,20 +1210,9 @@ function ReviewPlanContent() {
         type: place.types?.[0] || "place",
         order_in_day: 0,
       }));
-      // Distribute activities across days only the first time an AI simulation runs
-      // This should only happen when AI_SHOWN_KEY is not set yet
-      const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
-      if (!hasShownAI) {
-        const distributedList = distributeActivitiesAcrossDays(
-          initialActivities,
-          planStartDate,
-          planEndDate
-        );
-        setActivities(distributedList);
-      } else {
-        // If distribution already happened, simply set the data
-        setActivities(initialActivities);
-      }
+      // Set activities directly without distribution
+      // AI will handle the optimization
+      setActivities(initialActivities);
     }
   };
 
@@ -1657,7 +1608,6 @@ function ReviewPlanContent() {
       activitiesLength: activities.length,
       aiGenerationDone,
       isAIGenerating,
-      isAiProcessing,
       planId,
     });
 
@@ -1666,15 +1616,13 @@ function ReviewPlanContent() {
       activities.length >= 2 &&
       !planId &&
       !aiGenerationDone &&
-      !isAIGenerating &&
-      !isAiProcessing // Don't run during fake AI animation
+      !isAIGenerating
     ) {
       console.log("🤖 Auto-triggering AI plan generation...", {
         activitiesCount: activities.length,
         planId,
         aiGenerationDone,
         isAIGenerating,
-        isAiProcessing,
       });
       generateAIPlan();
     } else {
@@ -1683,7 +1631,6 @@ function ReviewPlanContent() {
         planId,
         aiGenerationDone,
         isAIGenerating,
-        isAiProcessing,
         reason: planId
           ? "Editing existing plan"
           : activities.length < 2
@@ -1692,8 +1639,6 @@ function ReviewPlanContent() {
           ? "Already generated"
           : isAIGenerating
           ? "Currently generating"
-          : isAiProcessing
-          ? "AI animation in progress"
           : "Unknown",
       });
     }
@@ -1702,7 +1647,6 @@ function ReviewPlanContent() {
     activities.length,
     aiGenerationDone,
     isAIGenerating,
-    isAiProcessing,
     generateAIPlan,
   ]);
 
@@ -1729,28 +1673,29 @@ function ReviewPlanContent() {
     }
   };
 
-  // --- RENDER AI ---
-  if (isAiProcessing) {
+  // --- RENDER AI LOADING SCREEN ---
+  // Show full-screen loading only during actual AI generation for new plans
+  if (isAIGenerating && !planId && activities.length >= 2) {
     return (
       <div className="h-screen w-full flex justify-center bg-gray-50">
         <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col items-center justify-center p-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-64 h-64 bg-green-100 rounded-full blur-3xl opacity-50"></div>
           <div className="relative z-10 flex flex-col items-center max-w-sm w-full">
-            <div className="w-20 h-20 bg-[#E3F1E4] rounded-full flex items-center justify-center animate-pulse mb-8">
-              <Sparkles className="text-[#53B552] w-10 h-10 animate-spin-slow" />
+            <div className="w-20 h-20 bg-[#E3F1E4] rounded-full flex items-center justify-center mb-8">
+              <Sparkles className="text-[#53B552] w-10 h-10 animate-spin" />
             </div>
             <h2
               className={`${jost.className} text-xl font-bold text-gray-800 text-center mb-2`}
             >
-              AI Generator
+              AI is Optimizing Your Plan
             </h2>
             <p className="text-gray-500 text-sm mb-8 text-center">
-              {AI_STEPS[aiStepIndex]}
+              Analyzing destinations, optimizing routes, and creating the perfect schedule for your trip...
             </p>
             <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#53B552] transition-all duration-300"
-                style={{ width: `${progress}%` }}
+                className="h-full bg-[#53B552] transition-all duration-1000 animate-pulse"
+                style={{ width: "70%" }}
               ></div>
             </div>
           </div>
