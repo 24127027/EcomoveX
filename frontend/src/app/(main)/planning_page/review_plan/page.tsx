@@ -17,6 +17,7 @@ import {
   DragOverlay,
   defaultDropAnimationSideEffects,
   DropAnimation,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -188,12 +189,17 @@ function TimeSlotContainer({
   onAddPlace: () => void;
   isOwner: boolean;
 }) {
-  const { setNodeRef } = useSortable({ id, disabled: !isOwner });
+  const { setNodeRef, isOver } = useDroppable({ 
+    id, 
+    disabled: !isOwner 
+  });
 
   return (
     <div
       ref={setNodeRef}
-      className="bg-[#F9FAF9] p-3 rounded-2xl mb-4 border border-gray-200"
+      className={`bg-[#F9FAF9] p-3 rounded-2xl mb-4 border transition-colors ${
+        isOver ? "border-[#53B552] bg-green-50/50" : "border-gray-200"
+      }`}
     >
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
@@ -1381,19 +1387,27 @@ function ReviewPlanContent() {
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    const overId = over?.id;
-    if (!overId || active.id === overId) return;
+    if (!over) return;
+    
+    const overId = over.id;
+    if (active.id === overId) return;
+    
     const activeContainer = findContainer(active.id);
-    const overContainer = findContainer(overId);
-    if (!activeContainer || !overContainer || activeContainer === overContainer)
-      return;
+    const overContainer = String(overId).includes("_") ? overId : findContainer(overId);
+    
+    if (!activeContainer || !overContainer) return;
+    if (activeContainer === overContainer) return;
 
     setActivities((prev) => {
       const activeIndex = prev.findIndex((i) => i.id === active.id);
-      const overIndex = prev.findIndex((i) => i.id === overId);
-      const parts = String(activeContainer).split("_");
+      if (activeIndex === -1) return prev;
+      
+      // Parse the target container (date_slot format)
+      const parts = String(overContainer).split("_");
       const newDateStr = parts[0];
       const newSlot = parts[1];
+      
+      // Convert date string to ISO format
       let safeIsoDate = prev[activeIndex].date;
       if (newDateStr) {
         const d = new Date(newDateStr);
@@ -1401,17 +1415,22 @@ function ReviewPlanContent() {
           safeIsoDate = d.toISOString();
         }
       }
+      
+      // Update the item with new date and time slot
       const newActivities = [...prev];
       newActivities[activeIndex] = {
         ...newActivities[activeIndex],
         time_slot: newSlot as any,
         date: safeIsoDate,
       };
-      return arrayMove(
-        newActivities,
-        activeIndex,
-        overIndex >= 0 ? overIndex : newActivities.length - 1
-      );
+      
+      // Find the target index within the container
+      const overIndex = prev.findIndex((i) => i.id === overId);
+      if (overIndex >= 0 && overIndex !== activeIndex) {
+        return arrayMove(newActivities, activeIndex, overIndex);
+      }
+      
+      return newActivities;
     });
   };
 
