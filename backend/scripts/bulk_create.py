@@ -3,6 +3,7 @@ from models.user import Rank, Activity
 from repository.user_repository import UserRepository
 from repository.cluster_repository import ClusterRepository
 from schemas.authentication_schema import UserRegister
+from schemas.cluster_schema import PreferenceUpdate
 from schemas.destination_schema import DestinationCreate
 from schemas.map_schema import AutocompleteRequest
 from schemas.user_schema import UserActivityCreate, UserFilterParams
@@ -959,19 +960,23 @@ async def create_user_with_preference(db: AsyncSession, user_data: dict):
         # Create preference
         pref_data = user_data.get("preference", {})
         if pref_data:
-            await ClusterRepository.update_preference(
-                db,
-                user_id=new_user.id,
+            preference_update = PreferenceUpdate(
                 weather_pref=pref_data.get("weather_pref"),
                 attraction_types=pref_data.get("attraction_types"),
                 budget_range=pref_data.get("budget_range"),
-                kids_friendly=pref_data.get("kids_friendly", False)
+                kids_friendly=pref_data.get("kids_friendly", False),
+                visited_destinations=pref_data.get("visited_destinations")
+            )
+            await ClusterRepository.update_preference(
+                db,
+                user_id=new_user.id,
+                preference_data=preference_update
             )
         else:
             # Create empty preference
             await ClusterRepository.create_preference(db, user_id=new_user.id)
 
-        preference = await ClusterRepository.get_preference(db, new_user.id)
+        preference = await ClusterRepository.get_preference_by_user_id(db, new_user.id)
 
         return new_user, preference
     except Exception as e:
@@ -1145,16 +1150,38 @@ async def bulk_create_users(db: AsyncSession) -> tuple[int, int]:
         print("\n📋 Step 4: Creating user activities...")
         activities_created = await create_user_activities(db, user_ids, place_ids)
 
-        # Step 5: Run clustering to assign users to clusters
-        print("\n📋 Step 5: Running clustering algorithm...")
+        # Step 5: Generate embeddings for all users with preferences
+        print("\n📋 Step 5: Generating user embeddings...")
+        try:
+            embeddings_generated = await ClusterService.update_user_embeddings(db)
+            print(f"  ✅ Generated {embeddings_generated} user embeddings")
+        except Exception as embed_error:
+            print(f"  ⚠️ Embedding generation failed: {embed_error}")
+            embeddings_generated = 0
+
+        # Step 6: Run clustering to assign users to clusters
+        print("\n📋 Step 6: Running clustering algorithm...")
+        clusters_created = []
         try:
             clustering_result = await ClusterService.run_user_clustering(db)
             print("  ✅ Clustering completed:")
             print(f"     - Users clustered: {clustering_result.stats.users_clustered}")
             print(f"     - Clusters updated: {clustering_result.stats.clusters_updated}")
             print(f"     - Embeddings generated: {clustering_result.stats.embeddings_generated}")
+            clusters_created = list(range(1, clustering_result.stats.clusters_updated + 1))
         except Exception as cluster_error:
             print(f"  ⚠️ Clustering failed: {cluster_error}")
+
+        # Step 7: Compute cluster popularity scores
+        print("\n📋 Step 7: Computing cluster popularity scores...")
+        clusters_computed = 0
+        for cluster_id in clusters_created:
+            try:
+                await ClusterService.compute_cluster_popularity(db, cluster_id)
+                clusters_computed += 1
+            except Exception as pop_error:
+                print(f"  ⚠️ Failed to compute popularity for cluster {cluster_id}: {pop_error}")
+        print(f"  ✅ Computed popularity for {clusters_computed}/{len(clusters_created)} clusters")
 
         # Final summary
         print("\n" + "=" * 70)
@@ -1162,9 +1189,11 @@ async def bulk_create_users(db: AsyncSession) -> tuple[int, int]:
         print("=" * 70)
         print(f"   👥 Users: {len(user_ids)} total ({created_users} new)")
         print(f"   🗂️  Preferences: {created_preferences} created")
+        print(f"   🧠 User Embeddings: {embeddings_generated} generated")
         print(f"   📍 Destinations: {destinations_created} created")
         print(f"   🔢 Place IDs collected: {len(place_ids)}")
         print(f"   📝 User Activities: {activities_created} created")
+        print(f"   🎯 Clusters with popularity: {clusters_computed}")
         print("=" * 70 + "\n")
 
         return created_users, created_preferences

@@ -172,16 +172,20 @@ class ClusterService:
             user_ids = await ClusterRepository.get_users_in_cluster(db, cluster_id)
 
             if not user_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"No users found in cluster {cluster_id}",
-                )
+                print(f"⚠️ No users found in cluster {cluster_id}, skipping popularity computation")
+                return
 
             # Fetch activities for all users in the cluster
             activities = []
             for user_id in user_ids:
                 user_activities = await UserRepository.get_user_activities(db, user_id)
                 activities.extend(user_activities)
+
+            print(f"📊 Cluster {cluster_id}: {len(user_ids)} users, {len(activities)} total activities")
+
+            if not activities:
+                print(f"⚠️ No activities found for cluster {cluster_id}")
+                return
 
             destination_scores = {}
             for activity in activities:
@@ -199,25 +203,35 @@ class ClusterService:
                 elif activity.activity == Activity.review_destination:
                     destination_scores[dest_id]["review"] += 1
 
+            print(f"📍 Cluster {cluster_id}: Found {len(destination_scores)} unique destinations from activities")
+
+            destinations_added = 0
             for dest_id, scores in destination_scores.items():
                 popularity_score = (
                     scores["save"] * 3 + scores["review"] * 2 + scores["search"] * 1
                 )
-                normalized_score = min(100.0, (popularity_score / len(user_ids)) * 20)
-                if normalized_score > 50:
+                # Lower threshold and adjust normalization for small datasets
+                # Minimum score of 1 activity = 1 point, normalize to at least get some destinations
+                normalized_score = min(100.0, max(10.0, (popularity_score / len(user_ids)) * 20))
+                
+                # Lower threshold to 10 to include destinations with at least 1 activity
+                if normalized_score >= 10:
                     if (
                         await ClusterRepository.get_cluster_destination(
                             db, cluster_id, dest_id
                         )
                         is None
                     ):
-                            await ClusterRepository.add_destination_to_cluster(
-                                db, cluster_id, dest_id, normalized_score
+                        await ClusterRepository.add_destination_to_cluster(
+                            db, cluster_id, dest_id, normalized_score
                         )
+                        destinations_added += 1
                     else:
                         await ClusterRepository.update_destination_popularity(
                             db, cluster_id, dest_id, normalized_score
                         )
+
+            print(f"✅ Cluster {cluster_id}: Added/updated {destinations_added} destinations")
 
         except HTTPException:
             raise
@@ -242,13 +256,23 @@ class ClusterService:
 
         if not embeddings:
             return {}
+
+        # Handle very small datasets - HDBSCAN requires at least 2 points
+        # and min_samples must be <= number of points
+        num_points = len(embeddings)
+        if num_points < 2:
+            # Single user case: assign to cluster 0
+            return {user_ids[0]: 0} if user_ids else {}
+
 #=======================================================
         # Handle small datasets by adjusting min_cluster_size
-        effective_min_size = min(min_cluster_size, max(2, len(user_embeddings) // 3))
+        effective_min_size = min(min_cluster_size, max(2, num_points // 3))
+        # Ensure min_samples doesn't exceed the number of points
+        effective_min_samples = min(1, num_points - 1) if num_points > 1 else 1
 
         clusterer = hdbscan.HDBSCAN(
             min_cluster_size=effective_min_size,
-            min_samples=1,
+            min_samples=effective_min_samples,
             metric='euclidean',
             cluster_selection_method='eom'
         )
@@ -287,7 +311,8 @@ class ClusterService:
     @staticmethod
     async def update_user_embeddings(db: AsyncSession) -> int:
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(
+            # Use timezone-naive datetime to match the database column type (TIMESTAMP WITHOUT TIME ZONE)
+            cutoff_date = datetime.utcnow() - timedelta(
                 days=EMBEDDING_UPDATE_INTERVAL_DAYS
             )
 
@@ -385,6 +410,36 @@ class ClusterService:
             users_with_embeddings = await ClusterRepository.get_users_with_embeddings(
                 db
             )
+            
+            # Force generate embeddings for users with preferences but no embedding
+            all_preferences = await ClusterRepository.get_all_preferences(db)
+            users_missing_embeddings = [
+                pref for pref in all_preferences 
+                if pref.embedding is None
+            ]
+            
+            if users_missing_embeddings:
+                print(f"🔧 Force generating embeddings for {len(users_missing_embeddings)} users with missing embeddings...")
+                for pref in users_missing_embeddings:
+                    try:
+                        embedding = await ClusterService.embed_preference(db, pref.user_id)
+                        if embedding:
+                            success = await ClusterService.save_preference_embedding(
+                                db, pref.user_id, embedding
+                            )
+                            if success:
+                                embeddings_updated += 1
+                                print(f"  ✅ Generated embedding for user {pref.user_id}")
+                            else:
+                                print(f"  ❌ Failed to save embedding for user {pref.user_id}")
+                        else:
+                            print(f"  ❌ Failed to generate embedding for user {pref.user_id}")
+                    except Exception as e:
+                        print(f"  ❌ Error generating embedding for user {pref.user_id}: {e}")
+                
+                # Refresh the list after generating embeddings
+                users_with_embeddings = await ClusterRepository.get_users_with_embeddings(db)
+
             if not users_with_embeddings:
                 return ClusteringResultResponse(
                     success=False,
