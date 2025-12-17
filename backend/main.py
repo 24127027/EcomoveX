@@ -53,12 +53,12 @@ async def lifespan(app: FastAPI):
     print("Starting EcomoveX ..")
 
     try:
-        await init_db(drop_all=True)
+        await init_db(drop_all=False)
         print("Database initialized")
     except Exception as e:
         print(f"WARNING: Database initialization failed - {e}")
 
-    RUN_BULK_CREATE_USERS = True
+    RUN_BULK_CREATE_USERS = False
 
     if RUN_BULK_CREATE_USERS:
         try:
