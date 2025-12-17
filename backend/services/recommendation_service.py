@@ -443,13 +443,45 @@ class RecommendationService:
             List of destination IDs (strings) from internal database
         """
         try:
-            # Step 1: Get user's latest cluster
-            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
-            if user_cluster is None:
+            # Step 1: Verify user exists
+            from repository.user_repository import UserRepository
+            user_exists = await UserRepository.get_user_by_id(db, user_id)
+            if not user_exists:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"User {user_id} does not belong to any cluster"
+                    detail=f"User {user_id} not found. Please log in again or register a new account."
                 )
+            
+            # Step 2: Get user's latest cluster
+            user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
+            if user_cluster is None:
+                # Check if user has preference record
+                pref_exists = await ClusterRepository.get_preference_by_user_id(db, user_id)
+                
+                if not pref_exists:
+                    # Create preference record if missing
+                    print(f"⚠️ User {user_id} missing preference record, creating...")
+                    await ClusterRepository.create_preference(db, user_id=user_id)
+                    pref_exists = await ClusterRepository.get_preference_by_user_id(db, user_id)
+                
+                print(f"⚠️ User {user_id} has no cluster assignment, attempting to run clustering...")
+                
+                try:
+                    clustering_result = await ClusterService.run_user_clustering(db)
+                    print(f"✅ Clustering completed: {clustering_result.stats.clusters_updated} clusters, {clustering_result.stats.users_clustered} users clustered")
+                    # Try to get cluster again after clustering
+                    user_cluster = await ClusterRepository.get_user_latest_cluster(db, user_id)
+                    if user_cluster is not None:
+                        print(f"✅ User {user_id} assigned to cluster {user_cluster}")
+                except Exception as cluster_error:
+                    print(f"❌ Clustering failed: {cluster_error}")
+                    import traceback
+                    traceback.print_exc()
+                
+                # If still no cluster, return empty recommendations
+                if user_cluster is None:
+                    print(f"ℹ️ User {user_id} still has no cluster after clustering attempt")
+                    return RecommendationDestination(recommendation=[])
             
             # Step 2: Compute cluster embedding (mean of user embeddings)
             cluster_vector = await ClusterService.compute_cluster_embedding(db, user_cluster)
@@ -461,8 +493,34 @@ class RecommendationService:
             
             # Step 3: Get all destinations associated with this cluster (from DB)
             cluster_destinations = await ClusterRepository.get_destinations_in_cluster(db, user_cluster)
+            print(f"📍 Found {len(cluster_destinations)} destinations for cluster {user_cluster}")
+            
             if not cluster_destinations:
-                return RecommendationDestination(recommendation=[])
+                print(f"⚠️ No destinations associated with cluster {user_cluster}, using FAISS fallback...")
+                
+                # Fallback: Use FAISS-based recommendations instead
+                if not is_index_ready():
+                    print(f"❌ FAISS index not ready")
+                    # Try to build index on-demand
+                    try:
+                        from database.db import get_sync_session
+                        from utils.embedded.faiss_utils import build_index
+                        print(f"🔧 Attempting to build FAISS index on-demand...")
+                        with get_sync_session() as sync_db:
+                            success = build_index(sync_db, normalize=False)
+                            if not success:
+                                print(f"❌ FAISS index build failed, returning empty recommendations")
+                                return RecommendationDestination(recommendation=[])
+                            print(f"✅ FAISS index built successfully")
+                    except Exception as e:
+                        print(f"❌ Failed to build FAISS index: {e}")
+                        return RecommendationDestination(recommendation=[])
+                
+                # Search FAISS index using cluster embedding
+                similar_destinations = search_index(cluster_vector.tolist(), k=k)
+                destination_ids = [dest["destination_id"] for dest in similar_destinations[:k]]
+                print(f"✅ FAISS fallback returned {len(destination_ids)} recommendations")
+                return RecommendationDestination(recommendation=destination_ids)
             
             # Extract destination IDs
             destination_ids = [dest.destination_id for dest in cluster_destinations]
@@ -516,6 +574,8 @@ class RecommendationService:
             
             # Extract destination IDs and return wrapped in schema
             destination_ids = [rec["destination_id"] for rec in recommendations[:k]]
+            
+            print(f"✅ Recommended {len(destination_ids)} destinations for user {user_id} based on cluster affinity.")
             return RecommendationDestination(recommendation=destination_ids)
         
         except HTTPException:

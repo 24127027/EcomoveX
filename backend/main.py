@@ -39,12 +39,12 @@ async def lifespan(app: FastAPI):
     print("Starting EcomoveX ..")
 
     try:
-        await init_db(drop_all=True)
+        await init_db(drop_all=False)
         print("Database initialized")
     except Exception as e:
         print(f"WARNING: Database initialization failed - {e}")
 
-    RUN_BULK_CREATE_USERS = True
+    RUN_BULK_CREATE_USERS = False  # Set to True to run on startup, or run bulk_create.py directly
     
     if RUN_BULK_CREATE_USERS:
         try:
@@ -58,6 +58,22 @@ async def lifespan(app: FastAPI):
             print(f"WARNING: Bulk create users failed - {e}")
     else:
         print("ℹ️  Bulk create users is disabled")
+    
+    # Initialize FAISS index for recommendations
+    try:
+        from database.db import get_sync_session
+        from utils.embedded.faiss_utils import build_index, is_index_ready
+        
+        print("🔧 Initializing FAISS recommendation index...")
+        with get_sync_session() as db:
+            success = build_index(db, normalize=False)
+            if success:
+                print("✅ FAISS index built successfully")
+            else:
+                print("⚠️ FAISS index build failed - recommendations may be limited")
+    except Exception as e:
+        print(f"⚠️ WARNING: FAISS index initialization failed - {e}")
+        print("   Recommendations will fall back to database-only queries")
 
     yield  # App is running
 

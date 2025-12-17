@@ -341,16 +341,24 @@ class ClusterRepository:
     @staticmethod
     async def get_users_needing_embedding_update(db: AsyncSession, cutoff_date: int):
         try:
+            # Get users with recent embeddings (don't need update)
             recent_prefs = select(Preference.user_id).where(
                 and_(
                     Preference.embedding.isnot(None),
                     Preference.last_updated > cutoff_date,
                 )
             )
+            
+            # Get all users who either:
+            # 1. Don't have recent embeddings (not in recent_prefs), OR
+            # 2. Have a preference record
+            # This ensures new users with NULL embeddings are included
             query = select(User).where(User.id.notin_(recent_prefs))
 
             result = await db.execute(query)
-            return result.scalars().all()
+            users = result.scalars().all()
+            print(f"📋 Found {len(users)} users needing embedding update (including NULL embeddings)")
+            return users
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users needing embedding update - {e}")
             return []

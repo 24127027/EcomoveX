@@ -111,13 +111,22 @@ class ClusterService:
                 text_parts.append(f"travel experience level {user.rank.value}")
 
             if not text_parts:
-                text_parts.append(f"user {user.username}")
+                # Default embedding for new users with no data
+                text_parts.append(f"new traveler interested in exploring destinations")
 
             user_text = " ".join(text_parts)
+            print(f"🔤 Generating embedding for user {user_id}: '{user_text[:100]}...'")
             embedding = encode_text(user_text)
+            if embedding:
+                print(f"✅ Generated embedding with {len(embedding)} dimensions for user {user_id}")
+            else:
+                print(f"❌ Failed to generate embedding for user {user_id}")
             return embedding
 
-        except Exception:
+        except Exception as e:
+            print(f"❌ Error in embed_preference for user {user_id}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     @staticmethod
@@ -287,9 +296,21 @@ class ClusterService:
                     db, cutoff_date
                 )
             )
+            
+            # Debug: Log user IDs needing update
+            user_ids_needing_update = [u.id for u in users_needing_update]
+            print(f"📋 User IDs needing update: {user_ids_needing_update[:10]}...{user_ids_needing_update[-5:] if len(user_ids_needing_update) > 10 else ''}")
 
             updated_count = 0
+            skipped_users = []
             for user in users_needing_update:
+                # Check if user has a preference record first
+                pref = await ClusterRepository.get_preference_by_user_id(db, user.id)
+                if not pref:
+                    skipped_users.append(user.id)
+                    print(f"⚠️ User {user.id} has no preference record, skipping")
+                    continue
+                
                 embedding = await ClusterService.embed_preference(db, user.id)
                 if embedding:
                     success = await ClusterService.save_preference_embedding(
@@ -302,6 +323,12 @@ class ClusterService:
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to update embedding for user {user.id}",
                         )
+                else:
+                    print(f"⚠️ Failed to generate embedding for user {user.id}")
+            
+            if skipped_users:
+                print(f"⚠️ Skipped {len(skipped_users)} users without preferences: {skipped_users[:10]}")
+            
             return updated_count
         except HTTPException:
             raise
@@ -351,7 +378,10 @@ class ClusterService:
     @staticmethod
     async def run_user_clustering(db: AsyncSession) -> ClusteringResultResponse: # hàm chính để chạy quá trình phân cụm người dùng
         try: 
+            print(f"🔄 Starting clustering: updating user embeddings...")
             embeddings_updated = await ClusterService.update_user_embeddings(db)
+            print(f"✅ Updated {embeddings_updated} user embeddings")
+            
             users_with_embeddings = await ClusterRepository.get_users_with_embeddings(
                 db
             )
@@ -366,6 +396,8 @@ class ClusterService:
                         clusters_updated=0,
                     ),
                 )
+            
+            print(f"📊 Found {len(users_with_embeddings)} users with embeddings")
 
             # Validate that user IDs actually exist in the database
             user_embeddings_data = []
@@ -380,6 +412,9 @@ class ClusterService:
                         valid_user_ids.add(pref.user_id)
                     else:
                         print(f"WARNING: Preference exists for non-existent user_id={pref.user_id}")
+                else:
+                    if pref and pref.user_id:
+                        print(f"⚠️ User {pref.user_id} has preference but no embedding")
             
             if not user_embeddings_data:
                 return ClusteringResultResponse(

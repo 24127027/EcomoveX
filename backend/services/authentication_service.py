@@ -781,6 +781,16 @@ class AuthenticationService:
                             
             await ClusterRepository.create_preference(db, user_id=new_user.id)
             
+            # Run clustering to assign user to a cluster
+            try:
+                from services.cluster_service import ClusterService
+                print(f"🔄 Running clustering for new user {new_user.id}...")
+                clustering_result = await ClusterService.run_user_clustering(db)
+                print(f"✅ Clustering completed: {clustering_result.stats.clusters_updated} clusters, {clustering_result.stats.users_clustered} users clustered")
+            except Exception as cluster_error:
+                print(f"⚠️ Warning: Clustering failed for new user {new_user.id}: {cluster_error}")
+                # Don't fail registration if clustering fails
+            
             # Tạo access token để user có thể login ngay
             access_token = AuthenticationService.create_access_token(new_user)
             
