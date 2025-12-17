@@ -142,6 +142,15 @@ class MapAPI:
 
                 if "places" in data:
                     for place in data["places"]:
+                        # Ensure id field exists (Google Places API uses 'id' field)
+                        if "id" not in place and "place_id" in place:
+                            place["id"] = place["place_id"]
+                        
+                        # Strip 'places/' prefix from new API format (places/ChIJ... -> ChIJ...)
+                        # This ensures compatibility with the old Places API Details endpoint
+                        if "id" in place and isinstance(place["id"], str) and place["id"].startswith("places/"):
+                            place["id"] = place["id"].replace("places/", "", 1)
+                        
                         raw_photos = place.get("photos", [])
 
                         if (

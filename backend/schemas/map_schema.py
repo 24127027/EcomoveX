@@ -163,7 +163,7 @@ class TextSearchRequest(BaseModel):
 
 
 class PlaceSearchResult(BaseModel):
-    place_id: str = Field(alias="id")
+    place_id: Optional[str] = Field(None, alias="id")
     display_name: Optional[LocalizedText] = Field(None, alias="displayName")
     formatted_address: Optional[str] = Field(None, alias="formattedAddress")
     location: Optional[Location] = None

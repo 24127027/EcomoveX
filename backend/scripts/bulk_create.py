@@ -1162,13 +1162,16 @@ async def bulk_create_users(db: AsyncSession) -> tuple[int, int]:
         clusters_created = []
         try:
             clustering_result = await ClusterService.run_user_clustering(db)
-            print("  ✅ Clustering completed:")
+            print("  ✅ Clustering completed successfully:")
             print(f"     - Users clustered: {clustering_result.stats.users_clustered}")
             print(f"     - Clusters updated: {clustering_result.stats.clusters_updated}")
             print(f"     - Embeddings generated: {clustering_result.stats.embeddings_generated}")
+            print(f"     - Users in noise: {clustering_result.stats.users_in_noise}")
             clusters_created = list(range(1, clustering_result.stats.clusters_updated + 1))
+            
         except Exception as cluster_error:
-            print(f"  ⚠️ Clustering failed: {cluster_error}")
+            print(f"  ❌ Clustering failed: {cluster_error}")
+            print(f"  ⚠️ This may affect recommendation quality. Please run clustering manually.")
 
         # Step 7: Compute cluster popularity scores
         print("\n📋 Step 7: Computing cluster popularity scores...")

@@ -2115,15 +2115,27 @@ function ReviewPlanContent() {
                     AI Optimization Warnings
                   </p>
                   <ul className="space-y-1">
-                    {aiWarnings.map((warning, index) => (
-                      <li
-                        key={index}
-                        className="text-xs text-amber-700 flex items-start gap-2"
-                      >
-                        <span className="text-amber-400 shrink-0 mt-0.5">•</span>
-                        <span>{warning}</span>
-                      </li>
-                    ))}
+                    {aiWarnings.map((warning, index) => {
+                        // Safety: ensure we always extract string message
+                        let message = '';
+                        if (typeof warning === 'string') {
+                          message = warning;
+                        } else if (warning && typeof warning === 'object' && 'message' in warning) {
+                          message = String((warning as any).message || '');
+                        } else {
+                          message = 'Unknown warning';
+                        }
+                      
+                      return (
+                        <li
+                          key={index}
+                          className="text-xs text-amber-700 flex items-start gap-2"
+                        >
+                          <span className="text-amber-400 shrink-0 mt-0.5">•</span>
+                          <span>{message}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
                 <button

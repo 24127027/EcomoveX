@@ -49,7 +49,32 @@ FIELD_GROUPS = {
 
 class MapService:
     @staticmethod
+    def _is_valid_place_id(place_id: str) -> bool:
+        """Check if a place_id is a valid Google Place ID."""
+        import re
+        
+        if not place_id or not isinstance(place_id, str):
+            return False
+        
+        # Check for error or placeholder IDs
+        if place_id.startswith(('error-', 'placeholder-')):
+            return False
+        
+        # Check if it has a suffix appended (like '-0', '-1', etc.)
+        # Valid Google Place IDs don't end with dash and number
+        if re.search(r'-\d+$', place_id):
+            return False
+        
+        # Valid Google Place IDs typically start with 'ChIJ' or are at least 20 characters
+        return place_id.startswith('ChIJ') or len(place_id) > 20
+
+    @staticmethod
     async def get_coordinates(place_id: str) -> Location:
+        # Validate place_id before making API call
+        if not MapService._is_valid_place_id(place_id):
+            print(f"INVALID place_id format: {place_id}, skipping API call")
+            return None
+        
         map_client = None
         try:
             map_client = await create_map_client()

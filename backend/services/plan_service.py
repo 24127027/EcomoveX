@@ -287,8 +287,16 @@ class PlanService:
                 for i in range(len(saved_destinations) - 1):
                     origin = saved_destinations[i]
                     destination = saved_destinations[i + 1]
+                    
+                    # Get coordinates with validation
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
+                    
+                    # Skip route creation if coordinates are invalid
+                    if not origin_coords or not destination_coords:
+                        print(f"WARNING: Skipping route creation between destinations {i} and {i+1} due to invalid coordinates")
+                        continue
+                    
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
                         origin=origin_coords,
                         destination=destination_coords
@@ -879,7 +887,7 @@ class PlanService:
         route_id: int,
         mode: TransportMode,
         carbon_emission_kg: float,
-    ) -> bool:
+    ):
         try:
             route = await PlanRepository.get_route_by_id(db, route_id)
             if not route:
@@ -895,13 +903,13 @@ class PlanService:
                     detail="User is not a member of the plan",
                 )
 
-            success = await PlanRepository.update_route(db, route_id, mode, carbon_emission_kg)
-            if not success:
+            updated_route = await PlanRepository.update_route(db, route_id, mode, carbon_emission_kg)
+            if not updated_route:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update route",
                 )
-            return success
+            return updated_route
         except HTTPException:
             raise
         except Exception as e:

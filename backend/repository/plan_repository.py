@@ -476,7 +476,7 @@ class PlanRepository:
             return None
 
     @staticmethod
-    async def update_route(db: AsyncSession, route_id: int, mode: TransportMode, carbon_emission_kg: float) -> bool:
+    async def update_route(db: AsyncSession, route_id: int, mode: TransportMode, carbon_emission_kg: float):
         try:
             result = await db.execute(
                 select(Route).where(Route.id == route_id)
@@ -484,7 +484,7 @@ class PlanRepository:
             route = result.scalar_one_or_none()
             if not route:
                 print(f"WARNING: Route ID {route_id} not found")
-                return False
+                return None
 
             route.mode = mode
             route.carbon_emission_kg = carbon_emission_kg
@@ -492,8 +492,8 @@ class PlanRepository:
             db.add(route)
             await db.commit()
             await db.refresh(route)
-            return True
+            return route
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: updating route ID {route_id} - {e}")
-            return False
+            return None

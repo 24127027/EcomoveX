@@ -88,49 +88,29 @@ class PlanEditAgent:
 
                     if search_result.places and len(search_result.places) > 0:
                         place = search_result.places[0]  # Get first result
-                        new_dest = {
-                            "destination_id": place.place_id,  # ✅ Real Google Place ID
-                            "destination_type": place.types[0] if place.types else "attraction",
-                            "visit_date": str(plan.start_date),
-                            "order_in_day": len(destinations) + 1,
-                            "time_slot": "morning",
-                            "note": place.name,
-                            "address": place.formatted_address or "",
-                            "url": place.photos.photo_url if place.photos and place.photos.photo_url else "",
-                            "estimated_cost": 0
-                        }
-                        print(f"✅ Found place: {place.name} (ID: {place.place_id})")
+                        
+                        # Only add destination if we have a valid place_id
+                        if place.place_id and is_valid_place_id(place.place_id):
+                            new_dest = {
+                                "destination_id": place.place_id,  # ✅ Real Google Place ID
+                                "destination_type": place.types[0] if place.types else "attraction",
+                                "visit_date": str(plan.start_date),
+                                "order_in_day": len(destinations) + 1,
+                                "time_slot": "morning",
+                                "note": place.name,
+                                "address": place.formatted_address or "",
+                                "url": place.photos.photo_url if place.photos and place.photos.photo_url else "",
+                                "estimated_cost": 0
+                            }
+                            destinations.append(new_dest)
+                            print(f"✅ Found and added place: {place.name} (ID: {place.place_id})")
+                        else:
+                            print(f"⚠️ Invalid place_id returned for '{dest_name}', skipping")
                     else:
-                        # Fallback if no results found
-                        print(f"⚠️ No results found for '{dest_name}', creating placeholder")
-                        new_dest = {
-                            "destination_id": f"placeholder-{len(destinations)}",
-                            "destination_type": "attraction",
-                            "visit_date": str(plan.start_date),
-                            "order_in_day": len(destinations) + 1,
-                            "time_slot": "morning",
-                            "note": dest_name,
-                            "address": "",
-                            "url": "",
-                            "estimated_cost": 0
-                        }
+                        # No results found - skip this destination
+                        print(f"⚠️ No results found for '{dest_name}', skipping destination")
                 except Exception as e:
-                    print(f"❌ Error searching for place '{dest_name}': {str(e)}")
-                    # Fallback to placeholder on error
-                    new_dest = {
-                        "destination_id": f"error-{len(destinations)}",
-                        "destination_type": "attraction",
-                        "visit_date": str(plan.start_date),
-                        "order_in_day": len(destinations) + 1,
-                        "time_slot": "morning",
-                        "note": dest_name,
-                        "address": "",
-                        "url": "",
-                        "estimated_cost": 0
-                    }
-
-                destinations.append(new_dest)
-                print(f"➕ Added destination suggestion: {new_dest['note']}")
+                    print(f"❌ Error searching for place '{dest_name}': {str(e)}, skipping destination")
 
             elif action == "remove":
                 # Remove destination from the list
