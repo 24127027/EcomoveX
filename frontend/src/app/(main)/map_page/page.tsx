@@ -408,39 +408,22 @@ function MapContent() {
     
     setIsLoadingRecommendations(true);
     try {
-      const recToken = generateSessionToken();
-      const response = await api.autocomplete({
-        query: "park",
-        user_location: userLocation,
-        radius: 5000,
-        place_types: "park|tourist_attraction|point_of_interest",
-        session_token: recToken,
-      });
+      // Use personalized nearby recommendations from backend
+      const response = await api.getNearbyGreenPlaces(
+        userLocation.lat,
+        userLocation.lng,
+        5, // 5km radius
+        8  // Get 8 recommendations
+      );
 
-      if (!response || !response.predictions) {
+      if (!response || !response.places || response.places.length === 0) {
         setLocations([]);
         return;
       }
 
-      const detailedRecommendations = await Promise.all(
-        response.predictions
-          .slice(0, 8)
-          .map(async (prediction: AutocompletePrediction) => {
-            try {
-              const details = await api.getPlaceDetails(
-                prediction.place_id,
-                recToken,
-                ["basic"]
-              );
-              return await addDistanceText(details, userLocation);
-            } catch (error) {
-              return null;
-            }
-          })
-      );
-
-      const validRecommendations = detailedRecommendations.filter(
-        (r): r is PlaceDetailsWithDistance => r !== null
+      // Convert PlaceSearchResult to PlaceDetailsWithDistance
+      const validRecommendations = response.places.map((result) =>
+        convertSearchResultToDetails(result, userLocation)
       );
       
       setLocations(validRecommendations);

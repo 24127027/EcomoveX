@@ -54,7 +54,7 @@ class MapAPI:
             verify=True,  # Ensure SSL verification is enabled
         )
 
-    async def text_search_place(self, request: TextSearchRequest) -> TextSearchResponse:
+    async def text_search_place(self, request: TextSearchRequest, convert_photo_urls: bool = False) -> TextSearchResponse:
         url = f"{self.new_base_url}:searchText"
 
         default_mask = (
@@ -106,16 +106,22 @@ class MapAPI:
                             first_photo = raw_photos[0]
 
                             ref = first_photo.get("name")
-
-                            final_url = await self.generate_place_photo_url(ref)
-
                             width = first_photo.get("widthPx", 0)
                             height = first_photo.get("heightPx", 0)
 
-                            place["photos"] = {
-                                "photo_url": final_url,
+                            photo_info = {
+                                "photo_reference": ref,
                                 "size": (width, height),
                             }
+
+                            # Only convert to URL if requested
+                            if convert_photo_urls and ref:
+                                final_url = await self.generate_place_photo_url(ref)
+                                photo_info["photo_url"] = final_url
+                            else:
+                                photo_info["photo_url"] = None
+
+                            place["photos"] = photo_info
                         else:
                             place["photos"] = None
 

@@ -121,7 +121,6 @@ async def get_nearby_recommendations_by_cluster_tags(
 )
 async def get_cluster_affinity_recommendations(
     k: int = Query(default=5, description="Number of recommendations to return", ge=1, le=50),
-    include_scores: bool = Query(default=False, description="Include affinity/popularity scores in response"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -159,27 +158,24 @@ async def get_cluster_affinity_recommendations(
         db=db,
         user_id=current_user["user_id"],
         k=k,
-        include_scores=include_scores,
     )
 
 
 @router.get(
-    "/user/{user_id}/cluster-affinity",
+    "/user/cluster-affinity",
     response_model=RecommendationDestination,
     status_code=status.HTTP_200_OK,
     summary="Get destination IDs based on cluster affinity (by user_id)",
 )
 async def get_cluster_affinity_recommendations_for_user(
-    user_id: int,
+    current_user: dict = Depends(get_current_user),
     k: int = Query(default=5, description="Number of recommendations to return", ge=1, le=50),
-    include_scores: bool = Query(default=False, description="Include affinity/popularity scores in response"),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get destination IDs based on cluster affinity for a specific user.
     
-    Returns a list of destination IDs (strings) when include_scores=False,
-    or a list of objects with scores when include_scores=True.
+    Returns a list of destination IDs (strings).
     
     **Response:**
     ```json
@@ -194,7 +190,6 @@ async def get_cluster_affinity_recommendations_for_user(
     """
     return await RecommendationService.recommend_destinations_by_cluster_affinity(
         db=db,
-        user_id=user_id,
+        user_id=current_user["user_id"],
         k=k,
-        include_scores=include_scores,
     )

@@ -76,13 +76,14 @@ class MapService:
     async def text_search_place(
         db: AsyncSession, 
         data: TextSearchRequest,
-        user_id: str
+        user_id: str,
+        convert_photo_urls: bool = False,
     ) -> TextSearchResponse:
         from services.recommendation_service import RecommendationService
         map_client = await create_map_client()
 
         try:
-            response = await map_client.text_search_place(data)
+            response = await map_client.text_search_place(data, convert_photo_urls=convert_photo_urls)
 
             # Removed destination creation - only create when user actually selects/saves a place
             

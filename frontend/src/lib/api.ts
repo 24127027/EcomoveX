@@ -1416,9 +1416,18 @@ class ApiClient {
     lng: number,
     radiusKm: number = 5,
     k: number = 10
-  ): Promise<GreenPlaceRecommendation[]> {
-    return this.request<GreenPlaceRecommendation[]>(
+  ): Promise<TextSearchResponse> {
+    return this.request<TextSearchResponse>(
       `/recommendations/user/me/nearby-by-cluster?latitude=${lat}&longitude=${lng}&radius_km=${radiusKm}&k=${k}`,
+      { method: "GET" }
+    );
+  }
+
+  async getPersonalizedRecommendations(
+    k: number = 5
+  ): Promise<{ recommendation: string[] }> {
+    return this.request<{ recommendation: string[] }>(
+      `/recommendations/user/me/cluster-affinity?k=${k}`,
       { method: "GET" }
     );
   }

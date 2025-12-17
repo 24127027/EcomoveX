@@ -229,7 +229,7 @@ class RecommendationService:
         current_location: Location,
         radius_km: float = 5.0,
         k: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> TextSearchResponse:
         try:
             # Import here to avoid circular import
             from services.map_service import MapService
@@ -244,25 +244,25 @@ class RecommendationService:
                 if cluster_prefs and cluster_prefs.attraction_types:
                     cluster_categories = cluster_prefs.attraction_types[:5]
 
-            if not cluster_categories:
-                cluster_categories = ["park", "garden", "tourist_attraction", "museum"]
-
             search_results: List[TextSearchResponse] = []
             radius_meters: int = int(radius_km * 1000)
 
+            # Fetch results without converting photo URLs for better performance
             for category in cluster_categories[:3]:
                 try:
                     search_request = TextSearchRequest(
                         query=category, location=current_location, radius=radius_meters
                     )
-                    # Use MapService.text_search_place instead
-                    result = await MapService.text_search_place(db, search_request, user_id)
+                    # Use MapService.text_search_place with convert_photo_urls=False
+                    result = await MapService.text_search_place(db, search_request, user_id, convert_photo_urls=False)
                     if result:
                         search_results.append(result)
                 except Exception as e:
                     print(f"Search failed for category {category}: {e}")
                     continue
 
+            # Store original PlaceSearchResult objects for reuse
+            place_objects: Dict[str, PlaceSearchResult] = {}
             place_scores: Dict[str, Dict[str, Any]] = {}
 
             for idx, result in enumerate(search_results):
@@ -326,49 +326,54 @@ class RecommendationService:
                         or combined_score > place_scores[place_id]["combined_score"]
                     ):
                         place_scores[place_id] = {
-                            "place_id": place_id,
-                            "name": place_name,
-                            "formatted_address": place.formatted_address,
-                            "latitude": place_lat,
-                            "longitude": place_lng,
-                            "distance_km": round(distance_km, 2),
-                            "rating": rating_val,
-                            "review_count": user_ratings,
-                            "types": place.types,
-                            "proximity_score": round(proximity_score, 3),
-                            "rating_score": round(rating_score, 3),
-                            "review_score": round(review_score, 3),
-                            "category_weight": round(category_weight, 3),
                             "combined_score": round(combined_score, 3),
+                            "distance_km": round(distance_km, 2),
                         }
+                        # Store the original PlaceSearchResult object
+                        place_objects[place_id] = place
 
-            recommendations: List[Dict[str, Any]] = sorted(
-                place_scores.values(), key=lambda x: x["combined_score"], reverse=True
+            # Sort by combined score and get top K place IDs
+            sorted_places = sorted(
+                place_scores.items(), key=lambda x: x[1]["combined_score"], reverse=True
             )
+            top_k_place_ids = [place_id for place_id, _ in sorted_places[:k]]
 
-            top_recs: List[Dict[str, Any]] = recommendations[:k]
-
-            for rec in top_recs:
-                place_id = rec["place_id"]
+            # Convert photo references to URLs only for top K recommendations
+            from integration.map_api import MapAPI
+            map_api = MapAPI()
+            
+            top_results: List[PlaceSearchResult] = []
+            for place_id in top_k_place_ids:
+                place = place_objects[place_id]
+                
+                # Convert photo reference to URL if exists
+                if place.photos and place.photos.photo_reference:
+                    try:
+                        photo_url = await map_api.generate_place_photo_url(
+                            place.photos.photo_reference
+                        )
+                        # Update the PhotoInfo with the URL
+                        place.photos.photo_url = photo_url
+                    except Exception as e:
+                        print(f"⚠️ Failed to convert photo URL for {place_id}: {e}")
+                        place.photos.photo_url = None
+                
+                # Create/update destination in DB
                 try:
-                    # ✅ Chỉ get, không create để tránh duplicate
                     existing_dest = await DestinationRepository.get_destination_by_id(
                         db, place_id
                     )
-                    if existing_dest:
-                        rec["destination_id"] = existing_dest.place_id
-                    else:
-                        # ✅ Tạo mới nếu chưa có, hàm create_destination đã handle duplicate
-                        new_dest = await DestinationRepository.create_destination(
+                    if not existing_dest:
+                        await DestinationRepository.create_destination(
                             db, DestinationCreate(place_id=place_id)
                         )
-                        rec["destination_id"] = new_dest.place_id if new_dest else None
                 except Exception as e:
-                    # ✅ Log warning nhưng không raise error để không ảnh hưởng UX
                     print(f"⚠️ Could not get/create destination {place_id}: {e}")
-                    rec["destination_id"] = None
+                
+                top_results.append(place)
 
-            return top_recs
+            # Return unified TextSearchResponse format
+            return TextSearchResponse(results=top_results)
 
         except HTTPException:
             raise
@@ -384,7 +389,6 @@ class RecommendationService:
         db: AsyncSession, 
         user_id: int,
         k: int = 5,
-        include_scores: bool = False
     ) -> RecommendationDestination:
         """
         Recommends destinations from internal database based on cluster affinity.
@@ -404,12 +408,9 @@ class RecommendationService:
             db: Database session
             user_id: ID of the user
             k: Number of recommendations to return (default: 5)
-            include_scores: If True, include affinity/popularity/combined scores
             
         Returns:
-            List of dictionaries with:
-                - destination_id: Place ID from internal database
-                - [scores only if include_scores=True]
+            List of destination IDs (strings) from internal database
         """
         try:
             # Step 1: Get user's latest cluster
@@ -475,24 +476,13 @@ class RecommendationService:
                 # Step 5: Hybrid scoring - 70% affinity, 30% popularity
                 combined_score = affinity_score * 0.7 + popularity_normalized * 0.3
                 
-                # Build recommendation entry
-                rec = {"destination_id": dest_id}
-                
-                if include_scores:
-                    rec["affinity_score"] = round(affinity_score, 4)
-                    rec["popularity_score"] = round(dest.popularity_score or 0.0, 2)
-                    rec["combined_score"] = round(combined_score, 4)
-                else:
-                    # Store combined_score for sorting but don't include in output
-                    rec["_combined_score"] = combined_score
-                
-                recommendations.append(rec)
+                recommendations.append({
+                    "destination_id": dest_id,
+                    "combined_score": combined_score
+                })
             
             # Step 6: Sort by combined score (descending) and return
-            recommendations.sort(
-                key=lambda x: x.get("combined_score") or x.get("_combined_score", 0),
-                reverse=True
-            )
+            recommendations.sort(key=lambda x: x["combined_score"], reverse=True)
             
             # Extract destination IDs and return wrapped in schema
             destination_ids = [rec["destination_id"] for rec in recommendations[:k]]

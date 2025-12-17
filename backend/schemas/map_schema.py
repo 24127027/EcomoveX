@@ -48,7 +48,8 @@ class AutocompleteRequest(BaseModel):
 
 
 class PhotoInfo(BaseModel):
-    photo_url: str
+    photo_url: Optional[str] = None
+    photo_reference: Optional[str] = None
     size: Tuple[int, int]
 
 
