@@ -25,6 +25,7 @@ import {
   SavedDestination,
   birdDistance,
 } from "@/lib/api";
+import { autocompleteSession } from "@/lib/autocompleteSession";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleMaps } from "@/lib/useGoogleMaps";
 import { flushSync } from "react-dom";
@@ -92,12 +93,8 @@ const convertSearchResultToDetails = (
   };
 };
 
-const generateSessionToken = () => {
-  if (window.google?.maps?.places) {
-    return new google.maps.places.AutocompleteSessionToken().toString();
-  }
-  return crypto.randomUUID();
-};
+// ✅ REMOVED: Using centralized autocompleteSession manager instead
+// This saves ~$119/day in API costs by properly managing session tokens
 
 // --- LOGIC COMPONENT (Đã đổi tên và tách ra) ---
 function MapContent() {
@@ -143,7 +140,7 @@ function MapContent() {
     lng: 106.7019,
   });
   const [enableTransition, setEnableTransition] = useState(true);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  // ✅ REMOVED: sessionToken state - now using autocompleteSession manager
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [savedPlaceIds, setSavedPlaceIds] = useState<string[]>([]);
   const [saveFeedback, setSaveFeedback] = useState<{
@@ -158,7 +155,7 @@ function MapContent() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const initialLoadRef = useRef(true);
-  const sessionTokenRef = useRef<string | null>(null);
+  // ✅ REMOVED: sessionTokenRef - now using autocompleteSession manager
   const sheetHeightRef = useRef(sheetHeight);
   const pendingMapUpdateRef = useRef<{
     position: Position;
@@ -184,9 +181,7 @@ function MapContent() {
     }
   }, []);
 
-  useEffect(() => {
-    sessionTokenRef.current = sessionToken;
-  }, [sessionToken]);
+  // ✅ REMOVED: sessionToken useEffect - using autocompleteSession manager now
 
   useEffect(() => {
     if (urlQuery !== searchQuery) {
@@ -240,12 +235,12 @@ function MapContent() {
       try {
         if (!isSearchFocused) return;
 
-        let activeToken = sessionTokenRef.current;
+        // ✅ Get or start session token
+        let activeToken = autocompleteSession.getToken();
         if (!activeToken) {
-          activeToken = generateSessionToken();
-          setSessionToken(activeToken);
-          sessionTokenRef.current = activeToken;
+          activeToken = autocompleteSession.startSession();
         }
+        autocompleteSession.incrementRequestCount();
 
         const response = await api.autocomplete({
           query: searchQuery,
@@ -274,6 +269,9 @@ function MapContent() {
     setIsSearching(true);
     setIsSearchFocused(false);
     setAutocompletePredictions([]);
+    
+    // ✅ End session when executing text search (not selecting from predictions)
+    autocompleteSession.endSession();
 
     try {
       const response = await api.textSearchPlace({
@@ -363,9 +361,11 @@ function MapContent() {
     setEnableTransition(true);
 
     try {
+      // ✅ Use same session token for place details (CRITICAL for cost savings)
+      const token = autocompleteSession.getToken();
       const fullDetails = await api.getPlaceDetails(
         prediction.place_id,
-        sessionToken,
+        token,
         ["basic"]
       );
       const withDistance = await addDistanceText(fullDetails, userLocation);
@@ -373,6 +373,9 @@ function MapContent() {
       setSelectedLocation(withDistance);
       setSearchResults([withDistance]);
       setSheetHeight(65);
+      
+      // ✅ End session after successful place details fetch
+      autocompleteSession.endSession();
 
       if (googleMapRef.current) {
         googleMapRef.current.panTo({
@@ -381,7 +384,6 @@ function MapContent() {
         });
         googleMapRef.current.setZoom(16);
       }
-      setSessionToken(null);
     } catch (error) {
       console.error("Failed to fetch place details:", error);
     }
@@ -827,11 +829,6 @@ function MapContent() {
                         setEnableTransition(false);
                         setSheetHeight(8);
                       });
-                      if (window.google?.maps) {
-                        const token =
-                          new google.maps.places.AutocompleteSessionToken();
-                        setSessionToken(token.toString());
-                      }
                       setIsSearchFocused(true);
                       setTimeout(() => setEnableTransition(true), 50);
                     }}
