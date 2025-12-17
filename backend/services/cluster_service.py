@@ -245,7 +245,7 @@ class ClusterService:
     @staticmethod
     async def update_user_embeddings(db: AsyncSession) -> int:
         try:
-            cutoff_date = datetime.now() - timedelta(
+            cutoff_date = datetime.now(timezone.utc) - timedelta(
                 days=EMBEDDING_UPDATE_INTERVAL_DAYS
             )
 
@@ -409,11 +409,67 @@ class ClusterService:
         except Exception:
             return False
         
+    # Conversion mappings for preference data
+    CLIMATE_TO_TEMP = {
+        "warm": {"min_temp": 25, "max_temp": 35},
+        "cool": {"min_temp": 15, "max_temp": 25},
+        "cold": {"min_temp": 0, "max_temp": 15},
+        "any": {"min_temp": 0, "max_temp": 40}
+    }
+    
+    BUDGET_TO_RANGE = {
+        "low": {"min": 0.0, "max": 500000.0},
+        "mid": {"min": 500000.0, "max": 2000000.0},
+        "luxury": {"min": 2000000.0, "max": 10000000.0}
+    }
+    
+    # Default values
+    DEFAULT_CLIMATE = "any"
+    DEFAULT_BUDGET_LEVEL = "mid"
+    DEFAULT_ATTRACTION_TYPES = ["nature", "culture", "entertainment"]
+    DEFAULT_KIDS_FRIENDLY = False
+
+    @staticmethod
+    def _convert_preference_data(raw_data: Optional[Dict]) -> PreferenceUpdate:
+        """Convert frontend format to backend format with default fallbacks."""
+        if raw_data is None:
+            raw_data = {}
+        
+        # Weather preference with fallback
+        climate = ClusterService.DEFAULT_CLIMATE
+        if raw_data.get("weather_pref"):
+            climate = raw_data["weather_pref"].get("climate", ClusterService.DEFAULT_CLIMATE)
+        weather_pref = ClusterService.CLIMATE_TO_TEMP.get(
+            climate, ClusterService.CLIMATE_TO_TEMP[ClusterService.DEFAULT_CLIMATE]
+        )
+        
+        # Budget range with fallback
+        level = ClusterService.DEFAULT_BUDGET_LEVEL
+        if raw_data.get("budget_range"):
+            level = raw_data["budget_range"].get("level", ClusterService.DEFAULT_BUDGET_LEVEL)
+        budget_range = ClusterService.BUDGET_TO_RANGE.get(
+            level, ClusterService.BUDGET_TO_RANGE[ClusterService.DEFAULT_BUDGET_LEVEL]
+        )
+        
+        # Attraction types with fallback
+        attraction_types = raw_data.get("attraction_types") or ClusterService.DEFAULT_ATTRACTION_TYPES
+        
+        # Kids friendly with fallback
+        kids_friendly = raw_data.get("kids_friendly", ClusterService.DEFAULT_KIDS_FRIENDLY)
+        
+        return PreferenceUpdate(
+            weather_pref=weather_pref,
+            attraction_types=attraction_types,
+            budget_range=budget_range,
+            kids_friendly=kids_friendly
+        )
+
     @staticmethod
     async def update_preference(
-        db: AsyncSession, user_id: int, preference_data: PreferenceUpdate
+        db: AsyncSession, user_id: int, raw_data: Optional[Dict] = None
     ):
         try:
+            preference_data = ClusterService._convert_preference_data(raw_data)
             return await ClusterRepository.update_preference(db, user_id, preference_data)
         except Exception:
             return None
