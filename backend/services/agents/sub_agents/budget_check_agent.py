@@ -1,5 +1,7 @@
 from typing import Any, Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
+from services.map_service import MapService
+from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 
 
 class BudgetCheckAgent:
@@ -9,7 +11,7 @@ class BudgetCheckAgent:
         self.db = db
 
     async def process(self, plan: Any, action: str = "validate") -> Dict[str, Any]:
-        """Kiểm tra tổng estimated_cost so với budget_limit."""
+        """Kiểm tra tổng estimated_cost so với budget_limit, fetch price_level từ MapService."""
         modifications: List[Dict] = []
         warnings: List[str] = []
 
@@ -32,12 +34,48 @@ class BudgetCheckAgent:
         total_cost = 0
         missing_cost_count = 0
         
+        # Price level to VND mapping (approximate)
+        price_level_map = {
+            0: 0,        # Free
+            1: 50000,    # Inexpensive (~$2)
+            2: 150000,   # Moderate (~$6)
+            3: 300000,   # Expensive (~$12)
+            4: 500000,   # Very Expensive (~$20)
+        }
+        
         for d in destinations:
             cost = d.get("estimated_cost") if isinstance(d, dict) else getattr(d, "estimated_cost", 0)
+            
+            # If cost is already provided, use it
             if cost and cost > 0:
                 total_cost += cost
             else:
-                missing_cost_count += 1
+                # Try to estimate from Google Maps price_level
+                dest_id = d.get("destination_id") if isinstance(d, dict) else getattr(d, "destination_id", None)
+                if dest_id:
+                    try:
+                        import uuid
+                        place_details = await MapService.get_location_details(
+                            PlaceDetailsRequest(
+                                place_id=dest_id,
+                                session_token=str(uuid.uuid4()),
+                                categories=[PlaceDataCategory.BASIC]
+                            ),
+                            db=self.db
+                        )
+                        
+                        if place_details.price_level is not None:
+                            estimated_cost = price_level_map.get(place_details.price_level, 0)
+                            total_cost += estimated_cost
+                            # Update destination with estimated cost
+                            d["estimated_cost"] = estimated_cost
+                        else:
+                            missing_cost_count += 1
+                    except Exception as e:
+                        print(f"Warning: Could not fetch price_level for {dest_id}: {e}")
+                        missing_cost_count += 1
+                else:
+                    missing_cost_count += 1
 
         if total_cost > budget:
             over_amount = total_cost - budget

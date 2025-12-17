@@ -1,5 +1,7 @@
 from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
+from services.map_service import MapService
+from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 
 
 class OpeningHoursAgent:
@@ -9,7 +11,7 @@ class OpeningHoursAgent:
         self.db = db
 
     async def process(self, plan: Any, action: str = "validate") -> Dict[str, Any]:
-        """Kiểm tra giờ mở cửa của từng destination."""
+        """Kiểm tra giờ mở cửa của từng destination bằng cách gọi MapService."""
         if isinstance(plan, dict):
             plan_data = plan
         elif hasattr(plan, "model_dump"):
@@ -21,8 +23,6 @@ class OpeningHoursAgent:
                     plan_data["destinations"].append({
                         "id": getattr(d, "id", None),
                         "destination_id": getattr(d, "destination_id", None),
-                        "name": getattr(d, "name", None),
-                        "opening_hours": getattr(d, "opening_hours", None),
                     })
 
         destinations = plan_data.get("destinations", [])
@@ -32,19 +32,52 @@ class OpeningHoursAgent:
         modifications = []
         checked_count = 0
         missing_count = 0
+        closed_count = 0
 
         for dest in destinations:
             dest_id = dest.get("destination_id") or dest.get("id")
-            dest_name = dest.get("name") or dest_id or "Unknown"
+            if not dest_id:
+                continue
+            
             checked_count += 1
-
-            if not dest.get("opening_hours"):
+            
+            try:
+                # Fetch place details from Google Maps API
+                import uuid
+                place_details = await MapService.get_location_details(
+                    PlaceDetailsRequest(
+                        place_id=dest_id,
+                        session_token=str(uuid.uuid4()),
+                        categories=[PlaceDataCategory.BASIC]
+                    ),
+                    db=self.db
+                )
+                
+                dest_name = place_details.name or dest_id
+                
+                if not place_details.opening_hours:
+                    missing_count += 1
+                    modifications.append({
+                        "destination_id": dest_id,
+                        "destination_name": dest_name,
+                        "issue": "missing_opening_hours",
+                        "suggestion": f"'{dest_name}' không có thông tin giờ mở cửa"
+                    })
+                elif not place_details.opening_hours.open_now:
+                    closed_count += 1
+                    modifications.append({
+                        "destination_id": dest_id,
+                        "destination_name": dest_name,
+                        "issue": "currently_closed",
+                        "suggestion": f"'{dest_name}' hiện đang đóng cửa"
+                    })
+            except Exception as e:
+                print(f"Warning: Could not fetch opening hours for {dest_id}: {e}")
                 missing_count += 1
                 modifications.append({
                     "destination_id": dest_id,
-                    "destination_name": dest_name,
-                    "issue": "missing_opening_hours",
-                    "suggestion": f"Kiểm tra giờ mở cửa của '{dest_name}'"
+                    "issue": "fetch_error",
+                    "suggestion": f"Không thể lấy thông tin giờ mở cửa"
                 })
 
         warnings = []
