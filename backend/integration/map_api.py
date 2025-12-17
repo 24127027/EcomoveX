@@ -158,6 +158,12 @@ class MapAPI:
         self, data: AutocompleteRequest, components: str = "country:vn"
     ) -> AutocompleteResponse:
         try:
+            # ✅ Session token validation for cost optimization
+            if not data.session_token or len(data.session_token) < 10:
+                print("⚠️  WARNING: Invalid/missing session token in autocomplete!")
+                print("   This will cost $0.017 per keystroke instead of per selection.")
+                print("   See: backend/docs/AUTOCOMPLETE_SESSION_TOKEN_GUIDE.md")
+            
             params = {
                 "input": data.query.strip(),
                 "language": data.language,
@@ -211,6 +217,7 @@ class MapAPI:
         fields: list[str],
         session_token: Optional[str] = None,
         language: str = "vi",
+        max_photos: int = 1,  # ✅ OPTIMIZATION: Only convert first photo by default (was 5)
     ) -> PlaceDetailsResponse:
         try:
             params = {
@@ -313,7 +320,7 @@ class MapAPI:
                             ),
                             size=(photo.get("width"), photo.get("height")),
                         )
-                        for photo in result.get("photos", [])[:5]  # Limit to first 5 photos
+                        for photo in result.get("photos", [])[:max_photos]  # ✅ OPTIMIZATION: Limit photos (default 1 instead of 5)
                         if photo.get("photo_reference")  # Only process photos with valid references
                     ]
                     if result.get("photos")

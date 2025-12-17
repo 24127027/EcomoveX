@@ -154,6 +154,7 @@ class MapService:
                 place_id=data.place_id,
                 fields=list(final_fields),  # Convert set back to list
                 session_token=data.session_token,
+                max_photos=1,  # ✅ OPTIMIZATION: Only fetch 1 photo (saves $0.028 per request)
             )
 
             # Check database for green verification status via repository
