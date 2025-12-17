@@ -17,6 +17,7 @@ import {
   DragOverlay,
   defaultDropAnimationSideEffects,
   DropAnimation,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -64,16 +65,6 @@ const jost = Jost({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 // --- STORAGE KEYS ---
 const STORAGE_KEY_RAW = "temp_plan_destinations";
 const STORAGE_KEY_STRUCTURED = "current_plan_activities";
-const AI_SHOWN_KEY = "has_shown_ai_gen";
-
-// --- AI MESSAGES ---
-const AI_STEPS = [
-  "Analyzing your selected destinations...",
-  "Optimizing travel routes...",
-  "Checking opening hours...",
-  "Generating your perfect schedule...",
-];
-
 const STORAGE_KEY_INFO = "temp_plan_info";
 
 // --- [FIX] CONFIG DROP ANIMATION ---
@@ -128,11 +119,20 @@ function SortableItem({ activity, onDelete, isOwner }: SortableItemProps) {
       }`}
     >
       <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden shrink-0">
-        <img
-          src={activity.image_url || "https://via.placeholder.com/100"}
-          alt=""
-          className="w-full h-full object-cover"
-        />
+        {activity.image_url ? (
+          <img
+            src={activity.image_url}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -189,12 +189,17 @@ function TimeSlotContainer({
   onAddPlace: () => void;
   isOwner: boolean;
 }) {
-  const { setNodeRef } = useSortable({ id, disabled: !isOwner });
+  const { setNodeRef, isOver } = useDroppable({ 
+    id, 
+    disabled: !isOwner 
+  });
 
   return (
     <div
       ref={setNodeRef}
-      className="bg-[#F9FAF9] p-3 rounded-2xl mb-4 border border-gray-200"
+      className={`bg-[#F9FAF9] p-3 rounded-2xl mb-4 border transition-colors ${
+        isOver ? "border-[#53B552] bg-green-50/50" : "border-gray-200"
+      }`}
     >
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
@@ -256,10 +261,16 @@ function ChatWindow({
   onClose,
   planId,
   userId: externalUserId,
+  onPlanUpdated,
+  planInfo,
+  activities,
 }: {
   onClose: () => void;
   planId: number | null;
   userId?: number | null;
+  onPlanUpdated?: (backendPlanData?: any) => void;
+  planInfo: { name: string; date: string; end_date: string; budget: number };
+  activities: PlanActivity[];
 }) {
   const [messages, setMessages] = useState<
     { role: "user" | "bot"; text: string }[]
@@ -471,11 +482,61 @@ function ChatWindow({
     setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
 
     try {
-      const res = await api.sendBotMessage(userId, roomId, userMsg);
+      // ✅ Send current plan state (unsaved changes) to chatbot
+      const currentPlanState = {
+        place_name: planInfo.name,
+        start_date: planInfo.date,
+        end_date: planInfo.end_date,
+        budget_limit: planInfo.budget,
+        destinations: activities.map((act) => ({
+          destination_id: act.id,
+          destination_type: act.type || "attraction",
+          visit_date: act.date,
+          order_in_day: act.order_in_day,
+          time_slot: act.time_slot.toLowerCase(),
+          note: act.title,
+          url: act.image_url,
+          estimated_cost: 0
+        }))
+      };
+      
+      const res = await api.sendBotMessage(userId, roomId, userMsg, currentPlanState);
       const botText = res?.response;
+      const intent = res?.metadata?.intent;
+      const rawData = res?.metadata?.raw;
 
       if (botText) {
         setMessages((prev) => [...prev, { role: "bot", text: botText }]);
+        
+        // Check for plan modification intents
+        const isPlanIntent = intent === "plan_edit" || 
+                            intent === "plan_query" || 
+                            intent === "add_activity" ||
+                            intent === "remove_activity" ||
+                            intent === "modify_time" ||
+                            intent === "modify_day" ||
+                            intent === "change_budget";
+        
+        if (isPlanIntent && onPlanUpdated) {
+          console.log("🔄 Detected plan modification intent:", intent);
+          
+          // Extract plan data - check both nested paths
+          const planData = rawData?.plan?.plan || rawData?.plan;
+          
+          if (planData?.destinations) {
+            console.log("📦 Using plan data from chatbot response:", planData);
+            // Pass the plan data directly instead of refetching
+            setTimeout(() => {
+              onPlanUpdated(planData);
+            }, 300);
+          } else {
+            // Fallback: refetch if no plan data in response
+            console.log("⚠️ No plan data in response, refetching...");
+            setTimeout(() => {
+              onPlanUpdated();
+            }, 500);
+          }
+        }
       } else {
         setMessages((prev) => [
           ...prev,
@@ -531,11 +592,10 @@ function ChatWindow({
       </div>
 
       {!planId && (
-        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          <AlertCircle size={16} className="mt-0.5" />
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <span>
-            Save your plan whenever you want me to apply changes automatically.
-            I can still brainstorm ideas with you right now.
+            💡 <strong>Preview mode:</strong> I can answer questions and give suggestions, but I can't edit your plan yet. Complete the planning flow and save first!
           </span>
         </div>
       )}
@@ -707,10 +767,6 @@ function ReviewPlanContent() {
   };
 
   // --- STATE ---
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
-  const [aiStepIndex, setAiStepIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-
   const [isSaving, setIsSaving] = useState(false);
   const [activities, setActivities] = useState<PlanActivity[]>([]);
 
@@ -878,7 +934,6 @@ function ReviewPlanContent() {
 
     const loadPlanDetail = async (id: string) => {
       try {
-        setIsAiProcessing(true);
 
         // Preserve any pending additions before clearing storage (user may have just returned from add_destinations)
         const pendingRawData = sessionStorage.getItem(STORAGE_KEY_RAW);
@@ -1085,7 +1140,6 @@ function ReviewPlanContent() {
       } catch (error) {
         console.error("Error loading plan:", error);
       } finally {
-        setIsAiProcessing(false);
         initialLoadDoneRef.current = true;
         console.log("✅ Existing plan data load completed");
       }
@@ -1113,36 +1167,14 @@ function ReviewPlanContent() {
         }
       }
 
-      const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
-      const storedRaw = sessionStorage.getItem(STORAGE_KEY_RAW);
-
-      if (!hasShownAI && storedRaw) {
-        runAiSimulation();
-      } else {
-        loadDataFromStorage();
-      }
+      // Load data directly without fake animation
+      loadDataFromStorage();
 
       // ✅ Mark initial load as complete
       initialLoadDoneRef.current = true;
       console.log("✅ Initial load completed");
     }
   }, [planId, planIdResolved]);
-
-  const runAiSimulation = () => {
-    setIsAiProcessing(true);
-    let step = 0;
-    const interval = setInterval(() => {
-      setAiStepIndex((s) => (s < AI_STEPS.length - 1 ? s + 1 : s));
-      setProgress((p) => Math.min(p + 25, 100));
-      step++;
-      if (step > 4) {
-        clearInterval(interval);
-        setIsAiProcessing(false);
-        sessionStorage.setItem(AI_SHOWN_KEY, "true");
-        loadDataFromStorage();
-      }
-    }, 800);
-  };
 
   const loadDataFromStorage = () => {
     console.log("📂 loadDataFromStorage called");
@@ -1248,20 +1280,9 @@ function ReviewPlanContent() {
         type: place.types?.[0] || "place",
         order_in_day: 0,
       }));
-      // Distribute activities across days only the first time an AI simulation runs
-      // This should only happen when AI_SHOWN_KEY is not set yet
-      const hasShownAI = sessionStorage.getItem(AI_SHOWN_KEY);
-      if (!hasShownAI) {
-        const distributedList = distributeActivitiesAcrossDays(
-          initialActivities,
-          planStartDate,
-          planEndDate
-        );
-        setActivities(distributedList);
-      } else {
-        // If distribution already happened, simply set the data
-        setActivities(initialActivities);
-      }
+      // Set activities directly without distribution
+      // AI will handle the optimization
+      setActivities(initialActivities);
     }
   };
 
@@ -1304,17 +1325,17 @@ function ReviewPlanContent() {
     activitiesRef.current = activities;
   }, [activities]);
 
-  // ✅ DEBUG: Log whenever activities changes
-  useEffect(() => {
-    console.log("🔔 Activities state changed:", {
-      length: activities.length,
-      items: activities.map((a) => ({
-        id: a.id,
-        title: a.title,
-        slot: a.time_slot,
-      })),
-    });
-  }, [activities]);
+  // ✅ DEBUG: Log whenever activities changes (disabled to reduce noise)
+  // useEffect(() => {
+  //   console.log("🔔 Activities state changed:", {
+  //     length: activities.length,
+  //     items: activities.map((a) => ({
+  //       id: a.id,
+  //       title: a.title,
+  //       slot: a.time_slot,
+  //     })),
+  //   });
+  // }, [activities]);
 
   // --- SPLIT SCREEN LOGIC ---
   const handleToggleChat = () => {
@@ -1388,19 +1409,27 @@ function ReviewPlanContent() {
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    const overId = over?.id;
-    if (!overId || active.id === overId) return;
+    if (!over) return;
+    
+    const overId = over.id;
+    if (active.id === overId) return;
+    
     const activeContainer = findContainer(active.id);
-    const overContainer = findContainer(overId);
-    if (!activeContainer || !overContainer || activeContainer === overContainer)
-      return;
+    const overContainer = String(overId).includes("_") ? overId : findContainer(overId);
+    
+    if (!activeContainer || !overContainer) return;
+    if (activeContainer === overContainer) return;
 
     setActivities((prev) => {
       const activeIndex = prev.findIndex((i) => i.id === active.id);
-      const overIndex = prev.findIndex((i) => i.id === overId);
-      const parts = String(activeContainer).split("_");
+      if (activeIndex === -1) return prev;
+      
+      // Parse the target container (date_slot format)
+      const parts = String(overContainer).split("_");
       const newDateStr = parts[0];
       const newSlot = parts[1];
+      
+      // Convert date string to ISO format
       let safeIsoDate = prev[activeIndex].date;
       if (newDateStr) {
         const d = new Date(newDateStr);
@@ -1408,17 +1437,22 @@ function ReviewPlanContent() {
           safeIsoDate = d.toISOString();
         }
       }
+      
+      // Update the item with new date and time slot
       const newActivities = [...prev];
       newActivities[activeIndex] = {
         ...newActivities[activeIndex],
         time_slot: newSlot as any,
         date: safeIsoDate,
       };
-      return arrayMove(
-        newActivities,
-        activeIndex,
-        overIndex >= 0 ? overIndex : newActivities.length - 1
-      );
+      
+      // Find the target index within the container
+      const overIndex = prev.findIndex((i) => i.id === overId);
+      if (overIndex >= 0 && overIndex !== activeIndex) {
+        return arrayMove(newActivities, activeIndex, overIndex);
+      }
+      
+      return newActivities;
     });
   };
 
@@ -1657,7 +1691,6 @@ function ReviewPlanContent() {
       activitiesLength: activities.length,
       aiGenerationDone,
       isAIGenerating,
-      isAiProcessing,
       planId,
     });
 
@@ -1666,15 +1699,13 @@ function ReviewPlanContent() {
       activities.length >= 2 &&
       !planId &&
       !aiGenerationDone &&
-      !isAIGenerating &&
-      !isAiProcessing // Don't run during fake AI animation
+      !isAIGenerating
     ) {
       console.log("🤖 Auto-triggering AI plan generation...", {
         activitiesCount: activities.length,
         planId,
         aiGenerationDone,
         isAIGenerating,
-        isAiProcessing,
       });
       generateAIPlan();
     } else {
@@ -1683,7 +1714,6 @@ function ReviewPlanContent() {
         planId,
         aiGenerationDone,
         isAIGenerating,
-        isAiProcessing,
         reason: planId
           ? "Editing existing plan"
           : activities.length < 2
@@ -1692,8 +1722,6 @@ function ReviewPlanContent() {
           ? "Already generated"
           : isAIGenerating
           ? "Currently generating"
-          : isAiProcessing
-          ? "AI animation in progress"
           : "Unknown",
       });
     }
@@ -1702,7 +1730,6 @@ function ReviewPlanContent() {
     activities.length,
     aiGenerationDone,
     isAIGenerating,
-    isAiProcessing,
     generateAIPlan,
   ]);
 
@@ -1729,28 +1756,176 @@ function ReviewPlanContent() {
     }
   };
 
-  // --- RENDER AI ---
-  if (isAiProcessing) {
+  // Reload plan data after chatbot edits
+  const handlePlanUpdated = async (backendPlanData?: any) => {
+    console.log("🔄 Updating plan after chatbot edit...", { planId, hasBackendData: !!backendPlanData });
+    
+    try {
+      // If backend provided plan data directly, use it
+      if (backendPlanData?.destinations) {
+        console.log("📦 Using backend plan data:", backendPlanData);
+        console.log("📦 Raw destinations:", backendPlanData.destinations);
+        
+        // ALWAYS update plan info first (dates are critical for filtering)
+        const updatedPlanInfo = {
+          name: backendPlanData.place_name || planInfo.name,
+          date: backendPlanData.start_date || planInfo.date,
+          end_date: backendPlanData.end_date || backendPlanData.start_date || planInfo.end_date,
+          budget: backendPlanData.budget_limit || planInfo.budget,
+        };
+        
+        console.log("📅 Updating plan dates:", {
+          oldDates: { start: planInfo.date, end: planInfo.end_date },
+          newDates: { start: updatedPlanInfo.date, end: updatedPlanInfo.end_date }
+        });
+        
+        setPlanInfo(updatedPlanInfo);
+        
+        sessionStorage.setItem(
+          STORAGE_KEY_INFO,
+          JSON.stringify({
+            name: updatedPlanInfo.name,
+            start_date: updatedPlanInfo.date,
+            end_date: updatedPlanInfo.end_date,
+            budget: updatedPlanInfo.budget,
+          })
+        );
+        
+        // Convert backend format to frontend format
+        const updatedActivities = backendPlanData.destinations.map((dest: any, index: number) => {
+          // Backend uses 'note' field for destination name, but it can be null
+          const destinationName = dest.note || dest.name || dest.destination_name || 
+            `Destination ${dest.destination_id?.slice(0, 8) || index + 1}`;
+          
+          // Normalize time_slot to capitalized format
+          let timeSlot: "Morning" | "Afternoon" | "Evening" = "Morning";
+          if (dest.time_slot) {
+            const normalized = dest.time_slot.toLowerCase();
+            if (normalized === "afternoon") timeSlot = "Afternoon";
+            else if (normalized === "evening") timeSlot = "Evening";
+            else timeSlot = "Morning";
+          }
+          
+          // ✅ Generate unique ID by combining destination_id with index to prevent duplicates
+          const uniqueId = `${dest.destination_id || dest.id || 'dest'}-${index}`;
+          
+          return {
+            id: uniqueId,
+            original_id: dest.destination_id || dest.id,
+            title: destinationName,
+            address: dest.address || "",
+            image_url: dest.url || dest.image_url || "",
+            time_slot: timeSlot,
+            date: dest.visit_date || backendPlanData.start_date,
+            type: dest.type || dest.destination_type || "attraction",
+            order_in_day: dest.order_in_day ?? index + 1,
+            time: dest.suggested_time || dest.time,
+          };
+        });
+        
+        console.log("✅ Converted activities:", {
+          count: updatedActivities.length,
+          byDate: updatedActivities.reduce((acc: any, act: PlanActivity) => {
+            const date = act.date?.split('T')[0] || 'no-date';
+            acc[date] = (acc[date] || 0) + 1;
+            return acc;
+          }, {})
+        });
+        
+        // Update activities state - this will trigger re-render
+        setActivities(updatedActivities);
+        
+        // Also update the ref immediately for consistency
+        activitiesRef.current = updatedActivities;
+        
+        // Save to sessionStorage for persistence
+        sessionStorage.setItem(
+          STORAGE_KEY_STRUCTURED,
+          JSON.stringify(updatedActivities)
+        );
+        
+        console.log("✅ Plan updated from backend response", {
+          activities: updatedActivities.length,
+          byTimeSlot: updatedActivities.reduce((acc: any, act: PlanActivity) => {
+            acc[act.time_slot] = (acc[act.time_slot] || 0) + 1;
+            return acc;
+          }, {})
+        });
+        return;
+      }
+      
+      // Fallback: Fetch from API if no direct data provided
+      // Only works if we have a planId to fetch
+      if (!planId) {
+        console.log("⏭️ No planId and no backend data, cannot reload");
+        return;
+      }
+      
+      console.log("📡 Fetching plan from API...");
+      const allPlans = await api.getPlans();
+      const currentPlan = allPlans.find((p) => p.id === Number(planId));
+
+      if (currentPlan) {
+        console.log(`📋 Reloaded plan ${planId}:`, currentPlan);
+        
+        // Update plan info
+        const apiPlanInfo = {
+          name: currentPlan.destination,
+          date: currentPlan.date,
+          end_date: currentPlan.end_date || currentPlan.date,
+          budget: currentPlan.budget_limit || currentPlan.budget || 0,
+        };
+        
+        setPlanInfo(apiPlanInfo);
+        setActivities(currentPlan.activities || []);
+        
+        // Update sessionStorage
+        sessionStorage.setItem(
+          STORAGE_KEY_INFO,
+          JSON.stringify({
+            name: apiPlanInfo.name,
+            start_date: apiPlanInfo.date,
+            end_date: apiPlanInfo.end_date,
+            budget: apiPlanInfo.budget,
+          })
+        );
+        sessionStorage.setItem(
+          STORAGE_KEY_STRUCTURED,
+          JSON.stringify(currentPlan.activities || [])
+        );
+        
+        console.log("✅ Plan reloaded from API");
+      } else {
+        console.warn("⚠️ Plan not found after reload");
+      }
+    } catch (error) {
+      console.error("❌ Failed to reload plan:", error);
+    }
+  };
+
+  // --- RENDER AI LOADING SCREEN ---
+  // Show full-screen loading only during actual AI generation for new plans
+  if (isAIGenerating && !planId && activities.length >= 2) {
     return (
       <div className="h-screen w-full flex justify-center bg-gray-50">
         <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col items-center justify-center p-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-64 h-64 bg-green-100 rounded-full blur-3xl opacity-50"></div>
           <div className="relative z-10 flex flex-col items-center max-w-sm w-full">
-            <div className="w-20 h-20 bg-[#E3F1E4] rounded-full flex items-center justify-center animate-pulse mb-8">
-              <Sparkles className="text-[#53B552] w-10 h-10 animate-spin-slow" />
+            <div className="w-20 h-20 bg-[#E3F1E4] rounded-full flex items-center justify-center mb-8">
+              <Sparkles className="text-[#53B552] w-10 h-10 animate-spin" />
             </div>
             <h2
               className={`${jost.className} text-xl font-bold text-gray-800 text-center mb-2`}
             >
-              AI Generator
+              AI is Optimizing Your Plan
             </h2>
             <p className="text-gray-500 text-sm mb-8 text-center">
-              {AI_STEPS[aiStepIndex]}
+              Analyzing destinations, optimizing routes, and creating the perfect schedule for your trip...
             </p>
             <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#53B552] transition-all duration-300"
-                style={{ width: `${progress}%` }}
+                className="h-full bg-[#53B552] transition-all duration-1000 animate-pulse"
+                style={{ width: "70%" }}
               ></div>
             </div>
           </div>
@@ -2023,23 +2198,6 @@ function ReviewPlanContent() {
                 {planDays.map((day, idx) => {
                   const dayStr = day.split("T")[0];
 
-                  // ✅ DEBUG: Log filtering for this day
-                  const morningItems = activities.filter(
-                    (a) =>
-                      a.time_slot === "Morning" &&
-                      (a.date?.split("T")[0] === dayStr ||
-                        (!a.date && dayStr === planDays[0].split("T")[0]))
-                  );
-                  console.log(`📅 Day ${idx + 1} (${dayStr}) - Morning:`, {
-                    totalActivities: activities.length,
-                    morningCount: morningItems.length,
-                    morningItems: morningItems.map((a) => ({
-                      title: a.title,
-                      date: a.date,
-                      slot: a.time_slot,
-                    })),
-                  });
-
                   return (
                     <div key={idx}>
                       <div className="flex items-center gap-2 mb-3 sticky top-0 bg-[#F5F7F5] z-10 py-2">
@@ -2147,6 +2305,9 @@ function ReviewPlanContent() {
               onClose={handleToggleChat}
               planId={planId ? Number(planId) : null}
               userId={currentUser?.id ?? null}
+              onPlanUpdated={handlePlanUpdated}
+              planInfo={planInfo}
+              activities={activities}
             />
           </div>
         )}

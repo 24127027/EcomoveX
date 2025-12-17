@@ -76,13 +76,14 @@ class MapService:
     async def text_search_place(
         db: AsyncSession, 
         data: TextSearchRequest,
-        user_id: str
+        user_id: str,
+        convert_photo_urls: bool = False,
     ) -> TextSearchResponse:
         from services.recommendation_service import RecommendationService
         map_client = await create_map_client()
 
         try:
-            response = await map_client.text_search_place(data)
+            response = await map_client.text_search_place(data, convert_photo_urls=convert_photo_urls)
 
             # Removed destination creation - only create when user actually selects/saves a place
             
@@ -194,12 +195,25 @@ class MapService:
                 else:
                     result.reviews = db_review_list
 
-            # Log user activity
+            # Ensure destination exists before logging activity
             if db and user_id:
-                activity_data = UserActivityCreate(
-                    activity=Activity.search_destination, destination_id=data.place_id
-                )
-                await UserService.log_user_activity(db, user_id, activity_data)
+                try:
+                    # Check if destination exists, create if not
+                    destination = await DestinationRepository.get_destination_by_id(db, data.place_id)
+                    if not destination:
+                        # Create destination record
+                        from schemas.destination_schema import DestinationCreate
+                        dest_data = DestinationCreate(place_id=data.place_id)
+                        await DestinationRepository.create_destination(db, dest_data)
+                    
+                    # Log user activity
+                    activity_data = UserActivityCreate(
+                        activity=Activity.search_destination, destination_id=data.place_id
+                    )
+                    await UserService.log_user_activity(db, user_id, activity_data)
+                except Exception as log_error:
+                    # Don't fail the request if activity logging fails
+                    print(f"WARNING: Failed to log activity for user {user_id}: {log_error}")
 
             return result
 

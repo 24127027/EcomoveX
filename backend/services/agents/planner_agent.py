@@ -32,24 +32,23 @@ class PlannerAgent:
         warnings, modifications = [], []
         plan_data = self._plan_to_dict(plan)
         
-        # Run distribution agent FIRST to redistribute destinations
-        if action in ["optimize", "distribute", "create"]:
-            distribution_agent = DestinationDistributionAgent(self.db)
-            dist_result = await distribution_agent.process(plan_data, action="distribute")
+        # ALWAYS run distribution agent FIRST to redistribute destinations
+        distribution_agent = DestinationDistributionAgent(self.db)
+        dist_result = await distribution_agent.process(plan_data, action="distribute")
+        
+        if dist_result.get("success") and dist_result.get("distributed_destinations"):
+            # Update plan_data with distributed destinations
+            plan_data["destinations"] = dist_result["distributed_destinations"]
             
-            if dist_result.get("success") and dist_result.get("distributed_destinations"):
-                # Update plan_data with distributed destinations
-                plan_data["destinations"] = dist_result["distributed_destinations"]
-                
-                if dist_result.get("modifications"):
-                    for mod in dist_result["modifications"]:
-                        mod["source"] = "distribution"
-                        modifications.append(mod)
-            elif not dist_result.get("success"):
-                warnings.append({
-                    "agent": "distribution", 
-                    "message": dist_result.get("message", "Distribution failed")
-                })
+            if dist_result.get("modifications"):
+                for mod in dist_result["modifications"]:
+                    mod["source"] = "distribution"
+                    modifications.append(mod)
+        elif not dist_result.get("success"):
+            warnings.append({
+                "agent": "distribution", 
+                "message": dist_result.get("message", "Distribution failed")
+            })
         
         sub_agents = [
             ("opening_hours", OpeningHoursAgent),

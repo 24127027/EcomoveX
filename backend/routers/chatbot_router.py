@@ -25,7 +25,11 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
     agent = PlannerAgent(db)
     
     # Validate and get AI suggestions with intelligent distribution
+    print(f"🤖 Running sub-agents with action='optimize'...")
     result = await agent._run_sub_agents(plan_data, action="optimize")
+    print(f"✅ Sub-agents result: {len(result.get('distributed_plan', {}).get('destinations', []))} destinations")
+    print(f"⚠️ Warnings: {len(result.get('warnings', []))}")
+    print(f"📝 Modifications: {len(result.get('modifications', []))}")
     
     # Use the distributed plan if available, otherwise fall back to original
     distributed_plan = result.get("distributed_plan")
@@ -82,7 +86,7 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
 async def send_message(chat_msg: ChatMessage, db: AsyncSession = Depends(get_db)):
     service = ChatbotService()
     result = await service.handle_user_message(
-        db, chat_msg.user_id, chat_msg.room_id, chat_msg.message
+        db, chat_msg.user_id, chat_msg.room_id, chat_msg.message, chat_msg.current_plan
     )
     return result
 

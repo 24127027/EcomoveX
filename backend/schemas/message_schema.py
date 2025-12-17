@@ -17,6 +17,7 @@ class ChatMessage(BaseModel):
     user_id: int = Field(..., gt=0)
     room_id: int = Field(..., gt=0)
     message: str = Field(..., min_length=1)
+    current_plan: Optional[Dict[str, Any]] = None  # Current plan state from frontend (unsaved)
 
 
 class ChatbotResponse(BaseModel):

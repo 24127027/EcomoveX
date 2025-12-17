@@ -23,6 +23,7 @@ import {
   AutocompletePrediction,
   Position,
   PlaceSearchResult,
+  birdDistance,
 } from "@/lib/api";
 import { Jost } from "next/font/google";
 
@@ -168,6 +169,13 @@ export default function AddDestinationPage() {
     lng: 106.7019,
   });
 
+  // ✅ Recommendation cache to prevent duplicate API calls (use ref to avoid re-renders)
+  const recommendationCacheRef = useRef<{
+    data: ListedPlace[];
+    location: Position;
+    timestamp: number;
+  } | null>(null);
+
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -259,23 +267,59 @@ export default function AddDestinationPage() {
     let isCancelled = false;
 
     const fetchGreenSuggestions = async () => {
+      // ✅ Check cache validity (5 minutes and within 1km)
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+      const CACHE_DISTANCE_KM = 1; // 1km threshold
+      
+      const cache = recommendationCacheRef.current;
+      if (cache) {
+        const timeDiff = now - cache.timestamp;
+        const distance = birdDistance(userLocation, cache.location);
+        
+        if (timeDiff < CACHE_DURATION && distance < CACHE_DISTANCE_KM) {
+          // Use cached data
+          console.log("✅ Using cached recommendations");
+          setGreenSuggestions(cache.data);
+          setIsLoadingSuggestions(false);
+          return;
+        }
+      }
+      
+      console.log("📡 Fetching new recommendations...");
       setIsLoadingSuggestions(true);
       setSuggestionError(null);
       try {
-        const res = await api.textSearchPlace({
-          query: "eco friendly park nature",
-          location: userLocation,
-          radius: 8000,
-        });
+        // ✅ Use personalized nearby recommendations (same as map page)
+        const res = await api.getNearbyGreenPlaces(
+          userLocation.lat,
+          userLocation.lng,
+          8, // 8km radius
+          8  // Get 8 recommendations
+        );
 
         if (isCancelled) return;
-        const mapped = (res.places || []).map((place) =>
+        
+        if (!res || !res.places || res.places.length === 0) {
+          setGreenSuggestions([]);
+          return;
+        }
+        
+        // Convert PlaceSearchResult to PlaceDetails format
+        const mapped = res.places.map((place) =>
           convertTextSearchResult(place, userLocation)
         );
         setGreenSuggestions(mapped);
+        
+        // ✅ Update cache
+        recommendationCacheRef.current = {
+          data: mapped,
+          location: userLocation,
+          timestamp: now,
+        };
       } catch (error) {
         if (!isCancelled) {
-          console.error("Initial green search failed:", error);
+          console.error("Failed to fetch personalized recommendations:", error);
           setSuggestionError("Could not load nearby green destinations.");
         }
       } finally {
@@ -390,6 +434,7 @@ export default function AddDestinationPage() {
         query: trimmed,
         location: userLocation,
         radius: 8000,
+        convert_photo_urls: true,  // ✅ Convert photo references to full URLs
       });
 
       const mapped = (response.places || []).map((place) =>

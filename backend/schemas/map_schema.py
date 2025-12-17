@@ -48,7 +48,8 @@ class AutocompleteRequest(BaseModel):
 
 
 class PhotoInfo(BaseModel):
-    photo_url: str
+    photo_url: Optional[str] = None
+    photo_reference: Optional[str] = None
     size: Tuple[int, int]
 
 
@@ -158,6 +159,7 @@ class TextSearchRequest(BaseModel):
     radius: Optional[int] = Field(None, ge=100, le=50000)
     place_types: Optional[str] = None
     field_mask: Optional[List[str]] = None
+    convert_photo_urls: Optional[bool] = Field(default=True)  # ✅ Convert photo references to full URLs
 
 
 class PlaceSearchResult(BaseModel):
@@ -174,4 +176,4 @@ class PlaceSearchResult(BaseModel):
 class TextSearchResponse(BaseModel):
     results: List[PlaceSearchResult] = Field(default_factory=list, alias="places")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

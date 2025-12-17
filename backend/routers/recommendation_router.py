@@ -3,7 +3,8 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db
-from schemas.recommendation_schema import SimpleRecommendation
+from schemas.recommendation_schema import SimpleRecommendation, RecommendationDestination
+from schemas.map_schema import TextSearchResponse
 from services.recommendation_service import RecommendationService
 from utils.token.authentication_util import get_current_user
 
@@ -74,7 +75,8 @@ async def sort_recommendations_by_cluster_affinity_for_user(
 
 @router.get(
     "/user/me/nearby-by-cluster",
-    response_model=List[Dict[str, Any]],
+    response_model=TextSearchResponse,
+    response_model_by_alias=True,
     status_code=status.HTTP_200_OK,
     summary="Get nearby recommendations based on user's cluster preferences",
 )
@@ -114,41 +116,82 @@ async def get_nearby_recommendations_by_cluster_tags(
 
 
 @router.get(
-    "/user/{user_id}/nearby-by-cluster",
-    response_model=List[Dict[str, Any]],
+    "/user/me/cluster-affinity",
+    response_model=RecommendationDestination,
     status_code=status.HTTP_200_OK,
-    summary="Get nearby recommendations based on user's cluster preferences (by user_id)",
+    summary="Get destination IDs based on cluster affinity",
 )
-async def get_nearby_recommendations_by_cluster_tags_for_user(
-    user_id: int,
-    latitude: float = Query(..., description="Current latitude", ge=-90, le=90),
-    longitude: float = Query(..., description="Current longitude", ge=-180, le=180),
-    radius_km: float = Query(
-        default=5.0, description="Search radius in kilometers", ge=0.1, le=50
-    ),
-    k: int = Query(default=10, description="Number of recommendations", ge=1, le=50),
+async def get_cluster_affinity_recommendations(
+    k: int = Query(default=5, description="Number of recommendations to return", ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get personalized destination recommendations from internal database based on cluster affinity.
+    
+    **Returns destination IDs** that are already stored in the database and associated with
+    the user's cluster, ranked by relevance.
+    
+    **Algorithm:**
+    1. Identifies user's cluster
+    2. Computes cluster embedding (mean of user preferences)
+    3. Fetches destinations already linked to that cluster
+    4. Calculates affinity via cosine similarity: cluster_embedding ↔ destination_embedding
+    5. Combines affinity (70%) + popularity (30%) based on historical user behavior
+    6. Returns top-K destination IDs
+    
+    **Response:**
+    ```json
+    {
+      "recommendation": [
+        "ChIJAbC123...",
+        "ChIJXyz789...",
+        "ChIJDef456..."
+      ]
+    }
+    ```
+    
+    **Use Cases:**
+    - Get destination IDs for homepage recommendations
+    - Fetch IDs, then query place details separately via /map/place-details endpoint
+    - Personalized discovery based on similar users' behavior
+    """
+    return await RecommendationService.recommend_destinations_by_cluster_affinity(
+        db=db,
+        user_id=current_user["user_id"],
+        k=k,
+    )
+
+
+@router.get(
+    "/user/cluster-affinity",
+    response_model=RecommendationDestination,
+    status_code=status.HTTP_200_OK,
+    summary="Get destination IDs based on cluster affinity (by user_id)",
+)
+async def get_cluster_affinity_recommendations_for_user(
+    current_user: dict = Depends(get_current_user),
+    k: int = Query(default=5, description="Number of recommendations to return", ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get nearby destination recommendations based on a specific user's cluster preferences.
-
-    Uses the user's cluster to determine preferred place categories and searches for nearby places
-    matching those preferences within the specified radius.
-
-    Returns a list of places with scores based on:
-    - Proximity to current location
-    - Place rating
-    - Number of reviews
-    - Match with cluster preferences
+    Get destination IDs based on cluster affinity for a specific user.
+    
+    Returns a list of destination IDs (strings).
+    
+    **Response:**
+    ```json
+    {
+      "recommendation": [
+        "ChIJAbC123...",
+        "ChIJXyz789...",
+        "ChIJDef456..."
+      ]
+    }
+    ```
     """
-    from schemas.destination_schema import Location
-
-    current_location = Location(lat=latitude, lng=longitude)
-
-    return await RecommendationService.recommend_nearby_by_cluster_tags(
+    return await RecommendationService.recommend_destinations_by_cluster_affinity(
         db=db,
-        user_id=user_id,
-        current_location=current_location,
-        radius_km=radius_km,
+        user_id=current_user["user_id"],
         k=k,
     )

@@ -1,5 +1,22 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// --- UTILITY FUNCTIONS ---
+
+export const birdDistance = (pos1: { lat: number; lng: number }, pos2: { lat: number; lng: number }): number => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const R = 6371; // Earth's radius in km
+  const dLat = toRad(pos2.lat - pos1.lat);
+  const dLon = toRad(pos2.lng - pos1.lng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(pos1.lat)) *
+      Math.cos(toRad(pos2.lat)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 // --- INTERFACES & TYPES ---
 
 interface LoginCredentials {
@@ -202,6 +219,7 @@ export interface TextSearchRequest {
   radius?: number; // Integer 100-50000
   place_types?: string; // e.g., "restaurant"
   field_mask?: string[]; // Optional: ["places.id", "places.displayName"]
+  convert_photo_urls?: boolean; // Convert photo references to full URLs (default: true)
 }
 
 export interface TextSearchResponse {
@@ -631,7 +649,11 @@ export interface PlanGenerationResponse {
 export interface BotMessageResponse {
   response: string;
   room_id: number;
-  metadata?: Record<string, any>;
+  metadata?: {
+    intent?: "plan_edit" | "plan_query" | "chit_chat" | string;
+    raw?: any;
+    [key: string]: any;
+  };
 }
 
 export interface DestinationCard {
@@ -1399,9 +1421,18 @@ class ApiClient {
     lng: number,
     radiusKm: number = 5,
     k: number = 10
-  ): Promise<GreenPlaceRecommendation[]> {
-    return this.request<GreenPlaceRecommendation[]>(
+  ): Promise<TextSearchResponse> {
+    return this.request<TextSearchResponse>(
       `/recommendations/user/me/nearby-by-cluster?latitude=${lat}&longitude=${lng}&radius_km=${radiusKm}&k=${k}`,
+      { method: "GET" }
+    );
+  }
+
+  async getPersonalizedRecommendations(
+    k: number = 5
+  ): Promise<{ recommendation: string[] }> {
+    return this.request<{ recommendation: string[] }>(
+      `/recommendations/user/me/cluster-affinity?k=${k}`,
       { method: "GET" }
     );
   }
@@ -1485,11 +1516,17 @@ class ApiClient {
   async sendBotMessage(
     userId: number,
     roomId: number,
-    message: string
+    message: string,
+    currentPlan?: any
   ): Promise<BotMessageResponse> {
     return this.request<BotMessageResponse>("/chatbot/message", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, room_id: roomId, message }),
+      body: JSON.stringify({ 
+        user_id: userId, 
+        room_id: roomId, 
+        message,
+        current_plan: currentPlan  // Send current plan state (unsaved)
+      }),
     });
   }
 

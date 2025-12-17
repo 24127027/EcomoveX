@@ -69,6 +69,22 @@ async def lifespan(app: FastAPI):
             print(f"WARNING: Bulk create users failed - {e}")
     else:
         print("ℹ️  Bulk create users is disabled")
+    
+    # Initialize FAISS index for recommendations
+    try:
+        from database.db import get_sync_session
+        from utils.embedded.faiss_utils import build_index, is_index_ready
+        
+        print("🔧 Initializing FAISS recommendation index...")
+        with get_sync_session() as db:
+            success = build_index(db, normalize=False)
+            if success:
+                print("✅ FAISS index built successfully")
+            else:
+                print("⚠️ FAISS index build failed - recommendations may be limited")
+    except Exception as e:
+        print(f"⚠️ WARNING: FAISS index initialization failed - {e}")
+        print("   Recommendations will fall back to database-only queries")
 
     yield  # App is running
 
@@ -94,9 +110,12 @@ app = FastAPI(
 
 
 # CORS Middleware (for frontend communication)
+allowed_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+print(f"🌐 CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS.split(","),  # From local.env
+    allow_origins=allowed_origins,  # From local.env
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers

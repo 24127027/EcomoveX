@@ -27,6 +27,7 @@ import {
   TravelPlan,
   UserRewardResponse,
   GreenPlaceRecommendation,
+  birdDistance,
 } from "@/lib/api";
 import { MobileNavMenu } from "@/components/MobileNavMenu";
 import { PRIMARY_NAV_LINKS } from "@/constants/navLinks";
@@ -88,6 +89,12 @@ export default function HomePage() {
   const [cachedLocation, setCachedLocation] = useState<Coordinates | null>(
     null
   );
+
+  // Recommendation cache (no longer location-based)
+  const [recommendationCache, setRecommendationCache] = useState<{
+    data: GreenPlaceRecommendation[];
+    timestamp: number;
+  } | null>(null);
 
   // State Saved Locations
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
@@ -193,32 +200,75 @@ export default function HomePage() {
       });
     };
 
-    const loadGreenPlaces = async (
-      coords: Coordinates,
+    const loadPersonalizedRecommendations = async (
       options: { showLoader?: boolean } = {}
     ) => {
       const { showLoader = true } = options;
       const currentRequestId = ++requestCounter;
+      
+      // Check cache validity (1000 minutes for personalized recommendations)
+      const now = Date.now();
+      const CACHE_DURATION = 1000 * 60 * 1000; // 1000 minutes
+      
+      if (recommendationCache) {
+        const timeDiff = now - recommendationCache.timestamp;
+        
+        if (timeDiff < CACHE_DURATION) {
+          // Use cached data
+          setGreenPlaces(recommendationCache.data);
+          setLoadingGreenPlaces(false);
+          return;
+        }
+      }
+      
       if (showLoader && isMounted) setLoadingGreenPlaces(true);
       try {
-        const recommendations = await api.getNearbyGreenPlaces(
-          coords.lat,
-          coords.lng,
-          10,
-          5
+        // Get personalized recommendation IDs
+        const response = await api.getPersonalizedRecommendations(5);
+        const destinationIds = response.recommendation || [];
+
+        if (!isMounted || currentRequestId < lastResolvedRequest) return;
+
+        // Fetch place details for each destination ID
+        const placeDetailsPromises = destinationIds.map(async (placeId) => {
+          try {
+            const details = await api.getPlaceDetails(placeId);
+            return {
+              place_id: placeId,
+              destination_id: placeId,
+              name: details.name,
+              formatted_address: details.formatted_address,
+              latitude: details.geometry.location.lat,
+              longitude: details.geometry.location.lng,
+              distance_km: 0, // Not applicable for personalized recommendations
+              rating: details.rating,
+              photo_url: details.photos?.[0]?.photo_url || "/images/tao-dan-park.png",
+            } as GreenPlaceRecommendation;
+          } catch (error) {
+            console.error(`Failed to fetch details for ${placeId}:`, error);
+            return null;
+          }
+        });
+
+        const placeDetails = (await Promise.all(placeDetailsPromises)).filter(
+          (place): place is GreenPlaceRecommendation => place !== null
         );
 
         if (!isMounted || currentRequestId < lastResolvedRequest) return;
 
-        setGreenPlaces(Array.isArray(recommendations) ? recommendations : []);
+        setGreenPlaces(placeDetails);
+        
+        // Update cache
+        setRecommendationCache({
+          data: placeDetails,
+          timestamp: now,
+        });
+        
         lastResolvedRequest = currentRequestId;
 
         syncSavedDestinations();
-        enhancePlacePhotos(recommendations || []).catch((photoError) =>
-          console.error("Photo enhancement error:", photoError)
-        );
       } catch (error) {
-        console.error("API Error:", error);
+        console.error("Personalized recommendation error:", error);
         if (isMounted) setGreenPlaces([]);
       } finally {
         if (showLoader && isMounted) setLoadingGreenPlaces(false);
@@ -227,25 +277,22 @@ export default function HomePage() {
 
     const defaultCoords = { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
 
-    const kickOffLoad = (coords: Coordinates, forceLoader = false) => {
-      const showLoader = forceLoader || !hasRenderedOnce;
-      loadGreenPlaces(coords, { showLoader });
-      hasRenderedOnce = true;
-    };
+    // Load personalized recommendations (no location needed)
+    loadPersonalizedRecommendations({ showLoader: true });
+    hasRenderedOnce = true;
 
+    // Still get location for other features (search nearby, etc.)
     const hydratedFromStorage = (() => {
       const stored = readStoredLocation();
       if (!stored) return false;
       rememberLocation(stored);
-      kickOffLoad(stored, true);
       return true;
     })();
 
     if (!hydratedFromStorage) {
       fallbackTimer = setTimeout(() => {
-        if (!isMounted || hasRenderedOnce) return;
+        if (!isMounted) return;
         rememberLocation(defaultCoords, { persist: false });
-        kickOffLoad(defaultCoords, true);
       }, LOCATION_TIMEOUT_MS);
     }
 
@@ -257,19 +304,15 @@ export default function HomePage() {
           fallbackTimer = null;
         }
         rememberLocation(pos);
-        kickOffLoad(pos);
       })
       .catch((error) => {
-        console.warn("⚠️ Cannot get location, using DEFAULT:", error);
+        console.warn("⚠️ Cannot get location:", error);
         if (!isMounted) return;
-        if (!hasRenderedOnce) {
-          if (fallbackTimer) {
-            clearTimeout(fallbackTimer);
-            fallbackTimer = null;
-          }
-          rememberLocation(defaultCoords, { persist: false });
-          kickOffLoad(defaultCoords, true);
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
         }
+        rememberLocation(defaultCoords, { persist: false });
       });
 
     return () => {
@@ -470,11 +513,11 @@ export default function HomePage() {
               <h2
                 className={`${jost.className} font-bold text-green-600 uppercase text-xl tracking-wide`}
               >
-                Recommended
+                For You
               </h2>
               {!loadingGreenPlaces && greenPlaces.length > 0 && (
                 <span className="text-[10px] text-green-500 bg-green-100 px-2 py-0.5 rounded-full font-bold">
-                  Top {greenPlaces.length}
+                  Personalized
                 </span>
               )}
             </div>
@@ -510,9 +553,7 @@ export default function HomePage() {
                             No Image
                           </div>
                         )}
-                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Route size={10} /> {place.distance_km} km
-                        </div>
+
                         <button
                           onClick={(e) => handleToggleHeart(place, e)}
                           className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
@@ -556,7 +597,7 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                No green places found nearby.
+                No personalized recommendations available yet.
               </div>
             )}
           </section>
