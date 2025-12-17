@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-from unittest import result
 
 import numpy as np
 from fastapi import HTTPException, status
@@ -8,6 +7,7 @@ from sklearn.cluster import KMeans
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.user_service import UserService
 from models.user import Activity, User, UserActivity
 from repository.cluster_repository import ClusterRepository
 from repository.user_repository import UserRepository
@@ -61,8 +61,7 @@ class ClusterService:
     @staticmethod
     async def embed_preference(db: AsyncSession, user_id: int) -> Optional[List[float]]: # tạo embedding từ sở thích người dùng
         try:
-            user_result = await db.execute(select(User).where(User.id == user_id))       # wtf this violate monolith rule should be get user by id
-            user = user_result.scalar_one_or_none()
+            user = await UserService.get_user_by_id(db, user_id)
             if not user:
                 return None
 
