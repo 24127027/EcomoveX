@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from database.db import get_sync_session
 from utils.embedded.faiss_utils import build_index
 
@@ -34,6 +37,31 @@ from routers.user_router import router as user_router
 from routers.weather_router import router as weather_router
 from routers.carbon_router import router as carbon_router
 from utils.config import settings
+from services.cluster_service import ClusterService
+
+# Scheduler instance
+scheduler = AsyncIOScheduler()
+
+# Background clustering job
+async def scheduled_clustering_job():
+    """
+    Background job to re-cluster all users every 7 days.
+    This updates cluster assignments based on latest preferences and activities.
+    """
+    try:
+        async for db in UserAsyncSessionLocal():
+            result = await ClusterService.run_user_clustering(db)
+            
+            if result.success:
+                print("\n✅ Scheduled clustering completed successfully!")
+                print(f"📊 Stats: {result.stats.users_clustered} users in {result.stats.clusters_updated} clusters")
+            else:
+                print(f"\n❌ Scheduled clustering failed: {result.message}")
+            
+            break  # Exit after first session
+            
+    except Exception as e:
+        print(f"\n❌ Error in scheduled clustering job: {e}")
 
 
 # Lifespan event handler (startup/shutdown)
@@ -84,10 +112,35 @@ async def lifespan(app: FastAPI):
         print(f"⚠️ WARNING: FAISS index initialization failed - {e}")
         print("   Recommendations will fall back to database-only queries")
 
+    # Start APScheduler for periodic clustering
+    try:
+        print("⏰ Starting scheduler for automated clustering...")
+        scheduler.add_job(
+            scheduled_clustering_job,
+            trigger=IntervalTrigger(days=7),  # Run every 7 days
+            id="clustering_job",
+            name="Re-cluster all users",
+            replace_existing=True,
+            max_instances=1  # Only one instance at a time
+        )
+        scheduler.start()
+        print("✅ Scheduler started - clustering will run every 7 days")
+        print("   Next run: Check scheduler logs")
+    except Exception as e:
+        print(f"⚠️ WARNING: Scheduler initialization failed - {e}")
+        print("   Automated clustering will not be available")
+
     yield  # App is running
 
     # Shutdown: Cleanup
     print("Shutting down EcomoveX ..")
+
+    # Stop scheduler
+    try:
+        scheduler.shutdown(wait=False)
+        print("Scheduler stopped")
+    except Exception as e:
+        print(f"WARNING: Failed to stop scheduler - {e}")
 
     try:
         await engine.dispose()

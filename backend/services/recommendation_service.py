@@ -500,8 +500,6 @@ class RecommendationService:
                         print(f"✅ User {user_id} assigned to cluster {user_cluster}")
                 except Exception as cluster_error:
                     print(f"❌ Clustering failed: {cluster_error}")
-                    import traceback
-                    traceback.print_exc()
 
                 # If still no cluster, return empty recommendations
                 if user_cluster is None:

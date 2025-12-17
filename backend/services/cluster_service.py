@@ -557,6 +557,81 @@ class ClusterService:
             )
 
     @staticmethod
+    async def assign_new_user_to_cluster(db: AsyncSession, user_id: int) -> bool:
+        """
+        Assign a newly registered user to the most similar existing cluster
+        based on their preference embedding. If no clusters exist, create a default one.
+        
+        Returns True if assignment succeeded, False otherwise.
+        """
+        try:
+            print(f"🔄 Assigning cluster for new user {user_id}...")
+            
+            # Generate embedding for the new user
+            embedding = await ClusterService.embed_preference(db, user_id)
+            if not embedding:
+                print(f"⚠️ Could not generate embedding for user {user_id}")
+                return False
+            
+            # Save the embedding
+            await ClusterService.save_preference_embedding(db, user_id, embedding)
+            
+            # Get all existing clusters
+            existing_clusters = await ClusterRepository.get_all_clusters(db)
+            
+            if not existing_clusters:
+                # No clusters exist yet - create default cluster and assign user
+                from schemas.cluster_schema import ClusterCreate
+                cluster_data = ClusterCreate(
+                    name="Cluster 1",
+                    algorithm="HDBSCAN",
+                    description="Default cluster for first users"
+                )
+                new_cluster = await ClusterRepository.create_cluster(db, cluster_data)
+                cluster_id = new_cluster.id
+                print(f"✅ Created new default cluster {cluster_id} for first user")
+            else:
+                # Find the most similar cluster
+                user_embedding = np.array(embedding)
+                best_cluster_id = None
+                min_distance = float('inf')
+                
+                for cluster in existing_clusters:
+                    # Compute cluster centroid
+                    cluster_embedding = await ClusterService.compute_cluster_embedding(db, cluster.id)
+                    if cluster_embedding is not None:
+                        # Calculate Euclidean distance
+                        distance = np.linalg.norm(user_embedding - cluster_embedding)
+                        if distance < min_distance:
+                            min_distance = distance
+                            best_cluster_id = cluster.id
+                
+                if best_cluster_id is None:
+                    # Fallback: assign to first cluster
+                    best_cluster_id = existing_clusters[0].id
+                    print(f"⚠️ Could not compute cluster similarities, assigning to cluster {best_cluster_id}")
+                else:
+                    print(f"✅ User {user_id} assigned to cluster {best_cluster_id} (distance: {min_distance:.4f})")
+                
+                cluster_id = best_cluster_id
+            
+            # Create user-cluster association
+            await ClusterRepository.add_user_to_cluster(db, user_id, cluster_id)
+            
+            # Update cluster popularity
+            try:
+                await ClusterService.compute_cluster_popularity(db, cluster_id)
+            except Exception as pop_error:
+                print(f"⚠️ Warning: Failed to update cluster popularity: {pop_error}")
+            
+            print(f"✅ Successfully assigned user {user_id} to cluster {cluster_id}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error assigning cluster to user {user_id}: {e}")
+            return False
+
+    @staticmethod
     async def get_preference_by_user_id(db: AsyncSession, user_id: int):
         try:
             return await ClusterRepository.get_preference_by_user_id(db, user_id)

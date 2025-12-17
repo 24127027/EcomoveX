@@ -147,8 +147,6 @@ class MapAPI:
                 raise ValueError(f"Google Places API returned error {e.response.status_code}: {e.response.text}")
             except Exception as e:
                 print(f"Unexpected error in text_search_place: {type(e).__name__}: {str(e)}")
-                import traceback
-                traceback.print_exc()
                 raise e
 
     async def close(self):

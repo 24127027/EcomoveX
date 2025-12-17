@@ -444,9 +444,6 @@ class MessageService:
             socket.disconnect(websocket, room_id, user_id)
         except Exception as e:
             print(f"🔴 WEBSOCKET ERROR: {e}")
-            import traceback
-
-            traceback.print_exc()
 
             socket.disconnect(websocket, room_id, user_id)
             try:

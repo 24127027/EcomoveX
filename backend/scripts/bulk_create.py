@@ -982,8 +982,6 @@ async def create_user_with_preference(db: AsyncSession, user_data: dict):
     except Exception as e:
         await db.rollback()
         print(f"  ❌ Failed to create user {user_data.get('username')}: {e}")
-        import traceback
-        traceback.print_exc()
         return None, None
 
 
@@ -1201,6 +1199,4 @@ async def bulk_create_users(db: AsyncSession) -> tuple[int, int]:
     except Exception as e:
         await db.rollback()
         print(f"\n❌ ERROR: {e}")
-        import traceback
-        traceback.print_exc()
         raise e
