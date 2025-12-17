@@ -54,6 +54,52 @@ class MapAPI:
             verify=True,  # Ensure SSL verification is enabled
         )
 
+    async def _convert_photos_safely(self, photos: list) -> list:
+        """Convert photo references to URLs with error handling for each photo."""
+        converted_photos = []
+        for photo in photos:
+            if not photo.get("photo_reference"):
+                continue
+            
+            try:
+                photo_url = await self.generate_place_photo_url(
+                    photo.get("photo_reference")
+                )
+                converted_photos.append(
+                    PhotoInfo(
+                        photo_url=photo_url,
+                        size=(photo.get("width", 0), photo.get("height", 0)),
+                    )
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to convert photo {photo.get('photo_reference')}: {e}")
+                # Skip this photo and continue with others
+                continue
+        
+        return converted_photos if converted_photos else None
+
+    def _parse_bounds_safely(self, viewport_data: dict) -> Bounds | None:
+        """Parse viewport bounds with validation to avoid None values."""
+        if not viewport_data:
+            return None
+        
+        northeast = viewport_data.get("northeast", {})
+        southwest = viewport_data.get("southwest", {})
+        
+        ne_lat = northeast.get("lat")
+        ne_lng = northeast.get("lng")
+        sw_lat = southwest.get("lat")
+        sw_lng = southwest.get("lng")
+        
+        # Only create Bounds if all coordinates are valid
+        if all(v is not None for v in [ne_lat, ne_lng, sw_lat, sw_lng]):
+            return Bounds(
+                northeast=Location(latitude=ne_lat, longitude=ne_lng),
+                southwest=Location(latitude=sw_lat, longitude=sw_lng),
+            )
+        
+        return None
+
     async def text_search_place(self, request: TextSearchRequest, convert_photo_urls: bool = False) -> TextSearchResponse:
         url = f"{self.new_base_url}:searchText"
 
@@ -116,8 +162,13 @@ class MapAPI:
 
                             # Only convert to URL if requested
                             if convert_photo_urls and ref:
-                                final_url = await self.generate_place_photo_url(ref)
-                                photo_info["photo_url"] = final_url
+                                try:
+                                    final_url = await self.generate_place_photo_url(ref)
+                                    photo_info["photo_url"] = final_url
+                                except Exception as e:
+                                    print(f"⚠️ Failed to convert photo URL for {ref}: {e}")
+                                    # Fallback: keep photo_reference, set photo_url to None
+                                    photo_info["photo_url"] = None
                             else:
                                 photo_info["photo_url"] = None
 
@@ -247,6 +298,16 @@ class MapAPI:
                 print(f"Full result: {result}")
                 print(f"API Status: {data.get('status')}")
 
+            # ✅ Validate geometry data before creating Location objects
+            geometry_data = result.get("geometry", {})
+            location_data = geometry_data.get("location", {})
+            lat = location_data.get("lat")
+            lng = location_data.get("lng")
+            
+            # Skip places without valid location data
+            if lat is None or lng is None:
+                raise ValueError(f"Place {place_id} has no valid location data (lat={lat}, lng={lng})")
+
             return PlaceDetailsResponse(
                 place_id=place_id,
                 name=result.get("name") or "",
@@ -260,39 +321,10 @@ class MapAPI:
                 formatted_phone_number=result.get("formatted_phone_number"),
                 geometry=Geometry(
                     location=Location(
-                        latitude=result.get("geometry", {})
-                        .get("location", {})
-                        .get("lat"),
-                        longitude=result.get("geometry", {})
-                        .get("location", {})
-                        .get("lng"),
+                        latitude=lat,
+                        longitude=lng,
                     ),
-                    bounds=(
-                        Bounds(
-                            northeast=Location(
-                                latitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("northeast", {})
-                                .get("lat"),
-                                longitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("northeast", {})
-                                .get("lng"),
-                            ),
-                            southwest=Location(
-                                latitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("southwest", {})
-                                .get("lat"),
-                                longitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("southwest", {})
-                                .get("lng"),
-                            ),
-                        )
-                        if result.get("geometry", {}).get("viewport")
-                        else None
-                    ),
+                    bounds=self._parse_bounds_safely(geometry_data.get("viewport")),
                 ),
                 types=result.get("types", []),
                 rating=result.get("rating"),
@@ -311,16 +343,9 @@ class MapAPI:
                 ),
                 website=result.get("website"),
                 photos=(
-                    [
-                        PhotoInfo(
-                            photo_url=await self.generate_place_photo_url(
-                                photo.get("photo_reference")
-                            ),
-                            size=(photo.get("width"), photo.get("height")),
-                        )
-                        for photo in result.get("photos", [])[:max_photos]  # ✅ OPTIMIZATION: Limit photos (default 1 instead of 5)
-                        if photo.get("photo_reference")  # Only process photos with valid references
-                    ]
+                    await self._convert_photos_safely(
+                        result.get("photos", [])[:max_photos]
+                    )
                     if result.get("photos")
                     else None
                 ),
