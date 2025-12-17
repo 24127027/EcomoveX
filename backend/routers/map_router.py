@@ -31,7 +31,12 @@ async def text_search_place(
     user_db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    result = await MapService.text_search_place(user_db, request, current_user["user_id"])
+    result = await MapService.text_search_place(
+        user_db, 
+        request, 
+        current_user["user_id"],
+        convert_photo_urls=request.convert_photo_urls
+    )
     return result
 
 

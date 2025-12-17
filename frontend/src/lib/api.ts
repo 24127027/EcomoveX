@@ -219,6 +219,7 @@ export interface TextSearchRequest {
   radius?: number; // Integer 100-50000
   place_types?: string; // e.g., "restaurant"
   field_mask?: string[]; // Optional: ["places.id", "places.displayName"]
+  convert_photo_urls?: boolean; // Convert photo references to full URLs (default: true)
 }
 
 export interface TextSearchResponse {

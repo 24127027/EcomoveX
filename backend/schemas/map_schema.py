@@ -159,6 +159,7 @@ class TextSearchRequest(BaseModel):
     radius: Optional[int] = Field(None, ge=100, le=50000)
     place_types: Optional[str] = None
     field_mask: Optional[List[str]] = None
+    convert_photo_urls: Optional[bool] = Field(default=True)  # ✅ Convert photo references to full URLs
 
 
 class PlaceSearchResult(BaseModel):
