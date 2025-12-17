@@ -271,7 +271,12 @@ class RecommendationService:
                         radius=radius_meters,
                         field_mask="places.displayName,places.formattedAddress,places.photos,places.types,places.location,places.rating,places.userRatingCount"
                     )
-                    result = await MapService.text_search_place(text_search_request)
+                    result = await MapService.text_search_place(
+                        db=db,
+                        data=text_search_request,
+                        user_id=user_id,
+                        convert_photo_urls=False
+                    )
                     print(f"Text search results for '{category}': {len(result.results) if result else 0}")
                     if result and result.results:
                         search_results.append(result)
