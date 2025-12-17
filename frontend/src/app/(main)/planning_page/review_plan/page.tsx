@@ -1673,10 +1673,10 @@ function ReviewPlanContent() {
       } else {
         setAiWarnings([]);
       }
-      setAiWarnings([]); // Clear warnings on error
     } catch (error: any) {
       console.error("❌ AI generation error:", error);
       setAiError(error.message || "Failed to generate AI plan");
+      setAiWarnings([]); // Clear warnings on error
 
       // Don't block user - they can still use manual plan
       // Just log the error and continue
@@ -2200,7 +2200,7 @@ function ReviewPlanContent() {
 
                   return (
                     <div key={idx}>
-                      <div className="flex items-center gap-2 mb-3 sticky top-0 bg-[#F5F7F5] z-10 py-2">
+                      <div className="flex items-center gap-2 mb-3">
                         <div className="bg-[#53B552] text-white font-bold w-8 h-8 rounded-full flex items-center justify-center shadow-md">
                           {idx + 1}
                         </div>
