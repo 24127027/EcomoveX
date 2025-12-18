@@ -27,14 +27,14 @@ class CupDetectorScorer:
             self.device = device
         else:
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        
+
         print(f"[CupDetector] Using device: {self.device}")
 
         # Xử lý đường dẫn model
         if model_path is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             # Giả định model nằm ở thư mục cha/models, hoặc bạn có thể trỏ thẳng file
-            self.model_path = os.path.join(script_dir, "glass_classification_model.pt") 
+            self.model_path = os.path.join(script_dir, "glass_classification_model.pt")
             if not os.path.exists(self.model_path):
                  # Fallback: tìm ngay tại thư mục hiện tại
                  self.model_path = os.path.join(script_dir, "best.pt") # Ví dụ tên model
@@ -49,7 +49,7 @@ class CupDetectorScorer:
                 # Chỉ cảnh báo, để orchestrator không bị crash nếu thiếu model
                 print(f"[CupDetector] Warning: Model file not found at {self.model_path}")
                 return
-            
+
             print(f"[CupDetector] Loading model from {self.model_path}")
             self._model = YOLO(self.model_path)
             try:
@@ -68,7 +68,7 @@ class CupDetectorScorer:
             return []
 
         H, W = img_rgb.shape[:2]
-        
+
         # --- DEBUG: In ra thông tin ảnh đầu vào ---
         print(f"[CupDetector] Input shape: {img_rgb.shape}, Max Val: {img_rgb.max()}, Min Val: {img_rgb.min()}")
 
@@ -76,10 +76,10 @@ class CupDetectorScorer:
         # 1. Giảm conf xuống 0.05 hoặc 0.1 để bắt nhạy hơn
         # 2. Bật verbose=True để xem log của YOLO
         results = self._model(
-            img_rgb, 
-            imgsz=640, 
+            img_rgb,
+            imgsz=640,
             conf=0.25,    # <--- Giảm xuống 0.1 (10%)
-            device=self.device, 
+            device=self.device,
             verbose=False # <--- Bật lên để xem log
         )
 
@@ -91,7 +91,7 @@ class CupDetectorScorer:
                 # Lấy thông tin cơ bản
                 conf = float(box.conf.item()) if hasattr(box.conf, "item") else float(box.conf)
                 cls_id = int(box.cls.item()) if hasattr(box.cls, "item") else int(box.cls)
-                
+
                 class_name = (
                     str(self._model.names[cls_id])
                     if hasattr(self._model, "names") and cls_id in self._model.names
@@ -109,4 +109,3 @@ class CupDetectorScorer:
         detections.append(detection_info)
 
         return detections
-    

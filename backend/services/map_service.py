@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,7 @@ from integration.map_api import create_map_client
 from models.user import Activity
 from repository.destination_repository import DestinationRepository
 from repository.review_repository import ReviewRepository
-from schemas.destination_schema import DestinationCreate, Location
+from schemas.destination_schema import Location
 from schemas.map_schema import (
     AutocompleteRequest,
     AutocompleteResponse,
@@ -23,7 +23,6 @@ from schemas.map_schema import (
 )
 from schemas.route_schema import DirectionsResponse
 from schemas.user_schema import UserActivityCreate
-from services.destination_service import DestinationService
 from services.user_service import UserService
 
 FIELD_GROUPS = {
@@ -50,7 +49,32 @@ FIELD_GROUPS = {
 
 class MapService:
     @staticmethod
+    def _is_valid_place_id(place_id: str) -> bool:
+        """Check if a place_id is a valid Google Place ID."""
+        import re
+        
+        if not place_id or not isinstance(place_id, str):
+            return False
+        
+        # Check for error or placeholder IDs
+        if place_id.startswith(('error-', 'placeholder-')):
+            return False
+        
+        # Check if it has a suffix appended (like '-0', '-1', etc.)
+        # Valid Google Place IDs don't end with dash and number
+        if re.search(r'-\d+$', place_id):
+            return False
+        
+        # Valid Google Place IDs typically start with 'ChIJ' or are at least 20 characters
+        return place_id.startswith('ChIJ') or len(place_id) > 20
+
+    @staticmethod
     async def get_coordinates(place_id: str) -> Location:
+        # Validate place_id before making API call
+        if not MapService._is_valid_place_id(place_id):
+            print(f"INVALID place_id format: {place_id}, skipping API call")
+            return None
+        
         map_client = None
         try:
             map_client = await create_map_client()
@@ -74,7 +98,7 @@ class MapService:
 
     @staticmethod
     async def text_search_place(
-        db: AsyncSession, 
+        db: AsyncSession,
         data: TextSearchRequest,
         user_id: str,
         convert_photo_urls: bool = False,
@@ -86,14 +110,14 @@ class MapService:
             response = await map_client.text_search_place(data, convert_photo_urls=convert_photo_urls)
 
             # Removed destination creation - only create when user actually selects/saves a place
-            
+
             # Try to sort by cluster affinity, but don't fail the entire search if this fails
             try:
                 response = await RecommendationService.sort_recommendations_by_user_cluster_affinity(db, user_id, response)
             except Exception as sort_error:
                 print(f"Warning: Failed to sort by cluster affinity: {sort_error}")
                 # Continue with unsorted results
-            
+
             return response
 
         except HTTPException as he:
@@ -101,8 +125,7 @@ class MapService:
             raise he
         except Exception as e:
             print(f"Exception in text_search_place: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to search location: {type(e).__name__}: {str(e)}",
@@ -155,6 +178,7 @@ class MapService:
                 place_id=data.place_id,
                 fields=list(final_fields),  # Convert set back to list
                 session_token=data.session_token,
+                max_photos=1,  # ✅ OPTIMIZATION: Only fetch 1 photo (saves $0.028 per request)
             )
 
             # Check database for green verification status via repository
@@ -171,10 +195,10 @@ class MapService:
                 db_reviews = await ReviewRepository.get_all_reviews_by_destination(
                     db, data.place_id
                 )
-            
+
             if db_reviews:
                 from schemas.map_schema import Review as ReviewSchema
-                
+
                 # Convert database reviews to schema format
                 db_review_list = []
                 for db_review in db_reviews:
@@ -188,7 +212,7 @@ class MapService:
                             time=db_review.created_at.isoformat() if db_review.created_at else None
                         )
                     )
-                
+
                 # Merge: database reviews first, then API reviews
                 if result.reviews:
                     result.reviews = db_review_list + result.reviews
@@ -205,7 +229,7 @@ class MapService:
                         from schemas.destination_schema import DestinationCreate
                         dest_data = DestinationCreate(place_id=data.place_id)
                         await DestinationRepository.create_destination(db, dest_data)
-                    
+
                     # Log user activity
                     activity_data = UserActivityCreate(
                         activity=Activity.search_destination, destination_id=data.place_id
@@ -221,8 +245,7 @@ class MapService:
             raise
         except Exception as e:
             print(f"Exception in get_location_details: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get location details: {type(e).__name__}: {str(e)}",

@@ -20,7 +20,6 @@ from schemas.message_schema import (
     CommonMessageResponse,
     InvitationActionRequest,
     MessageResponse,
-    PlanInvitationCreate,
 )
 from services.message_service import MessageService
 from utils.token.authentication_util import get_current_user

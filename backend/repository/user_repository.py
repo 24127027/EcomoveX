@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models.user import Rank, Role, User, UserActivity
+from utils.token.authentication_util import hash_password
 from schemas.user_schema import (
     UserActivityCreate,
     UserCreate,
@@ -87,13 +88,13 @@ class UserRepository:
                     f"'{user_data.username}' already exists"
                 )
                 return None
-            
+
             # Check if this should be an admin based on FIRST_ADMIN_EMAIL
             user_role = Role.user.value  # Default role (use .value for string)
             if settings.FIRST_ADMIN_EMAIL and user_data.email == settings.FIRST_ADMIN_EMAIL:
                 user_role = Role.admin.value
                 print(f"INFO: Creating admin user for {user_data.email}")
-            
+
             new_user = User(
                 username=user_data.username,
                 email=user_data.email,
@@ -124,7 +125,7 @@ class UserRepository:
             if updated_data.new_email is not None:
                 user.email = updated_data.new_email
             if updated_data.new_password is not None:
-                user.password = updated_data.new_password
+                user.password = hash_password(updated_data.new_password)
 
             db.add(user)
             await db.commit()
@@ -270,7 +271,7 @@ class UserRepository:
             if not user:
                 return False
 
-            user.password = new_password
+            user.password = hash_password(new_password)
             await db.commit()
             return True
         except SQLAlchemyError as e:
@@ -299,7 +300,7 @@ class UserRepository:
             print(f"ERROR: Failed to update role for user ID {user_id} - {e}")
             return None
 
-        
+
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str):
         try:

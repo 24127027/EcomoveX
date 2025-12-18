@@ -331,7 +331,7 @@ class DestinationService:
                 destinations = await DestinationRepository.get_all_destinations(
                     db, skip, limit
                 )
-            
+
             return [
                 DestinationResponse(
                     place_id=dest.place_id,

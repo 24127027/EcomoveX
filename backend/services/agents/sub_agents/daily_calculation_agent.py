@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 class DailyCalculationAgent:
     """Agent validate daily schedule của plan."""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -36,7 +36,7 @@ class DailyCalculationAgent:
             destinations = getattr(plan, "destinations", []) or []
             start_date = self._parse_date(getattr(plan, "start_date", None))
             end_date = self._parse_date(getattr(plan, "end_date", None))
-        
+
         if not destinations:
             return {
                 "success": False,
@@ -105,7 +105,7 @@ class DailyCalculationAgent:
                 if str(cur) not in day_map:
                     empty_days.append(str(cur))
                 cur = cur + timedelta(days=1)
-            
+
             if empty_days:
                 if len(empty_days) <= 3:
                     for day in empty_days:

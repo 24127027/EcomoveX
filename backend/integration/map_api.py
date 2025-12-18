@@ -45,7 +45,7 @@ class MapAPI:
 
         self.base_url = "https://maps.googleapis.com/maps/api"
         self.new_base_url = "https://places.googleapis.com/v1/places/"
-        
+
         # Create client with better timeout and connection settings
         # Increase timeout and add retries for flaky connections
         self.client = httpx.AsyncClient(
@@ -53,6 +53,52 @@ class MapAPI:
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
             verify=True,  # Ensure SSL verification is enabled
         )
+
+    async def _convert_photos_safely(self, photos: list) -> list:
+        """Convert photo references to URLs with error handling for each photo."""
+        converted_photos = []
+        for photo in photos:
+            if not photo.get("photo_reference"):
+                continue
+            
+            try:
+                photo_url = await self.generate_place_photo_url(
+                    photo.get("photo_reference")
+                )
+                converted_photos.append(
+                    PhotoInfo(
+                        photo_url=photo_url,
+                        size=(photo.get("width", 0), photo.get("height", 0)),
+                    )
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to convert photo {photo.get('photo_reference')}: {e}")
+                # Skip this photo and continue with others
+                continue
+        
+        return converted_photos if converted_photos else None
+
+    def _parse_bounds_safely(self, viewport_data: dict) -> Bounds | None:
+        """Parse viewport bounds with validation to avoid None values."""
+        if not viewport_data:
+            return None
+        
+        northeast = viewport_data.get("northeast", {})
+        southwest = viewport_data.get("southwest", {})
+        
+        ne_lat = northeast.get("lat")
+        ne_lng = northeast.get("lng")
+        sw_lat = southwest.get("lat")
+        sw_lng = southwest.get("lng")
+        
+        # Only create Bounds if all coordinates are valid
+        if all(v is not None for v in [ne_lat, ne_lng, sw_lat, sw_lng]):
+            return Bounds(
+                northeast=Location(latitude=ne_lat, longitude=ne_lng),
+                southwest=Location(latitude=sw_lat, longitude=sw_lng),
+            )
+        
+        return None
 
     async def text_search_place(self, request: TextSearchRequest, convert_photo_urls: bool = False) -> TextSearchResponse:
         url = f"{self.new_base_url}:searchText"
@@ -96,6 +142,15 @@ class MapAPI:
 
                 if "places" in data:
                     for place in data["places"]:
+                        # Ensure id field exists (Google Places API uses 'id' field)
+                        if "id" not in place and "place_id" in place:
+                            place["id"] = place["place_id"]
+                        
+                        # Strip 'places/' prefix from new API format (places/ChIJ... -> ChIJ...)
+                        # This ensures compatibility with the old Places API Details endpoint
+                        if "id" in place and isinstance(place["id"], str) and place["id"].startswith("places/"):
+                            place["id"] = place["id"].replace("places/", "", 1)
+                        
                         raw_photos = place.get("photos", [])
 
                         if (
@@ -116,8 +171,13 @@ class MapAPI:
 
                             # Only convert to URL if requested
                             if convert_photo_urls and ref:
-                                final_url = await self.generate_place_photo_url(ref)
-                                photo_info["photo_url"] = final_url
+                                try:
+                                    final_url = await self.generate_place_photo_url(ref)
+                                    photo_info["photo_url"] = final_url
+                                except Exception as e:
+                                    print(f"⚠️ Failed to convert photo URL for {ref}: {e}")
+                                    # Fallback: keep photo_reference, set photo_url to None
+                                    photo_info["photo_url"] = None
                             else:
                                 photo_info["photo_url"] = None
 
@@ -126,7 +186,7 @@ class MapAPI:
                             place["photos"] = None
 
                 return TextSearchResponse(**data)
-                
+
             except httpx.ConnectError as e:
                 if attempt < max_retries:
                     print(f"Network connection error (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
@@ -141,14 +201,12 @@ class MapAPI:
                     await asyncio.sleep(0.5)
                     continue
                 print(f"Timeout error in text_search_place: {str(e)}")
-                raise ValueError(f"Request timeout: Google Places API took too long to respond.")
+                raise ValueError("Request timeout: Google Places API took too long to respond.")
             except httpx.HTTPStatusError as e:
                 print(f"Google Places API Error: {e.response.text}")
                 raise ValueError(f"Google Places API returned error {e.response.status_code}: {e.response.text}")
             except Exception as e:
                 print(f"Unexpected error in text_search_place: {type(e).__name__}: {str(e)}")
-                import traceback
-                traceback.print_exc()
                 raise e
 
     async def close(self):
@@ -158,6 +216,12 @@ class MapAPI:
         self, data: AutocompleteRequest, components: str = "country:vn"
     ) -> AutocompleteResponse:
         try:
+            # ✅ Session token validation for cost optimization
+            if not data.session_token or len(data.session_token) < 10:
+                print("⚠️  WARNING: Invalid/missing session token in autocomplete!")
+                print("   This will cost $0.017 per keystroke instead of per selection.")
+                print("   See: backend/docs/AUTOCOMPLETE_SESSION_TOKEN_GUIDE.md")
+            
             params = {
                 "input": data.query.strip(),
                 "language": data.language,
@@ -211,6 +275,7 @@ class MapAPI:
         fields: list[str],
         session_token: Optional[str] = None,
         language: str = "vi",
+        max_photos: int = 1,  # ✅ OPTIMIZATION: Only convert first photo by default (was 5)
     ) -> PlaceDetailsResponse:
         try:
             params = {
@@ -236,11 +301,21 @@ class MapAPI:
                 print(f"API Error Status: {data.get('status')}, Full response: {data}")
                 raise ValueError(f"Error fetching place details: {data.get('status')}")
             result = data.get("result", {})
-            
+
             if not result.get("place_id"):
                 print(f"WARNING: place_id is None in response for place_id={place_id}")
                 print(f"Full result: {result}")
                 print(f"API Status: {data.get('status')}")
+
+            # ✅ Validate geometry data before creating Location objects
+            geometry_data = result.get("geometry", {})
+            location_data = geometry_data.get("location", {})
+            lat = location_data.get("lat")
+            lng = location_data.get("lng")
+            
+            # Skip places without valid location data
+            if lat is None or lng is None:
+                raise ValueError(f"Place {place_id} has no valid location data (lat={lat}, lng={lng})")
 
             return PlaceDetailsResponse(
                 place_id=place_id,
@@ -255,39 +330,10 @@ class MapAPI:
                 formatted_phone_number=result.get("formatted_phone_number"),
                 geometry=Geometry(
                     location=Location(
-                        latitude=result.get("geometry", {})
-                        .get("location", {})
-                        .get("lat"),
-                        longitude=result.get("geometry", {})
-                        .get("location", {})
-                        .get("lng"),
+                        latitude=lat,
+                        longitude=lng,
                     ),
-                    bounds=(
-                        Bounds(
-                            northeast=Location(
-                                latitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("northeast", {})
-                                .get("lat"),
-                                longitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("northeast", {})
-                                .get("lng"),
-                            ),
-                            southwest=Location(
-                                latitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("southwest", {})
-                                .get("lat"),
-                                longitude=result.get("geometry", {})
-                                .get("viewport", {})
-                                .get("southwest", {})
-                                .get("lng"),
-                            ),
-                        )
-                        if result.get("geometry", {}).get("viewport")
-                        else None
-                    ),
+                    bounds=self._parse_bounds_safely(geometry_data.get("viewport")),
                 ),
                 types=result.get("types", []),
                 rating=result.get("rating"),
@@ -306,16 +352,9 @@ class MapAPI:
                 ),
                 website=result.get("website"),
                 photos=(
-                    [
-                        PhotoInfo(
-                            photo_url=await self.generate_place_photo_url(
-                                photo.get("photo_reference")
-                            ),
-                            size=(photo.get("width"), photo.get("height")),
-                        )
-                        for photo in result.get("photos", [])[:5]  # Limit to first 5 photos
-                        if photo.get("photo_reference")  # Only process photos with valid references
-                    ]
+                    await self._convert_photos_safely(
+                        result.get("photos", [])[:max_photos]
+                    )
                     if result.get("photos")
                     else None
                 ),
@@ -332,17 +371,16 @@ class MapAPI:
             )
         except httpx.ConnectError as e:
             print(f"Network connection error in get_place_details: {str(e)}")
-            raise ValueError(f"Network connection error: Unable to reach Google Places API")
+            raise ValueError("Network connection error: Unable to reach Google Places API")
         except httpx.TimeoutException as e:
             print(f"Timeout error in get_place_details: {str(e)}")
-            raise ValueError(f"Request timeout: Google Places API took too long to respond")
+            raise ValueError("Request timeout: Google Places API took too long to respond")
         except httpx.HTTPStatusError as e:
             print(f"HTTP error in get_place_details: {e.response.status_code} - {e.response.text}")
             raise ValueError(f"Google Places API error: {e.response.status_code}")
         except Exception as e:
             print(f"Error in get_place_details: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+
             raise e
 
     async def reverse_geocode(
@@ -640,7 +678,7 @@ class MapAPI:
             if not photo_reference:
                 print("Warning: photo_reference is None or empty")
                 return ""
-            
+
             if photo_reference.startswith("places/"):
                 base_url = f"https://places.googleapis.com/v1/{photo_reference}/media"
 

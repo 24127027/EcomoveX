@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     CORS_ORIGINS: str = "http://localhost:3000,https://ecomovex.onrender.com,"
-    
+
     GOOGLE_API_KEY: str = ""
     CLIMATIQ_API_KEY: str = ""
 
@@ -28,16 +28,16 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: Path = Path("etc/secrets/service-account.json")
 
     OPEN_ROUTER_API_KEY: str = ""
-    
+
     FIRST_ADMIN_EMAIL: str = ""
     OPEN_ROUTER_MODEL_NAME: str = "meta-llama/llama-3.3-70b-instruct"
 
     BREEAM_USERNAME: str = ""
     BREEAM_PASSWORD: str = ""
-    
+
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
-    
+
     SEND_GRID_API_KEY: str = ""
 
 settings = Settings()

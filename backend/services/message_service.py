@@ -10,7 +10,6 @@ from starlette.datastructures import Headers
 
 from repository.message_repository import MessageRepository
 from repository.plan_repository import PlanRepository
-from repository.room_repository import RoomRepository
 from schemas.message_schema import (
     ActivePlanContext,
     ActiveTripData,
@@ -119,7 +118,7 @@ class MessageService:
             messages = await MessageRepository.get_messages_by_room(db, room_id)
             if messages is None:
                 return []
-            
+
             import json
             message_list = []
             for msg in messages:
@@ -131,7 +130,7 @@ class MessageService:
                         extracted_plan_id = content_data.get("plan_id")
                     except (json.JSONDecodeError, AttributeError):
                         pass
-                
+
                 message_list.append(
                     MessageResponse(
                         id=msg.id,
@@ -176,7 +175,7 @@ class MessageService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Either message text or message file must be provided",
                 )
-            
+
             # Handle different message types
             if message_type == MessageType.plan_invitation:
                 # For plan invitations, plan_id must be provided
@@ -185,28 +184,28 @@ class MessageService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="plan_id is required for plan invitations",
                     )
-                
+
                 # Get invitee_id from room members (the other person in the room)
                 from models.room import RoomMember
-                
+
                 result = await db.execute(
                     select(RoomMember.user_id).where(RoomMember.room_id == room_id)
                 )
                 member_ids = [row[0] for row in result.fetchall()]
-                
+
                 # Find the other member (not the sender)
                 invitee_id = None
                 for member_id in member_ids:
                     if member_id != sender_id:
                         invitee_id = member_id
                         break
-                
+
                 if not invitee_id:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Could not determine invitee from room members",
                     )
-                
+
                 # Validate sender is plan owner before creating message
                 is_owner = await PlanRepository.is_plan_owner(db, sender_id, plan_id)
                 if not is_owner:
@@ -214,7 +213,7 @@ class MessageService:
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Only plan owner can invite members",
                     )
-                
+
                 # Check if invitee is already a member
                 is_member = await PlanRepository.is_member(db, invitee_id, plan_id)
                 if is_member:
@@ -222,7 +221,7 @@ class MessageService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="User is already a member of this plan",
                     )
-                
+
                 # Create plan invitation message
                 saved_msg = await MessageRepository.create_plan_invitation_message(
                     db=db,
@@ -256,7 +255,7 @@ class MessageService:
             url = None
             content = saved_msg.content
             extracted_plan_id = None
-            
+
             # Extract plan_id from JSON content for plan_invitation messages
             if saved_msg.message_type == MessageType.plan_invitation and content:
                 try:
@@ -265,7 +264,7 @@ class MessageService:
                     extracted_plan_id = content_data.get("plan_id")
                 except (json.JSONDecodeError, AttributeError):
                     pass
-            
+
             if message_file and 'file' in locals():
                  url = file.url
                  if not content:
@@ -445,9 +444,6 @@ class MessageService:
             socket.disconnect(websocket, room_id, user_id)
         except Exception as e:
             print(f"🔴 WEBSOCKET ERROR: {e}")
-            import traceback
-
-            traceback.print_exc()
 
             socket.disconnect(websocket, room_id, user_id)
             try:
@@ -1197,8 +1193,8 @@ class MessageService:
             content_data = json.loads(message.content) if message.content else {}
             plan_id = content_data.get("plan_id")
 
-            # Lấy status từ context
-            status = await MessageRepository.get_invitation_status(
+            # Lấy invitation status từ context
+            invitation_status = await MessageRepository.get_invitation_status(
                 db, message.room_id, message_id
             )
 
@@ -1210,7 +1206,7 @@ class MessageService:
                 "sender_id": message.sender_id,
                 "plan_id": plan_id,
                 "plan_name": plan.place_name if plan else None,
-                "status": status,
+                "status": invitation_status,
                 "message": content_data.get("message"),
                 "created_at": message.created_at.isoformat(),
             }

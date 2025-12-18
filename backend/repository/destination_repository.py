@@ -55,7 +55,7 @@ class DestinationRepository:
             )
             if has_existing:
                 return has_existing
-            
+
             new_destination = Destination(
                 place_id=destination.place_id,
             )

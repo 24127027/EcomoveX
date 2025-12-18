@@ -51,7 +51,7 @@ class PlanCreate(BaseModel):
     start_date: date
     end_date: date
     budget_limit: Optional[float] = Field(None, gt=0)
-    destinations: List[PlanDestinationCreate] = Field(default_factory=list)  
+    destinations: List[PlanDestinationCreate] = Field(default_factory=list)
 
     @field_validator("place_name")
     @classmethod
@@ -94,7 +94,7 @@ class PlanResponse(BaseModel):
     route: Optional[List[RouteForPlanResponse]] = None
 
     model_config = ConfigDict(from_attributes=True)
-    
+
 
 class PlanResponseBasic(BaseModel):
     id: int
@@ -106,7 +106,7 @@ class PlanResponseBasic(BaseModel):
 
 class AllPlansResponse(BaseModel):
     plans: List[PlanResponseBasic] = Field(default_factory=list)
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

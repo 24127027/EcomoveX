@@ -674,13 +674,25 @@ function ReviewPlanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Guard against null searchParams on mobile during initial render
+  if (!searchParams) {
+    return (
+      <div className="flex items-center justify-center w-full h-screen bg-[#F4F9F4]">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent mb-2"></div>
+          <p className="text-gray-600 font-semibold">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Store planId in state to persist across renders
   const [planId, setPlanId] = useState<string | null>(null);
   const [planIdResolved, setPlanIdResolved] = useState(false);
 
   useEffect(() => {
     // Try to get from URL first
-    const id = searchParams.get("id");
+    const id = searchParams?.get("id") || null;
     console.log("🔍 Review Plan - useEffect running");
     console.log("   searchParams:", searchParams?.toString());
     console.log("   id from URL:", id);
@@ -1673,10 +1685,10 @@ function ReviewPlanContent() {
       } else {
         setAiWarnings([]);
       }
-      setAiWarnings([]); // Clear warnings on error
     } catch (error: any) {
       console.error("❌ AI generation error:", error);
       setAiError(error.message || "Failed to generate AI plan");
+      setAiWarnings([]); // Clear warnings on error
 
       // Don't block user - they can still use manual plan
       // Just log the error and continue
@@ -2103,15 +2115,27 @@ function ReviewPlanContent() {
                     AI Optimization Warnings
                   </p>
                   <ul className="space-y-1">
-                    {aiWarnings.map((warning, index) => (
-                      <li
-                        key={index}
-                        className="text-xs text-amber-700 flex items-start gap-2"
-                      >
-                        <span className="text-amber-400 shrink-0 mt-0.5">•</span>
-                        <span>{warning}</span>
-                      </li>
-                    ))}
+                    {aiWarnings.map((warning, index) => {
+                        // Safety: ensure we always extract string message
+                        let message = '';
+                        if (typeof warning === 'string') {
+                          message = warning;
+                        } else if (warning && typeof warning === 'object' && 'message' in warning) {
+                          message = String((warning as any).message || '');
+                        } else {
+                          message = 'Unknown warning';
+                        }
+                      
+                      return (
+                        <li
+                          key={index}
+                          className="text-xs text-amber-700 flex items-start gap-2"
+                        >
+                          <span className="text-amber-400 shrink-0 mt-0.5">•</span>
+                          <span>{message}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
                 <button
@@ -2200,7 +2224,7 @@ function ReviewPlanContent() {
 
                   return (
                     <div key={idx}>
-                      <div className="flex items-center gap-2 mb-3 sticky top-0 bg-[#F5F7F5] z-10 py-2">
+                      <div className="flex items-center gap-2 mb-3">
                         <div className="bg-[#53B552] text-white font-bold w-8 h-8 rounded-full flex items-center justify-center shadow-md">
                           {idx + 1}
                         </div>

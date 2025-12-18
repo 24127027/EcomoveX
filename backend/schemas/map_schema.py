@@ -123,7 +123,7 @@ class NearbyPlaceSimple(BaseModel):
 
 
 class NearbyPlacesResponse(BaseModel):
-    center: Location
+    center: Optional[Location] = None  # ✅ Make optional for pagination
     places: List[NearbyPlaceSimple]
     next_page_token: Optional[str] = None
 
@@ -158,12 +158,12 @@ class TextSearchRequest(BaseModel):
     location: Optional[Location] = None
     radius: Optional[int] = Field(None, ge=100, le=50000)
     place_types: Optional[str] = None
-    field_mask: Optional[List[str]] = None
+    field_mask: Optional[str] = None  # ✅ OPTIMIZATION: String format for Google Places API field mask
     convert_photo_urls: Optional[bool] = Field(default=True)  # ✅ Convert photo references to full URLs
 
 
 class PlaceSearchResult(BaseModel):
-    place_id: str = Field(alias="id")
+    place_id: Optional[str] = Field(None, alias="id")
     display_name: Optional[LocalizedText] = Field(None, alias="displayName")
     formatted_address: Optional[str] = Field(None, alias="formattedAddress")
     location: Optional[Location] = None

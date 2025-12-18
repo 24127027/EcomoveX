@@ -2,11 +2,9 @@
 
 import os
 
-import cv2
-from matplotlib import transforms
 import numpy as np
 import torch
-import torch.hub 
+import torch.hub
 from . import utils
 
 first_execution = True
@@ -82,9 +80,9 @@ def run(img_sources, optimize=False, height=None,
     model_type = "MiDaS_small"
     model = torch.hub.load("isl-org/MiDaS", model_type, trust_repo=True)
     transforms = torch.hub.load("isl-org/MiDaS", "transforms", trust_repo=True)
-    transform = transforms.small_transform 
+    transform = transforms.small_transform
 
-    
+
     model.to(device)
     # get input
     num_images = len(img_sources)

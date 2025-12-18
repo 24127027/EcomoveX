@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.map_service import MapService
 from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
@@ -6,7 +6,7 @@ from schemas.map_schema import PlaceDetailsRequest, PlaceDataCategory
 
 class OpeningHoursAgent:
     """Agent kiểm tra giờ mở cửa của các destination trong plan."""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -38,9 +38,9 @@ class OpeningHoursAgent:
             dest_id = dest.get("destination_id") or dest.get("id")
             if not dest_id:
                 continue
-            
+
             checked_count += 1
-            
+
             try:
                 # Fetch place details from Google Maps API
                 import uuid
@@ -52,9 +52,9 @@ class OpeningHoursAgent:
                     ),
                     db=self.db
                 )
-                
+
                 dest_name = place_details.name or dest_id
-                
+
                 if not place_details.opening_hours:
                     missing_count += 1
                     modifications.append({
@@ -77,7 +77,7 @@ class OpeningHoursAgent:
                 modifications.append({
                     "destination_id": dest_id,
                     "issue": "fetch_error",
-                    "suggestion": f"Không thể lấy thông tin giờ mở cửa"
+                    "suggestion": "Không thể lấy thông tin giờ mở cửa"
                 })
 
         warnings = []

@@ -36,12 +36,12 @@ async def login_user(credentials: UserLogin, user_db: AsyncSession = Depends(get
         user_db, credentials.email, credentials.password
     )
 
-  
+
 @router.post(
     "/forgot-password", status_code=status.HTTP_200_OK
 )
 async def reset_password(
-    email: str, 
+    email: str,
     user_name: str,
     user_db: AsyncSession = Depends(get_db)
 ):

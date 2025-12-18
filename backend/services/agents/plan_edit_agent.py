@@ -17,7 +17,6 @@ This ensures:
 - No unwanted database mutations during chat operations
 """
 
-from services.agents.planner_agent import PlannerAgent
 from services.plan_service import PlanService
 from utils.nlp.llm_plan_edit_parser import LLMPlanEditParser
 from integration.map_api import MapAPI
@@ -43,7 +42,7 @@ class PlanEditAgent:
             "budget_limit": plan.budget_limit or 0,
             "destinations": []
         }
-        
+
         # Convert existing destinations to dict format
         destinations = []
         for dest in plan.destinations:  # ✅ Correct field name
@@ -58,7 +57,7 @@ class PlanEditAgent:
                 "url": dest.url or "",
                 "estimated_cost": dest.estimated_cost or 0
             })
-        
+
         # ✅ Deduplicate EXISTING destinations from database (in case DB has duplicates)
         seen = set()
         deduplicated_existing = []
@@ -69,97 +68,64 @@ class PlanEditAgent:
                 deduplicated_existing.append(dest)
             else:
                 print(f"🗑️ Removed existing duplicate from DB: {dest['note']} on {dest['visit_date']} ({dest['time_slot']})")
-        
+
         destinations = deduplicated_existing
         print(f"✅ Loaded {len(destinations)} unique destinations from database")
-        
+
         # Apply modifications
         for mod in modifications:
             action = mod.get("action")
-            
+
             if action == "add":
                 # Add new destination to the list
                 dest_data = mod.get("destination_data")
                 dest_name = dest_data.get("name") if isinstance(dest_data, dict) else dest_data
-                
+
                 # ✅ Search Google Places API to get real place details
                 try:
                     search_request = TextSearchRequest(query=dest_name)
                     search_result = await self.map_api.text_search_place(search_request, convert_photo_urls=True)
-                    
-                    if search_result.results and len(search_result.results) > 0:
-                        place = search_result.results[0]  # Get first result
+
+                    if search_result.places and len(search_result.places) > 0:
+                        place = search_result.places[0]  # Get first result
                         
-                        # Extract place name safely
-                        place_name = place.display_name.text if place.display_name else dest_name
-                        
-                        # Extract photo URL safely (photos is PhotoInfo object, not list)
-                        photo_url = ""
-                        if place.photos and place.photos.photo_url:
-                            photo_url = place.photos.photo_url
-                        
-                        new_dest = {
-                            "destination_id": place.place_id,  # ✅ Real Google Place ID
-                            "destination_type": place.types[0] if place.types else "attraction",
-                            "visit_date": str(plan.start_date),
-                            "order_in_day": len(destinations) + 1,
-                            "time_slot": "morning",
-                            "note": place_name,
-                            "address": place.formatted_address or "",
-                            "url": photo_url,
-                            "estimated_cost": 0
-                        }
-                        print(f"✅ Found place: {place_name} (ID: {place.place_id})")
-                        if photo_url:
-                            print(f"   📸 Photo URL: {photo_url[:50]}...")
+                        # Only add destination if we have a valid place_id
+                        if place.place_id and is_valid_place_id(place.place_id):
+                            new_dest = {
+                                "destination_id": place.place_id,  # ✅ Real Google Place ID
+                                "destination_type": place.types[0] if place.types else "attraction",
+                                "visit_date": str(plan.start_date),
+                                "order_in_day": len(destinations) + 1,
+                                "time_slot": "morning",
+                                "note": place.name,
+                                "address": place.formatted_address or "",
+                                "url": place.photos.photo_url if place.photos and place.photos.photo_url else "",
+                                "estimated_cost": 0
+                            }
+                            destinations.append(new_dest)
+                            print(f"✅ Found and added place: {place.name} (ID: {place.place_id})")
                         else:
-                            print(f"   ⚠️ No photo available for this place")
+                            print(f"⚠️ Invalid place_id returned for '{dest_name}', skipping")
                     else:
-                        # Fallback if nno results found
-                        print(f"⚠️ No results found for '{dest_name}', creating placeholder")
-                        new_dest = {
-                            "destination_id": f"placeholder-{len(destinations)}",
-                            "destination_type": "attraction",
-                            "visit_date": str(plan.start_date),
-                            "order_in_day": len(destinations) + 1,
-                            "time_slot": "morning",
-                            "note": dest_name,
-                            "address": "",
-                            "url": "",
-                            "estimated_cost": 0
-                        }
+                        # No results found - skip this destination
+                        print(f"⚠️ No results found for '{dest_name}', skipping destination")
                 except Exception as e:
-                    print(f"❌ Error searching for place '{dest_name}': {str(e)}")
-                    # Fallback to placeholder on error
-                    new_dest = {
-                        "destination_id": f"error-{len(destinations)}",
-                        "destination_type": "attraction",
-                        "visit_date": str(plan.start_date),
-                        "order_in_day": len(destinations) + 1,
-                        "time_slot": "morning",
-                        "note": dest_name,
-                        "address": "",
-                        "url": "",
-                        "estimated_cost": 0
-                    }
-                
-                destinations.append(new_dest)
-                print(f"➕ Added destination suggestion: {new_dest['note']}")
-                
+                    print(f"❌ Error searching for place '{dest_name}': {str(e)}, skipping destination")
+
             elif action == "remove":
                 # Remove destination from the list
                 dest_data = mod.get("destination_id")
                 dest_id = str(dest_data.get("id") if isinstance(dest_data, dict) else dest_data)
                 destinations = [d for d in destinations if str(d["destination_id"]) != dest_id]
                 print(f"➖ Removed destination suggestion: {dest_id}")
-                
+
             elif action == "change_budget":
                 # Update budget in plan structure
                 budget_value = mod["fields"].get("budget")
                 if budget_value:
                     modified_plan["budget_limit"] = float(budget_value)
                     print(f"💰 Updated budget suggestion: {budget_value}")
-        
+
         modified_plan["destinations"] = destinations
         return modified_plan
 
@@ -175,7 +141,7 @@ class PlanEditAgent:
                              If provided, uses this instead of fetching from database
         """
         self.plan_service = PlanService()
-        
+
         # If frontend provides current plan state, use it directly
         if current_plan_data:
             print("📦 Using current plan data from frontend (unsaved changes)")
@@ -187,7 +153,7 @@ class PlanEditAgent:
                     self.end_date = data.get("end_date")
                     self.budget_limit = data.get("budget_limit") or data.get("budget")
                     self.destinations = []
-                    
+
                     # Convert destinations
                     for dest in data.get("destinations", []):
                         class Dest:
@@ -202,13 +168,13 @@ class PlanEditAgent:
                                 self.url = d.get("url") or d.get("image_url")
                                 self.estimated_cost = d.get("estimated_cost") or 0
                         self.destinations.append(Dest(dest))
-            
+
             plan = PlanData(current_plan_data)
         else:
             # Fallback: Get from database if no current data provided
             print("📡 Fetching plan from database (no current state provided)")
             all_plans = await self.plan_service.get_plans_by_user(db, user_id)
-            
+
             # Check if user has any plans
             if not all_plans.plans or len(all_plans.plans) == 0:
                 return {
@@ -216,25 +182,25 @@ class PlanEditAgent:
                     "message": "You don't have any plans yet. Please create a plan first.",
                     "plan": None
                 }
-            
+
             # Get the latest plan
             latest_plan_basic = all_plans.plans[-1]
             plan = await self.plan_service.get_plan_by_id(db, user_id, latest_plan_basic.id)
-        
+
         # Parse user_text to identify modifications (pass plan for context)
         modifications = await self.llm_parser.parse(user_text, plan)
-        
-        print(f"📝 Generating plan suggestions (NOT saving to database):")
+
+        print("📝 Generating plan suggestions (NOT saving to database):")
         print(f"   - Modifications: {len(modifications)}")
         for mod in modifications:
             print(f"   - {mod.get('action')}: {mod}")
-        
+
         # Apply modifications to plan structure (returns modified copy, does NOT save)
         modified_plan = await self.apply_modifications_to_plan_structure(plan, modifications)
-        
+
         # Note: Deduplication already done in apply_modifications_to_plan_structure
         print(f"✅ Final plan has {len(modified_plan['destinations'])} destinations")
-        
+
         # Generate response message
         action_messages = []
         for mod in modifications:
@@ -248,9 +214,9 @@ class PlanEditAgent:
             elif action == "change_budget":
                 budget_value = mod["fields"].get("budget")
                 action_messages.append(f"Updated budget to {budget_value}")
-        
+
         message = f"I've suggested changes to your plan '{plan.place_name}': " + ", ".join(action_messages) if action_messages else f"Here are my suggestions for your plan '{plan.place_name}'"
-        
+
         return {
             "success": True,
             "message": message,

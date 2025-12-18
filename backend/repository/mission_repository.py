@@ -8,7 +8,6 @@ from schemas.reward_schema import (
     MissionCreate,
     MissionUpdate,
 )
-from sqlalchemy.orm import selectinload
 
 
 class MissionRepository:
@@ -28,7 +27,7 @@ class MissionRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: searching missions with term '{search_term}' - {e}")
             return []
-    
+
     @staticmethod
     async def get_all_missions(db: AsyncSession):
         try:

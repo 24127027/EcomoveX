@@ -84,7 +84,15 @@ class StorageService:
             loop = asyncio.get_event_loop()
 
             def _upload():
-                client = storage.Client()
+                # Use credentials from settings if available
+                if settings.GOOGLE_APPLICATION_CREDENTIALS.exists():
+                    client = storage.Client.from_service_account_json(
+                        str(settings.GOOGLE_APPLICATION_CREDENTIALS)
+                    )
+                else:
+                    # Fall back to default credentials (environment variable)
+                    client = storage.Client()
+                
                 bucket = client.bucket(bucket_name)
                 blob_name = f"{category.value}/{uuid.uuid4()}_{file.filename}"
                 blob = bucket.blob(blob_name)
@@ -139,7 +147,15 @@ class StorageService:
             loop = asyncio.get_event_loop()
 
             def _delete():
-                client = storage.Client()
+                # Use credentials from settings if available
+                if settings.GOOGLE_APPLICATION_CREDENTIALS.exists():
+                    client = storage.Client.from_service_account_json(
+                        str(settings.GOOGLE_APPLICATION_CREDENTIALS)
+                    )
+                else:
+                    # Fall back to default credentials (environment variable)
+                    client = storage.Client()
+                
                 bucket = client.bucket(bucket_name)
                 blob = bucket.blob(blob_name)
                 blob.delete()
@@ -170,7 +186,15 @@ class StorageService:
             loop = asyncio.get_event_loop()
 
             def _generate():
-                client = storage.Client()
+                # Use credentials from settings if available
+                if settings.GOOGLE_APPLICATION_CREDENTIALS.exists():
+                    client = storage.Client.from_service_account_json(
+                        str(settings.GOOGLE_APPLICATION_CREDENTIALS)
+                    )
+                else:
+                    # Fall back to default credentials (environment variable)
+                    client = storage.Client()
+                
                 bucket = client.bucket(bucket_name)
                 blob = bucket.blob(blob_name)
                 return blob.generate_signed_url(

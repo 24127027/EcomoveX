@@ -198,12 +198,12 @@ class RoomService:
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to add member ID {member_id} to room ID {new_room.id}",
                         )
-            
+
             # Include the owner in member_ids if not already present
             all_member_ids = [user_id]
             if data.member_ids:
                 all_member_ids.extend([mid for mid in data.member_ids if mid != user_id])
-            
+
             return RoomResponse(
                 id=new_room.id,
                 name=new_room.name,
@@ -397,7 +397,7 @@ class RoomService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error deleting room ID {room_id}: {e}",
             )
-    
+
     @staticmethod
     async def get_room_by_plan_id(
         db: AsyncSession, user_id: int, plan_id: int

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -18,7 +18,7 @@ class SimpleRecommendation(BaseModel):
     """Simple recommendation with destination ID and similarity score from FAISS search"""
     destination_id: str
     similarity_score: float
-    
+
     model_config = {"extra": "allow"}  # Allow extra fields for flexible responses
 
 class RecommendationDestination(BaseModel):

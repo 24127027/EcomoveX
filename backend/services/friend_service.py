@@ -31,27 +31,27 @@ class FriendService:
         try:
             # 1. Tìm user theo username (exact match)
             users = await UserRepository.search_users(db, username, limit=10)
-            
+
             # Tìm exact match với username
             friend_user = None
             for user in users:
                 if user.username.lower() == username.lower():
                     friend_user = user
                     break
-            
+
             if not friend_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"User with username '{username}' not found",
                 )
-            
+
             # 2. Kiểm tra không gửi cho chính mình
             if user_id == friend_user.id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot send friend request to yourself",
                 )
-            
+
             # 3. Kiểm tra đã là bạn chưa
             existing = await FriendRepository.get_friendship(db, user_id, friend_user.id)
             if existing:
@@ -59,7 +59,7 @@ class FriendService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Friendship with '{username}' already exists",
                 )
-            
+
             # 4. Gửi friend request
             friendship = await FriendRepository.send_friend_request(
                 db, user_id, friend_user.id
@@ -69,14 +69,14 @@ class FriendService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to send friend request",
                 )
-            
+
             return FriendResponse(
                 user_id=user_id,
                 friend_id=friend_user.id,
                 status=friendship.status,
                 created_at=friendship.created_at,
             )
-        
+
         except HTTPException:
             raise
         except Exception as e:

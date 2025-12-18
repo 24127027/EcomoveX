@@ -1,4 +1,3 @@
-from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,16 +20,16 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
     body = await request.body()
     print(f"📥 Raw request body: {body.decode()}")
     print(f"📥 Parsed plan_data: {plan_data.model_dump()}")
-    
+
     agent = PlannerAgent(db)
-    
+
     # Validate and get AI suggestions with intelligent distribution
-    print(f"🤖 Running sub-agents with action='optimize'...")
+    print("🤖 Running sub-agents with action='optimize'...")
     result = await agent._run_sub_agents(plan_data, action="optimize")
     print(f"✅ Sub-agents result: {len(result.get('distributed_plan', {}).get('destinations', []))} destinations")
     print(f"⚠️ Warnings: {len(result.get('warnings', []))}")
     print(f"📝 Modifications: {len(result.get('modifications', []))}")
-    
+
     # Use the distributed plan if available, otherwise fall back to original
     distributed_plan = result.get("distributed_plan")
     if distributed_plan and distributed_plan.get("destinations"):
@@ -49,7 +48,7 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
             }
             for d in plan_data.destinations
         ]
-    
+
     # Build final plan response with distributed destinations
     plan_dict = {
         "place_name": plan_data.place_name,
@@ -68,12 +67,12 @@ async def generate_plan(request: Request, plan_data: PlanCreate, db: AsyncSessio
             for d in final_destinations
         ]
     }
-    
+
     # Generate success message
     num_days = (plan_data.end_date - plan_data.start_date).days + 1
     num_destinations = len(final_destinations)
     message = f"✅ Plan optimized successfully! {num_destinations} destinations distributed across {num_days} days."
-    
+
     return {
         "success": True,
         "plan": plan_dict,
@@ -98,7 +97,7 @@ async def send_message(chat_msg: ChatMessage, db: AsyncSession = Depends(get_db)
 # ):
 #     """
 #     Verify green transportation method usage.
-    
+
 #     Request body:
 #     {
 #         "user_id": 1,

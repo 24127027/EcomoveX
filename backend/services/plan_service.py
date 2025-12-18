@@ -3,25 +3,30 @@ from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.destination import Destination
-from services.destination_service import DestinationService
 from repository.plan_repository import PlanRepository
-from repository.message_repository import MessageRepository
-from repository.cluster_repository import ClusterRepository
-from schemas.map_schema import *
-from schemas.plan_schema import *
+from schemas.map_schema import PlaceDetailsRequest, TextSearchRequest
+from schemas.plan_schema import (
+    AllPlansResponse,
+    MemberCreate,
+    MemberDelete,
+    PlanCreate,
+    PlanDestinationCreate,
+    PlanDestinationResponse,
+    PlanMemberCreate,
+    PlanMemberDetailResponse,
+    PlanMemberResponse,
+    PlanResponse,
+    PlanResponseBasic,
+    PlanUpdate,
+)
 from schemas.route_schema import FindRoutesRequest, RouteCreate, RouteResponse, TransportMode
 from schemas.room_schema import RoomCreate, RoomMemberCreate
-from schemas.message_schema import RoomContextCreate, CommonMessageResponse
 from schemas.route_schema import RouteType
 from services.map_service import MapService
 from services.route_service import RouteService
 from services.room_service import RoomService
-from repository.plan_repository import PlanDestination
-from services.recommendation_service import RecommendationService
-from utils.nlp.rule_engine import Intent, RuleEngine
-from models.room import RoomType, MemberRole
-from models.plan import PlanDestination, TimeSlot, DestinationType
+from models.room import MemberRole
+from models.plan import PlanDestination, TimeSlot, DestinationType, PlanRole
 from schemas.room_schema import AddMemberRequest
 
 
@@ -52,7 +57,7 @@ class PlanService:
             plans = await PlanRepository.get_plan_by_user_id(db, user_id)
             if plans is None:
                 return AllPlansResponse(plans=[])
-                
+
             return AllPlansResponse(
                 plans=[
                     PlanResponseBasic(
@@ -68,7 +73,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving plans for user ID {user_id}: {e}",
             )
-            
+
     @staticmethod
     async def get_plan_by_id(db: AsyncSession,user_id: int, plan_id: int) -> PlanResponse:
         try:
@@ -84,13 +89,13 @@ class PlanService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Plan with ID {plan_id} not found",
                 )
-            
+
             destinations = await PlanRepository.get_plan_destinations(db, plan.id)
             dest_infos = [
                 PlanDestinationResponse(
                     id=dest.id,
                     destination_id=dest.destination_id,
-                    type=dest.type,             
+                    type=dest.type,
                     visit_date=dest.visit_date,
                     time_slot=dest.time_slot,
                     estimated_cost=dest.estimated_cost,
@@ -100,10 +105,10 @@ class PlanService:
                 )
                 for dest in destinations
             ]
-            
+
             # Find owner
             owner_id = next((m.user_id for m in plan.members if m.role == PlanRole.owner), None)
-            
+
             return PlanResponse(
                 id=plan.id,
                 user_id=owner_id,
@@ -138,7 +143,7 @@ class PlanService:
 
             # 3. Add Destinations - OPTIMIZED: First ensure all destinations exist, then add to plan
             import asyncio
-            
+
             # Step 1: Ensure all destinations exist (handle duplicates)
             unique_place_ids = list(set(dest.destination_id for dest in plan_data.destinations))
             for place_id in unique_place_ids:
@@ -146,10 +151,10 @@ class PlanService:
                     await PlanRepository.ensure_destination(db, place_id)
                 except Exception as e:
                     print(f"Warning ensuring destination {place_id}: {e}")
-            
+
             # Commit all destinations at once
             await db.commit()
-            
+
             # Step 2: Add destinations to plan sequentially (fast since no API calls)
             saved_dest_ids = []
             for dest_data in plan_data.destinations:
@@ -158,36 +163,36 @@ class PlanService:
                     saved_dest_ids.append(saved_dest.id)
                 except Exception as e:
                     print(f"Error adding destination {dest_data.destination_id} to plan: {e}")
-            
+
             # 4. Create routes between consecutive destinations - OPTIMIZED: Parallel processing
             if len(saved_dest_ids) > 1:
                 saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
-                
+
                 async def create_route_for_pair(i):
                     origin = saved_destinations[i]
                     destination = saved_destinations[i + 1]
-                    
+
                     try:
                         origin_coords = await MapService.get_coordinates(origin.destination_id)
                         destination_coords = await MapService.get_coordinates(destination.destination_id)
-                        
+
                         # Validate coordinates before making route request
                         if not origin_coords or not destination_coords:
                             print(f"ERROR: Failed to get coordinates for route {i}")
                             return None
-                                                
+
                         route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
                             origin=origin_coords,
                             destination=destination_coords
                         ))
-                        
+
                         if route:
                             selected_route = None
                             if RouteType.smart_combination in route.routes:
                                 selected_route = route.routes[RouteType.smart_combination]
                             else:
                                 selected_route = route.routes[RouteType.low_carbon]
-                            
+
                             await PlanRepository.create_route(db, RouteCreate(
                                 plan_id=new_plan.id,
                                 origin_plan_destination_id=origin.id,
@@ -199,7 +204,7 @@ class PlanService:
                     except Exception as e:
                         print(f"Error creating route {i}: {e}")
                         return None
-                
+
                 # Process all routes in parallel
                 await asyncio.gather(
                     *[create_route_for_pair(i) for i in range(len(saved_destinations) - 1)],
@@ -207,14 +212,14 @@ class PlanService:
                 )
 
             saved_destinations = await PlanRepository.get_plan_destinations(db, new_plan.id)
-            
+
             list_route = []
             for i in range(len(saved_destinations) - 1):
                 origin = saved_destinations[i].destination_id
                 destination = saved_destinations[i + 1].destination_id
                 routes = await RouteService.get_route_for_plan(origin, destination)
                 list_route.extend(routes)
-                
+
             return PlanResponse(
                 id=new_plan.id,
                 user_id=user_id,
@@ -254,11 +259,11 @@ class PlanService:
                 raise HTTPException(status_code=404, detail="Plan not found")
 
             updated_plan = await PlanRepository.update_plan(db, plan_id, updated_data)
-            
+
             await PlanRepository.delete_all_plan_destination(db, plan_id)
 
             print(f"✅ UPDATING PLAN {plan_id}: Received {len(updated_data.destinations or [])} destinations")
-            
+
             saved_dest_ids = []
             for dest_data in updated_data.destinations or []:
                 try:
@@ -268,22 +273,30 @@ class PlanService:
                         user_id=user_id
                     )
                     await PlanRepository.ensure_destination(db, place_info.place_id)
-                    
+
                     if not dest_data.url and place_info.photos:
                         dest_data.url = place_info.photos[0].photo_url
                 except Exception as e:
                     print(f"Warning syncing destination {dest_data.destination_id}: {e}")
-                
+
                 saved_dest = await PlanRepository.add_destination_to_plan(db, plan_id, dest_data)
                 saved_dest_ids.append(saved_dest.id)
-            
+
             if len(saved_dest_ids) > 1:
                 saved_destinations = await PlanRepository.get_plan_destinations(db, plan_id)
                 for i in range(len(saved_destinations) - 1):
                     origin = saved_destinations[i]
                     destination = saved_destinations[i + 1]
+                    
+                    # Get coordinates with validation
                     origin_coords = await MapService.get_coordinates(origin.destination_id)
                     destination_coords = await MapService.get_coordinates(destination.destination_id)
+                    
+                    # Skip route creation if coordinates are invalid
+                    if not origin_coords or not destination_coords:
+                        print(f"WARNING: Skipping route creation between destinations {i} and {i+1} due to invalid coordinates")
+                        continue
+                    
                     route = await RouteService.find_three_optimal_routes(FindRoutesRequest(
                         origin=origin_coords,
                         destination=destination_coords
@@ -294,7 +307,7 @@ class PlanService:
                             selected_route = route.routes[RouteType.smart_combination]
                         else:
                             selected_route = route.routes[RouteType.low_carbon]
-                        
+
                         await PlanRepository.create_route(db, RouteCreate(
                             plan_id=plan_id,
                             origin_plan_destination_id=origin.id,
@@ -305,14 +318,14 @@ class PlanService:
                         ))
 
             saved_destinations = await PlanRepository.get_plan_destinations(db, updated_plan.id)
-            
+
             list_route = []
             for i in range(len(saved_destinations) - 1):
                 origin = saved_destinations[i].destination_id
                 destination = saved_destinations[i + 1].destination_id
                 routes = await RouteService.get_route_for_plan(origin, destination)
                 list_route.extend(routes)
-            
+
             return PlanResponse(
                 id=updated_plan.id,
                 user_id=user_id,
@@ -565,7 +578,7 @@ class PlanService:
                 members_to_add.append(
                     RoomMemberCreate(user_id=member.user_id, role=MemberRole.member)
                 )
-            
+
             # Add all members to group room in one call
             if members_to_add and room:
                 await RoomService.add_users_to_room(
@@ -574,7 +587,7 @@ class PlanService:
                     room.id,
                     AddMemberRequest(data=members_to_add),
                 )
-            
+
             users = await PlanRepository.get_plan_members(db, plan_id)
             return PlanMemberResponse(
                 plan_id=plan_id,
@@ -646,7 +659,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error removing user from plan: {e}",
             )
-            
+
    # hàm sắp xếp destinations dự theo đánh giá của plan_validator.py
     @staticmethod
     async def build_itinerary(destinations: List[PlanDestination]) -> List[PlanDestination]:
@@ -801,7 +814,7 @@ class PlanService:
                 )
 
             routes = await PlanRepository.get_all_routes_by_plan_id(db, plan_id)
-            
+
             return [
                 RouteResponse(
                     id=route.id,
@@ -821,7 +834,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving routes: {e}",
             )
-            
+
 
     @staticmethod
     async def get_route_by_origin_and_destination(
@@ -866,7 +879,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error retrieving route: {e}",
             )
-            
+
     @staticmethod
     async def update_route(
         db: AsyncSession,
@@ -874,7 +887,7 @@ class PlanService:
         route_id: int,
         mode: TransportMode,
         carbon_emission_kg: float,
-    ) -> bool:
+    ):
         try:
             route = await PlanRepository.get_route_by_id(db, route_id)
             if not route:
@@ -882,21 +895,21 @@ class PlanService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Route with ID {route_id} not found",
                 )
-            
+
             is_member = await PlanRepository.is_member(db, user_id, route.plan_id)
             if not is_member:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="User is not a member of the plan",
                 )
-            
-            success = await PlanRepository.update_route(db, route_id, mode, carbon_emission_kg)
-            if not success:
+
+            updated_route = await PlanRepository.update_route(db, route_id, mode, carbon_emission_kg)
+            if not updated_route:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update route",
                 )
-            return success
+            return updated_route
         except HTTPException:
             raise
         except Exception as e:
@@ -904,7 +917,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error updating route: {e}",
             )
-            
+
     @staticmethod
     async def remove_place_by_name(db: AsyncSession, user_id: int, plan_id: int, text: str) -> PlanResponse:
         """Remove destinations from plan by name search"""
@@ -920,7 +933,7 @@ class PlanService:
             # Get all destinations
             destinations = await PlanRepository.get_plan_destinations(db, plan_id)
             text_lower = text.lower()
-            
+
             print(f"🔍 Searching for destination to remove: '{text}'")
             print(f"📋 Plan has {len(destinations)} destinations")
 
@@ -938,13 +951,13 @@ class PlanService:
                 except Exception as e:
                     print(f"⚠️ Failed to get location details for {dest.destination_id}: {e}")
                     dest_name = None
-                
+
                 # Fallback to note field if MapService fails
                 if not dest_name:
                     dest_name = dest.note
-                
+
                 print(f"🏷️ Destination {dest.id}: name='{dest_name}', note='{dest.note}'")
-                
+
                 # Check if text matches name or note
                 if dest_name and text_lower in dest_name.lower():
                     print(f"✅ Match found! Removing destination {dest.id}")
@@ -972,7 +985,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error removing destination: {e}",
             )
-    
+
     @staticmethod
     async def remove_place_by_id(db: AsyncSession, user_id: int, plan_id: int, plan_destination_id: int) -> PlanResponse:
         """Remove a specific destination from plan by its plan_destination ID"""
@@ -987,7 +1000,7 @@ class PlanService:
 
             # Remove the destination
             success = await PlanRepository.remove_destination_from_plan(db, plan_destination_id)
-            
+
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -1003,7 +1016,7 @@ class PlanService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error removing destination: {e}",
             )
-    
+
     @staticmethod
     async def update_budget(db: AsyncSession, user_id: int, plan_id: int, budget: float) -> PlanResponse:
         """Update plan budget limit"""
@@ -1079,10 +1092,10 @@ class PlanService:
             # Get plan to determine defaults
             from datetime import date
             plan = await PlanRepository.get_plan_by_id(db, plan_id)
-            
+
             # Set defaults: use plan start date if available, otherwise today
             default_date = plan.start_date if plan and plan.start_date else date.today()
-            
+
             # Get existing destinations to determine order
             existing_destinations = await PlanRepository.get_plan_destinations(db, plan_id)
             next_order = len(existing_destinations) + 1

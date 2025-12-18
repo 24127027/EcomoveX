@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import and_, delete, func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -341,19 +341,28 @@ class ClusterRepository:
     @staticmethod
     async def get_users_needing_embedding_update(db: AsyncSession, cutoff_date: int):
         try:
-            # Get users with recent embeddings (don't need update)
-            recent_prefs = select(Preference.user_id).where(
+            # Get user_ids that have recent embeddings (don't need update)
+            recent_prefs_subquery = select(Preference.user_id).where(
                 and_(
                     Preference.embedding.isnot(None),
                     Preference.last_updated > cutoff_date,
                 )
             )
-            
-            # Get all users who either:
+
+            # Get user_ids that have NULL embeddings (need update)
+            null_embedding_prefs = select(Preference.user_id).where(
+                Preference.embedding.is_(None)
+            )
+
+            # Get all users who:
             # 1. Don't have recent embeddings (not in recent_prefs), OR
-            # 2. Have a preference record
-            # This ensures new users with NULL embeddings are included
-            query = select(User).where(User.id.notin_(recent_prefs))
+            # 2. Have a preference with NULL embedding
+            query = select(User).where(
+                or_(
+                    User.id.notin_(recent_prefs_subquery),
+                    User.id.in_(null_embedding_prefs)
+                )
+            )
 
             result = await db.execute(query)
             users = result.scalars().all()
@@ -361,6 +370,17 @@ class ClusterRepository:
             return users
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users needing embedding update - {e}")
+            return []
+
+    @staticmethod
+    async def get_all_preferences(db: AsyncSession):
+        """Get all preference records regardless of embedding status"""
+        try:
+            query = select(Preference)
+            result = await db.execute(query)
+            return result.unique().scalars().all()
+        except SQLAlchemyError as e:
+            print(f"ERROR: fetching all preferences - {e}")
             return []
 
     @staticmethod
@@ -443,7 +463,7 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             print(f"ERROR: fetching users without cluster - {e}")
             return []
-        
+
     @staticmethod
     async def create_preference(
         db: AsyncSession,
@@ -501,18 +521,6 @@ class ClusterRepository:
         except SQLAlchemyError as e:
             await db.rollback()
             print(f"ERROR: creating/updating preference for user {user_id} - {e}")
-            return None
-
-    @staticmethod
-    async def get_preference_by_user_id(db: AsyncSession, user_id: int):
-        try:
-            result = await db.execute(
-                select(Preference)
-                .where(Preference.user_id == user_id)
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            print(f"ERROR: fetching preference for user {user_id} - {e}")
             return None
 
     @staticmethod

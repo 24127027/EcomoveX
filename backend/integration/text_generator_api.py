@@ -41,14 +41,14 @@ class TextGeneratorAPI:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 print(f"🔄 Calling OpenRouter API with model: {model}")
                 print(f"📤 Payload: {payload}")
-                
+
                 resp = await client.post(
                     self.base_url, json=payload, headers=headers
                 )
-                
+
                 print(f"📥 Response status: {resp.status_code}")
                 print(f"📥 Response body: {resp.text[:500]}")
-                
+
                 resp.raise_for_status()
 
                 if not resp.text or resp.text.strip() == "":
@@ -111,14 +111,14 @@ class TextGeneratorAPI:
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                print(f"🔄 Calling OpenRouter API for JSON generation")
-                
+                print("🔄 Calling OpenRouter API for JSON generation")
+
                 resp = await client.post(
                     self.base_url, json=payload, headers=headers
                 )
-                
+
                 print(f"📥 Response status: {resp.status_code}")
-                
+
                 resp.raise_for_status()
 
                 if not resp.text or resp.text.strip() == "":
@@ -133,13 +133,13 @@ class TextGeneratorAPI:
                     raise Exception("Invalid response format: missing 'choices'")
 
                 reply = data["choices"][0]["message"]["content"]
-                
+
                 # Try to parse the reply as JSON
                 try:
                     import json
                     # Log raw response before processing
                     print(f"📝 Raw LLM response: {repr(reply)}")
-                    
+
                     # Remove markdown code blocks if present
                     reply = reply.strip()
                     if reply.startswith("```json"):
@@ -149,9 +149,9 @@ class TextGeneratorAPI:
                     if reply.endswith("```"):
                         reply = reply[:-3]
                     reply = reply.strip()
-                    
+
                     print(f"📝 After markdown removal: {repr(reply)}")
-                    
+
                     json_result = json.loads(reply)
                     print(f"✅ Parsed JSON: {json_result}")
                     return json_result

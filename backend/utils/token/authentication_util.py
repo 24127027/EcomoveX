@@ -1,15 +1,29 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from utils.config import settings
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -32,7 +46,7 @@ def decode_access_token(token: str):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
             )
-        if datetime.utcnow().timestamp() > exp:
+        if datetime.now(timezone.utc).timestamp() > exp:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
             )
@@ -46,7 +60,7 @@ def decode_access_token(token: str):
 def generate_temporary_password() -> str:
     try:
         password_length = secrets.randbelow(12) + 8
-        
+
         lowercase = string.ascii_lowercase
         uppercase = string.ascii_uppercase
         digits = string.digits
@@ -63,7 +77,7 @@ def generate_temporary_password() -> str:
         password_chars += [secrets.choice(all_chars) for _ in range(password_length - 4)]
 
         secrets.SystemRandom().shuffle(password_chars)
-        
+
         return ''.join(password_chars)
     except Exception as e:
         raise HTTPException(
@@ -71,13 +85,14 @@ def generate_temporary_password() -> str:
             detail=f"Error generating temporary password: {e}",
         )
 
-def generate_verification_token(email: str, username: str, password: str) -> str:
+def generate_verification_token(email: str, username: str, password_hash: str) -> str:
+    """Generate verification token with pre-hashed password."""
     try:
-        expiration = datetime.utcnow() + timedelta(hours=24)
+        expiration = datetime.now(timezone.utc) + timedelta(hours=24)
         payload = {
             "email": email,
             "username": username,
-            "password": password,
+            "password_hash": password_hash,
             "exp": expiration,
             "type": "email_verification"
         }
@@ -90,31 +105,32 @@ def generate_verification_token(email: str, username: str, password: str) -> str
         )
 
 def verify_email_token(token: str) -> dict:
+    """Verify email token and return user data with hashed password."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("email")
         username = payload.get("username")
-        password = payload.get("password")
+        password_hash = payload.get("password_hash")
         token_type = payload.get("type")
-        
+
         if token_type != "email_verification":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid token type"
             )
-        
-        if not email or not username or not password:
+
+        if not email or not username or not password_hash:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid token payload"
             )
-        
+
         return {
             "email": email,
             "username": username,
-            "password": password
+            "password_hash": password_hash
         }
-    except JWTError as e:
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token"

@@ -11,11 +11,11 @@ class EmailAPI:
         self.api_key = api_key or settings.SEND_GRID_API_KEY
         if not self.api_key:
             raise ValueError("SendGrid API key is required")
-        
+
         self.from_email = settings.SMTP_USER
         if not self.from_email:
             raise ValueError("SMTP_USER (sender email) is required")
-        
+
         self.client = SendGridAPIClient(self.api_key)
 
     async def send_email(
